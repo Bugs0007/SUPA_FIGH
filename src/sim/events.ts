@@ -1,0 +1,55 @@
+// Events the simulation emits each tick. The renderer/audio/HUD drain them for juice and UI.
+// The sim itself never plays sounds or spawns visuals.
+
+export type HitKind = 'bullet' | 'melee' | 'kick' | 'throw' | 'bodyslam' | 'fall' | 'splat' | 'water' | 'explosion' | 'fire';
+
+export type SimEvent =
+  | { t: 'shot'; f: number; weapon: string; x: number; y: number; angle: number }
+  | {
+      t: 'hit';
+      victim: number;
+      attacker: number;
+      damage: number;
+      x: number;
+      y: number;
+      dirX: number;
+      dirY: number;
+      kind: HitKind;
+      weapon: string;
+      corpse: boolean;
+    }
+  | {
+      t: 'kill';
+      victim: number;
+      killer: number;
+      weapon: string;
+      cause: HitKind;
+      /** killer got credit via "last hit" (knocked off, thrown into something...) */
+      env: boolean;
+      x: number;
+      y: number;
+    }
+  | { t: 'impact'; x: number; y: number; nx: number; ny: number; material: string }
+  | { t: 'ricochet'; x: number; y: number }
+  | { t: 'splinter'; x: number; y: number }
+  | { t: 'tileBreak'; tx: number; ty: number; kind: number }
+  | { t: 'jump'; f: number; x: number; y: number }
+  | { t: 'land'; f: number; x: number; y: number; speed: number }
+  | { t: 'swing'; f: number; weapon: string; step: number }
+  | { t: 'kick'; f: number; air: boolean }
+  | { t: 'roll'; f: number }
+  | { t: 'dive'; f: number }
+  | { t: 'ledge'; f: number }
+  | { t: 'pickup'; f: number; weapon: string; x: number; y: number }
+  | { t: 'toss'; f: number; weapon: string }
+  | { t: 'weaponBreak'; f: number; weapon: string; x: number; y: number }
+  | { t: 'empty'; f: number }
+  | { t: 'cycle'; f: number; weapon: string }
+  | { t: 'grab'; f: number; victim: number }
+  | { t: 'throw'; f: number; victim: number }
+  | { t: 'escape'; f: number }
+  | { t: 'bonk'; x: number; y: number }
+  | { t: 'splat'; f: number; x: number; y: number; speed: number }
+  | { t: 'itemLand'; x: number; y: number; speed: number }
+  | { t: 'weaponSpawn'; x: number; y: number; weapon: string }
+  | { t: 'corpseLand'; x: number; y: number; speed: number };
