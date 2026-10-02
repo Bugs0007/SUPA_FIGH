@@ -70,6 +70,7 @@ import {
 } from './data/weapons';
 import { detonate } from './item';
 import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
+import { conveyorPush } from './gimmicks';
 import { copyIntent, emptyIntent, type Intent } from './intent';
 import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, type Body, type MoveResult } from './physics';
 import type { World } from './world';
@@ -508,7 +509,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
 
 /** Gravity + collision + landing/fall-off bookkeeping. */
 function integrate(w: World, f: Fighter, dt: number, gravity = true): MoveResult {
-  if (gravity) f.vy = Math.min(f.vy + GRAVITY * w.gravityScale * dt, MAX_FALL);
+  if (gravity) f.vy = Math.min(f.vy + GRAVITY * w.gravityAt(f.x, f.y - f.h / 2) * dt, MAX_FALL);
   const wasGrounded = f.grounded;
   const prevY = f.y;
   const thrown = f.state === 'knockdown' && f.thrownBy >= 0;
@@ -530,7 +531,8 @@ function integrate(w: World, f: Fighter, dt: number, gravity = true): MoveResult
     },
     moveRes,
   );
-  if (w.props.length > 0) propContacts(w, f, prevY);
+  if (w.props.length > 0 || w.gimmicks.movers.length > 0) propContacts(w, f, prevY);
+  if (f.grounded) conveyorPush(w, f);
   if (f.grounded) {
     f.coyote = COYOTE_TIME;
     f.airJumps = AIR_JUMPS;
@@ -553,7 +555,7 @@ function propContacts(w: World, f: Fighter, prevY: number): void {
   }
   if (f.grounded && f.vy >= 0 && onProp(w, f)) return;
   for (const p of w.props) {
-    if (!p.active) continue;
+    if (!p.active || (p.def.anchored && !p.released)) continue;
     if (f.y <= p.y - p.h + 2 || f.y - f.h >= p.y) continue;
     const gap = (f.w + p.w) / 2 - Math.abs(p.x - f.x);
     if (gap <= 0) continue;
@@ -747,7 +749,7 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
     if (f.vy > 0 && mx === f.facing && tryLedgeGrab(w, f)) return;
     if (f.vy > WALL_SLIDE_MAX * 0.5 && mx !== 0 && wallContact(w, f, mx) === mx) {
       f.wallSlide = mx;
-      f.vy = Math.min(f.vy, WALL_SLIDE_MAX - GRAVITY * w.gravityScale * dt); // integrate() adds one tick of gravity
+      f.vy = Math.min(f.vy, WALL_SLIDE_MAX - GRAVITY * w.gravityAt(f.x, f.y - f.h / 2) * dt); // integrate() adds one tick of gravity
     }
     jetpack(w, f, inp, dt);
   }
@@ -1486,7 +1488,7 @@ function findLiftableProp(w: World, f: Fighter): Prop | null {
   let best: Prop | null = null;
   let bestD = Infinity;
   for (const p of w.props) {
-    if (!p.active || p.carriedBy >= 0 || p.fuse >= 0) continue;
+    if (!p.active || p.carriedBy >= 0 || p.fuse >= 0 || p.def.noCarry) continue;
     const dx = p.x - f.x;
     if (Math.abs(dx) > (f.w + p.w) / 2 + 6) continue;
     if (Math.abs(p.y - f.y) > 4) continue; // standing next to it, on the same floor
@@ -1687,9 +1689,10 @@ function stKnockdown(w: World, f: Fighter, dt: number): void {
 function updateCorpse(w: World, f: Fighter): void {
   const dt = DT;
   f.stateTime += dt;
-  f.vy = Math.min(f.vy + GRAVITY * w.gravityScale * dt, MAX_FALL);
+  f.vy = Math.min(f.vy + GRAVITY * w.gravityAt(f.x, f.y - f.h / 2) * dt, MAX_FALL);
   if (!f.grounded) f.rot += f.vrot * dt;
   moveBody(w.map, f, dt, {}, moveRes);
+  conveyorPush(w, f);
   if (moveRes.wallX !== 0) {
     f.vx = -moveRes.impactVx * 0.35;
     f.vrot *= -0.5;

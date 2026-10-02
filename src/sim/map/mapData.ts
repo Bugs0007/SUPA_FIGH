@@ -6,9 +6,79 @@ import { CHAR_TO_KIND, TK } from './tiles';
  *   '#' concrete  'M' metal  'X' steel  'B' brick  'W' thin wood wall  'G' glass  'D' dirt
  *   '-' wood one-way platform  '=' metal one-way platform  'H' ladder  '~' water (deadly)
  *   ':' background wall (decor only)  '.' or ' ' empty
+ *   '<' '>' conveyor belts (push left/right)
  *   'S' fighter spawn (need 10)  'w' weapon spawn  'c' crate  'b' explosive barrel  'g' gas canister
+ *   't' TNT crate  'l' chandelier (hangs in place until shot down)
  * Markers are placed in the cell the fighter/item stands IN (feet at the bottom of that cell).
  */
+// ---- gimmicks (all positions in TILES unless noted; see sim/gimmicks.ts)
+
+/** Kinematic platform: path waypoints (tile offsets from x,y) or a pendulum swing. Top is standable. */
+export interface MoverDef {
+  type: 'mover';
+  /** art */
+  kind: 'elevator' | 'girder' | 'hook' | 'cart' | 'platform';
+  /** top-left (tiles); for swings this is the pivot */
+  x: number;
+  y: number;
+  /** width in tiles */
+  w: number;
+  /** body height px (default 6) */
+  h?: number;
+  path?: [number, number][];
+  /** px/s along the path */
+  speed?: number;
+  /** seconds to wait at each waypoint */
+  pause?: number;
+  /** loop the path instead of ping-ponging */
+  loop?: boolean;
+  swing?: { length: number; amp: number; period: number };
+  /** hurts fighters it drives into (minecarts) */
+  hits?: { damage: number; knock: number };
+}
+
+/** Rectangle that hurts while active. Cycles off → warn → on. Optional horizontal sweep while on. */
+export interface HazardDef {
+  type: 'hazard';
+  kind: 'crusher' | 'laser' | 'tunnel';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  on: number;
+  off: number;
+  /** cycle offset (s) */
+  phase?: number;
+  /** telegraph time before turning on (s) */
+  warn?: number;
+  damage: number;
+  knockX?: number;
+  knockY?: number;
+  /** while on, slide this many tiles to the right over the on-time (train tunnels) */
+  sweep?: number;
+}
+
+/** Gravity multiplier inside a rectangle; optional on/off cycle. */
+export interface GravityDef {
+  type: 'gravity';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  mult: number;
+  toggle?: { on: number; off: number };
+}
+
+/** Periodic supply crate dropped from the sky at one of xs, containing a weapon from pool. */
+export interface DropDef {
+  type: 'drops';
+  every: [number, number];
+  xs: number[];
+  pool: string[];
+}
+
+export type GimmickDef = MoverDef | HazardDef | GravityDef | DropDef;
+
 export interface MapDef {
   id: string;
   name: string;
@@ -20,6 +90,7 @@ export interface MapDef {
   killMargin?: number;
   /** description shown in the lobby */
   blurb?: string;
+  gimmicks?: GimmickDef[];
 }
 
 export interface MapPoint {
@@ -28,7 +99,7 @@ export interface MapPoint {
 }
 
 export interface PropSpawn extends MapPoint {
-  type: 'crate' | 'barrel' | 'gas';
+  type: 'crate' | 'barrel' | 'gas' | 'tnt' | 'chandelier';
 }
 
 export interface ParsedMap {
@@ -42,7 +113,7 @@ export interface ParsedMap {
   props: PropSpawn[];
 }
 
-const PROP_CHARS: Record<string, PropSpawn['type']> = { c: 'crate', b: 'barrel', g: 'gas' };
+const PROP_CHARS: Record<string, PropSpawn['type']> = { c: 'crate', b: 'barrel', g: 'gas', t: 'tnt', l: 'chandelier' };
 
 export function parseMap(def: MapDef): ParsedMap {
   const h = def.rows.length;

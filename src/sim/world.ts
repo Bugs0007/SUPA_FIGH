@@ -7,6 +7,8 @@ import { activeWeapon, createFighter, dropCooked, selectBestSlot, updateFighter,
 import { emptyIntent, type Intent } from './intent';
 import { createItem, updateItems, type Item } from './item';
 import { createProp, updateProps, type Prop } from './prop';
+import type { PropType } from './data/props';
+import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
 import { TK } from './map/tiles';
@@ -58,7 +60,9 @@ export class World {
   events: SimEvent[] = [];
   killY: number;
   gravityScale: number;
+  gimmicks: Gimmicks;
   private nextItemId = 1;
+  private nextPropId = 1;
   private weaponTimer = 0;
 
   constructor(def: MapDef, specs: FighterSpawn[], settings: WorldSettings, seed: number) {
@@ -83,7 +87,8 @@ export class World {
       this.fighters.push(f);
     });
 
-    this.parsed.props.forEach((p, i) => this.props.push(createProp(i + 1, p.type, p.x, p.y)));
+    for (const p of this.parsed.props) this.spawnProp(p.type, p.x, p.y);
+    this.gimmicks = buildGimmicks(this);
     this.spawnInitialWeapons();
     this.weaponTimer = this.nextWeaponDelay();
   }
@@ -95,6 +100,7 @@ export class World {
   step(intents: readonly Intent[]): void {
     this.tick++;
     this.time = this.tick * DT;
+    updateGimmicks(this);
     for (let i = 0; i < this.fighters.length; i++) {
       const f = this.fighters[i];
       updateFighter(this, f, intents[i] ?? NO_INTENT);
@@ -168,6 +174,17 @@ export class World {
     const b = newBullet();
     this.bullets.push(b);
     return initBullet(b, s);
+  }
+
+  spawnProp(type: PropType, x: number, y: number): Prop {
+    const p = createProp(this.nextPropId++, type, x, y);
+    this.props.push(p);
+    return p;
+  }
+
+  /** Gravity multiplier at a point (map + gravity zones). */
+  gravityAt(x: number, y: number): number {
+    return gravityMult(this, x, y);
   }
 
   spawnItem(weaponId: string, ammo: number, dur: number, x: number, y: number, vx = 0, vy = 0): Item {

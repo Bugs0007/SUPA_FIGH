@@ -14,6 +14,8 @@ export const TK = {
   DIRT: 9,
   WATER: 10, // deadly hazard (M5)
   STEEL: 11, // dark steel, ricochets
+  CONV_L: 12, // conveyor belt moving left
+  CONV_R: 13, // conveyor belt moving right
 } as const;
 
 export type TileKind = (typeof TK)[keyof typeof TK];
@@ -39,6 +41,8 @@ export interface TileDef {
   ricochet: boolean;
   hazard: 'none' | 'water';
   material: Material;
+  /** conveyor direction (-1/1) for bodies standing on it, 0 = none */
+  conveyor: number;
 }
 
 function def(p: Partial<TileDef> & Pick<TileDef, 'kind' | 'name' | 'char'>): TileDef {
@@ -52,6 +56,7 @@ function def(p: Partial<TileDef> & Pick<TileDef, 'kind' | 'name' | 'char'>): Til
     ricochet: false,
     hazard: 'none',
     material: 'none',
+    conveyor: 0,
     ...p,
   };
 }
@@ -82,6 +87,9 @@ add(def({ kind: TK.LADDER, name: 'ladder', char: 'H', ladder: true }));
 add(def({ kind: TK.DIRT, name: 'dirt', char: 'D', solid: true, bulletPass: false, material: 'dirt' }));
 add(def({ kind: TK.WATER, name: 'water', char: '~', hazard: 'water', material: 'water' }));
 add(def({ kind: TK.STEEL, name: 'steel', char: 'X', solid: true, bulletPass: false, ricochet: true, material: 'metal' }));
+
+add(def({ kind: TK.CONV_L, name: 'conv_l', char: '<', solid: true, bulletPass: false, ricochet: true, material: 'metal', conveyor: -1 }));
+add(def({ kind: TK.CONV_R, name: 'conv_r', char: '>', solid: true, bulletPass: false, ricochet: true, material: 'metal', conveyor: 1 }));
 
 export const CHAR_TO_KIND: Record<string, number> = {};
 for (const d of TILE_DEFS) if (d) CHAR_TO_KIND[d.char] = d.kind;

@@ -5,6 +5,7 @@ import { explode } from './explosion';
 import { ignite, spawnFire } from './fire';
 import { moveBody, newMoveResult, type Body } from './physics';
 import { supportOnProps } from './prop';
+import { conveyorPush } from './gimmicks';
 import type { World } from './world';
 
 /** A weapon lying on (or flying over) the map. */
@@ -108,7 +109,7 @@ function updateLive(w: World, it: Item): void {
     }
   }
   if (!it.stuck) {
-    it.vy = Math.min(it.vy + GRAVITY * w.gravityScale * DT, MAX_FALL);
+    it.vy = Math.min(it.vy + GRAVITY * w.gravityAt(it.x, it.y) * DT, MAX_FALL);
     it.rot += it.vrot * DT;
     const prevY = it.y;
     moveBody(w.map, it, DT, {}, res);
@@ -181,7 +182,7 @@ export function updateItems(w: World): void {
       continue;
     }
     if (it.noPickupTimer > 0) it.noPickupTimer -= DT;
-    it.vy = Math.min(it.vy + GRAVITY * w.gravityScale * DT, MAX_FALL);
+    it.vy = Math.min(it.vy + GRAVITY * w.gravityAt(it.x, it.y) * DT, MAX_FALL);
     if (!it.grounded) it.rot += it.vrot * DT;
     const prevY = it.y;
     moveBody(w.map, it, DT, {}, res);
@@ -204,6 +205,7 @@ export function updateItems(w: World): void {
       }
     }
     if (it.grounded) {
+      conveyorPush(w, it);
       it.vx *= 0.8;
       // settle flat
       const r = Math.atan2(Math.sin(it.rot), Math.cos(it.rot));

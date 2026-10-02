@@ -11,6 +11,7 @@ import { sameTeam } from '../sim/combat';
 import { AIM_LIMIT, DT, GRAVITY, TILE } from '../sim/constants';
 import { SLOT, THROW_AIM, weaponDef, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
+import { hazardNear } from '../sim/gimmicks';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
@@ -309,6 +310,8 @@ export class BotController implements Controller {
   /** Something about to explode / burn next to us: returns its position. */
   private danger(w: World, f: Fighter): { x: number; y: number } | null {
     const cy = f.y - f.h / 2;
+    const hz = hazardNear(w, f);
+    if (hz) return { x: hz.x + hz.w / 2, y: hz.y + hz.h / 2 };
     for (const it of w.items) {
       if (!it.active || !it.live) continue;
       const th = weaponDef(it.weaponId).throw;
@@ -335,10 +338,21 @@ export class BotController implements Controller {
 
   /** Nodes currently occupied by props (refreshed each decision): passable, but awkward. */
   private blocked = new Set<number>();
+  private hazardNodes = new Set<number>();
 
   private refreshBlocked(w: World): void {
     this.blocked.clear();
     const g = this.graph!;
+    // hazard footprints (whole sweep) are always expensive: timing is hard to predict
+    for (const h of w.gimmicks.hazards) {
+      const d = h.def;
+      for (let ty = Math.floor(d.y); ty < Math.ceil(d.y + d.h) + 1; ty++) {
+        for (let tx = Math.floor(d.x); tx < Math.ceil(d.x + d.w + (d.sweep ?? 0)); tx++) {
+          const n = g.at(tx, ty);
+          if (n) this.hazardNodes.add(n.id);
+        }
+      }
+    }
     for (const p of w.props) {
       if (!p.active || p.carriedBy >= 0 || !p.grounded) continue;
       const n = g.nodeUnder(p.x, p.y, p.w / 2);
@@ -348,7 +362,7 @@ export class BotController implements Controller {
 
   /** Path cost additions: edges that failed before, and cells blocked by props. */
   private edgeCost = (from: number, e: NavEdge): number => {
-    return (this.penalties.get(from + ':' + e.to) ?? 0) + (this.blocked.has(e.to) ? 1.5 : 0);
+    return (this.penalties.get(from + ':' + e.to) ?? 0) + (this.blocked.has(e.to) ? 1.5 : 0) + (this.hazardNodes.has(e.to) ? 3 : 0);
   };
 
   // ------------------------------------------------------------------ per-tick behavior
