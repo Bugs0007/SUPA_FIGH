@@ -1,10 +1,12 @@
 import { DT, TILE } from './constants';
 import { teamKey } from './combat';
-import { spawnableWeapons, weaponDef } from './data/weapons';
+import { freshAmmo, spawnableWeapons, stacks, weaponDef } from './data/weapons';
+import { updateBurning, updateFire, type BurningTile, type FirePatch } from './fire';
 import type { SimEvent } from './events';
-import { activeWeapon, createFighter, selectBestSlot, updateFighter, type Fighter, type FighterSpawn } from './fighter';
+import { activeWeapon, createFighter, dropCooked, selectBestSlot, updateFighter, type Fighter, type FighterSpawn } from './fighter';
 import { emptyIntent, type Intent } from './intent';
 import { createItem, updateItems, type Item } from './item';
+import { createProp, updateProps, type Prop } from './prop';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
 import { TK } from './map/tiles';
@@ -42,6 +44,13 @@ export class World {
   fighters: Fighter[] = [];
   bullets: Bullet[] = [];
   items: Item[] = [];
+  props: Prop[] = [];
+  fires: FirePatch[] = [];
+  /** wooden tiles on fire, keyed by tile index */
+  burningTiles = new Map<number, BurningTile>();
+  /** seconds of Bullet Time left (the world runs slow; the owner gets two updates per tick) */
+  bulletTime = 0;
+  bulletTimeOwner = -1;
   events: SimEvent[] = [];
   killY: number;
   gravityScale: number;
@@ -69,6 +78,7 @@ export class World {
       this.fighters.push(f);
     });
 
+    this.parsed.props.forEach((p, i) => this.props.push(createProp(i + 1, p.type, p.x, p.y)));
     this.spawnInitialWeapons();
     this.weaponTimer = this.nextWeaponDelay();
   }
@@ -80,9 +90,24 @@ export class World {
   step(intents: readonly Intent[]): void {
     this.tick++;
     this.time = this.tick * DT;
-    for (let i = 0; i < this.fighters.length; i++) updateFighter(this, this.fighters[i], intents[i] ?? NO_INTENT);
+    for (let i = 0; i < this.fighters.length; i++) {
+      const f = this.fighters[i];
+      updateFighter(this, f, intents[i] ?? NO_INTENT);
+      if (this.bulletTime > 0 && this.bulletTimeOwner === i && f.alive) {
+        // bullet time: the owner lives at double speed inside the slowed world
+        const px = f.px;
+        const py = f.py;
+        updateFighter(this, f, intents[i] ?? NO_INTENT);
+        f.px = px;
+        f.py = py;
+      }
+      updateBurning(this, f);
+    }
+    if (this.bulletTime > 0) this.bulletTime = Math.max(0, this.bulletTime - DT);
     updateBullets(this);
     updateItems(this);
+    updateProps(this);
+    updateFire(this);
     this.updateWeaponSpawner();
     if (this.tick % 120 === 0) this.items = this.items.filter((it) => it.active);
   }
@@ -119,7 +144,7 @@ export class World {
 
   spawnWeapon(id: string, x: number, y: number): Item {
     const def = weaponDef(id);
-    return this.spawnItem(id, def.gun?.ammo ?? 0, def.melee?.durability ?? 1, x, y);
+    return this.spawnItem(id, freshAmmo(def), def.melee?.durability ?? 1, x, y);
   }
 
   private pool() {
@@ -128,7 +153,7 @@ export class World {
     return ids ? all.filter((w) => ids.includes(w.id)) : all;
   }
 
-  private randomWeaponId(): string | null {
+  randomWeaponId(): string | null {
     const pool = this.pool();
     if (pool.length === 0) return null;
     return this.rng.weighted(pool, (w) => w.spawnWeight).id;
@@ -182,15 +207,15 @@ export class World {
     for (const it of this.items) {
       if (!it.active) continue;
       if (it.noPickupBy === fighterId && it.noPickupTimer > 0) continue;
-      if (it.thrownDmg > 0) continue;
+      if (it.thrownDmg > 0 || it.live) continue;
       const dx = Math.abs(it.x - f.x);
       if (dx > f.w / 2 + it.w / 2 + range) continue;
       if (it.y < f.y - f.h - range || it.y - it.h > f.y + range) continue;
       if (autoOnly) {
         const def = weaponDef(it.weaponId);
         const cur = f.inv[def.slot];
-        const merge = cur && cur.id === it.weaponId && !!def.gun;
-        if (cur && !merge) continue;
+        const merge = cur && cur.id === it.weaponId && stacks(def);
+        if (cur && !merge && !def.powerup) continue;
       }
       if (dx < bestD) {
         bestD = dx;
@@ -203,9 +228,21 @@ export class World {
   /** Take an item. swap = replace whatever is in that slot (dropping it). */
   pickUp(f: Fighter, it: Item, swap: boolean): boolean {
     const def = weaponDef(it.weaponId);
+    if (def.powerup) {
+      const pu = def.powerup;
+      if (pu.kind === 'speed') f.speedBoost = pu.duration;
+      else if (pu.kind === 'strength') f.strengthBoost = pu.duration;
+      else {
+        this.bulletTime = pu.duration;
+        this.bulletTimeOwner = f.id;
+      }
+      it.active = false;
+      this.emit({ t: 'powerup', f: f.id, kind: pu.kind, x: it.x, y: it.y });
+      return true;
+    }
     const slot = def.slot;
     const cur = f.inv[slot];
-    if (cur && cur.id === it.weaponId && def.gun) {
+    if (cur && cur.id === it.weaponId && stacks(def)) {
       cur.ammo += it.ammo;
       it.active = false;
       this.emit({ t: 'pickup', f: f.id, weapon: it.weaponId, x: it.x, y: it.y });
@@ -220,17 +257,20 @@ export class World {
     }
     const wasGun = !!activeWeapon(f).gun;
     f.inv[slot] = { id: it.weaponId, ammo: it.ammo, dur: it.dur };
-    if (swap || !f.inv[f.active] || f.active === slot || (def.gun && !wasGun)) f.active = slot;
+    const armsUp = !!def.gun || !!def.melee;
+    if (swap || f.active === slot || (armsUp && !f.inv[f.active]) || (def.gun && !wasGun)) f.active = slot;
     it.active = false;
     this.emit({ t: 'pickup', f: f.id, weapon: it.weaponId, x: it.x, y: it.y });
     return true;
   }
 
   dropAllWeapons(f: Fighter): void {
+    if (f.cook > 0) dropCooked(this, f);
     for (let s = 0; s < f.inv.length; s++) {
       const it = f.inv[s];
       if (!it) continue;
       f.inv[s] = null;
+      if (weaponDef(it.id).throw && it.ammo <= 0) continue;
       const d = this.spawnItem(it.id, it.ammo, it.dur, f.x, f.y - 12, this.rng.range(-110, 110) + f.vx * 0.3, this.rng.range(-230, -120));
       d.vrot = this.rng.range(-15, 15);
     }

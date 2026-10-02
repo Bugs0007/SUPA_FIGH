@@ -43,7 +43,22 @@ import {
   FALL_DAMAGE_SPEED,
 } from './constants';
 import { applyHit, killFighter, sameTeam } from './combat';
-import { AIR_KICK, FISTS, GRAB, KICK, KICK_COOLDOWN, SLOT, TOSS, weaponDef, type MeleeHit, type WeaponDef } from './data/weapons';
+import {
+  AIR_KICK,
+  FISTS,
+  GRAB,
+  KICK,
+  KICK_COOLDOWN,
+  SLOT,
+  THROW_AIM,
+  TOSS,
+  weaponDef,
+  type MeleeHit,
+  type ThrowStats,
+  type WeaponDef,
+} from './data/weapons';
+import { detonate } from './item';
+import { damageProp, onProp, pushProp, supportOnProps } from './prop';
 import { copyIntent, emptyIntent, type Intent } from './intent';
 import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, type Body, type MoveResult } from './physics';
 import type { World } from './world';
@@ -138,6 +153,21 @@ export interface Fighter extends Body {
   rot: number;
   vrot: number;
   speedMul: number;
+  // status
+  /** seconds of burning left */
+  burn: number;
+  burnBy: number;
+  burnAcc: number;
+  speedBoost: number;
+  strengthBoost: number;
+  // throwables & gadgets
+  /** >= 0: a cooked grenade's fuse in hand */
+  cook: number;
+  /** seconds attack has been held while aiming a throwable (throw power) */
+  throwHold: number;
+  /** jetpack firing this tick (render) */
+  jetting: boolean;
+  swingProps: number[];
   prev: Intent;
 }
 
@@ -213,6 +243,15 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     rot: 0,
     vrot: 0,
     speedMul: 1,
+    burn: 0,
+    burnBy: -1,
+    burnAcc: 0,
+    speedBoost: 0,
+    strengthBoost: 0,
+    cook: -1,
+    throwHold: 0,
+    jetting: false,
+    swingProps: [],
     prev: emptyIntent(),
   };
 }
@@ -340,7 +379,10 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.dropTimer > 0) f.dropTimer -= dt;
   if (f.ledgeCooldown > 0) f.ledgeCooldown -= dt;
   if (e.jumpP) f.jumpBuffer = JUMP_BUFFER;
-  f.speedMul = activeWeapon(f).gun?.moveSpeedMul ?? 1;
+  if (f.speedBoost > 0) f.speedBoost -= dt;
+  if (f.strengthBoost > 0) f.strengthBoost -= dt;
+  f.jetting = false;
+  f.speedMul = (activeWeapon(f).moveSpeedMul ?? 1) * (f.speedBoost > 0 ? (weaponDef('speed').powerup?.mult ?? 1) : 1);
 
   switch (f.state) {
     case 'normal':
@@ -395,6 +437,12 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       break;
   }
 
+  if (f.cook >= 0 && f.alive) {
+    f.cook -= dt;
+    // held it too long, or got knocked out of the throw: the grenade drops at your feet
+    if (f.cook <= 0 || f.state !== 'aim' || !f.aimHeld) dropCooked(w, f);
+  }
+
   if (f.alive && (f.state === 'normal' || f.state === 'crouch' || f.state === 'roll')) autoPickup(w, f);
   copyIntent(f.prev, inp);
 }
@@ -403,6 +451,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
 function integrate(w: World, f: Fighter, dt: number, gravity = true): MoveResult {
   if (gravity) f.vy = Math.min(f.vy + GRAVITY * w.gravityScale * dt, MAX_FALL);
   const wasGrounded = f.grounded;
+  const prevY = f.y;
   const thrown = f.state === 'knockdown' && f.thrownBy >= 0;
   moveBody(
     w.map,
@@ -422,6 +471,7 @@ function integrate(w: World, f: Fighter, dt: number, gravity = true): MoveResult
     },
     moveRes,
   );
+  if (w.props.length > 0) propContacts(w, f, prevY);
   if (f.grounded) {
     f.coyote = COYOTE_TIME;
     if (!wasGrounded) {
@@ -431,6 +481,30 @@ function integrate(w: World, f: Fighter, dt: number, gravity = true): MoveResult
   }
   checkOutOfWorld(w, f);
   return moveRes;
+}
+
+/** Stand on props, and shove them when walking into them. */
+function propContacts(w: World, f: Fighter, prevY: number): void {
+  if (!f.grounded && f.dropTimer <= 0 && f.state !== 'climb' && supportOnProps(w, f, prevY, -1)) {
+    moveRes.landed = true;
+    moveRes.impactVy = Math.max(moveRes.impactVy, 0);
+    return;
+  }
+  if (f.grounded && f.vy >= 0 && onProp(w, f)) return;
+  for (const p of w.props) {
+    if (!p.active) continue;
+    if (f.y <= p.y - p.h + 2 || f.y - f.h >= p.y) continue;
+    const gap = (f.w + p.w) / 2 - Math.abs(p.x - f.x);
+    if (gap <= 0) continue;
+    const dir = p.x >= f.x ? 1 : -1;
+    if (Math.sign(f.vx) === dir) {
+      const target = f.vx * 0.7;
+      const pv = p.vx * p.def.mass;
+      if (Math.abs(pv) < Math.abs(target)) pushProp(p, target - pv, 0);
+    }
+    const nx = f.x - dir * gap;
+    if (!w.map.rectSolid(nx - f.w / 2, f.y - f.h, nx + f.w / 2, f.y)) f.x = nx;
+  }
 }
 
 function checkOutOfWorld(w: World, f: Fighter): void {
@@ -538,10 +612,25 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
       return;
     }
     if (f.vy > 0 && mx === f.facing && tryLedgeGrab(w, f)) return;
+    jetpack(w, f, inp, dt);
   }
 
   if (commonActions(w, f, inp, e)) return;
   integrate(w, f, dt);
+}
+
+/** Hold jump in the air (after the jump's rise) to fly. Fuel lives in the item's ammo. */
+function jetpack(w: World, f: Fighter, inp: Intent, dt: number): void {
+  const jp = f.inv[SLOT.GADGET];
+  if (!jp || jp.id !== 'jetpack' || !inp.jump || f.jumping) return;
+  f.vy = approach(f.vy, -175, 2300 * dt);
+  f.jetting = true;
+  jp.ammo -= dt;
+  if (jp.ammo <= 0) {
+    f.inv[SLOT.GADGET] = null;
+    w.emit({ t: 'weaponBreak', f: f.id, weapon: 'jetpack', x: f.x, y: f.y - 12 });
+    selectBestSlot(f);
+  }
 }
 
 function stCrouch(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
@@ -775,6 +864,14 @@ function commonActionsLimited(w: World, f: Fighter, e: Edges): boolean {
 
 function beginAttack(w: World, f: Fighter, inp: Intent): void {
   const def = activeWeapon(f);
+  if (def.throw) {
+    beginThrowable(w, f, def.throw, inp);
+    return;
+  }
+  if (def.gadget?.kind === 'medkit') {
+    useMedkit(w, f);
+    return;
+  }
   if (def.gun) {
     const item = activeItem(f);
     if (!item || item.ammo <= 0) {
@@ -785,6 +882,117 @@ function beginAttack(w: World, f: Fighter, inp: Intent): void {
   } else {
     startMelee(w, f);
   }
+}
+
+function beginThrowable(w: World, f: Fighter, th: ThrowStats, inp: Intent): void {
+  const item = activeItem(f)!;
+  if (th.remote) {
+    const live = w.items.filter((it) => it.active && it.live && it.thrownBy === f.id && it.weaponId === item.id);
+    if (live.length > 0) {
+      live.forEach((it, i) => (it.fuse = 0.02 + i * 0.06));
+      w.emit({ t: 'pin', f: f.id, weapon: item.id });
+      if (item.ammo <= 0) {
+        f.inv[f.active] = null;
+        selectBestSlot(f);
+      }
+      return;
+    }
+  }
+  if (item.ammo <= 0) {
+    f.inv[f.active] = null;
+    selectBestSlot(f);
+    return;
+  }
+  enterAim(w, f, f.state === 'crouch' || (inp.moveY > 0.5 && f.grounded));
+}
+
+function useMedkit(w: World, f: Fighter): void {
+  const item = activeItem(f)!;
+  if (f.hp >= MAX_HP) {
+    w.emit({ t: 'empty', f: f.id });
+    return;
+  }
+  const amount = Math.min(MAX_HP - f.hp, item.ammo);
+  f.hp += amount;
+  f.burn = 0;
+  f.inv[f.active] = null;
+  selectBestSlot(f);
+  w.emit({ t: 'heal', f: f.id, amount });
+}
+
+/** Initial velocity of a throwable at the fighter's current aim and power. Shared with the arc preview. */
+export function throwVelocity(f: Fighter, th: ThrowStats, power: number): { vx: number; vy: number } {
+  const sp = th.speed * power;
+  return {
+    vx: Math.cos(f.aimAngle) * f.facing * sp + f.vx * 0.4,
+    vy: Math.sin(f.aimAngle) * sp + Math.min(0, f.vy) * 0.3,
+  };
+}
+
+export function throwPower(f: Fighter): number {
+  return THROW_AIM.minPower + (1 - THROW_AIM.minPower) * Math.min(1, f.throwHold / THROW_AIM.rampTime);
+}
+
+/** Where a thrown object leaves the hand. */
+export function throwOrigin(f: Fighter): { x: number; y: number } {
+  const g = gunGeometry(f, activeWeapon(f));
+  return { x: g.handX, y: g.handY + 2 };
+}
+
+function spawnLive(w: World, f: Fighter, id: string, x: number, y: number, vx: number, vy: number, fuse: number) {
+  const it = w.spawnItem(id, 1, 1, x, y, vx, vy);
+  it.live = true;
+  it.thrownBy = f.id;
+  it.fuse = fuse;
+  it.vrot = f.facing * 12;
+  it.noPickupTimer = 1e9;
+  if (w.map.rectSolid(it.x - it.w / 2, it.y - it.h, it.x + it.w / 2, it.y)) {
+    // don't spawn inside a wall: release from the body center instead
+    it.x = f.x;
+    it.y = f.y - 6;
+  }
+  return it;
+}
+
+function consumeThrowable(f: Fighter, slot: number): void {
+  const inv = f.inv[slot];
+  if (!inv) return;
+  inv.ammo--;
+  const th = weaponDef(inv.id).throw;
+  if (inv.ammo <= 0 && !th?.remote) {
+    f.inv[slot] = null;
+    selectBestSlot(f);
+  }
+}
+
+function throwIt(w: World, f: Fighter): void {
+  const def = activeWeapon(f);
+  const th = def.throw;
+  const item = activeItem(f);
+  if (!th || !item || item.ammo <= 0) return;
+  const o = throwOrigin(f);
+  let { vx, vy } = throwVelocity(f, th, throwPower(f));
+  if (th.mine) {
+    vx = f.facing * th.speed * 0.5 + f.vx * 0.3;
+    vy = -60;
+  }
+  const fuse = th.cook ? Math.max(0.05, f.cook) : th.fuse > 0 ? th.fuse : -1;
+  spawnLive(w, f, def.id, o.x, o.y, vx, vy, fuse);
+  f.cook = -1;
+  consumeThrowable(f, f.active);
+  w.emit({ t: 'throwOut', f: f.id, weapon: def.id });
+}
+
+/** A cooked grenade leaves the hand without a throw (fuse ran out, knocked down, died). */
+export function dropCooked(w: World, f: Fighter): void {
+  const slot = SLOT.THROWABLE;
+  const inv = f.inv[slot];
+  const fuse = f.cook;
+  f.cook = -1;
+  if (!inv || inv.ammo <= 0) return;
+  const it = spawnLive(w, f, inv.id, f.x + f.facing * 4, f.y - 8, f.vx * 0.5 + f.facing * 30, -80, Math.max(0, fuse));
+  consumeThrowable(f, slot);
+  if (fuse <= 0) detonate(w, it);
 }
 
 function meleeStats(f: Fighter) {
@@ -799,6 +1007,7 @@ function startMelee(w: World, f: Fighter): void {
   f.combo = step;
   f.comboQueued = false;
   f.swingHit.length = 0;
+  f.swingProps.length = 0;
   const hit = m.combo[step];
   if (f.grounded) f.vx = f.facing * (hit.lunge ?? 40);
   w.emit({ t: 'swing', f: f.id, weapon: activeWeapon(f).id, step });
@@ -844,15 +1053,24 @@ function meleeHitbox(w: World, f: Fighter, hit: MeleeHit, weapon: string, kind: 
   const r = Math.max(near, far);
   const t = f.y - yTop;
   const b = f.y - yBot;
+  const mult = f.strengthBoost > 0 ? (weaponDef('strength').powerup?.mult ?? 1) : 1;
+  const knockMul = 1 + (mult - 1) * 0.5;
+  for (const p of w.props) {
+    if (!p.active || f.swingProps.includes(p.id)) continue;
+    if (p.x + p.w / 2 < l || p.x - p.w / 2 > r || p.y - p.h > b || p.y < t) continue;
+    f.swingProps.push(p.id);
+    pushProp(p, f.facing * hit.knockX * 0.8 * knockMul, Math.min(hit.knockY, -60) * 0.6);
+    damageProp(w, p, hit.damage * mult, f.id);
+  }
   for (const o of w.fighters) {
     if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
     if (o.state === 'grabbed' && o.grabbedBy === f.id) continue;
     if (o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) continue;
     f.swingHit.push(o.id);
     const connected = applyHit(w, o, {
-      damage: hit.damage,
-      kbX: f.facing * hit.knockX,
-      kbY: hit.knockY,
+      damage: hit.damage * mult,
+      kbX: f.facing * hit.knockX * knockMul,
+      kbY: hit.knockY * knockMul,
       attacker: f.id,
       weapon,
       kind,
@@ -879,6 +1097,7 @@ function startKick(w: World, f: Fighter): void {
   if (f.h !== FIGHTER_H && hasHeadroom(w.map, f, FIGHTER_H)) f.h = FIGHTER_H;
   setState(f, 'kick');
   f.swingHit.length = 0;
+  f.swingProps.length = 0;
   f.kickCooldown = KICK_COOLDOWN;
   f.airKick = !f.grounded;
   if (f.airKick) {
@@ -915,20 +1134,30 @@ function enterAim(w: World, f: Fighter, crouched: boolean): void {
   f.aimHeld = true;
   f.crouchAim = crouched;
   f.h = crouched ? FIGHTER_CROUCH_H : FIGHTER_H;
-  if (!wasAimRecently) f.aimAngle = 0;
+  const def = activeWeapon(f);
+  if (!wasAimRecently) f.aimAngle = def.throw && !def.throw.mine ? THROW_AIM.defaultAngle : 0;
   f.aimVel = 0;
   f.pendingShot = 0;
-  const def = activeWeapon(f);
+  f.throwHold = 0;
+  if (def.throw?.cook && f.cook < 0) {
+    f.cook = def.throw.fuse;
+    w.emit({ t: 'pin', f: f.id, weapon: def.id });
+  }
+  if (def.gun?.spinUp) {
+    f.fireCooldown = Math.max(f.fireCooldown, def.gun.spinUp);
+    w.emit({ t: 'spinUp', f: f.id });
+  }
   if (def.gun?.auto && f.fireCooldown <= 0) fire(w, f);
 }
 
 function stAim(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
   const def = activeWeapon(f);
-  if (!def.gun) {
+  const g = def.gun;
+  const th = def.throw;
+  if (!g && !th) {
     setState(f, 'normal');
     return;
   }
-  const g = def.gun;
   const mx = axis(inp.moveX);
   f.h = f.crouchAim ? FIGHTER_CROUCH_H : FIGHTER_H;
 
@@ -937,15 +1166,17 @@ function stAim(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
     const my = Math.abs(inp.moveY) > 0.2 ? inp.moveY : 0;
     f.aimVel += (my * AIM_MAX_SPEED - f.aimVel) * Math.min(1, AIM_ACCEL * dt);
     f.aimAngle = clamp(f.aimAngle + f.aimVel * dt, -AIM_LIMIT, AIM_LIMIT);
+    f.throwHold += dt;
     if (!inp.attack) {
       f.aimHeld = false;
       f.aimEndTime = w.time;
       f.stateTime = 0;
-      if (!g.auto) {
+      if (th) throwIt(w, f);
+      else if (g && !g.auto) {
         if (f.fireCooldown <= 0) fire(w, f);
         else f.pendingShot = 0.22;
       }
-    } else if (g.auto && f.fireCooldown <= 0) {
+    } else if (g?.auto && f.fireCooldown <= 0) {
       fire(w, f);
     }
   } else {
@@ -1014,6 +1245,9 @@ export function fire(w: World, f: Fighter): void {
       ricochet: g.ricochet,
       pierce: g.pierce,
       kind: g.projectile,
+      gravity: g.gravity ?? 0,
+      explosion: g.explosion ?? null,
+      ignite: g.ignite ?? 0,
     });
   }
   f.vx -= geo.dirX * g.recoil;

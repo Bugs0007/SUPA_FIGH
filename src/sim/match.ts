@@ -1,5 +1,6 @@
 import { DT, MATCH_END_TIME, ROUND_END_CONFIRM, ROUND_END_TIME } from './constants';
 import { teamKey } from './combat';
+import { weaponDef } from './data/weapons';
 import type { FighterSpawn } from './fighter';
 import type { Intent } from './intent';
 import { getMap } from './map/maps';
@@ -51,6 +52,7 @@ export class Match {
   timeScale = 1;
   /** camera focus during slow-mo */
   cinematic: { x: number; y: number; ticks: number } | null = null;
+  private cineScale = 1;
   private slowmoTicks = 0;
   private slowmoLen = 1;
   private decideTimer = -1;
@@ -155,6 +157,7 @@ export class Match {
 
   private resetMatch(): void {
     this.scores.clear();
+    this.cineScale = 1;
     this.matchWinner = null;
     this.round = 0;
     for (const s of this.stats) Object.assign(s, { kills: 0, deaths: 0, suicides: 0, damage: 0, roundsWon: 0 });
@@ -176,12 +179,14 @@ export class Match {
       this.slowmoTicks--;
       const p = this.slowmoTicks / this.slowmoLen; // 1 -> 0
       // hold at 20%, ease back to 100% over the last 30%
-      this.timeScale = p > 0.3 ? 0.2 : 0.2 + (1 - p / 0.3) * 0.8;
+      this.cineScale = p > 0.3 ? 0.2 : 0.2 + (1 - p / 0.3) * 0.8;
       if (this.cinematic) this.cinematic.ticks = this.slowmoTicks;
       if (this.slowmoTicks === 0) {
-        this.timeScale = 1;
+        this.cineScale = 1;
         this.cinematic = null;
       }
     }
+    const bt = this.world.bulletTime > 0 ? (weaponDef('bullettime').powerup?.mult ?? 0.4) : 1;
+    this.timeScale = Math.min(this.cineScale, bt);
   }
 }
