@@ -44,6 +44,9 @@ export class TitleScene extends Phaser.Scene {
     this.events.once('shutdown', () => this.game.events.off('rescale', this.applyZoom, this));
     this.cameras.main.setBackgroundColor(P.night);
     music.play('title');
+    this.sparks = [];
+    this.menuTexts = [];
+    this.t = 0;
 
     // drifting embers
     for (let i = 0; i < 40; i++) {

@@ -63,6 +63,12 @@ export class LobbyScene extends Phaser.Scene {
     this.cfg = loadLobby();
     this.row = 0;
     this.col = 0;
+    this.t = 0;
+    // the scene instance is reused: forget the previous run's (destroyed) objects
+    this.texts = [];
+    this.settingTexts = [];
+    this.previews = [];
+    this.previewMap = '';
     this.gfx = this.add.graphics();
     this.add.bitmapText(VIEW_W / 2, 8, 'pxo', 'MATCH SETUP').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
     this.add.bitmapText(36, 32, 'sm', 'FIGHTER').setTint(0x8d95b0);

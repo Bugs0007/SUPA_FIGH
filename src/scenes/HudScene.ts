@@ -110,6 +110,22 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
+    // The scene instance survives restarts: drop every reference to the previous run's objects
+    // (they're destroyed, and touching a destroyed BitmapText crashes on its null font data).
+    this.feed = [];
+    this.scoreTexts = [];
+    this.dmScores = [];
+    this.panelTexts = [];
+    this.panelIcons = [];
+    this.panelCounts = [];
+    this.arrows = [];
+    this.awardObjs = [];
+    this.card = null;
+    this.cardTime = 0;
+    this.bannerTime = 0;
+    this.announceTime = 0;
+    this.pauseIdx = 0;
+    this.wasPaused = false;
     this.ms = this.scene.get("match") as unknown as MatchScene;
     this.applyZoom((this.registry.get('scale') as number) ?? 1);
     this.game.events.on('rescale', this.applyZoom, this);

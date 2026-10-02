@@ -20,5 +20,7 @@ export default defineConfig({
   test: {
     include: ['tests/unit/**/*.test.ts'],
     environment: 'node',
+    // headless bot matches take a few seconds each, longer when every test file runs in parallel
+    testTimeout: 30_000,
   },
 });

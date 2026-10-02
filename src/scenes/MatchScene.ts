@@ -139,6 +139,18 @@ export class MatchScene extends Phaser.Scene {
     const params = new URLSearchParams(location.search);
     const setup = data?.config ? data : defaultSetup(params);
     this.setupData = setup;
+    // the scene instance is reused by restart/start: reset all per-match state
+    this.paused = false;
+    this.replay = null;
+    this.heldEvents = [];
+    this.ui = [];
+    this.matchEvents = [];
+    this.acc = 0;
+    this.hitstop = 0;
+    this.frameStep = false;
+    this.elapsed = 0;
+    this.renderedWorld = null;
+    audio.timePitch = 1;
     this.speed = Number(params.get('speed') ?? 1) || 1;
     this.players = setup.players;
     this.looks = setup.players.map((p) => ({ look: p.look, color: p.color, label: p.label }));
