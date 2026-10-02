@@ -1,4 +1,14 @@
 import {
+  AIR_JUMP_VEL,
+  AIR_JUMPS,
+  SPRINT_COOLDOWN,
+  SPRINT_MUL,
+  SPRINT_RAMP,
+  SPRINT_TAP_WINDOW,
+  WALL_JUMP_LOCK,
+  WALL_JUMP_VX,
+  WALL_JUMP_VY,
+  WALL_SLIDE_MAX,
   AIM_ACCEL,
   AIM_LIMIT,
   AIM_MAX_SPEED,
@@ -110,6 +120,22 @@ export interface Fighter extends Body {
   jumpBuffer: number;
   jumping: boolean;
   dropTimer: number;
+  /** air jumps left (double jump) */
+  airJumps: number;
+  /** side of the last wall jumped off (-1/1, 0 = none since landing): no climbing one wall forever */
+  lastWallSide: number;
+  /** reduced air control after a wall jump */
+  wallLock: number;
+  /** -1/1 while sliding down a wall (render) */
+  wallSlide: number;
+  /** sprint: direction (0 = not sprinting), time sprinting, double-tap tracking */
+  sprintDir: number;
+  sprintTime: number;
+  sprintCooldown: number;
+  lastTapDir: number;
+  lastTapTime: number;
+  /** last air jump time (render: flip) */
+  airJumpTime: number;
   // aiming
   aimAngle: number;
   aimVel: number;
@@ -209,6 +235,16 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     jumpBuffer: 0,
     jumping: false,
     dropTimer: 0,
+    airJumps: AIR_JUMPS,
+    lastWallSide: 0,
+    wallLock: 0,
+    wallSlide: 0,
+    sprintDir: 0,
+    sprintTime: 0,
+    sprintCooldown: 0,
+    lastTapDir: 0,
+    lastTapTime: -10,
+    airJumpTime: -10,
     aimAngle: 0,
     aimVel: 0,
     aimHeld: false,
@@ -270,6 +306,8 @@ interface Edges {
   cycleP: boolean;
   upP: boolean;
   downP: boolean;
+  leftP: boolean;
+  rightP: boolean;
   anyP: boolean;
 }
 
@@ -291,6 +329,8 @@ function edges(i: Intent, p: Intent): Edges {
     cycleP,
     upP,
     downP,
+    leftP,
+    rightP,
     anyP: jumpP || attackP || kickP || interactP || upP || downP || leftP || rightP,
   };
 }
@@ -382,6 +422,10 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.jumpBuffer > 0) f.jumpBuffer -= dt;
   if (f.dropTimer > 0) f.dropTimer -= dt;
   if (f.ledgeCooldown > 0) f.ledgeCooldown -= dt;
+  if (f.wallLock > 0) f.wallLock -= dt;
+  if (f.sprintCooldown > 0) f.sprintCooldown -= dt;
+  f.wallSlide = 0;
+  updateSprint(w, f, inp, e, dt);
   if (e.jumpP) f.jumpBuffer = JUMP_BUFFER;
   if (f.speedBoost > 0) f.speedBoost -= dt;
   if (f.strengthBoost > 0) f.strengthBoost -= dt;
@@ -486,6 +530,8 @@ function integrate(w: World, f: Fighter, dt: number, gravity = true): MoveResult
   if (w.props.length > 0) propContacts(w, f, prevY);
   if (f.grounded) {
     f.coyote = COYOTE_TIME;
+    f.airJumps = AIR_JUMPS;
+    f.lastWallSide = 0;
     if (!wasGrounded) {
       f.jumping = false;
       if (moveRes.impactVy > 90) w.emit({ t: 'land', f: f.id, x: f.x, y: f.y, speed: moveRes.impactVy });
@@ -579,12 +625,82 @@ function horizontalControl(f: Fighter, mx: number, dt: number, speed: number): v
   }
 }
 
+/** Double-tap a direction to sprint; holding it keeps the sprint going. */
+function updateSprint(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
+  const tap = e.leftP ? -1 : e.rightP ? 1 : 0;
+  if (tap !== 0) {
+    if (tap === f.lastTapDir && w.time - f.lastTapTime < SPRINT_TAP_WINDOW && f.sprintCooldown <= 0 && f.sprintDir === 0) {
+      f.sprintDir = tap;
+      f.sprintTime = 0;
+      w.emit({ t: 'sprint', f: f.id });
+    }
+    f.lastTapDir = tap;
+    f.lastTapTime = w.time;
+  }
+  if (f.sprintDir !== 0) {
+    const still = axis(inp.moveX) === f.sprintDir && (f.state === 'normal' || f.state === 'roll' || f.state === 'dive');
+    if (!still) {
+      f.sprintDir = 0;
+      f.sprintCooldown = SPRINT_COOLDOWN;
+    } else f.sprintTime += dt;
+  }
+}
+
+/** Current sprint multiplier on run speed (ramps up over SPRINT_RAMP). */
+export function sprintMul(f: Fighter): number {
+  if (f.sprintDir === 0) return 1;
+  return 1 + (SPRINT_MUL - 1) * Math.min(1, f.sprintTime / SPRINT_RAMP);
+}
+
+/** Which side (-1/1) the fighter is touching a solid wall on, 0 = none. Prefers the pressed side. */
+export function wallContact(w: World, f: Fighter, prefer: number): number {
+  const t = f.y - f.h + 3;
+  const b = f.y - 3;
+  const touch = (side: number) => {
+    const x = side > 0 ? f.x + f.w / 2 + 1 : f.x - f.w / 2 - 1;
+    return w.map.rectSolid(x - 0.5, t, x + 0.5, b);
+  };
+  if (prefer !== 0 && touch(prefer)) return prefer;
+  if (touch(1)) return 1;
+  if (touch(-1)) return -1;
+  return 0;
+}
+
+/** Jump pressed in the air: wall jump if touching a wall (not the same one twice), else double jump. */
+function airJump(w: World, f: Fighter, mx: number): boolean {
+  const side = wallContact(w, f, mx);
+  if (side !== 0 && side !== f.lastWallSide) {
+    f.vx = -side * WALL_JUMP_VX;
+    f.vy = -WALL_JUMP_VY;
+    f.facing = side > 0 ? -1 : 1;
+    f.lastWallSide = side;
+    f.airJumps = AIR_JUMPS;
+    f.wallLock = WALL_JUMP_LOCK;
+    f.jumping = true;
+    f.jumpBuffer = 0;
+    w.emit({ t: 'jump', f: f.id, x: f.x + side * 5, y: f.y - 8, wall: side });
+    return true;
+  }
+  if (f.airJumps > 0) {
+    f.airJumps--;
+    f.vy = -AIR_JUMP_VEL;
+    if (mx !== 0) f.vx = mx * Math.max(Math.abs(f.vx), RUN_SPEED * f.speedMul * 0.9);
+    f.jumping = true;
+    f.jumpBuffer = 0;
+    f.airJumpTime = w.time;
+    w.emit({ t: 'jump', f: f.id, x: f.x, y: f.y, air: true });
+    return true;
+  }
+  return false;
+}
+
 function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
   if (f.h !== FIGHTER_H) restoreHeight(w, f);
   if (f.state !== 'normal') return;
   const mx = axis(inp.moveX);
-  const speed = RUN_SPEED * f.speedMul;
-  horizontalControl(f, mx, dt, speed);
+  const speed = RUN_SPEED * f.speedMul * sprintMul(f);
+  if (f.wallLock > 0 && !f.grounded) f.vx = approach(f.vx, mx * speed, AIR_DECEL * dt);
+  else horizontalControl(f, mx, dt, speed);
   if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
 
   // ladders
@@ -601,6 +717,8 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
   if (f.jumpBuffer > 0 && (f.grounded || f.coyote > 0)) {
     if (inp.moveY > 0.5 && f.grounded && onOneWayOnly(w.map, f)) dropThrough(f);
     else doJump(w, f);
+  } else if (e.jumpP && !f.grounded && f.coyote <= 0 && f.dropTimer <= 0) {
+    airJump(w, f, mx);
   }
   const jumpHeld = inp.jump || (f.upJumps && inp.moveY < -0.5);
   if (f.jumping && f.vy < 0 && !jumpHeld) {
@@ -624,6 +742,10 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
       return;
     }
     if (f.vy > 0 && mx === f.facing && tryLedgeGrab(w, f)) return;
+    if (f.vy > WALL_SLIDE_MAX * 0.5 && mx !== 0 && wallContact(w, f, mx) === mx) {
+      f.wallSlide = mx;
+      f.vy = Math.min(f.vy, WALL_SLIDE_MAX - GRAVITY * w.gravityScale * dt); // integrate() adds one tick of gravity
+    }
     jetpack(w, f, inp, dt);
   }
 
@@ -686,7 +808,7 @@ function startRoll(w: World, f: Fighter): void {
 function stRoll(w: World, f: Fighter, inp: Intent, dt: number): void {
   const t = f.stateTime;
   f.h = FIGHTER_ROLL_H;
-  f.vx = f.facing * ROLL_SPEED * (1 - (0.35 * t) / ROLL_TIME);
+  f.vx = f.facing * ROLL_SPEED * sprintMul(f) * (1 - (0.35 * t) / ROLL_TIME);
   if (t > 0.15 && f.jumpBuffer > 0 && f.grounded && hasHeadroom(w.map, f, FIGHTER_H)) {
     f.h = FIGHTER_H;
     setState(f, 'normal');

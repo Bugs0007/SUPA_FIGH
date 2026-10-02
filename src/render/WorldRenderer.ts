@@ -318,6 +318,8 @@ export class WorldRenderer {
       if (f.burn > 0) {
         for (let i = emitCount(30, dt); i > 0; i--) this.fx.flame(f.x + (Math.random() - 0.5) * f.w, f.y - Math.random() * f.h, 0.9);
       }
+      if (f.alive && f.sprintDir !== 0 && f.grounded && Math.random() < dt * 20) this.fx.dust(f.x - f.sprintDir * 4, f.y, 1, 20);
+      if (f.alive && f.wallSlide !== 0 && Math.random() < dt * 15) this.fx.dust(f.x + f.wallSlide * 5, f.y - 10, 1, 8);
       if (f.jetting) for (let i = emitCount(70, dt); i > 0; i--) this.fx.jet(f.x - f.facing * 5, f.y - 8);
       if (f.alive && f.speedBoost > 0 && Math.random() < dt * 14) this.fx.motes(f.x, f.y - 4, 1, hexToNum(P.yellow));
       if (f.alive && f.strengthBoost > 0 && Math.random() < dt * 10) this.fx.motes(f.x, f.y - 12, 1, hexToNum(P.red2));

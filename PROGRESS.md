@@ -76,6 +76,14 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [ ] Lobby with 10 slots, teams, outfits, gamepads (hot-plug, rumble)
 - [ ] Brawl + Deathmatch, HUD polish, controls cards per player, rebinding menu
 
+## M9 — Anime Universe Expansion (QUEUED — full spec in `docs/ANIME_EXPANSION.md`)
+- [x] Pulled forward into M3: double jump, wall jump (+ wall slide), double-tap sprint
+- [ ] Ability intent + full rebinding (fold into M4's rebinding menu)
+- [ ] Hero power framework (HeroDefinition / PowerUpDefinition / TransformationState / Ability*)
+- [ ] Heroes at the existing tiny pixel scale: Naruto (Kurama Mode), Luffy (Gear 2), Goku (Super Saiyan)
+- [ ] Maps: Hidden Leaf Forest, Grand Line Ship, Alien Energy Planet; hero pickups; VFX; audio; select UI
+- [ ] External PNG sprite-sheet support in ArtProvider; bots understand powers; tests per spec
+
 ## M5 — Maps
 - [ ] 9 maps with gimmicks and hazards
 

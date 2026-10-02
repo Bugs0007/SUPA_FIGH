@@ -33,7 +33,8 @@ export type SimEvent =
   | { t: 'ricochet'; x: number; y: number }
   | { t: 'splinter'; x: number; y: number }
   | { t: 'tileBreak'; tx: number; ty: number; kind: number }
-  | { t: 'jump'; f: number; x: number; y: number }
+  | { t: 'jump'; f: number; x: number; y: number; air?: boolean; wall?: number }
+  | { t: 'sprint'; f: number }
   | { t: 'land'; f: number; x: number; y: number; speed: number }
   | { t: 'swing'; f: number; weapon: string; step: number }
   | { t: 'kick'; f: number; air: boolean }

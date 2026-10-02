@@ -135,10 +135,22 @@ export class FighterView {
           } else {
             frame = Math.floor(time * 1.6) % 2 === 0 ? BF.IDLE0 : BF.IDLE1;
           }
+        } else if (f.wallSlide !== 0) {
+          frame = BF.FALL;
+          front = -1.3;
+          back = -1.7;
+          frontLen = 1;
+          backLen = 1;
         } else {
           frame = f.vy < 0 ? BF.JUMP : BF.FALL;
           front = f.vy < 0 ? -0.7 : -0.3 + Math.sin(time * 18) * 0.3;
           back = f.vy < 0 ? -2.3 : 3.8 + Math.sin(time * 18 + 1) * 0.3;
+          // double jump: one quick front flip
+          const flip = (simTime - f.airJumpTime) / 0.32;
+          if (flip >= 0 && flip < 1) {
+            frame = BF.TUMBLE;
+            rigRot = flip * Math.PI * 2;
+          }
         }
         gunIdle();
         break;

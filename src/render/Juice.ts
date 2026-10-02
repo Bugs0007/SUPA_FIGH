@@ -158,9 +158,23 @@ export class Juice {
       }
       case 'jump':
         this.r.views[e.f]?.onJump();
-        fx.dust(e.x, e.y, 2, 25);
-        this.sfx('jump', e.x, 0.6);
+        if (e.wall) {
+          fx.dust(e.x, e.y, 3, 30);
+          this.sfx('jump', e.x, 0.7, 1.15);
+        } else if (e.air) {
+          fx.motes(e.x, e.y, 5, 0xffffff);
+          this.sfx('jump', e.x, 0.6, 1.3);
+        } else {
+          fx.dust(e.x, e.y, 2, 25);
+          this.sfx('jump', e.x, 0.6);
+        }
         break;
+      case 'sprint': {
+        const f = w.fighters[e.f];
+        fx.dust(f.x, f.y, 3, 50);
+        this.sfx('swing', f.x, 0.6, 0.7);
+        break;
+      }
       case 'land':
         this.r.views[e.f]?.onLand(e.speed);
         fx.dust(e.x, e.y, Math.min(6, Math.floor(e.speed / 90)), 35 + e.speed * 0.05);

@@ -39,6 +39,17 @@ export const ROLL_IFRAMES = 0.3;
 export const DIVE_VX = 230;
 export const DIVE_VY = -130;
 export const LEDGE_CLIMB_TIME = 0.18;
+// Double jump / wall jump / sprint
+export const AIR_JUMPS = 1; // extra jumps while airborne (refreshed on landing and by wall jumps)
+export const AIR_JUMP_VEL = 300;
+export const WALL_JUMP_VX = 190;
+export const WALL_JUMP_VY = 320;
+export const WALL_JUMP_LOCK = 0.16; // seconds of reduced air control after a wall jump
+export const WALL_SLIDE_MAX = 150; // max fall speed while pressing into a wall
+export const SPRINT_TAP_WINDOW = 0.25; // double-tap a direction within this window to sprint
+export const SPRINT_MUL = 1.45;
+export const SPRINT_RAMP = 0.18; // seconds to reach full sprint speed
+export const SPRINT_COOLDOWN = 0.35;
 
 // Aiming
 export const AIM_MAX_SPEED = 2.7; // rad/s at full stick
