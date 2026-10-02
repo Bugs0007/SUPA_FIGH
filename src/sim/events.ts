@@ -73,4 +73,14 @@ export type SimEvent =
   | { t: 'hazard'; kind: string; x: number; y: number; on: boolean }
   | { t: 'supplyDrop'; x: number; y: number }
   | { t: 'gravity'; on: boolean; x: number; y: number }
-  | { t: 'poltergeist'; f: number; x: number; y: number };
+  | { t: 'poltergeist'; f: number; x: number; y: number }
+  // hero powers (M9)
+  | { t: 'transform'; f: number; power: string; full: boolean; x: number; y: number }
+  | { t: 'powerEnd'; f: number; power: string }
+  | { t: 'powerSpawn'; x: number; y: number; power: string }
+  | { t: 'special'; f: number; power: string; x: number; y: number; scale: number }
+  | { t: 'chargeStart'; f: number }
+  | { t: 'stretch'; f: number }
+  | { t: 'clone'; f: number; x: number; y: number; facing: number }
+  | { t: 'cloneGone'; x: number; y: number }
+  | { t: 'heroFx'; fx: 'chakra' | 'steam' | 'ki'; heavy: boolean; x: number; y: number };

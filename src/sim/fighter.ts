@@ -72,6 +72,8 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
+import { heroDef } from './data/heroes';
+import { ability, chargeScale, endPower, fireSpecial, special, spawnClones, stretchDuration, stretchHitbox, stretchReach, updatePower } from './hero';
 import { detonate } from './item';
 import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
 import { conveyorPush } from './gimmicks';
@@ -94,6 +96,7 @@ export type FState =
   | 'knockdown'
   | 'grabbed'
   | 'grabbing'
+  | 'special'
   | 'dead';
 
 export interface InvItem {
@@ -213,6 +216,22 @@ export interface Fighter extends Body {
   gvx: number;
   gvy: number;
   ghostCd: number;
+  // hero (M9): '' = scrapyard fighter. Transformation state: see sim/hero.ts
+  hero: string;
+  /** active hero power-up id ('' = none) */
+  power: string;
+  powerTime: number;
+  powerMax: number;
+  /** the power matches the hero (full transformation) vs. the generic boost */
+  powerFull: boolean;
+  /** special attack cooldown */
+  specialCd: number;
+  /** seconds the special has been charged (-1 = not charging) */
+  charge: number;
+  /** 'special' state sub-kind */
+  specialKind: '' | 'charge' | 'cast' | 'stretch';
+  /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
+  stretchLen: number;
   prev: Intent;
 }
 
@@ -221,9 +240,13 @@ export interface FighterSpawn {
   team: number;
   isBot: boolean;
   upJumps: boolean;
+  /** hero id (data/heroes.ts), '' or undefined = scrapyard fighter */
+  hero?: string;
 }
 
 export function createFighter(id: number, spec: FighterSpawn, x: number, y: number): Fighter {
+  const hero = heroDef(spec.hero);
+  const hp = hero ? hero.stats.hp : MAX_HP;
   return {
     id,
     name: spec.name,
@@ -242,8 +265,8 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     facing: 1,
     state: 'normal',
     stateTime: 0,
-    hp: MAX_HP,
-    maxHp: MAX_HP,
+    hp,
+    maxHp: hp,
     knockMul: 1,
     alive: true,
     gone: false,
@@ -316,6 +339,15 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     gvx: 0,
     gvy: 0,
     ghostCd: 0,
+    hero: hero ? hero.id : '',
+    power: '',
+    powerTime: 0,
+    powerMax: 0,
+    powerFull: false,
+    specialCd: 0,
+    charge: -1,
+    specialKind: '',
+    stretchLen: 0,
     prev: emptyIntent(),
   };
 }
@@ -329,6 +361,7 @@ interface Edges {
   interactP: boolean;
   cycleP: boolean;
   gadgetP: boolean;
+  abilityP: boolean;
   upP: boolean;
   downP: boolean;
   leftP: boolean;
@@ -345,6 +378,7 @@ function edges(i: Intent, p: Intent): Edges {
   const interactP = i.interact && !p.interact;
   const cycleP = i.cycle && !p.cycle;
   const gadgetP = i.gadget && !p.gadget;
+  const abilityP = i.ability && !p.ability;
   const leftP = i.moveX < -0.5 && p.moveX >= -0.5;
   const rightP = i.moveX > 0.5 && p.moveX <= 0.5;
   return {
@@ -354,6 +388,7 @@ function edges(i: Intent, p: Intent): Edges {
     interactP,
     cycleP,
     gadgetP,
+    abilityP,
     upP,
     downP,
     leftP,
@@ -433,6 +468,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   f.py = f.y;
   if (f.gone && !w.settings.ghosts) return;
   if (!f.alive) {
+    if (f.power) endPower(w, f);
     if (!f.gone) updateCorpse(w, f);
     else f.stateTime += DT;
     if (w.settings.ghosts) updateGhost(w, f, inp);
@@ -459,7 +495,13 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.speedBoost > 0) f.speedBoost -= dt;
   if (f.strengthBoost > 0) f.strengthBoost -= dt;
   f.jetting = false;
+  f.stretchLen = 0;
+  updatePower(w, f, dt);
+  const ab = ability(f);
   f.speedMul = (activeWeapon(f).moveSpeedMul ?? 1) * (f.speedBoost > 0 ? (weaponDef('speed').powerup?.mult ?? 1) : 1);
+  f.speedMul *= (ab?.speedMul ?? 1) * (heroDef(f.hero)?.stats.speed ?? 1);
+  if (f.state !== 'special') f.charge = -1;
+  if (e.abilityP && f.carry < 0 && (f.state === 'normal' || f.state === 'crouch')) startSpecial(w, f, inp);
   if (f.carry >= 0) {
     f.speedMul *= CARRY.speedMul;
     // carrying: every action button throws the prop instead
@@ -510,6 +552,9 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       break;
     case 'grabbing':
       stGrabbing(w, f, inp, e, dt);
+      break;
+    case 'special':
+      stSpecial(w, f, inp, dt);
       break;
     case 'grabbed':
       if (e.anyP) f.struggle++;
@@ -1171,8 +1216,21 @@ export function dropCooked(w: World, f: Fighter): void {
   if (fuse <= 0) detonate(w, it);
 }
 
+/** Transformed heroes replace the fist combo (weapons keep their own). */
+function heroCombo(f: Fighter): MeleeHit[] | null {
+  if (activeWeapon(f) !== FISTS) return null;
+  return ability(f)?.combo ?? null;
+}
+
 function meleeStats(f: Fighter) {
+  const combo = heroCombo(f);
+  if (combo) return { combo, durability: Infinity };
   return (activeWeapon(f).melee ?? FISTS.melee)!;
+}
+
+/** Weapon id credited for a melee hit (hero combos have their own kill-feed label). */
+function meleeWeaponId(f: Fighter): string {
+  return heroCombo(f) ? f.power : activeWeapon(f).id;
 }
 
 function startMelee(w: World, f: Fighter): void {
@@ -1186,7 +1244,8 @@ function startMelee(w: World, f: Fighter): void {
   f.swingProps.length = 0;
   const hit = m.combo[step];
   if (f.grounded) f.vx = f.facing * (hit.lunge ?? 40);
-  w.emit({ t: 'swing', f: f.id, weapon: activeWeapon(f).id, step });
+  w.emit({ t: 'swing', f: f.id, weapon: meleeWeaponId(f), step });
+  if (hit.clones) spawnClones(w, f, hit);
 }
 
 function stMelee(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
@@ -1199,7 +1258,10 @@ function stMelee(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void 
   if (f.grounded) f.vx = approach(f.vx, 0, GROUND_DECEL * 0.5 * dt);
   else f.vx = approach(f.vx, axis(inp.moveX) * RUN_SPEED * 0.6, AIR_ACCEL * 0.4 * dt);
 
-  if (t >= hit.windup && t < activeEnd) meleeHitbox(w, f, hit, activeWeapon(f).id, 'melee', FIGHTER_H - 3, 6);
+  if (t >= hit.windup && t < activeEnd) {
+    meleeHitbox(w, f, hit, meleeWeaponId(f), 'melee', FIGHTER_H - 3, 6);
+    if (hit.stretch) f.stretchLen = hit.range;
+  }
 
   const last = f.combo >= m.combo.length - 1;
   if (t >= activeEnd && e.kickP && f.kickCooldown <= 0) {
@@ -1223,14 +1285,16 @@ function stMelee(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void 
  * Melee hitbox in front of the fighter. yTop/yBot = distance above the feet.
  */
 function meleeHitbox(w: World, f: Fighter, hit: MeleeHit, weapon: string, kind: 'melee' | 'kick', yTop: number, yBot: number): void {
+  const ab = ability(f);
   const near = f.x + f.facing * (f.w / 2 - 3);
-  const far = f.x + f.facing * (f.w / 2 + hit.range);
+  const far = f.x + f.facing * (f.w / 2 + hit.range + (ab?.reach ?? 0));
   const l = Math.min(near, far);
   const r = Math.max(near, far);
   const t = f.y - yTop;
   const b = f.y - yBot;
-  const mult = f.strengthBoost > 0 ? (weaponDef('strength').powerup?.mult ?? 1) : 1;
-  const knockMul = 1 + (mult - 1) * 0.5;
+  const strength = f.strengthBoost > 0 ? (weaponDef('strength').powerup?.mult ?? 1) : 1;
+  const mult = strength * (ab?.damageMul ?? 1);
+  const knockMul = (1 + (strength - 1) * 0.5) * (ab?.knockMul ?? 1);
   for (const p of w.props) {
     if (!p.active || f.swingProps.includes(p.id)) continue;
     if (p.x + p.w / 2 < l || p.x - p.w / 2 > r || p.y - p.h > b || p.y < t) continue;
@@ -1255,7 +1319,10 @@ function meleeHitbox(w: World, f: Fighter, hit: MeleeHit, weapon: string, kind: 
       x: f.x + f.facing * (f.w / 2 + hit.range * 0.6),
       y: (t + b) / 2,
     });
-    if (connected) wearMelee(w, f);
+    if (connected) {
+      wearMelee(w, f);
+      if (hit.fx || hit.heavy) w.emit({ t: 'heroFx', fx: hit.fx ?? 'ki', heavy: !!hit.heavy, x: f.x + f.facing * (f.w / 2 + hit.range * 0.6), y: (t + b) / 2 });
+    }
   }
 }
 
@@ -1280,17 +1347,83 @@ function startKick(w: World, f: Fighter): void {
     f.vx = f.facing * Math.max(Math.abs(f.vx), 170);
     f.vy = Math.max(f.vy, -40);
   } else {
-    f.vx = f.facing * (KICK.lunge ?? 30);
+    f.vx = f.facing * ((ability(f)?.kick ?? KICK).lunge ?? 30);
   }
   w.emit({ t: 'kick', f: f.id, air: f.airKick });
 }
 
+// ------------------------------------------------------------------ hero specials (sim/hero.ts)
+
+function startSpecial(w: World, f: Fighter, inp: Intent): void {
+  const sp = special(f);
+  if (!sp || f.specialCd > 0) return;
+  if (f.h !== FIGHTER_H) {
+    if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
+    f.h = FIGHTER_H;
+  }
+  setState(f, 'special');
+  f.swingHit.length = 0;
+  f.swingProps.length = 0;
+  if (inp.moveX > 0.5) f.facing = 1;
+  else if (inp.moveX < -0.5) f.facing = -1;
+  if (sp.kind === 'stretch') {
+    f.specialKind = 'stretch';
+    f.specialCd = sp.cooldown;
+    w.emit({ t: 'stretch', f: f.id });
+  } else if (sp.charge) {
+    f.specialKind = 'charge';
+    f.charge = 0;
+    w.emit({ t: 'chargeStart', f: f.id });
+  } else {
+    fireSpecial(w, f, sp, 1, inp.moveY < -0.5);
+    f.specialKind = 'cast';
+  }
+}
+
+function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
+  const sp = special(f);
+  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
+  if (!sp) {
+    // the power ran out mid-move
+    f.specialKind = '';
+    setState(f, 'normal');
+    integrate(w, f, dt);
+    return;
+  }
+  if (f.specialKind === 'charge') {
+    f.charge += dt;
+    // release (or hold too long) to fire; slow fall while charging looks great and is harmless
+    if (!f.grounded) f.vy = Math.min(f.vy, 60);
+    if (!inp.ability || f.charge >= (sp.charge?.time ?? 0) + 1.5) {
+      fireSpecial(w, f, sp, chargeScale(sp, f.charge), inp.moveY < -0.5);
+      f.charge = -1;
+      f.specialKind = 'cast';
+      f.stateTime = 0;
+    }
+  } else if (f.specialKind === 'stretch') {
+    const reach = stretchReach(sp, f.stateTime);
+    f.stretchLen = reach > 0 ? stretchHitbox(w, f, sp, reach) : 0;
+    if (f.stateTime >= stretchDuration(sp)) {
+      f.specialKind = '';
+      f.stretchLen = 0;
+      setState(f, 'normal');
+    }
+  } else if (f.stateTime >= sp.recover) {
+    f.specialKind = '';
+    setState(f, 'normal');
+  }
+  integrate(w, f, dt);
+}
+
 function stKick(w: World, f: Fighter, dt: number): void {
-  const k = f.airKick ? AIR_KICK : KICK;
+  const k = f.airKick ? AIR_KICK : (ability(f)?.kick ?? KICK);
   const t = f.stateTime;
   if (!f.airKick) {
     f.vx = approach(f.vx, 0, GROUND_DECEL * 0.7 * dt);
-    if (t >= k.windup && t < k.windup + k.active) meleeHitbox(w, f, k, 'kick', 'kick', 15, 3);
+    if (t >= k.windup && t < k.windup + k.active) {
+      meleeHitbox(w, f, k, 'kick', 'kick', 15, 3);
+      if (k.stretch) f.stretchLen = k.range;
+    }
     integrate(w, f, dt);
     if (t >= k.windup + k.active + k.recover) setState(f, 'normal');
     return;
