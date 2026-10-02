@@ -6,6 +6,8 @@ import type { Keyboard } from './keyboard';
 export interface Controller {
   readonly label: string;
   poll(): Intent;
+  /** feedback for gamepads (0..1 strength, ms) */
+  rumble?(strength: number, ms: number): void;
 }
 
 export class KeyboardController implements Controller {
@@ -39,6 +41,8 @@ export class KeyboardController implements Controller {
     o.kick = this.held('kick');
     o.interact = this.held('interact');
     o.cycle = this.held('cycle');
+    o.gadget = this.held('gadget');
+    o.ability = this.held('ability');
     this.consumeAll();
     return o;
   }

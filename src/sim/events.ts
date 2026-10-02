@@ -1,7 +1,7 @@
 // Events the simulation emits each tick. The renderer/audio/HUD drain them for juice and UI.
 // The sim itself never plays sounds or spawns visuals.
 
-export type HitKind = 'bullet' | 'melee' | 'kick' | 'throw' | 'bodyslam' | 'fall' | 'splat' | 'water' | 'explosion' | 'fire';
+export type HitKind = 'bullet' | 'melee' | 'kick' | 'throw' | 'bodyslam' | 'fall' | 'splat' | 'water' | 'explosion' | 'fire' | 'drain';
 
 export type SimEvent =
   | { t: 'shot'; f: number; weapon: string; x: number; y: number; angle: number }
@@ -68,4 +68,5 @@ export type SimEvent =
   | { t: 'burst'; x: number; y: number; weapon: string }
   | { t: 'powerup'; f: number; kind: string; x: number; y: number }
   | { t: 'heal'; f: number; amount: number }
-  | { t: 'spinUp'; f: number };
+  | { t: 'spinUp'; f: number }
+  | { t: 'respawn'; f: number; x: number; y: number };

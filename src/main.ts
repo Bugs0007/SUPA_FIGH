@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { audio } from './audio/AudioManager';
 import { computeScale, VIEW_H, VIEW_W } from './game/display';
 import { settings } from './game/settings';
+import { padMenu } from './input/gamepad';
 import { keyboard } from './input/keyboard';
 import { BootScene } from './scenes/BootScene';
 import { HudScene } from './scenes/HudScene';
@@ -31,6 +32,7 @@ const game = new Phaser.Game({
 game.registry.set('scale', k);
 
 // Menus read justPressed() during scene updates; clear edges once per game step.
+game.events.on(Phaser.Core.Events.PRE_STEP, () => padMenu.update());
 game.events.on(Phaser.Core.Events.POST_STEP, () => keyboard.endFrame());
 
 window.addEventListener('resize', () => {

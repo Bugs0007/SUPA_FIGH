@@ -53,6 +53,7 @@ export function weaponLabel(id: string): string {
     barrel: 'BARREL',
     crate: 'CRATE',
     gas: 'GAS CAN',
+    suddendeath: 'SUDDEN DEATH',
   };
   return special[id] ?? weaponDef(id).name;
 }
@@ -96,7 +97,7 @@ export class Juice {
       }
       case 'hit': {
         const heavy = e.kind === 'kick' || e.damage >= 10 || e.kind === 'bodyslam' || e.kind === 'splat';
-        if (e.kind === 'fire') {
+        if (e.kind === 'fire' || e.kind === 'drain') {
           if (!e.corpse) this.r.views[e.victim]?.onHit();
           break;
         }
@@ -327,6 +328,11 @@ export class Juice {
         this.r.floatText(f.x, f.y - 30, '+' + Math.round(e.amount), hexToNum(P.green2), true);
         break;
       }
+      case 'respawn':
+        fx.sparks(e.x, e.y - 10, 0, -1, 14, 0xffffff, 120);
+        fx.motes(e.x, e.y - 8, 8, 0xffffff);
+        this.sfx('spawn', e.x);
+        break;
       case 'spinUp':
         this.sfx('spinup', w.fighters[e.f].x, 0.8);
         break;

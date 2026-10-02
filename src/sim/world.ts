@@ -1,5 +1,5 @@
-import { DT, TILE } from './constants';
-import { teamKey } from './combat';
+import { applyHit, teamKey } from './combat';
+import { DT, RESPAWN_PROTECTION, SUDDEN_DEATH_DPS, TILE } from './constants';
 import { freshAmmo, spawnableWeapons, stacks, weaponDef } from './data/weapons';
 import { updateBurning, updateFire, type BurningTile, type FirePatch } from './fire';
 import type { SimEvent } from './events';
@@ -51,6 +51,10 @@ export class World {
   /** seconds of Bullet Time left (the world runs slow; the owner gets two updates per tick) */
   bulletTime = 0;
   bulletTimeOwner = -1;
+  /** 0 = off, 1 = everyone revealed (bots know all positions), 2 = + HP drain */
+  suddenDeath = 0;
+  private drainAcc = 0;
+  private readonly specs: FighterSpawn[];
   events: SimEvent[] = [];
   killY: number;
   gravityScale: number;
@@ -65,6 +69,7 @@ export class World {
     this.settings = settings;
     this.gravityScale = settings.gravityScale * (def.gravityScale ?? 1);
     this.killY = this.map.pxH + (def.killMargin ?? 48);
+    this.specs = specs;
 
     const pts = this.rng.shuffle([...this.parsed.spawns]);
     if (pts.length === 0) pts.push({ x: this.map.pxW / 2, y: TILE * 2 });
@@ -104,12 +109,43 @@ export class World {
       updateBurning(this, f);
     }
     if (this.bulletTime > 0) this.bulletTime = Math.max(0, this.bulletTime - DT);
+    if (this.suddenDeath >= 2) this.drain();
     updateBullets(this);
     updateItems(this);
     updateProps(this);
     updateFire(this);
     this.updateWeaponSpawner();
     if (this.tick % 120 === 0) this.items = this.items.filter((it) => it.active);
+  }
+
+  private drain(): void {
+    this.drainAcc += SUDDEN_DEATH_DPS * DT;
+    if (this.drainAcc < 1) return;
+    const dmg = this.drainAcc;
+    this.drainAcc = 0;
+    for (const f of this.fighters) {
+      if (f.alive) applyHit(this, f, { damage: dmg, kbX: 0, kbY: 0, attacker: -1, weapon: 'suddendeath', kind: 'drain', ignoreInvuln: true });
+    }
+  }
+
+  /** Bring a dead fighter back (Deathmatch): fresh state at the spawn farthest from living enemies. */
+  respawn(f: Fighter): void {
+    let best = this.parsed.spawns[0] ?? { x: this.map.pxW / 2, y: TILE * 2 };
+    let bestD = -1;
+    for (const p of this.parsed.spawns) {
+      let d = Infinity;
+      for (const o of this.fighters) if (o !== f && o.alive && teamKey(o) !== teamKey(f)) d = Math.min(d, Math.hypot(o.x - p.x, o.y - p.y));
+      d += this.rng.range(0, 40); // don't always pick the same corner
+      if (d > bestD) {
+        bestD = d;
+        best = p;
+      }
+    }
+    Object.assign(f, createFighter(f.id, this.specs[f.id], best.x, best.y));
+    f.facing = best.x < this.map.pxW / 2 ? 1 : -1;
+    f.grounded = true;
+    f.invuln = RESPAWN_PROTECTION;
+    this.emit({ t: 'respawn', f: f.id, x: best.x, y: best.y });
   }
 
   // ------------------------------------------------------------ queries

@@ -178,6 +178,7 @@ export class BotController implements Controller {
         sees = !!m && m.seen && this.now - m.t < 0.1; // keep last tick's result between checks
       }
       if (!sees && d < 650 && w.time - e.lastShotTime < 0.25) sees = true; // heard a shot
+      if (w.suddenDeath > 0) sees = true; // sudden death reveals everyone
       const m = this.mem.get(e.id);
       if (sees) {
         this.mem.set(e.id, { x: e.x, y: e.y, t: this.now, seen: true, since: m && m.seen ? m.since : this.now });

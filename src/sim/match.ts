@@ -1,4 +1,4 @@
-import { DT, MATCH_END_TIME, ROUND_END_CONFIRM, ROUND_END_TIME } from './constants';
+import { DT, MATCH_END_TIME, ROUND_END_CONFIRM, ROUND_END_TIME, SUDDEN_DEATH_DRAIN_AFTER } from './constants';
 import { teamKey } from './combat';
 import { weaponDef } from './data/weapons';
 import type { FighterSpawn } from './fighter';
@@ -6,7 +6,8 @@ import type { Intent } from './intent';
 import { getMap } from './map/maps';
 import { World, type WorldSettings } from './world';
 
-export type GameMode = 'brawl';
+/** brawl = rounds, last team standing. deathmatch = one timed round with respawns, most kills wins. */
+export type GameMode = 'brawl' | 'deathmatch';
 
 export interface MatchConfig {
   mapId: string;
@@ -16,7 +17,15 @@ export interface MatchConfig {
   friendlyFire: boolean;
   weaponSpawnRate: number;
   seed: number;
+  /** deathmatch length (s), default 180 */
+  timeLimit?: number;
+  /** brawl: seconds into a round before sudden death (0 = never), default 75 */
+  suddenDeath?: number;
+  /** deathmatch respawn delay (s), default 2.5 */
+  respawnDelay?: number;
 }
+
+export const MODE_NAMES: Record<GameMode, string> = { brawl: 'BRAWL', deathmatch: 'DEATHMATCH' };
 
 export type MatchPhase = 'fight' | 'roundEnd' | 'matchEnd';
 
@@ -25,7 +34,9 @@ export type MatchEvent =
   | { t: 'roundEnd'; winnerTeam: number | null; winners: number[] }
   | { t: 'matchEnd'; winnerTeam: number; winners: number[] }
   | { t: 'finalKill'; x: number; y: number }
-  | { t: 'multiKill'; f: number; count: number };
+  | { t: 'multiKill'; f: number; count: number }
+  | { t: 'suddenDeath'; level: number }
+  | { t: 'overtime' };
 
 export interface FighterStats {
   kills: number;
@@ -57,6 +68,10 @@ export class Match {
   private slowmoLen = 1;
   private decideTimer = -1;
   private recentKills: { killer: number; tick: number }[] = [];
+  /** deathmatch: fighter id -> tick to respawn at */
+  private respawnAt = new Map<number, number>();
+  /** deathmatch tie at the buzzer: next kill wins */
+  overtime = false;
 
   constructor(cfg: MatchConfig) {
     this.cfg = cfg;
@@ -80,6 +95,8 @@ export class Match {
     this.decideTimer = -1;
     this.roundWinner = null;
     this.recentKills.length = 0;
+    this.respawnAt.clear();
+    this.overtime = false;
     this.events.push({ t: 'roundStart', round: this.round });
   }
 
@@ -106,6 +123,11 @@ export class Match {
         } else {
           this.stats[e.victim].suicides++;
         }
+        if (this.cfg.mode === 'deathmatch') {
+          this.scoreKill(e.killer, e.victim);
+          this.respawnAt.set(e.victim, w.tick + Math.round((this.cfg.respawnDelay ?? 2.5) / DT));
+          continue;
+        }
         if (this.phase === 'fight' && this.teamCount > 1 && w.aliveTeams().size <= 1) {
           this.events.push({ t: 'finalKill', x: e.x, y: e.y });
           this.startSlowmo(1.5, e.x, e.y);
@@ -115,7 +137,20 @@ export class Match {
 
     this.updateSlowmo();
 
+    if (this.cfg.mode === 'deathmatch') {
+      this.stepDeathmatch();
+      return;
+    }
+
     if (this.phase === 'fight') {
+      const sd = this.cfg.suddenDeath ?? 75;
+      if (sd > 0) {
+        const level = this.phaseTime >= sd + SUDDEN_DEATH_DRAIN_AFTER ? 2 : this.phaseTime >= sd ? 1 : 0;
+        if (level > w.suddenDeath) {
+          w.suddenDeath = level;
+          this.events.push({ t: 'suddenDeath', level });
+        }
+      }
       if (this.teamCount > 1 && w.aliveTeams().size <= 1) {
         if (this.decideTimer < 0) this.decideTimer = ROUND_END_CONFIRM;
         this.decideTimer -= DT;
@@ -133,6 +168,62 @@ export class Match {
       }
     } else if (this.phase === 'matchEnd') {
       if (this.phaseTime >= MATCH_END_TIME) this.resetMatch();
+    }
+  }
+
+  /** Deathmatch seconds left (0 in other modes). */
+  get timeLeft(): number {
+    if (this.cfg.mode !== 'deathmatch' || this.phase !== 'fight') return 0;
+    return Math.max(0, (this.cfg.timeLimit ?? 180) - this.phaseTime);
+  }
+
+  private scoreKill(killer: number, victim: number): void {
+    const vTeam = teamKey({ id: victim, team: this.cfg.fighters[victim].team });
+    if (killer >= 0 && killer !== victim) {
+      const kTeam = teamKey({ id: killer, team: this.cfg.fighters[killer].team });
+      if (kTeam !== vTeam) this.scores.set(kTeam, (this.scores.get(kTeam) ?? 0) + 1);
+    } else {
+      this.scores.set(vTeam, (this.scores.get(vTeam) ?? 0) - 1);
+    }
+  }
+
+  private leaders(): number[] {
+    const teams = new Set(this.cfg.fighters.map((f, i) => teamKey({ id: i, team: f.team })));
+    let best = -Infinity;
+    let out: number[] = [];
+    for (const t of teams) {
+      const s = this.scores.get(t) ?? 0;
+      if (s > best) {
+        best = s;
+        out = [t];
+      } else if (s === best) out.push(t);
+    }
+    return out;
+  }
+
+  private stepDeathmatch(): void {
+    const w = this.world;
+    if (this.phase === 'fight') {
+      for (const [id, tick] of this.respawnAt) {
+        if (w.tick >= tick) {
+          this.respawnAt.delete(id);
+          w.respawn(w.fighters[id]);
+        }
+      }
+      if (this.timeLeft <= 0) {
+        const lead = this.leaders();
+        if (lead.length === 1) {
+          this.matchWinner = lead[0];
+          this.phase = 'matchEnd';
+          this.phaseTime = 0;
+          this.events.push({ t: 'matchEnd', winnerTeam: lead[0], winners: this.membersOf(lead[0]) });
+        } else if (!this.overtime) {
+          this.overtime = true;
+          this.events.push({ t: 'overtime' });
+        }
+      }
+    } else if (this.phase === 'matchEnd' && this.phaseTime >= MATCH_END_TIME) {
+      this.resetMatch();
     }
   }
 

@@ -53,6 +53,12 @@ export class Keyboard {
     return this.pressedThisFrame.has(code);
   }
 
+  /** first key pressed this frame (rebinding capture) */
+  firstJustPressed(): string | null {
+    for (const c of this.pressedThisFrame) return c;
+    return null;
+  }
+
   anyJustPressed(): boolean {
     return this.pressedThisFrame.size > 0;
   }

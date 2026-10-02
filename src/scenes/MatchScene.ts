@@ -7,6 +7,7 @@ import { audio } from '../audio/AudioManager';
 import { settings } from '../game/settings';
 import { keyboardBinds } from '../input/bindings';
 import { KeyboardController, type Controller } from '../input/controllers';
+import { GamepadController } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { CameraDirector } from '../render/CameraDirector';
 import { Juice, type UiEvent } from '../render/Juice';
@@ -25,6 +26,11 @@ export interface PlayerSetup {
   /** 'kb0' | 'kb1' | 'bot' */
   input: string;
   difficulty?: Difficulty;
+}
+
+/** Inputs a human plays with (gets an HUD panel): keyboard layouts and gamepads. */
+export function isHumanInput(input: string): boolean {
+  return input.startsWith('kb') || input.startsWith('pad');
 }
 
 export interface MatchSceneData {
@@ -67,7 +73,8 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
     players,
     config: {
       mapId: params.get('map') ?? 'test',
-      mode: 'brawl',
+      mode: params.get('mode') === 'deathmatch' ? 'deathmatch' : 'brawl',
+      timeLimit: Number(params.get('time') ?? 180) || 180,
       fighters: players.map((p) => p.spawn),
       roundsToWin: 5,
       friendlyFire: false,
@@ -111,6 +118,7 @@ export class MatchScene extends Phaser.Scene {
     this.match = new Match(setup.config);
     this.controllers = setup.players.map((p, i) => {
       if (p.input === 'kb0' || p.input === 'kb1') return new KeyboardController(keyboard, keyboardBinds[p.input === 'kb0' ? 0 : 1], p.label);
+      if (p.input.startsWith('pad')) return new GamepadController(Number(p.input.slice(3)));
       return new BotController(() => this.match.world, i, { difficulty: p.difficulty, seed: setup.config.seed });
     });
     this.intents = this.controllers.map((c) => c.poll());
@@ -181,7 +189,10 @@ export class MatchScene extends Phaser.Scene {
 
   private drainEvents(): void {
     const w = this.match.world;
-    for (const e of w.events) this.juice.handle(e, w);
+    for (const e of w.events) {
+      this.juice.handle(e, w);
+      this.feedback(e, w);
+    }
     w.events.length = 0;
     if (this.juice.hitstop > 0) {
       this.hitstop = Math.max(this.hitstop, this.juice.hitstop);
@@ -201,6 +212,21 @@ export class MatchScene extends Phaser.Scene {
       }
     }
     this.match.events.length = 0;
+  }
+
+  /** Gamepad rumble for the fighters that pads control. */
+  private feedback(e: World['events'][number], w: World): void {
+    if (e.t === 'hit' && !e.corpse) {
+      this.controllers[e.victim]?.rumble?.(Math.min(1, 0.25 + e.damage / 40), 110);
+      if (e.attacker >= 0 && e.attacker !== e.victim) this.controllers[e.attacker]?.rumble?.(0.15, 50);
+    } else if (e.t === 'explosion') {
+      w.fighters.forEach((f, i) => {
+        const d = Math.hypot(f.x - e.x, f.y - e.y);
+        if (f.alive && d < e.radius * 3) this.controllers[i]?.rumble?.(Math.min(1, 1.2 - d / (e.radius * 3)), 260);
+      });
+    } else if (e.t === 'shot') {
+      this.controllers[e.f]?.rumble?.(0.12, 40);
+    }
   }
 
   private handleDebugKeys(): void {

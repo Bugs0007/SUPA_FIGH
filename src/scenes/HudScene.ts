@@ -7,7 +7,7 @@ import { weaponLabel } from '../render/Juice';
 import { teamKey } from '../sim/combat';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
-import type { MatchScene } from './MatchScene';
+import { isHumanInput, type MatchScene } from './MatchScene';
 
 interface FeedLine {
   objs: Phaser.GameObjects.BitmapText[];
@@ -20,6 +20,7 @@ const KILL_QUIPS: Record<string, string> = {
   splat: 'SPLATTERED!',
   bodyslam: 'HUMAN BOWLING!',
   throw: 'BONK!',
+  drain: 'OUTLASTED!',
   explosion: 'BLOWN TO BITS!',
   fire: 'ROASTED!',
 };
@@ -36,6 +37,7 @@ export class HudScene extends Phaser.Scene {
   private announceTime = 0;
   private roundText!: Phaser.GameObjects.BitmapText;
   private scoreTexts: Phaser.GameObjects.BitmapText[] = [];
+  private dmScores: Phaser.GameObjects.BitmapText[] = [];
   private panelTexts: Phaser.GameObjects.BitmapText[][] = [];
   /** per panel: 5 slot icons */
   private panelIcons: Phaser.GameObjects.Image[][] = [];
@@ -68,7 +70,7 @@ export class HudScene extends Phaser.Scene {
       .setVisible(false);
     this.debugText = this.add.bitmapText(4, 4, 'smo', '').setDepth(20);
 
-    const humans = this.ms.players.map((p, i) => ({ p, i })).filter(({ p }) => p.input.startsWith('kb'));
+    const humans = this.ms.players.map((p, i) => ({ p, i })).filter(({ p }) => isHumanInput(p.input));
     humans.forEach(() => {
       this.panelTexts.push([
         this.add.bitmapText(0, 0, 'pxo', ''),
@@ -78,12 +80,20 @@ export class HudScene extends Phaser.Scene {
       this.panelIcons.push(Array.from({ length: 5 }, () => this.add.image(0, 0, 'weapons').setVisible(false)));
       this.panelCounts.push(Array.from({ length: 5 }, () => this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 1).setDepth(2)));
     });
-    this.showBanner('ROUND 1', 'FIGHT!', 0xffffff, 1.2);
+    this.roundBanner(1);
   }
 
   private applyZoom(k: number): void {
     this.cameras.main.setZoom(k);
     this.cameras.main.centerOn(VIEW_W / 2, VIEW_H / 2);
+  }
+
+  private roundBanner(round: number): void {
+    const m = this.ms.match;
+    if (m.cfg.mode === 'deathmatch') {
+      const t = m.cfg.timeLimit ?? 180;
+      this.showBanner('DEATHMATCH', `MOST KILLS IN ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} WINS`, 0xffffff, 1.6);
+    } else this.showBanner('ROUND ' + round, 'FIGHT!', 0xffffff, 1.2);
   }
 
   private showBanner(text: string, sub: string, color: number, time: number): void {
@@ -144,7 +154,9 @@ export class HudScene extends Phaser.Scene {
     }
     ms.ui.length = 0;
     for (const e of ms.matchEvents) {
-      if (e.t === 'roundStart') this.showBanner('ROUND ' + e.round, 'FIGHT!', 0xffffff, 1.2);
+      if (e.t === 'roundStart') this.roundBanner(e.round);
+      else if (e.t === 'suddenDeath') this.showAnnounce(e.level >= 2 ? 'NO MERCY!' : 'SUDDEN DEATH!', 0xea4a4a);
+      else if (e.t === 'overtime') this.showBanner('OVERTIME', 'NEXT KILL WINS', 0xf8c840, 2);
       else if (e.t === 'roundEnd') {
         const tn = this.teamName(e.winnerTeam);
         this.showBanner(e.winnerTeam === null ? 'DRAW!' : tn.name + ' WINS', e.winnerTeam === null ? 'EVERYBODY DIED' : 'THE ROUND', tn.color, 2.4);
@@ -170,7 +182,15 @@ export class HudScene extends Phaser.Scene {
     } else this.announce.setAlpha(0);
 
     // ---- scoreboard
-    this.roundText.setText(`ROUND ${m.round}  -  FIRST TO ${m.cfg.roundsToWin}`);
+    const dm = m.cfg.mode === 'deathmatch';
+    if (dm) {
+      const tl = Math.ceil(m.timeLeft);
+      const clock = `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
+      this.roundText.setText(m.overtime ? 'DEATHMATCH  -  OVERTIME' : `DEATHMATCH  -  ${clock}`).setTint(tl <= 10 && m.phase === 'fight' ? 0xea4a4a : 0xffffff);
+    } else {
+      const sd = ms.match.world.suddenDeath > 0 ? '  -  SUDDEN DEATH' : '';
+      this.roundText.setText(`ROUND ${m.round}  -  FIRST TO ${m.cfg.roundsToWin}${sd}`).setTint(sd ? 0xea4a4a : 0xffffff);
+    }
     const teams: number[] = [];
     m.cfg.fighters.forEach((f, i) => {
       const t = teamKey({ id: i, team: f.team });
@@ -180,7 +200,7 @@ export class HudScene extends Phaser.Scene {
     g.clear();
     while (this.scoreTexts.length < teams.length) this.scoreTexts.push(this.add.bitmapText(0, 0, 'smo', ''));
     const pip = 4;
-    const entryW = (t: number) => textWidth(this.teamName(t).name, 'smo') + 4 + m.cfg.roundsToWin * (pip + 1);
+    const entryW = (t: number) => textWidth(this.teamName(t).name, 'smo') + 4 + (dm ? 14 : m.cfg.roundsToWin * (pip + 1));
     const shown = teams.slice(0, 10);
     const total = shown.reduce((s, t) => s + entryW(t) + 10, -10);
     let x = Math.round(VIEW_W / 2 - total / 2);
@@ -189,7 +209,11 @@ export class HudScene extends Phaser.Scene {
       const txt = this.scoreTexts[i].setText(tn.name).setTint(tn.color).setPosition(x, 12).setVisible(true);
       const score = m.scores.get(t) ?? 0;
       let px = x + txt.width + 3;
-      for (let r = 0; r < m.cfg.roundsToWin; r++) {
+      if (dm) {
+        while (this.dmScores.length <= i) this.dmScores.push(this.add.bitmapText(0, 0, 'smo', ''));
+        this.dmScores[i].setText(String(score)).setPosition(px, 12).setVisible(true).setTint(0xfff4a0);
+      } else this.dmScores[i]?.setVisible(false);
+      for (let r = 0; r < (dm ? 0 : m.cfg.roundsToWin); r++) {
         g.fillStyle(hexToNum(P.ink), 1).fillRect(px - 1, 12, pip + 2, pip + 3);
         g.fillStyle(r < score ? tn.color : 0x3a3448, 1).fillRect(px, 13, pip, pip + 1);
         px += pip + 1;
@@ -197,6 +221,7 @@ export class HudScene extends Phaser.Scene {
       x += entryW(t) + 10;
     });
     for (let i = shown.length; i < this.scoreTexts.length; i++) this.scoreTexts[i].setVisible(false);
+    for (let i = dm ? shown.length : 0; i < this.dmScores.length; i++) this.dmScores[i].setVisible(false);
 
     // ---- kill feed
     let fy = 26;
@@ -219,13 +244,14 @@ export class HudScene extends Phaser.Scene {
     }
 
     // ---- player panels: name + HP, active weapon + ammo, 5 inventory slots
-    const humans = ms.players.map((p, i) => ({ p, i })).filter(({ p }) => p.input.startsWith('kb'));
+    const humans = ms.players.map((p, i) => ({ p, i })).filter(({ p }) => isHumanInput(p.input));
     humans.forEach(({ p, i }, n) => {
       const f = w.fighters[i];
       const [nameT, weapT, ammoT] = this.panelTexts[n];
       const right = n % 2 === 1;
+      const inner = n >= 2; // players 3/4 sit next to players 1/2
       const PW = 104;
-      const px = right ? VIEW_W - PW - 6 : 8;
+      const px = right ? VIEW_W - PW - 6 - (inner ? PW + 6 : 0) : 8 + (inner ? PW + 6 : 0);
       const py = VIEW_H - 40;
       g.fillStyle(hexToNum(P.ink), 0.75).fillRect(px - 3, py - 3, PW, 38);
       g.lineStyle(1, p.color, 1).strokeRect(px - 3.5, py - 3.5, PW + 1, 39);

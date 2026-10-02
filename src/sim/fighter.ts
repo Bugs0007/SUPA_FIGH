@@ -304,6 +304,7 @@ interface Edges {
   kickP: boolean;
   interactP: boolean;
   cycleP: boolean;
+  gadgetP: boolean;
   upP: boolean;
   downP: boolean;
   leftP: boolean;
@@ -319,6 +320,7 @@ function edges(i: Intent, p: Intent): Edges {
   const kickP = i.kick && !p.kick;
   const interactP = i.interact && !p.interact;
   const cycleP = i.cycle && !p.cycle;
+  const gadgetP = i.gadget && !p.gadget;
   const leftP = i.moveX < -0.5 && p.moveX >= -0.5;
   const rightP = i.moveX > 0.5 && p.moveX <= 0.5;
   return {
@@ -327,6 +329,7 @@ function edges(i: Intent, p: Intent): Edges {
     kickP,
     interactP,
     cycleP,
+    gadgetP,
     upP,
     downP,
     leftP,
@@ -986,7 +989,18 @@ function commonActions(w: World, f: Fighter, inp: Intent, e: Edges): boolean {
   }
   if (e.interactP && interact(w, f)) return f.state !== 'normal' && f.state !== 'crouch';
   if (e.cycleP) cycleWeapon(w, f);
+  if (e.gadgetP) quickGadget(w, f);
   return false;
+}
+
+/** Gadget button: use the gadget slot without switching to it (medkit). Passive gadgets ignore it. */
+function quickGadget(w: World, f: Fighter): void {
+  const g = f.inv[SLOT.GADGET];
+  if (!g || weaponDef(g.id).gadget?.kind !== 'medkit') return;
+  const prev = f.active;
+  f.active = SLOT.GADGET;
+  useMedkit(w, f);
+  if (f.inv[prev] || prev === SLOT.MELEE) f.active = prev;
 }
 
 /** On ladders you can only cycle weapons / interact. */
