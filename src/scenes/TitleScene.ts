@@ -7,13 +7,17 @@ import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboardBinds, keyLabel, type Action } from '../input/bindings';
 import { keyboard } from '../input/keyboard';
+import { saveSettings, settings } from '../game/settings';
 import { defaultSetup } from './MatchScene';
+
+const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
 
 const PLAYER_COLORS = [0xea4a4a, 0x4a8af0];
 
 /** Title + controls cards. M7 replaces this with the full menu and live bot battle. */
 export class TitleScene extends Phaser.Scene {
-  private dummies = 0;
+  private bots = settings.quickBots;
+  private diffIdx = Math.max(0, DIFF_ORDER.indexOf(settings.botDifficulty));
   private dummyText!: Phaser.GameObjects.BitmapText;
   private prompt!: Phaser.GameObjects.BitmapText;
   private t = 0;
@@ -59,8 +63,9 @@ export class TitleScene extends Phaser.Scene {
     this.card(0, 20, 146, PLAYER_PRESETS[0]);
     this.card(1, VIEW_W - 20 - 280, 146, PLAYER_PRESETS[1]);
 
-    this.prompt = this.add.bitmapText(VIEW_W / 2, 318, 'pxo', 'PRESS ENTER TO FIGHT').setOrigin(0.5).setScale(2);
-    this.dummyText = this.add.bitmapText(VIEW_W / 2, 340, 'smo', '').setOrigin(0.5).setTint(0xc3c9dc);
+    this.prompt = this.add.bitmapText(VIEW_W / 2, 312, 'pxo', 'ENTER: QUICK MATCH').setOrigin(0.5).setScale(2);
+    this.add.bitmapText(VIEW_W / 2, 330, 'smo', 'L: MATCH SETUP (TEAMS, GAMEPADS, MODES)     C: CONTROLS').setOrigin(0.5).setTint(0xfff4a0);
+    this.dummyText = this.add.bitmapText(VIEW_W / 2, 344, 'smo', '').setOrigin(0.5).setTint(0xc3c9dc);
     this.updateDummyText();
   }
 
@@ -70,7 +75,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private updateDummyText(): void {
-    this.dummyText.setText(`SPARRING DUMMIES: ${this.dummies}   (PRESS 0-8 TO CHANGE)   REAL BOTS ARRIVE IN MILESTONE 3`);
+    this.dummyText.setText(`QUICK MATCH BOTS: ${this.bots} (0-8)     DIFFICULTY: ${DIFF_ORDER[this.diffIdx].toUpperCase()} (TAB)`);
   }
 
   private card(idx: number, x: number, y: number, look: Appearance): void {
@@ -110,8 +115,9 @@ export class TitleScene extends Phaser.Scene {
     });
     this.add.bitmapText(x + 84, y + 104, 'sm', 'GUNS: HOLD ATTACK, UP/DOWN AIMS,').setTint(0xc3c9dc);
     this.add.bitmapText(x + 84, y + 112, 'sm', 'LET GO TO FIRE. SMGS SPRAY WHILE HELD.').setTint(0xc3c9dc);
-    this.add.bitmapText(x + 84, y + 124, 'sm', 'DOWN WHILE RUNNING = ROLL  DOWN+JUMP =').setTint(0xc3c9dc);
-    this.add.bitmapText(x + 84, y + 132, 'sm', 'DROP  DOWN IN AIR = DIVE').setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 124, 'sm', 'RUN + DOWN = ROLL   DOWN + JUMP = DROP').setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 132, 'sm', 'AIR JUMP = DOUBLE/WALL JUMP  AIR DOWN = DIVE').setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 140, 'sm', `2X TAP DIRECTION = SPRINT  ${keys('gadget')} = MEDKIT`).setTint(0xc3c9dc);
   }
 
   override update(_t: number, deltaMs: number): void {
@@ -129,15 +135,35 @@ export class TitleScene extends Phaser.Scene {
     }
     for (let d = 0; d <= 8; d++) {
       if (keyboard.justPressed('Digit' + d) || keyboard.justPressed('Numpad' + d)) {
-        this.dummies = d;
+        this.bots = d;
+        settings.quickBots = d;
+        saveSettings();
         this.updateDummyText();
         audio.play('uiMove');
       }
     }
+    if (keyboard.justPressed('Tab')) {
+      this.diffIdx = (this.diffIdx + 1) % DIFF_ORDER.length;
+      settings.botDifficulty = DIFF_ORDER[this.diffIdx];
+      saveSettings();
+      this.updateDummyText();
+      audio.play('uiMove');
+    }
+    if (keyboard.justPressed('KeyL')) {
+      audio.play('uiOk');
+      this.scene.start('lobby');
+      return;
+    }
+    if (keyboard.justPressed('KeyC')) {
+      audio.play('uiOk');
+      this.scene.start('controls', { from: 'title' });
+      return;
+    }
     if (keyboard.justPressed('Enter') || keyboard.justPressed('Space') || keyboard.justPressed('NumpadEnter')) {
       audio.play('uiOk');
       const params = new URLSearchParams(location.search);
-      params.set('bots', String(this.dummies));
+      params.set('bots', String(this.bots));
+      params.set('diff', DIFF_ORDER[this.diffIdx]);
       this.scene.start('match', defaultSetup(params));
     }
   }

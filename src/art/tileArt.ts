@@ -13,7 +13,7 @@ export const MASK_UP = 1;
 export const MASK_RIGHT = 2;
 export const MASK_DOWN = 4;
 export const MASK_LEFT = 8;
-export const KIND_ROWS = 12;
+export const KIND_ROWS = 14;
 export const BACK_ROW = KIND_ROWS;
 
 export interface ThemeColors {
@@ -25,6 +25,15 @@ export interface ThemeColors {
 
 export const THEMES: Record<string, ThemeColors> = {
   arena: { back: '#2a2438', backSeam: '#221d2e', sky0: '#15111f', sky1: '#2b2140' },
+  rooftops: { back: '#2a1e3a', backSeam: '#20162e', sky0: '#120c24', sky1: '#3a1a4a' },
+  train: { back: '#2a2a34', backSeam: '#202028', sky0: '#0e1024', sky1: '#242a50' },
+  factory: { back: '#3a2a22', backSeam: '#2e201a', sky0: '#2a1410', sky1: '#6a3418' },
+  construction: { back: '#4a4a52', backSeam: '#3e3e46', sky0: '#6fa8dc', sky1: '#a8d0f0' },
+  casino: { back: '#4a1424', backSeam: '#3a0e1c', sky0: '#2a0a14', sky1: '#4a1424' },
+  docks: { back: '#2a3440', backSeam: '#222a34', sky0: '#3a2048', sky1: '#f08a4a' },
+  office: { back: '#3a4656', backSeam: '#303a48', sky0: '#7ab0e0', sky1: '#b8d8f0' },
+  lab: { back: '#16302e', backSeam: '#102624', sky0: '#081a1c', sky1: '#0c2428' },
+  mine: { back: '#2a1e14', backSeam: '#20160e', sky0: '#120c08', sky1: '#1e140c' },
 };
 
 type Painter = (pc: PixelCanvas, ox: number, oy: number, mask: number, seed: number) => void;
@@ -196,7 +205,24 @@ const water: Painter = (pc, ox, oy, m) => {
   pc.set(ox + 11, oy + 12, P.water2, 180);
 };
 
+const conveyor =
+  (dir: number): Painter =>
+  (pc, ox, oy, m) => {
+    pc.rect(ox, oy, 16, 16, P.steel0);
+    pc.rect(ox, oy + 1, 16, 4, P.ink2);
+    for (let x = 0; x < 16; x += 4) {
+      const cx = dir > 0 ? x : 15 - x;
+      pc.set(ox + cx, oy + 2, P.yellow);
+      pc.set(ox + cx + (dir > 0 ? -1 : 1), oy + 3, P.yellow);
+    }
+    for (let x = 3; x < 16; x += 6) pc.circle(ox + x, oy + 10, 2, P.steel2);
+    pc.rect(ox, oy + 14, 16, 1, P.ink);
+    edges(pc, ox, oy, m, P.steel3, P.ink2);
+  };
+
 const PAINTERS: Record<number, Painter> = {
+  [TK.CONV_L]: conveyor(-1),
+  [TK.CONV_R]: conveyor(1),
   [TK.CONCRETE]: concrete,
   [TK.METAL]: metal,
   [TK.BRICK]: brick,

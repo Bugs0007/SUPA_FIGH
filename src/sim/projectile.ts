@@ -218,7 +218,8 @@ export function updateBullets(w: World): void {
           b.active = false;
           break;
         }
-        if (wh.ricochet && b.ricochet && b.bounces > 0 && w.rng.chance(0.8)) {
+        const bouncy = w.mods.has('bouncy') && b.kind !== 'flame' && b.kind !== 'rocket';
+        if ((wh.ricochet || bouncy) && (b.ricochet || bouncy) && b.bounces > 0 && (bouncy || w.rng.chance(0.8))) {
           if (wh.nx !== 0) b.vx = -b.vx;
           if (wh.ny !== 0) b.vy = -b.vy;
           const jitter = w.rng.range(-0.18, 0.18);

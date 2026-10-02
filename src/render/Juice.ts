@@ -53,6 +53,15 @@ export function weaponLabel(id: string): string {
     barrel: 'BARREL',
     crate: 'CRATE',
     gas: 'GAS CAN',
+    suddendeath: 'SUDDEN DEATH',
+    crusher: 'CRUSHER',
+    laser: 'LASER GRID',
+    tunnel: 'TUNNEL',
+    minecart: 'MINECART',
+    hook: 'CRANE HOOK',
+    girder: 'GIRDER',
+    tnt: 'TNT',
+    chandelier: 'CHANDELIER',
   };
   return special[id] ?? weaponDef(id).name;
 }
@@ -96,7 +105,7 @@ export class Juice {
       }
       case 'hit': {
         const heavy = e.kind === 'kick' || e.damage >= 10 || e.kind === 'bodyslam' || e.kind === 'splat';
-        if (e.kind === 'fire') {
+        if (e.kind === 'fire' || e.kind === 'drain' || (e.kind === 'hazard' && e.damage < 5)) {
           if (!e.corpse) this.r.views[e.victim]?.onHit();
           break;
         }
@@ -158,9 +167,23 @@ export class Juice {
       }
       case 'jump':
         this.r.views[e.f]?.onJump();
-        fx.dust(e.x, e.y, 2, 25);
-        this.sfx('jump', e.x, 0.6);
+        if (e.wall) {
+          fx.dust(e.x, e.y, 3, 30);
+          this.sfx('jump', e.x, 0.7, 1.15);
+        } else if (e.air) {
+          fx.motes(e.x, e.y, 5, 0xffffff);
+          this.sfx('jump', e.x, 0.6, 1.3);
+        } else {
+          fx.dust(e.x, e.y, 2, 25);
+          this.sfx('jump', e.x, 0.6);
+        }
         break;
+      case 'sprint': {
+        const f = w.fighters[e.f];
+        fx.dust(f.x, f.y, 3, 50);
+        this.sfx('swing', f.x, 0.6, 0.7);
+        break;
+      }
       case 'land':
         this.r.views[e.f]?.onLand(e.speed);
         fx.dust(e.x, e.y, Math.min(6, Math.floor(e.speed / 90)), 35 + e.speed * 0.05);
@@ -313,6 +336,35 @@ export class Juice {
         this.r.floatText(f.x, f.y - 30, '+' + Math.round(e.amount), hexToNum(P.green2), true);
         break;
       }
+      case 'hazard':
+        if (e.kind === 'crusher') {
+          fx.dust(e.x, e.y + 16, 5, 50);
+          this.sfx('thud', e.x, 1, 0.7);
+          this.cam.addTrauma(0.12);
+        } else if (e.kind === 'laser') this.sfx('beep', e.x, 0.4, 0.6);
+        else this.sfx('rocket', e.x, 0.6, 0.6);
+        break;
+      case 'supplyDrop':
+        this.r.heli(e.x);
+        this.sfx('spawn', e.x, 0.8, 0.7);
+        this.ui.push({ t: 'announce', text: 'SUPPLY DROP!', color: hexToNum(P.yellow) });
+        break;
+      case 'gravity':
+        this.ui.push({ t: 'announce', text: e.on ? 'LOW GRAVITY!' : 'GRAVITY ON', color: hexToNum(P.teal) });
+        this.sfx('slowmo', e.x, 0.5, e.on ? 1.4 : 0.8);
+        break;
+      case 'poltergeist':
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.35, s0: 0.3, s1: 4.2, a0: 0.8, a1: 0, tint: 0xb0e0ff, depth: 64 });
+        fx.motes(e.x, e.y, 10, 0xb0e0ff);
+        this.sfx('slowmo', e.x, 0.6, 1.8);
+        this.r.floatText(e.x, e.y - 12, 'BOO!', 0xb0e0ff, true);
+        this.cam.addTrauma(0.12);
+        break;
+      case 'respawn':
+        fx.sparks(e.x, e.y - 10, 0, -1, 14, 0xffffff, 120);
+        fx.motes(e.x, e.y - 8, 8, 0xffffff);
+        this.sfx('spawn', e.x);
+        break;
       case 'spinUp':
         this.sfx('spinup', w.fighters[e.f].x, 0.8);
         break;

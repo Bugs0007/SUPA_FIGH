@@ -43,11 +43,17 @@ export class WorldRenderer {
   private props = new Map<number, { img: Phaser.GameObjects.Image; hp: number; flash: number }>();
   private rockets: Phaser.GameObjects.Image[] = [];
   private overlay: Phaser.GameObjects.Graphics;
+  private gimmickBack: Phaser.GameObjects.Graphics;
+  private gimmickFront: Phaser.GameObjects.Graphics;
+  private conveyors: { x: number; y: number; dir: number }[] = [];
+  private helis: { x: number; y: number; dir: number }[] = [];
   private tracers: Phaser.GameObjects.Graphics;
   private bars: Phaser.GameObjects.Graphics;
   private floats: FloatText[] = [];
   private debugGfx: Phaser.GameObjects.Graphics;
   debug = false;
+  /** fighter wearing the bounty crown (-1 = none), set by the scene each frame */
+  bounty = -1;
 
   constructor(
     private scene: Phaser.Scene,
@@ -57,7 +63,9 @@ export class WorldRenderer {
     const map = world.map;
     const theme = world.def.theme;
     const th = THEMES[theme] ?? THEMES.arena;
-    scene.cameras.main.setBackgroundColor(th.sky0);
+    // transparent: the BackgroundScene underneath paints sky + parallax layers
+    scene.cameras.main.setBackgroundColor('rgba(0,0,0,0)');
+    void th;
 
     const key = Art.tileset(scene, theme);
     this.tilemap = scene.make.tilemap({ tileWidth: TILE, tileHeight: TILE, width: map.w, height: map.h });
@@ -76,11 +84,20 @@ export class WorldRenderer {
 
     world.fighters.forEach((f, i) => {
       const l = looks[i];
-      this.views.push(new FighterView(scene, f, l.look, l.color, l.label));
+      const v = new FighterView(scene, f, l.look, l.color, l.label);
+      v.bigHead = world.mods.has('bigHeads');
+      this.views.push(v);
     });
 
     this.tracers = scene.add.graphics().setDepth(55).setBlendMode(Phaser.BlendModes.ADD);
     this.overlay = scene.add.graphics().setDepth(66);
+    this.gimmickBack = scene.add.graphics().setDepth(30);
+    this.gimmickFront = scene.add.graphics().setDepth(50);
+    for (let y = 0; y < map.h; y++)
+      for (let x = 0; x < map.w; x++) {
+        const c = map.def(x, y).conveyor;
+        if (c) this.conveyors.push({ x: x * TILE, y: y * TILE, dir: c });
+      }
     this.bars = scene.add.graphics().setDepth(68);
     this.debugGfx = scene.add.graphics().setDepth(90);
   }
@@ -206,11 +223,20 @@ export class WorldRenderer {
     for (let i = rocketN; i < this.rockets.length; i++) this.rockets[i].setVisible(false);
 
     this.syncFire(dt);
+    this.drawGimmicks(alpha, dt, time);
     this.drawAimAids(alpha);
 
-    // health bars
+    // health bars (+ the bounty crown)
     const bars = this.bars;
     bars.clear();
+    const bf = this.bounty >= 0 ? w.fighters[this.bounty] : null;
+    if (bf && bf.alive && !bf.gone) {
+      const cx = Math.round(lerp(bf.px, bf.x, alpha));
+      const cy = Math.round(lerp(bf.py, bf.y, alpha)) - 44 + Math.round(Math.sin(time * 4) * 1);
+      bars.fillStyle(hexToNum(P.ink), 1).fillRect(cx - 5, cy - 1, 11, 7);
+      bars.fillStyle(hexToNum(P.yellow), 1).fillRect(cx - 4, cy + 2, 9, 3).fillRect(cx - 4, cy, 1, 2).fillRect(cx, cy - 1, 1, 3).fillRect(cx + 4, cy, 1, 2);
+      bars.fillStyle(hexToNum(P.red2), 1).fillRect(cx, cy + 3, 1, 1);
+    }
     for (const v of this.views) {
       const f = v.fighter;
       if (!f.alive || f.gone) continue;
@@ -239,6 +265,143 @@ export class WorldRenderer {
 
     this.fx.update(dt);
     this.drawDebug();
+  }
+
+  /** A helicopter crossing the top of the map (supply drop). */
+  heli(x: number): void {
+    const dir = x < this.world.map.pxW / 2 ? 1 : -1;
+    this.helis.push({ x: x - dir * 260, y: -6, dir });
+  }
+
+  private drawGimmicks(alpha: number, dt: number, time: number): void {
+    const w = this.world;
+    const g = this.gimmickBack;
+    const fg = this.gimmickFront;
+    g.clear();
+    fg.clear();
+    // gravity zones
+    for (const z of w.gimmicks.gravity) {
+      if (!z.active) continue;
+      g.fillStyle(hexToNum(P.teal), 0.07).fillRect(z.l, z.t, z.r - z.l, z.b - z.t);
+      g.lineStyle(1, hexToNum(P.teal), 0.35);
+      for (let x = z.l; x < z.r; x += 8) {
+        g.lineBetween(x, z.t, x + 4, z.t);
+        g.lineBetween(x, z.b - 1, x + 4, z.b - 1);
+      }
+      if (dt > 0 && Math.random() < dt * (z.r - z.l) * 0.02) {
+        this.fx.spawn({ frame: 'p1', x: z.l + Math.random() * (z.r - z.l), y: z.b - 2, vy: -25 - Math.random() * 20, life: 2, a0: 0.8, a1: 0, tint: hexToNum(P.teal), add: true, depth: 31 });
+      }
+    }
+    // conveyors: moving chevrons along the belt top
+    const off = (time * 45) % 4;
+    for (const c of this.conveyors) {
+      fg.fillStyle(hexToNum(P.yellow), 0.9);
+      for (let i = 0; i < 4; i++) {
+        const x = c.x + ((i * 4 + (c.dir > 0 ? off : 4 - off)) % 16);
+        fg.fillRect(Math.floor(x), c.y + 2, 1, 2);
+      }
+    }
+    // movers
+    for (const m of w.gimmicks.movers) {
+      const x = Math.round(lerp(m.px, m.x, alpha));
+      const y = Math.round(lerp(m.py, m.y, alpha));
+      const d = m.def;
+      const cx = x + m.w / 2;
+      if (d.swing) {
+        g.lineStyle(1, hexToNum(P.steel1), 1);
+        g.lineBetween(d.x * TILE, d.y * TILE, x + 3, y);
+        g.lineBetween(d.x * TILE, d.y * TILE, x + m.w - 3, y);
+        g.fillStyle(hexToNum(P.steel2), 1).fillRect(d.x * TILE - 2, d.y * TILE - 2, 4, 4);
+      }
+      switch (d.kind) {
+        case 'girder':
+          g.fillStyle(hexToNum(P.red1), 1).fillRect(x, y, m.w, m.h);
+          g.fillStyle(hexToNum(P.red0), 1).fillRect(x, y + m.h - 2, m.w, 2);
+          g.fillStyle(hexToNum(P.red2), 1).fillRect(x, y, m.w, 1);
+          for (let i = x + 4; i < x + m.w - 2; i += 8) g.fillStyle(hexToNum(P.red0), 1).fillRect(i, y + 2, 1, m.h - 4);
+          break;
+        case 'elevator':
+          g.lineStyle(1, hexToNum(P.steel1), 1);
+          g.lineBetween(x + 3, 0, x + 3, y - 26);
+          g.lineBetween(x + m.w - 3, 0, x + m.w - 3, y - 26);
+          g.lineStyle(1, hexToNum(P.brass), 1).strokeRect(x + 0.5, y - 26.5, m.w - 1, 26);
+          g.fillStyle(hexToNum(P.brass), 1).fillRect(x, y, m.w, 3);
+          g.fillStyle(hexToNum(P.steel1), 1).fillRect(x, y + 3, m.w, m.h - 3);
+          break;
+        case 'hook':
+          g.lineStyle(1, hexToNum(P.steel0), 1);
+          for (let cy = (d.swing ? y : 0); cy < y; cy += 3) g.fillStyle(hexToNum(P.steel2), 1).fillRect(cx - 1, cy, 2, 2);
+          g.fillStyle(hexToNum(P.yellow), 1).fillRect(x, y, m.w, m.h);
+          g.fillStyle(hexToNum(P.ink), 1);
+          for (let i = 0; i < m.w; i += 6) g.fillRect(x + i, y + 1, 3, m.h - 2);
+          break;
+        case 'cart': {
+          g.fillStyle(hexToNum(P.wood1), 1).fillRect(x + 1, y, m.w - 2, m.h - 4);
+          g.fillStyle(hexToNum(P.steel1), 1).fillRect(x, y, m.w, 2);
+          g.fillStyle(hexToNum(P.ink), 1).fillCircle(x + 6, y + m.h - 2, 3).fillCircle(x + m.w - 6, y + m.h - 2, 3);
+          g.fillStyle(hexToNum(P.steel3), 1).fillRect(x + 5, y + m.h - 3, 2, 2).fillRect(x + m.w - 7, y + m.h - 3, 2, 2);
+          break;
+        }
+        default:
+          g.fillStyle(hexToNum(P.steel2), 1).fillRect(x, y, m.w, m.h);
+          g.fillStyle(hexToNum(P.steel4), 1).fillRect(x, y, m.w, 1);
+          g.fillStyle(hexToNum(P.yellow), 1);
+          for (let i = 0; i < m.w; i += 8) g.fillRect(x + i, y + m.h - 2, 4, 2);
+      }
+    }
+    // hazards
+    const blink = Math.floor(time * 10) % 2 === 0;
+    for (const h of w.gimmicks.hazards) {
+      const d = h.def;
+      if (d.kind === 'crusher') {
+        const shaftTop = h.y - TILE;
+        const blockH = Math.min(14, h.h);
+        const by = h.active ? h.y + h.h - blockH : h.y;
+        fg.fillStyle(hexToNum(P.steel0), 1).fillRect(h.x + h.w / 2 - 2, shaftTop, 4, by - shaftTop);
+        fg.fillStyle(hexToNum(P.steel1), 1).fillRect(h.x, by, h.w, blockH);
+        fg.fillStyle(hexToNum(P.steel3), 1).fillRect(h.x, by, h.w, 1);
+        for (let i = 0; i < h.w; i += 6) fg.fillStyle(hexToNum(P.yellow), 1).fillRect(h.x + i, by + blockH - 3, 3, 3);
+        if (h.warn && blink) fg.fillStyle(hexToNum(P.red2), 0.5).fillRect(h.x, h.y + h.h - 2, h.w, 2);
+      } else if (d.kind === 'laser') {
+        fg.fillStyle(hexToNum(P.steel1), 1).fillRect(h.x - 1, h.y - 3, h.w + 2, 3).fillRect(h.x - 1, h.y + h.h, h.w + 2, 3);
+        const beams = Math.max(1, Math.round(h.w / 6));
+        for (let i = 0; i < beams; i++) {
+          const bx = h.x + ((i + 0.5) * h.w) / beams;
+          if (h.active) {
+            fg.lineStyle(2, 0xff2030, 0.55).lineBetween(bx, h.y, bx, h.y + h.h);
+            fg.lineStyle(1, 0xffd0d0, blink ? 1 : 0.7).lineBetween(bx, h.y, bx, h.y + h.h);
+          } else if (h.warn && blink) fg.lineStyle(1, 0xff2030, 0.35).lineBetween(bx, h.y, bx, h.y + h.h);
+          fg.fillStyle(h.active || (h.warn && blink) ? 0xff4040 : 0x602020, 1).fillRect(bx - 1, h.y - 2, 2, 1);
+        }
+      } else if (d.kind === 'tunnel') {
+        if (h.active) {
+          fg.fillStyle(0x07060c, 1).fillRect(h.x - 40, h.y - 60, 40 + h.w, h.h + 60);
+          fg.fillStyle(hexToNum(P.brick1), 1).fillRect(h.x - 40, h.y + h.h - 3, 40 + h.w, 3);
+        } else if (h.warn && blink) {
+          fg.fillStyle(hexToNum(P.red2), 0.8).fillRect(d.x * TILE + 2, h.y + h.h / 2 - 3, 6, 6);
+        }
+      }
+    }
+    // parachutes on falling supply crates
+    for (const p of w.props) {
+      if (!p.active || !p.loot || p.grounded) continue;
+      const x = lerp(p.px, p.x, alpha);
+      const y = lerp(p.py, p.y, alpha) - p.h;
+      fg.lineStyle(1, 0xe8e4dc, 0.8).lineBetween(x - 6, y, x - 12, y - 18).lineBetween(x + 6, y, x + 12, y - 18);
+      fg.fillStyle(hexToNum(P.red1), 1).fillRect(x - 14, y - 24, 28, 6);
+      fg.fillStyle(0xe8e4dc, 1).fillRect(x - 10, y - 26, 20, 3);
+      for (let i = -14; i < 14; i += 8) fg.fillStyle(0xe8e4dc, 1).fillRect(x + i, y - 24, 4, 6);
+    }
+    // supply helicopters
+    for (let i = this.helis.length - 1; i >= 0; i--) {
+      const h = this.helis[i];
+      h.x += h.dir * 170 * dt;
+      const x = Math.round(h.x);
+      fg.fillStyle(0x101018, 1).fillRect(x - 14, h.y, 28, 9).fillRect(x - 30 * h.dir, h.y + 2, 18 * h.dir, 3);
+      fg.fillRect(x - 22, h.y - 3, 44, 1);
+      fg.fillStyle(blink ? 0xff3030 : 0x30ff60, 1).fillRect(x - 30 * h.dir, h.y + 1, 2, 2);
+      if (Math.abs(h.x - (h.dir > 0 ? -400 : w.map.pxW + 400)) < 10 || h.x > w.map.pxW + 400 || h.x < -400) this.helis.splice(i, 1);
+    }
   }
 
   private liveItemFx(it: World['items'][number], x: number, y: number, time: number): void {
@@ -318,6 +481,8 @@ export class WorldRenderer {
       if (f.burn > 0) {
         for (let i = emitCount(30, dt); i > 0; i--) this.fx.flame(f.x + (Math.random() - 0.5) * f.w, f.y - Math.random() * f.h, 0.9);
       }
+      if (f.alive && f.sprintDir !== 0 && f.grounded && Math.random() < dt * 20) this.fx.dust(f.x - f.sprintDir * 4, f.y, 1, 20);
+      if (f.alive && f.wallSlide !== 0 && Math.random() < dt * 15) this.fx.dust(f.x + f.wallSlide * 5, f.y - 10, 1, 8);
       if (f.jetting) for (let i = emitCount(70, dt); i > 0; i--) this.fx.jet(f.x - f.facing * 5, f.y - 8);
       if (f.alive && f.speedBoost > 0 && Math.random() < dt * 14) this.fx.motes(f.x, f.y - 4, 1, hexToNum(P.yellow));
       if (f.alive && f.strengthBoost > 0 && Math.random() < dt * 10) this.fx.motes(f.x, f.y - 12, 1, hexToNum(P.red2));
@@ -404,6 +569,8 @@ export class WorldRenderer {
     for (const v of this.props.values()) v.img.destroy();
     for (const r of this.rockets) r.destroy();
     this.overlay.destroy();
+    this.gimmickBack.destroy();
+    this.gimmickFront.destroy();
     this.fx.destroy();
     this.decals.destroy();
     this.tracers.destroy();

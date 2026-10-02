@@ -1,7 +1,7 @@
 // Events the simulation emits each tick. The renderer/audio/HUD drain them for juice and UI.
 // The sim itself never plays sounds or spawns visuals.
 
-export type HitKind = 'bullet' | 'melee' | 'kick' | 'throw' | 'bodyslam' | 'fall' | 'splat' | 'water' | 'explosion' | 'fire';
+export type HitKind = 'bullet' | 'melee' | 'kick' | 'throw' | 'bodyslam' | 'fall' | 'splat' | 'water' | 'explosion' | 'fire' | 'drain' | 'hazard';
 
 export type SimEvent =
   | { t: 'shot'; f: number; weapon: string; x: number; y: number; angle: number }
@@ -33,7 +33,8 @@ export type SimEvent =
   | { t: 'ricochet'; x: number; y: number }
   | { t: 'splinter'; x: number; y: number }
   | { t: 'tileBreak'; tx: number; ty: number; kind: number }
-  | { t: 'jump'; f: number; x: number; y: number }
+  | { t: 'jump'; f: number; x: number; y: number; air?: boolean; wall?: number }
+  | { t: 'sprint'; f: number }
   | { t: 'land'; f: number; x: number; y: number; speed: number }
   | { t: 'swing'; f: number; weapon: string; step: number }
   | { t: 'kick'; f: number; air: boolean }
@@ -67,4 +68,9 @@ export type SimEvent =
   | { t: 'burst'; x: number; y: number; weapon: string }
   | { t: 'powerup'; f: number; kind: string; x: number; y: number }
   | { t: 'heal'; f: number; amount: number }
-  | { t: 'spinUp'; f: number };
+  | { t: 'spinUp'; f: number }
+  | { t: 'respawn'; f: number; x: number; y: number }
+  | { t: 'hazard'; kind: string; x: number; y: number; on: boolean }
+  | { t: 'supplyDrop'; x: number; y: number }
+  | { t: 'gravity'; on: boolean; x: number; y: number }
+  | { t: 'poltergeist'; f: number; x: number; y: number };

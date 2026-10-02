@@ -82,7 +82,7 @@ export function updateFire(w: World): void {
     p.py = p.y;
     p.life -= DT;
     if (!p.grounded) {
-      p.vy = Math.min(p.vy + GRAVITY * w.gravityScale * DT, MAX_FALL);
+      p.vy = Math.min(p.vy + GRAVITY * w.gravityAt(p.x, p.y) * DT, MAX_FALL);
       const prevY = p.y;
       moveBody(w.map, p, DT, {}, res);
       if (res.wallX !== 0) p.vx = 0;

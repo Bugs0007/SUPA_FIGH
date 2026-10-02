@@ -1,6 +1,6 @@
 import { load, save } from '../game/storage';
 
-export const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'kick', 'interact', 'cycle'] as const;
+export const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
 export type Action = (typeof ACTIONS)[number];
 export type KeyBinds = Record<Action, string[]>;
 
@@ -14,6 +14,8 @@ export const ACTION_LABELS: Record<Action, string> = {
   kick: 'KICK',
   interact: 'PICK UP / GRAB',
   cycle: 'SWITCH WEAPON',
+  gadget: 'USE GADGET',
+  ability: 'ABILITY',
 };
 
 // Ctrl/Alt are deliberately never bound: P2 holding Ctrl while P1 presses W would close the tab.
@@ -28,6 +30,8 @@ export const DEFAULT_KEYBOARD: KeyBinds[] = [
     kick: ['KeyH'],
     interact: ['KeyT'],
     cycle: ['KeyR'],
+    gadget: ['KeyV'],
+    ability: ['KeyB'],
   },
   {
     left: ['ArrowLeft'],
@@ -39,6 +43,8 @@ export const DEFAULT_KEYBOARD: KeyBinds[] = [
     kick: ['Numpad6', 'KeyJ'],
     interact: ['Numpad8', 'KeyO'],
     cycle: ['Numpad7', 'KeyI'],
+    gadget: ['Numpad9', 'KeyU'],
+    ability: ['Numpad1', 'KeyP'],
   },
 ];
 
@@ -58,14 +64,49 @@ export const keyboardBinds: KeyBinds[] = (() => {
   });
 })();
 
+export interface BindConflict {
+  code: string;
+  a: { player: number; action: Action };
+  b: { player: number; action: Action };
+}
+
+/** Every key bound to more than one action (within a player or across players). */
+export function findConflicts(all: KeyBinds[]): BindConflict[] {
+  const seen = new Map<string, { player: number; action: Action }>();
+  const out: BindConflict[] = [];
+  all.forEach((binds, player) => {
+    for (const action of ACTIONS) {
+      for (const code of binds[action]) {
+        const prev = seen.get(code);
+        if (prev) out.push({ code, a: prev, b: { player, action } });
+        else seen.set(code, { player, action });
+      }
+    }
+  });
+  return out;
+}
+
+/** Bind slot `index` (0 = primary, 1 = secondary) of an action to a key. null clears it. */
+export function setBinding(binds: KeyBinds, action: Action, index: number, code: string | null): void {
+  const list = [...binds[action]];
+  if (code === null) list.splice(index, 1);
+  else if (index < list.length) list[index] = code;
+  else list.push(code);
+  binds[action] = list.filter((c, i) => list.indexOf(c) === i).slice(0, 2);
+}
+
 export function saveKeyBinds(): void {
   save('keybinds', keyboardBinds);
 }
 
-export function resetKeyBinds(): void {
-  DEFAULT_KEYBOARD.forEach((d, i) => (keyboardBinds[i] = clone(d)));
+export function resetKeyBinds(player?: number): void {
+  DEFAULT_KEYBOARD.forEach((d, i) => {
+    if (player === undefined || player === i) keyboardBinds[i] = clone(d);
+  });
   saveKeyBinds();
 }
+
+export { clone as cloneBinds };
 
 /** Human-readable key label for the controls card. */
 export function keyLabel(code: string): string {

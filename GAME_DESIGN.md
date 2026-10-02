@@ -23,12 +23,16 @@ fighter/team standing wins the round → slow-mo final kill + instant replay →
 | Attack (hold = aim) | F | Num4 | L | X / RT |
 | Kick | H | Num6 | J | B |
 | Interact (pick up / grab / throw) | T | Num8 | O | Y |
-| Cycle weapon | R | Num7 | I | LB / RB |
+| Cycle weapon | R | Num7 | I | RB |
+| Use gadget (medkit) | V | Num9 | U | LB |
+| Ability (hero powers, M9) | B | Num1 | P | LT |
 
 - **Guns:** hold Attack to aim (Up/Down sweeps the angle). Automatic weapons fire while held;
   semi-automatic weapons fire when you let go. Tap = instant hip shot.
 - **Melee:** Attack = 3-hit combo (jab, cross, haymaker). Kick = knockback. Air kick = flying kick.
 - **Movement:** Down while running = roll (i-frames). Down in the air while moving = dive.
+  Jump again in the air = double jump. Jump while touching a wall in the air = wall jump (not twice off
+  the same wall before landing); holding into a wall while falling = wall slide. Double-tap a direction = sprint.
   Down + Jump = drop through a platform. Up at a ladder = climb. Walk into a ledge while falling = grab.
 - **Interact:** pick up / swap a weapon, grab an enemy (then Attack to throw them), pick up props.
 

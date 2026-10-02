@@ -15,10 +15,14 @@ export interface Intent {
   interact: boolean;
   /** cycle active weapon slot */
   cycle: boolean;
+  /** use the gadget slot directly (medkit) without switching to it */
+  gadget: boolean;
+  /** hero ability (reserved for M9 hero powers; does nothing yet) */
+  ability: boolean;
 }
 
 export function emptyIntent(): Intent {
-  return { moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false };
+  return { moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false };
 }
 
 export function copyIntent(dst: Intent, src: Intent): Intent {
@@ -29,10 +33,12 @@ export function copyIntent(dst: Intent, src: Intent): Intent {
   dst.kick = src.kick;
   dst.interact = src.interact;
   dst.cycle = src.cycle;
+  dst.gadget = src.gadget;
+  dst.ability = src.ability;
   return dst;
 }
 
-/** Compact encoding (for replays/netcode): 7 bits of buttons + quantized axes. */
+/** Compact encoding (for replays/netcode): 7 button bits + two 4-bit quantized axes. */
 export function packIntent(i: Intent): number {
   const ax = Math.round((i.moveX + 1) * 7) & 15;
   const ay = Math.round((i.moveY + 1) * 7) & 15;
@@ -41,7 +47,9 @@ export function packIntent(i: Intent): number {
     (i.attack ? 2 : 0) |
     (i.kick ? 4 : 0) |
     (i.interact ? 8 : 0) |
-    (i.cycle ? 16 : 0);
+    (i.cycle ? 16 : 0) |
+    (i.gadget ? 32 : 0) |
+    (i.ability ? 64 : 0);
   return (b << 8) | (ay << 4) | ax;
 }
 
@@ -54,5 +62,7 @@ export function unpackIntent(v: number, out: Intent = emptyIntent()): Intent {
   out.kick = (b & 4) !== 0;
   out.interact = (b & 8) !== 0;
   out.cycle = (b & 16) !== 0;
+  out.gadget = (b & 32) !== 0;
+  out.ability = (b & 64) !== 0;
   return out;
 }

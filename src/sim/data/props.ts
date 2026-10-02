@@ -2,7 +2,7 @@ import type { ExplosionStats } from './weapons';
 
 // Dynamic map props. Placed in maps with 'c' (crate), 'b' (barrel), 'g' (gas canister).
 
-export type PropType = 'crate' | 'barrel' | 'gas';
+export type PropType = 'crate' | 'barrel' | 'gas' | 'tnt' | 'chandelier';
 
 export interface PropDef {
   w: number;
@@ -19,6 +19,12 @@ export interface PropDef {
   rocket?: boolean;
   /** HP lost per second while touching fire */
   burnDps: number;
+  /** hangs in place (no gravity, can't be pushed) until destroyed, then falls */
+  anchored?: boolean;
+  /** damage to fighters it lands on when thrown/falling (default CARRY.damage) */
+  crush?: number;
+  /** too heavy/awkward to lift */
+  noCarry?: boolean;
 }
 
 export const PROPS: Record<PropType, PropDef> = {
@@ -42,4 +48,14 @@ export const PROPS: Record<PropType, PropDef> = {
     burnDps: 12,
     explosion: { radius: 38, damage: 45, knock: 320, breakRadius: 16, fire: 8, shake: 0.55 },
   },
+  tnt: {
+    w: 12,
+    h: 12,
+    hp: 20,
+    mass: 1,
+    fuse: 0.1,
+    burnDps: 10,
+    explosion: { radius: 52, damage: 75, knock: 440, breakRadius: 30, shake: 0.8 },
+  },
+  chandelier: { w: 28, h: 12, hp: 8, mass: 3, burnDps: 0, anchored: true, crush: 70, noCarry: true },
 };

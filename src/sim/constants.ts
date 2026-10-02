@@ -39,6 +39,17 @@ export const ROLL_IFRAMES = 0.3;
 export const DIVE_VX = 230;
 export const DIVE_VY = -130;
 export const LEDGE_CLIMB_TIME = 0.18;
+// Double jump / wall jump / sprint
+export const AIR_JUMPS = 1; // extra jumps while airborne (refreshed on landing and by wall jumps)
+export const AIR_JUMP_VEL = 300;
+export const WALL_JUMP_VX = 190;
+export const WALL_JUMP_VY = 320;
+export const WALL_JUMP_LOCK = 0.16; // seconds of reduced air control after a wall jump
+export const WALL_SLIDE_MAX = 150; // max fall speed while pressing into a wall
+export const SPRINT_TAP_WINDOW = 0.25; // double-tap a direction within this window to sprint
+export const SPRINT_MUL = 1.45;
+export const SPRINT_RAMP = 0.18; // seconds to reach full sprint speed
+export const SPRINT_COOLDOWN = 0.35;
 
 // Aiming
 export const AIM_MAX_SPEED = 2.7; // rad/s at full stick
@@ -62,5 +73,14 @@ export const CORPSE_FRICTION = 0.86;
 // Rounds
 export const ROUND_END_CONFIRM = 0.9; // seconds after last kill before the round is decided
 export const ROUND_END_TIME = 2.6; // banner time before the next round
-export const MATCH_END_TIME = 4.5;
-export const LAST_HIT_CREDIT = 6; // environmental deaths within N seconds credit the last attacker
+export const MATCH_END_TIME = 9; // awards screen
+export const LAST_HIT_CREDIT = 6;
+// Modes
+export const SUDDEN_DEATH_DRAIN_AFTER = 15; // seconds after sudden death starts until HP drains
+export const SUDDEN_DEATH_DPS = 2;
+export const RESPAWN_PROTECTION = 1.5;
+// Ghosts (Brawl): the dead haunt the living
+export const GHOST_DELAY = 1.2; // seconds after death before the ghost rises
+export const GHOST_SPEED = 110;
+export const GHOST_COOLDOWN = 8; // poltergeist recharge
+export const GHOST_RADIUS = 52; // environmental deaths within N seconds credit the last attacker
