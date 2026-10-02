@@ -63,8 +63,9 @@ export class TitleScene extends Phaser.Scene {
     this.card(0, 20, 146, PLAYER_PRESETS[0]);
     this.card(1, VIEW_W - 20 - 280, 146, PLAYER_PRESETS[1]);
 
-    this.prompt = this.add.bitmapText(VIEW_W / 2, 318, 'pxo', 'PRESS ENTER TO FIGHT').setOrigin(0.5).setScale(2);
-    this.dummyText = this.add.bitmapText(VIEW_W / 2, 340, 'smo', '').setOrigin(0.5).setTint(0xc3c9dc);
+    this.prompt = this.add.bitmapText(VIEW_W / 2, 312, 'pxo', 'ENTER: QUICK MATCH').setOrigin(0.5).setScale(2);
+    this.add.bitmapText(VIEW_W / 2, 330, 'smo', 'L: MATCH SETUP (TEAMS, GAMEPADS, MODES)     C: CONTROLS').setOrigin(0.5).setTint(0xfff4a0);
+    this.dummyText = this.add.bitmapText(VIEW_W / 2, 344, 'smo', '').setOrigin(0.5).setTint(0xc3c9dc);
     this.updateDummyText();
   }
 
@@ -74,7 +75,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private updateDummyText(): void {
-    this.dummyText.setText(`BOTS: ${this.bots} (PRESS 0-8)     DIFFICULTY: ${DIFF_ORDER[this.diffIdx].toUpperCase()} (TAB)`);
+    this.dummyText.setText(`QUICK MATCH BOTS: ${this.bots} (0-8)     DIFFICULTY: ${DIFF_ORDER[this.diffIdx].toUpperCase()} (TAB)`);
   }
 
   private card(idx: number, x: number, y: number, look: Appearance): void {
@@ -115,7 +116,8 @@ export class TitleScene extends Phaser.Scene {
     this.add.bitmapText(x + 84, y + 104, 'sm', 'GUNS: HOLD ATTACK, UP/DOWN AIMS,').setTint(0xc3c9dc);
     this.add.bitmapText(x + 84, y + 112, 'sm', 'LET GO TO FIRE. SMGS SPRAY WHILE HELD.').setTint(0xc3c9dc);
     this.add.bitmapText(x + 84, y + 124, 'sm', 'DOWN WHILE RUNNING = ROLL  DOWN+JUMP =').setTint(0xc3c9dc);
-    this.add.bitmapText(x + 84, y + 132, 'sm', 'DROP  DOWN IN AIR = DIVE').setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 132, 'sm', 'DROP  DOWN IN AIR = DIVE  2X JUMP, WALL').setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 140, 'sm', `JUMP  2X TAP = SPRINT  ${keys('gadget')} = MEDKIT`).setTint(0xc3c9dc);
   }
 
   override update(_t: number, deltaMs: number): void {
@@ -146,6 +148,16 @@ export class TitleScene extends Phaser.Scene {
       saveSettings();
       this.updateDummyText();
       audio.play('uiMove');
+    }
+    if (keyboard.justPressed('KeyL')) {
+      audio.play('uiOk');
+      this.scene.start('lobby');
+      return;
+    }
+    if (keyboard.justPressed('KeyC')) {
+      audio.play('uiOk');
+      this.scene.start('controls', { from: 'title' });
+      return;
     }
     if (keyboard.justPressed('Enter') || keyboard.justPressed('Space') || keyboard.justPressed('NumpadEnter')) {
       audio.play('uiOk');

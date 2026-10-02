@@ -36,7 +36,8 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
   map/            Tile types, ASCII map parser, runtime TileMap, map definitions (maps/*.ts).
   events.ts       SimEvent union. The sim pushes events (shot, hit, kill, land...) that the
                   renderer/audio drain for juice. The sim never plays sounds or draws.
-src/input/    Keyboard (event.code based) + Gamepad API -> Intent. Bindings saved in localStorage.
+src/input/    Keyboard (event.code based) + Gamepad API (gamepad.ts) -> Intent. Bindings (bindings.ts, with
+              conflict detection) saved in localStorage. menu.ts = unified menu nav for keys + pads.
 src/ai/       Bots (pure TS, no Phaser — run headless too). Same Controller/Intent contract as humans.
   nav.ts          Nav graph: standable cells + ladders; jump/fall/drop edges found by simulating the
                   real fighter code in a sandbox (MANEUVERS input scripts that bots replay). A*, Dijkstra.
@@ -50,7 +51,8 @@ src/art/      Procedural pixel-art generators that bake Phaser textures at boot.
 src/audio/    sfxr-style WebAudio synth + sound definitions + AudioManager (pitch randomized).
 src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particles), CameraDirector.
               Reads sim state each frame (interpolated with prevX/prevY) — never mutates it.
-src/scenes/   Boot (bake assets) -> Title -> Match (+ Hud overlay).
+src/scenes/   Boot (bake assets) -> Title -> [Lobby | Controls] -> Match (+ Hud overlay).
+              lobby.ts = Phaser-free lobby model (slots/rules -> MatchSceneData), unit tested.
 src/game/     Display config (640x360 native, integer scale factor), settings/profile storage.
 ```
 
@@ -84,7 +86,7 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
 - `tests/e2e/*.spec.ts` — Playwright (`PW_EXECUTABLE=/path/to/chrome` to use a preinstalled browser;
   in cloud containers: `/opt/pw-browsers/chromium`). Screenshots go to `tests/e2e/screenshots/` (ignored).
   The game exposes `window.__GAME__` (`match()`, `scene()`, `game`).
-  URL params: `?scene=match` skip title, `?scene=art` sprite inspector (`&page=weapons`), `?bots=N`, `?diff=easy|normal|hard|expert`,
+  URL params: `?scene=match` skip title, `?scene=art` sprite inspector (`&page=weapons`), `?bots=N`, `?diff=easy|normal|hard|expert`, `?mode=deathmatch&time=120`, `?scene=lobby|controls`,
   `?humans=0..2`, `?speed=4`, `?seed=123`, `?map=test`, `?timer=1` (setTimeout game loop — needed
   when the tab is hidden, e.g. the Claude browser pane, where requestAnimationFrame is paused).
 - Debug keys in match: F1 hitboxes/debug overlay, F2 cycle sim speed (1x/2x/4x), F3 frame step, Esc pause.

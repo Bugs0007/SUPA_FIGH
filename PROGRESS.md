@@ -3,23 +3,24 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1 Playable core: DONE. M2 Combat depth: DONE. M3 Bots: DONE.** Next: **M4 Match setup**.
-- Queued expansion: **M9 Anime Universe** — full spec in `docs/ANIME_EXPANSION.md` (movement part already done).
-- `npm run dev` → http://localhost:5173 · `npm test` (71 unit tests) · `npm run test:e2e` (7 Playwright tests;
+- **M1 Playable core, M2 Combat depth, M3 Bots, M4 Match setup: DONE.** Next: **M5 Maps**.
+- Queued expansion: **M9 Anime Universe** — full spec in `docs/ANIME_EXPANSION.md` (movement + ability/gadget
+  actions + rebinding requirements already done).
+- `npm run dev` → http://localhost:5173 · `npm test` (82 unit tests) · `npm run test:e2e` (9 Playwright tests;
   in containers use `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 test normal 1`
-- Useful URLs: `/?scene=match&bots=4&diff=hard` (skip title), `/?scene=art` (fighter sprites),
-  `/?scene=art&page=weapons` (weapon/prop sprites), `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
-- Title screen: 0–8 = number of bots, Tab = bot difficulty (both saved in settings).
+- Title: Enter = quick match (0–8 bots, Tab = difficulty), L = match setup lobby, C = controls.
+- URLs: `/?scene=match&bots=4&diff=hard&mode=deathmatch&time=120`, `/?scene=lobby`, `/?scene=controls`,
+  `/?scene=art(&page=weapons)`, `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
 
-## Next steps (start of M4)
-1. Lobby scene: 10 slots (human kb0/kb1/gamepads, bot with difficulty + personality, empty), teams (none,
-   2–4 teams), outfits (randomize / cycle parts), map pick, rounds to win, friendly fire, weapon spawn rate.
-2. Gamepad API controller (hot-plug, deadzones, rumble on hits/explosions) behind the same `Controller`.
-3. Full rebinding menu per player — fold in the M9 requirements now (docs/ANIME_EXPANSION.md §4): action
-   list incl. a generic ABILITY intent bit, conflict detection, restore defaults, per-player storage.
-4. Deathmatch mode (timed, respawns, score = kills) next to Brawl; sudden death for Brawl (D24).
-5. HUD polish: controls cards per player in the lobby, panels for up to 4 humans.
-6. Balance is M8, but `npm run sim` already reports kills per weapon (fists ~22–27% with normal bots).
+## Next steps (start of M5)
+1. Nine themed maps (see GAME_DESIGN.md "Maps") as ASCII data + per-map tile themes/backgrounds in `art/tileArt.ts`.
+   Each needs 10 spawns, weapon spawns, props, and must pass the nav-graph connectivity test (add every map to
+   `tests/unit/nav.test.ts`) and a headless bot sim without stuck bots (`npm run sim -- 4 8 <map>`).
+2. Map gimmicks as sim modules (moving platforms/train, conveyor belts, swinging girders, chandeliers, water,
+   falling windows, lasers, minecarts) — data-driven per map; bots need nav awareness of moving parts
+   (simplest: treat moving platforms as dynamic nodes or penalize).
+3. Map select in the lobby already cycles `MAP_LIST`; add a small preview thumbnail.
+4. Parallax background layers per theme.
 
 ## M1 — Playable core ✅
 - [x] Docs (CLAUDE.md, GAME_DESIGN.md, DECISIONS.md, PROGRESS.md)
@@ -85,9 +86,18 @@ Status legend: [x] done · [~] partial · [ ] todo
       determinism); Playwright 8-bot match at 4x through 2 rounds with a stuck check
 - [ ] Known: rare 2-survivor standoffs (no round timer yet, D24)
 
-## M4 — Match setup
-- [ ] Lobby with 10 slots, teams, outfits, gamepads (hot-plug, rumble)
-- [ ] Brawl + Deathmatch, HUD polish, controls cards per player, rebinding menu
+## M4 — Match setup ✅
+- [x] Lobby (`scenes/LobbyScene.ts`, model in `scenes/lobby.ts`): 10 slots (keyboard 1/2, gamepad 1–4, bot, empty),
+      teams (solo/red/blue/green/gold), bot skill, shuffle looks, map, mode, rounds/time, sudden death, friendly
+      fire, weapon spawns; validation; persisted; pads press START to join
+- [x] Gamepads (`input/gamepad.ts`): raw Gamepad API, stick + d-pad, rebindable buttons per pad, hot-plug
+      (unplugged pad = idle fighter), rumble on hits/shots/explosions
+- [x] Controls screen (`scenes/ControlsScene.ts`): per keyboard layout (2 keys per action) and per pad, capture,
+      clear, conflict warnings across players, refuses Ctrl/Alt/Meta, restore defaults, saved immediately
+- [x] New actions folded in from M9: USE GADGET (quick medkit) and ABILITY (intent bit reserved for hero powers)
+- [x] Modes: Brawl (+ sudden death: reveal, then HP drain) and Deathmatch (timed, respawns, kill score, overtime)
+- [x] HUD: deathmatch clock/scores, sudden death/overtime callouts, panels for up to 4 humans
+- [x] Tests: modes, lobby model, bindings/conflicts, intent packing; e2e lobby→deathmatch and rebinding flows
 
 ## M9 — Anime Universe Expansion (QUEUED — full spec in `docs/ANIME_EXPANSION.md`)
 - [x] Pulled forward into M3: double jump, wall jump (+ wall slide), double-tap sprint

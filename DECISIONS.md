@@ -141,3 +141,23 @@ positions for 5 s. Each bot has its own seeded Rng, so headless sims and replays
 ### D24 — Rounds have no time limit yet
 In ~300 simulated bot rounds, 2 ended as two survivors who never met (120 s sim cap). A sudden-death
 rule (shrinking arena / hazards / "hunted" reveal) belongs with the mode rules in M4/M7.
+
+### D25 — Sudden death = reveal, then drain (Brawl)
+Default 75 s into a round: bots learn everyone's position (humans already share one camera), then
+15 s later everybody loses 2 HP/s. Drain kills credit the last attacker (env kill, "OUTLASTED!"). It's
+configurable (off/45/75/120) in the lobby. Chosen over shrinking arenas because it works on any map.
+
+### D26 — Deathmatch respawns reuse the Fighter object
+`World.respawn` resets the fighter in place (Object.assign with a fresh fighter) so renderer views,
+controllers and stats keep their references; the corpse simply disappears. Spawn = the spawn point
+farthest from living enemies (with jitter), 1.5 s protection. Ties at the buzzer go to overtime:
+next kill wins.
+
+### D27 — Lobby navigation: left/right pick a column on slot rows, change values on setting rows
+With 10 slots × 4 fields, giving every field its own row would be 40 rows. Slot rows use a column
+cursor (Enter cycles the value, Shift+Enter cycles back); setting rows change with left/right like
+every other menu. Gamepads join by pressing START (taking the first empty or bot slot).
+
+### D28 — Gamepad movement isn't rebindable, buttons are
+Left stick + d-pad always move/aim (that's what every pad player expects); only buttons rebind.
+Pad slots follow connection order; an unplugged pad leaves its fighter idle instead of crashing.
