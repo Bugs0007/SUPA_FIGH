@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { randomAppearance } from '../art/appearance';
+import { heroLook } from '../art/heroArt';
+import { HEROES } from '../sim/data/heroes';
 import { hexToNum, P, TEAM_COLORS, TEAM_NAMES } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
@@ -30,7 +32,7 @@ import {
 import { bindZoom, fighterPreview } from './ui';
 
 const SLOT_COLS = ['kind', 'team', 'skill', 'look'] as const;
-const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'start', 'controls'] as const;
+const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'start', 'controls'] as const;
 type Setting = (typeof SETTINGS)[number];
 
 const cycle = <T,>(list: readonly T[], cur: T, d: number): T => list[(list.indexOf(cur) + d + list.length) % list.length];
@@ -66,16 +68,16 @@ export class LobbyScene extends Phaser.Scene {
     this.add.bitmapText(36, 32, 'sm', 'FIGHTER').setTint(0x8d95b0);
     this.add.bitmapText(130, 32, 'sm', 'TEAM').setTint(0x8d95b0);
     this.add.bitmapText(186, 32, 'sm', 'BOT SKILL').setTint(0x8d95b0);
-    this.add.bitmapText(244, 32, 'sm', 'LOOK').setTint(0x8d95b0);
+    this.add.bitmapText(244, 32, 'sm', 'HERO / LOOK').setTint(0x8d95b0);
     for (let i = 0; i < MAX_SLOTS; i++) {
       const y = 44 + i * 28;
       this.add.bitmapText(8, y + 6, 'smo', String(i + 1)).setTint(0x8d95b0);
       this.texts.push([0, 1, 2, 3].map((c) => this.add.bitmapText([36, 130, 186, 244][c], y + 6, 'smo', '')));
       this.previews.push(this.add.container(0, 0));
     }
-    SETTINGS.forEach((_, i) => this.settingTexts.push(this.add.bitmapText(352, 48 + i * 19, 'pxo', '')));
+    SETTINGS.forEach((_, i) => this.settingTexts.push(this.add.bitmapText(352, 48 + i * 17, 'pxo', '')));
     this.hint = this.add.bitmapText(VIEW_W / 2, VIEW_H - 12, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc);
-    this.status = this.add.bitmapText(352, 48 + SETTINGS.length * 19 + 2, 'smo', '').setTint(0xea4a4a);
+    this.status = this.add.bitmapText(352, 48 + SETTINGS.length * 17 + 2, 'smo', '').setTint(0xea4a4a);
     this.preview = this.add.graphics();
     this.blurb = this.add.bitmapText(352, 340, 'sm', '').setTint(0x8d95b0);
     this.refreshPreviews();
@@ -123,7 +125,7 @@ export class LobbyScene extends Phaser.Scene {
     this.cfg.slots.forEach((s, i) => {
       this.previews[i].destroy();
       const y = 44 + i * 28 + 24;
-      this.previews[i] = s.kind === 'empty' ? this.add.container(0, 0) : fighterPreview(this, s.look, 24, y, 1);
+      this.previews[i] = s.kind === 'empty' ? this.add.container(0, 0) : fighterPreview(this, heroLook(s.hero, s.look), 24, y, 1);
     });
   }
 
@@ -177,7 +179,10 @@ export class LobbyScene extends Phaser.Scene {
     }
     if (keyboard.justPressed('F5')) {
       // quick: randomize every look
-      for (const s of this.cfg.slots) s.look = randomAppearance();
+      for (const s of this.cfg.slots) {
+        s.look = randomAppearance();
+        s.hero = '';
+      }
       changed = true;
     }
     if (changed) {
@@ -243,6 +248,9 @@ export class LobbyScene extends Phaser.Scene {
       case 'chaos':
         c.chaos = !c.chaos;
         return true;
+      case 'powers':
+        c.heroPowers = !c.heroPowers;
+        return true;
       default:
         return false;
     }
@@ -276,7 +284,7 @@ export class LobbyScene extends Phaser.Scene {
       kind.setText(SLOT_KIND_LABELS[s.kind]).setTint(s.kind.startsWith('pad') && !connectedPads()[Number(s.kind.slice(3))] ? 0xc08060 : dim);
       team.setText(s.kind === 'empty' ? '' : TEAM_NAMES[s.team]).setTint(s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : 0xc3c9dc);
       skill.setText(s.kind === 'bot' ? s.difficulty.toUpperCase() : '').setTint(0xc3c9dc);
-      look.setText(s.kind === 'empty' ? '' : 'EDIT...').setTint(0x8d95b0);
+      look.setText(s.kind === 'empty' ? '' : s.hero ? (HEROES[s.hero]?.name ?? 'EDIT...') : 'EDIT...').setTint(s.hero ? hexToNum(P.orange) : 0x8d95b0);
       if (sel) {
         const x = [36, 130, 186, 244][this.col];
         const w = [88, 50, 52, 50][this.col];
@@ -297,12 +305,13 @@ export class LobbyScene extends Phaser.Scene {
       ff: `FRIENDLY FIRE: ${c.friendlyFire ? 'ON' : 'OFF'}`,
       weapons: `WEAPONS: ${WEAPON_RATE_LABELS[WEAPON_RATES.indexOf(c.weaponSpawnRate)] ?? 'NORMAL'}`,
       chaos: `CHAOS CARDS: ${c.chaos ? 'ON' : 'OFF'}`,
+      powers: `HERO POWER-UPS: ${c.heroPowers && c.mode !== 'gungame' ? 'ON' : 'OFF'}`,
       start: '>> START MATCH <<',
       controls: 'CONTROLS...',
     };
     SETTINGS.forEach((s, i) => {
       const sel = this.row === MAX_SLOTS + i;
-      const y = 48 + i * 19;
+      const y = 48 + i * 17;
       if (sel) g.fillStyle(0x3a3054, 1).fillRect(344, y - 3, 290, 14);
       this.settingTexts[i].setText(vals[s]).setTint(s === 'start' ? hexToNum(P.green2) : sel ? 0xffffff : 0xc3c9dc);
     });

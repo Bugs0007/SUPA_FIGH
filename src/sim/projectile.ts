@@ -34,6 +34,8 @@ export interface Bullet {
   gravity: number;
   explosion: ExplosionStats | null;
   ignite: number;
+  /** hit radius around fighters/props (energy orbs); 0 = a point */
+  size: number;
 }
 
 export interface BulletSpawn {
@@ -55,6 +57,7 @@ export interface BulletSpawn {
   gravity?: number;
   explosion?: ExplosionStats | null;
   ignite?: number;
+  size?: number;
 }
 
 export function newBullet(): Bullet {
@@ -84,6 +87,7 @@ export function newBullet(): Bullet {
     gravity: 0,
     explosion: null,
     ignite: 0,
+    size: 0,
   };
 }
 
@@ -111,11 +115,12 @@ export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
   b.gravity = s.gravity ?? 0;
   b.explosion = s.explosion ?? null;
   b.ignite = s.ignite ?? 0;
+  b.size = s.size ?? 0;
   return b;
 }
 
 /** Kinds that don't pass through wood/glass (they burn or blow up on it instead). */
-const SOLID_HITTERS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>(['flame', 'rocket', 'flare']);
+const SOLID_HITTERS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>(['flame', 'rocket', 'flare', 'chakra', 'ki', 'cannonball']);
 
 function burst(w: World, b: Bullet, x: number, y: number): void {
   if (b.explosion) explode(w, x - Math.sign(b.vx) * 2, y - Math.sign(b.vy) * 2, b.explosion, b.owner, b.weapon);
@@ -166,7 +171,8 @@ export function updateBullets(w: World): void {
         if (f.id === b.owner && !b.canHitOwner) continue;
         if (b.hitIds.includes(f.id)) continue;
         if (f.alive && f.invuln > 0) continue;
-        const t = segmentAabb(b.x, b.y, nx, ny, f.x - f.w / 2, f.y - f.h, f.x + f.w / 2, f.y);
+        const r = b.size;
+        const t = segmentAabb(b.x, b.y, nx, ny, f.x - f.w / 2 - r, f.y - f.h - r, f.x + f.w / 2 + r, f.y + r);
         if (t >= 0 && t < bestT) {
           bestT = t;
           bestF = f.id;
@@ -177,7 +183,8 @@ export function updateBullets(w: World): void {
       for (let i = 0; i < w.props.length; i++) {
         const p = w.props[i];
         if (!p.active) continue;
-        const t = segmentAabb(b.x, b.y, nx, ny, p.x - p.w / 2, p.y - p.h, p.x + p.w / 2, p.y);
+        const r = b.size;
+        const t = segmentAabb(b.x, b.y, nx, ny, p.x - p.w / 2 - r, p.y - p.h - r, p.x + p.w / 2 + r, p.y + r);
         if (t >= 0 && t < bestT) {
           bestT = t;
           bestP = i;

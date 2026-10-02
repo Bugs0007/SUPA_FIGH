@@ -1,4 +1,6 @@
-# M9 (queued) — Anime Universe Expansion: pixel heroes, hero power-ups, themed maps
+# M9 — Anime Universe Expansion: pixel heroes, hero power-ups, themed maps
+
+> **Status: implemented** (see PROGRESS.md M9, DECISIONS.md D43–D49). This file is the original spec.
 
 Requested by the owner during M2. **Implement after M1–M8**, or pull individual pieces earlier when they
 fit naturally (see "Pull-forward candidates" at the bottom). This is an EXPANSION, never a replacement:

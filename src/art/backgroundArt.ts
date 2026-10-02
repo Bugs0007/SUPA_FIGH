@@ -13,6 +13,8 @@ export interface BackgroundDef {
   near: number;
   /** auto-scroll px/s (train) */
   scroll?: number;
+  /** gentle vertical rocking amplitude in px (ship at sea) */
+  bob?: number;
 }
 
 export const BACKGROUNDS: Record<string, BackgroundDef> = {
@@ -26,6 +28,9 @@ export const BACKGROUNDS: Record<string, BackgroundDef> = {
   office: { sky: '#7ab0e0', far: 0.1, near: 0.3 },
   lab: { sky: '#081a1c', far: 0.12, near: 0.3 },
   mine: { sky: '#120c08', far: 0.12, near: 0.35 },
+  leaf: { sky: '#5aa0e0', far: 0.1, near: 0.35 },
+  ship: { sky: '#4a90d8', far: 0.08, near: 0.25, bob: 4 },
+  alien: { sky: '#1a0a3a', far: 0.1, near: 0.3 },
 };
 
 const W = 640;
@@ -99,6 +104,42 @@ function clouds(pc: PixelCanvas, n: number, maxY: number, color: string, seed: n
 
 function fill(pc: PixelCanvas, c: string): void {
   pc.rect(0, 0, W, H, c);
+}
+
+/** Big round-canopy tree silhouette (forest). */
+function tree(pc: PixelCanvas, x: number, base: number, h: number, trunk: string, leaves: string, seed: number): void {
+  rectW(pc, x - 3, base - h, 7, h, trunk);
+  for (let i = 0; i < 6; i++) {
+    const cx = x + Math.floor((hash2(i, 0, seed) - 0.5) * 34);
+    const cy = base - h - 6 + Math.floor((hash2(i, 1, seed) - 0.5) * 22);
+    const r = 10 + Math.floor(hash2(i, 2, seed) * 9);
+    pc.circle(wrap(cx), cy, r, leaves);
+  }
+}
+
+/** Little village roofs (orange tiles) seen from afar. */
+function roofs(pc: PixelCanvas, base: number, seed: number): void {
+  for (let i = 0; i < 9; i++) {
+    const x = Math.floor(hash2(i, 0, seed) * W);
+    const w = 22 + Math.floor(hash2(i, 1, seed) * 16);
+    const h = 10 + Math.floor(hash2(i, 2, seed) * 8);
+    rectW(pc, x, base - h, w, h, '#d8c8a8');
+    for (let r = 0; r < 6; r++) rectW(pc, x - 2 + r, base - h - 6 + r, w + 4 - r * 2, 1, r % 2 ? '#c0502a' : '#e06a30');
+    rectW(pc, x + 4, base - h + 4, 3, 3, '#4a3424');
+  }
+}
+
+/** Floating rock with a few glowing crystals (alien). */
+function floatingRock(pc: PixelCanvas, x: number, y: number, w: number, rock: string, glow: string, seed: number): void {
+  for (let r = 0; r < w / 2; r++) {
+    const inset = Math.floor((r * r) / (w / 2));
+    rectW(pc, x + inset, y + r, w - inset * 2, 1, r === 0 ? shade(rock, 0.2) : rock);
+  }
+  for (let i = 0; i < 3; i++) {
+    const cx = x + 4 + Math.floor(hash2(i, 0, seed) * (w - 8));
+    rectW(pc, cx, y - 4, 2, 4, glow);
+    pc.set(wrap(cx), y - 5, '#e8ffff');
+  }
 }
 
 const PAINTERS: Record<string, Painter> = {
@@ -238,6 +279,65 @@ const PAINTERS: Record<string, Painter> = {
         pc.rect(x + 1, y + 1, 30, 22, '#0c2428');
         if (hash2(x, y, 6) < 0.4) pc.rect(x + 4, y + 4, 2, 2, hash2(x, y, 7) < 0.5 ? P.teal : P.green2);
         if (hash2(x, y, 8) < 0.2) pc.rect(x + 8, y + 14, 16, 1, '#1a4a4a');
+      }
+    }
+  },
+  leaf: (pc, layer) => {
+    if (layer === 'far') {
+      sky(pc, '#5aa0e0', '#a8d8f8', 0, 260);
+      pc.rect(0, 260, W, H - 260, '#a8d8f8');
+      clouds(pc, 6, 110, '#f0f8ff', 23);
+      mountains(pc, 300, 120, '#7aa0b8', 2.1, 2);
+      mountains(pc, 320, 70, '#5a8a6a', 0.7, 3);
+      roofs(pc, 318, 4);
+      pc.rect(0, 318, W, H - 318, '#3a6a3a');
+    } else {
+      // giant trees in front of the village
+      for (let i = 0; i < 5; i++) tree(pc, i * 130 + Math.floor(hash2(i, 5, 8) * 40), H, 150 + Math.floor(hash2(i, 6, 8) * 70), '#3a2618', i % 2 ? '#1e4a24' : '#24562a', i + 30);
+      for (let x = 0; x < W; x += 4) pc.rect(x, H - 8 - ((x / 4) % 3), 4, 8 + ((x / 4) % 3), '#1a3a1c');
+    }
+  },
+  ship: (pc, layer) => {
+    if (layer === 'far') {
+      sky(pc, '#3a80d0', '#a8d8f0', 0, 240);
+      clouds(pc, 6, 120, '#f4faff', 41);
+      // distant islands on the horizon
+      for (const [x, w2] of [[80, 90], [360, 60], [520, 120]] as const) {
+        for (let r = 0; r < 14; r++) rectW(pc, x + r * 2, 240 - 14 + r, w2 - r * 4, 1, '#4a7a5a');
+        rectW(pc, x + w2 / 2 - 1, 240 - 26, 3, 12, '#3a5a3a');
+        pc.circle(wrap(x + w2 / 2), 240 - 28, 6, '#2a6a3a');
+      }
+      sky(pc, '#2a6ab0', '#123a70', 240, H);
+      for (let y = 244; y < H; y += 7) for (let x = (y * 13) % 26; x < W; x += 26) pc.rect(x, y, 9, 1, '#6aa8e0');
+    } else {
+      // foam crests rolling past
+      for (let i = 0; i < 14; i++) {
+        const x = Math.floor(hash2(i, 0, 51) * W);
+        const y = 300 + Math.floor(hash2(i, 1, 51) * 50);
+        rectW(pc, x, y, 14, 2, '#d8f0ff');
+        rectW(pc, x + 3, y - 1, 7, 1, '#ffffff');
+      }
+    }
+  },
+  alien: (pc, layer) => {
+    if (layer === 'far') {
+      sky(pc, '#1a0a3a', '#4a2a7a', 0, H);
+      stars(pc, 110, 220, 61);
+      pc.circle(140, 80, 34, '#e07a4a');
+      pc.circle(128, 72, 8, '#c8603a');
+      pc.circle(150, 96, 5, '#c8603a');
+      pc.circle(500, 50, 14, '#8af0e0');
+      pc.circle(505, 46, 13, '#1a0a3a');
+      mountains(pc, 330, 110, '#3a1a4a', 3.3, 3);
+      for (let i = 0; i < 4; i++) floatingRock(pc, 60 + i * 160, 150 + Math.floor(hash2(i, 2, 7) * 60), 40, '#5a2a4a', '#4af0e0', i);
+    } else {
+      // glowing vegetation along the ground
+      mountains(pc, 350, 40, '#2a1030', 5.2, 5);
+      for (let i = 0; i < 26; i++) {
+        const x = Math.floor(hash2(i, 0, 71) * W);
+        const h = 10 + Math.floor(hash2(i, 1, 71) * 26);
+        rectW(pc, x, H - 20 - h, 2, h, '#1a8a8a');
+        pc.circle(wrap(x + 1), H - 22 - h, 3, i % 3 ? '#4af0e0' : '#c8f8a0');
       }
     }
   },

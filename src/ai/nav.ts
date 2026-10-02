@@ -111,6 +111,8 @@ export class NavGraph {
       movers: [],
       hazards: [],
       drops: [],
+      waves: [],
+      cannons: [],
       gravity: sandbox.gimmicks.gravity.filter((z) => !z.def.toggle),
     };
     const map = sandbox.map;

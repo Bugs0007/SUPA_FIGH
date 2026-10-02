@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 // Every themed map loads in the real renderer (backgrounds, gimmicks, bots) without console errors.
-const MAPS = ['rooftops', 'train', 'factory', 'construction', 'casino', 'docks', 'office', 'lab', 'mine'];
+const MAPS = ['rooftops', 'train', 'factory', 'construction', 'casino', 'docks', 'office', 'lab', 'mine', 'leaf', 'ship', 'alien'];
 
 for (const id of MAPS) {
   test(`map ${id} runs with bots`, async ({ page }) => {

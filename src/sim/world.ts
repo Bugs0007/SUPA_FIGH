@@ -9,6 +9,8 @@ import { createItem, updateItems, type Item } from './item';
 import { createProp, updateProps, type Prop } from './prop';
 import type { PropType } from './data/props';
 import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
+import { POWERS } from './data/heroes';
+import { transform, updateClones, type Clone } from './hero';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
 import { TK } from './map/tiles';
@@ -28,6 +30,8 @@ export interface WorldSettings {
   ghosts?: boolean;
   /** Gun Game: no weapon pickups, no drops on death (the mode hands out weapons) */
   noPickups?: boolean;
+  /** rare hero power-up pickups (M9) appear during the round */
+  heroPowers?: boolean;
 }
 
 export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
@@ -41,6 +45,9 @@ const MAX_BULLETS = 512;
 const INITIAL_WEAPON_FRACTION = 0.8;
 const WEAPON_RESPAWN: [number, number] = [5, 9];
 const MAX_WEAPON_ITEMS = 22;
+/** seconds until the first hero power-up, then between power-ups (only one on the ground at a time) */
+const POWER_FIRST: [number, number] = [12, 20];
+const POWER_EVERY: [number, number] = [26, 38];
 const NO_INTENT = emptyIntent();
 
 /** One round of play. Pure simulation: no rendering, no audio, no DOM. */
@@ -57,6 +64,8 @@ export class World {
   items: Item[] = [];
   props: Prop[] = [];
   fires: FirePatch[] = [];
+  /** shadow clone effect entities (hero powers) */
+  clones: Clone[] = [];
   /** wooden tiles on fire, keyed by tile index */
   burningTiles = new Map<number, BurningTile>();
   /** seconds of Bullet Time left (the world runs slow; the owner gets two updates per tick) */
@@ -79,6 +88,7 @@ export class World {
   private nextItemId = 1;
   private nextPropId = 1;
   private weaponTimer = 0;
+  private powerTimer = 0;
 
   constructor(def: MapDef, specs: FighterSpawn[], settings: WorldSettings, seed: number) {
     this.def = def;
@@ -109,6 +119,7 @@ export class World {
     this.gimmicks = buildGimmicks(this);
     this.spawnInitialWeapons();
     this.weaponTimer = this.nextWeaponDelay();
+    if (settings.heroPowers) this.powerTimer = this.rng.range(POWER_FIRST[0], POWER_FIRST[1]);
   }
 
   emit(e: SimEvent): void {
@@ -135,11 +146,13 @@ export class World {
     if (this.bulletTime > 0) this.bulletTime = Math.max(0, this.bulletTime - DT);
     if (this.suddenDeath >= 2) this.drain();
     if (this.mods.has('firestorm')) this.fireStorm();
+    updateClones(this);
     updateBullets(this);
     updateItems(this);
     updateProps(this);
     updateFire(this);
     this.updateWeaponSpawner();
+    if (this.settings.heroPowers) this.updatePowerSpawner();
     if (this.tick % 120 === 0) this.items = this.items.filter((it) => it.active);
   }
 
@@ -286,6 +299,25 @@ export class World {
     this.emit({ t: 'weaponSpawn', x: p.x, y: p.y, weapon: id });
   }
 
+  /** Hero power-ups: rare, one on the ground at a time, at the map's 'P' spots (else weapon/fighter spawns). */
+  private updatePowerSpawner(): void {
+    this.powerTimer -= DT;
+    if (this.powerTimer > 0) return;
+    this.powerTimer = this.rng.range(POWER_EVERY[0], POWER_EVERY[1]);
+    if (this.settings.noPickups) return;
+    const items = new Set(Object.values(POWERS).map((p) => p.item));
+    if (this.items.some((it) => it.active && items.has(it.weaponId))) return;
+    const { powerSpawns, weaponSpawns, spawns } = this.parsed;
+    const pts = powerSpawns.length > 0 ? powerSpawns : weaponSpawns.length > 0 ? weaponSpawns : spawns;
+    if (pts.length === 0) return;
+    const p = this.rng.pick(pts);
+    const bias = this.def.powerBias;
+    const power = this.rng.weighted(Object.values(POWERS), (q) => q.weight * (q.id === bias ? 3 : 1));
+    const it = this.spawnWeapon(power.item, p.x, p.y - 36);
+    it.vy = 40;
+    this.emit({ t: 'powerSpawn', x: p.x, y: p.y, power: power.id });
+  }
+
   // ------------------------------------------------------------ items
 
   /**
@@ -322,7 +354,8 @@ export class World {
     const def = weaponDef(it.weaponId);
     if (def.powerup) {
       const pu = def.powerup;
-      if (pu.kind === 'speed') f.speedBoost = pu.duration;
+      if (pu.kind === 'hero') transform(this, f, pu.power ?? '');
+      else if (pu.kind === 'speed') f.speedBoost = pu.duration;
       else if (pu.kind === 'strength') f.strengthBoost = pu.duration;
       else {
         this.bulletTime = pu.duration;

@@ -34,6 +34,9 @@ export const THEMES: Record<string, ThemeColors> = {
   office: { back: '#3a4656', backSeam: '#303a48', sky0: '#7ab0e0', sky1: '#b8d8f0' },
   lab: { back: '#16302e', backSeam: '#102624', sky0: '#081a1c', sky1: '#0c2428' },
   mine: { back: '#2a1e14', backSeam: '#20160e', sky0: '#120c08', sky1: '#1e140c' },
+  leaf: { back: '#4a3424', backSeam: '#3c2a1c', sky0: '#5aa0e0', sky1: '#a8d8f8' },
+  ship: { back: '#3e2a1c', backSeam: '#321f14', sky0: '#4a90d8', sky1: '#a8d8f0' },
+  alien: { back: '#2a1838', backSeam: '#20102c', sky0: '#1a0a3a', sky1: '#4a2a7a' },
 };
 
 type Painter = (pc: PixelCanvas, ox: number, oy: number, mask: number, seed: number) => void;

@@ -5,10 +5,11 @@ export const FACE_STYLES = ['plain', 'beard', 'stubble', 'shades', 'eyepatch', '
 export const HAT_STYLES = ['none', 'cap', 'beanie', 'tophat', 'helmet', 'bandana', 'hardhat', 'fedora'] as const;
 export const TOP_STYLES = ['tshirt', 'jacket', 'suit', 'hoodie', 'tank', 'vest'] as const;
 
-export type HairStyle = (typeof HAIR_STYLES)[number];
-export type FaceStyle = (typeof FACE_STYLES)[number];
-export type HatStyle = (typeof HAT_STYLES)[number];
-export type TopStyle = (typeof TOP_STYLES)[number];
+// Hero parts (M9, art/heroArt.ts). Not in the random/creator lists above.
+export type HairStyle = (typeof HAIR_STYLES)[number] | 'ninja' | 'saiyan';
+export type FaceStyle = (typeof FACE_STYLES)[number] | 'whiskers' | 'foxeyes' | 'scar';
+export type HatStyle = (typeof HAT_STYLES)[number] | 'strawhat' | 'headband';
+export type TopStyle = (typeof TOP_STYLES)[number] | 'tracksuit' | 'openvest' | 'gi';
 
 /** Serializable look of a fighter (stored in profiles). */
 export interface Appearance {
@@ -23,10 +24,12 @@ export interface Appearance {
   accentColor: string;
   pantsColor: string;
   shoesColor: string;
+  /** shorts: bare shins (heroes) */
+  legs?: 'shorts';
 }
 
 export function appearanceKey(a: Appearance): string {
-  return [a.skin, a.hair, a.hairColor, a.face, a.hat, a.hatColor, a.top, a.topColor, a.accentColor, a.pantsColor, a.shoesColor]
+  return [a.skin, a.hair, a.hairColor, a.face, a.hat, a.hatColor, a.top, a.topColor, a.accentColor, a.pantsColor, a.shoesColor, ...(a.legs ? [a.legs] : [])]
     .join('_')
     .replace(/#/g, '');
 }

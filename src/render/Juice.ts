@@ -1,8 +1,10 @@
+import { POWER_COLORS } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_W } from '../game/display';
 import { settings } from '../game/settings';
 import { TILE } from '../sim/constants';
+import { heroAttackLabel, POWERS } from '../sim/data/heroes';
 import { weaponDef } from '../sim/data/weapons';
 import type { SimEvent } from '../sim/events';
 import { activeWeapon, gunGeometry } from '../sim/fighter';
@@ -39,6 +41,11 @@ const POWERUP_TEXT: Record<string, [string, string]> = {
   bulletTime: ['BULLET TIME!', P.glass1],
 };
 
+const heroColors = (power: string): [number, number] => {
+  const c = POWER_COLORS[power] ?? [P.white, P.white];
+  return [hexToNum(c[0]), hexToNum(c[1])];
+};
+
 export function weaponLabel(id: string): string {
   const special: Record<string, string> = {
     kick: 'KICK',
@@ -62,8 +69,10 @@ export function weaponLabel(id: string): string {
     girder: 'GIRDER',
     tnt: 'TNT',
     chandelier: 'CHANDELIER',
+    cannon: 'CANNON',
+    fissure: 'ENERGY FISSURE',
   };
-  return special[id] ?? weaponDef(id).name;
+  return special[id] ?? heroAttackLabel(id) ?? weaponDef(id).name;
 }
 
 /** Maps sim events to particles, sounds, shake, hit-stop and UI events. */
@@ -353,6 +362,17 @@ export class Juice {
         this.ui.push({ t: 'announce', text: e.on ? 'LOW GRAVITY!' : 'GRAVITY ON', color: hexToNum(P.teal) });
         this.sfx('slowmo', e.x, 0.5, e.on ? 1.4 : 0.8);
         break;
+      case 'wave':
+        this.cam.addTrauma(0.14);
+        this.sfx('splat', this.cam.x, 0.5, 0.6);
+        this.sfx('roll', this.cam.x, 0.6, 0.5);
+        break;
+      case 'cannon':
+        fx.muzzle(e.x, e.y, e.dir > 0 ? 0 : Math.PI, true);
+        fx.smoke(e.x, e.y, 10, 0x9a96a8);
+        this.sfx('explosion', e.x, 0.7, 1.4);
+        this.cam.addTrauma(0.35);
+        break;
       case 'poltergeist':
         fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.35, s0: 0.3, s1: 4.2, a0: 0.8, a1: 0, tint: 0xb0e0ff, depth: 64 });
         fx.motes(e.x, e.y, 10, 0xb0e0ff);
@@ -368,6 +388,72 @@ export class Juice {
       case 'spinUp':
         this.sfx('spinup', w.fighters[e.f].x, 0.8);
         break;
+      // ------------------------------------------------ hero powers (M9)
+      case 'transform': {
+        const p = POWERS[e.power];
+        const [c0, c1] = heroColors(e.power);
+        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y - 12, life: 0.25, s0: 2, s1: 4, a0: 0.8, a1: 0, tint: c0, add: true, depth: 64 });
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.35, s0: 0.3, s1: 3.5, a0: 1, a1: 0, tint: c1, depth: 64 });
+        fx.motes(e.x, e.y - 8, 24, c0);
+        fx.sparks(e.x, e.y - 12, 0, -1, 16, c1, 220);
+        this.sfx('transform', e.x);
+        this.cam.addTrauma(0.35);
+        this.hitstop = Math.max(this.hitstop, 0.08);
+        const name = e.full ? p?.name ?? 'POWER!' : 'POWERED UP!';
+        this.r.floatText(e.x, e.y - 34, name, c0, true);
+        if (e.full) this.ui.push({ t: 'announce', text: `${name}!`, color: c0 });
+        break;
+      }
+      case 'powerEnd': {
+        const f = w.fighters[e.f];
+        fx.smoke(f.x, f.y - 10, 6, 0x9a96a8);
+        this.sfx('powerEnd', f.x);
+        break;
+      }
+      case 'powerSpawn': {
+        const [c0] = heroColors(e.power);
+        fx.sparks(e.x, e.y - 30, 0, 1, 14, c0, 160);
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.4, s0: 0.3, s1: 3, a0: 1, a1: 0, tint: c0, depth: 64 });
+        this.sfx('powerSpawn', e.x);
+        this.ui.push({ t: 'announce', text: (POWERS[e.power]?.name ?? 'POWER') + ' POWER-UP!', color: c0 });
+        break;
+      }
+      case 'special': {
+        const [c0, c1] = heroColors(e.power);
+        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.12, s0: 1 * e.scale, s1: 2 * e.scale, a0: 0.8, a1: 0, tint: c1, add: true, depth: 64 });
+        fx.sparks(e.x, e.y, w.fighters[e.f].facing, 0, 8, c0, 180);
+        this.sfx(e.power === 'kurama' ? 'chakraBlast' : 'kiBlast', e.x, 1, e.power === 'ssj' ? 1.4 - Math.min(0.6, e.scale * 0.2) : 1);
+        this.cam.addTrauma(0.15 + e.scale * 0.08);
+        break;
+      }
+      case 'chargeStart':
+        this.sfx('kiCharge', w.fighters[e.f].x, 0.8);
+        break;
+      case 'stretch': {
+        const f = w.fighters[e.f];
+        this.sfx('stretch', f.x);
+        this.sfx('steam', f.x, 0.6);
+        break;
+      }
+      case 'clone':
+        fx.smoke(e.x, e.y - 10, 4, 0xe0e0e8);
+        this.sfx('clone', e.x, 0.8, 0.9 + Math.random() * 0.3);
+        break;
+      case 'cloneGone':
+        fx.smoke(e.x, e.y - 10, 3, 0xe0e0e8);
+        break;
+      case 'heroFx': {
+        const tint = e.fx === 'chakra' ? hexToNum('#ff6a1a') : e.fx === 'steam' ? hexToNum('#ff9ad0') : hexToNum('#fff8c0');
+        fx.sparks(e.x, e.y, 0, -1, e.heavy ? 12 : 6, tint, e.heavy ? 240 : 150);
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.18, s0: 0.2, s1: e.heavy ? 2.2 : 1.4, a0: 1, a1: 0, tint, depth: 64 });
+        if (e.fx === 'steam') fx.smoke(e.x, e.y, 3, 0xffd0e8);
+        if (e.heavy) {
+          this.sfx('energyHit', e.x);
+          this.hitstop = Math.max(this.hitstop, 0.07);
+          this.cam.addTrauma(0.25);
+        }
+        break;
+      }
       case 'weaponBreak':
         fx.chips(e.x, e.y, 10);
         this.sfx('break', e.x);

@@ -3,20 +3,24 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1–M8 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
-  build). Next: the queued **M9 Anime Universe** (`docs/ANIME_EXPANSION.md`).
-- `npm run dev` → http://localhost:5173 · `npm test` (160 unit tests) · `npm run test:e2e` (26 Playwright tests;
+- **M1–M9 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
+  build, anime universe expansion). See "Next steps" for ideas; manual play-test list under M9.
+- `npm run dev` → http://localhost:5173 · `npm test` (220 unit tests) · `npm run test:e2e` (33 Playwright tests;
   in containers `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 <map> normal 1`
 - Title menu: Quick Match / Match Setup / Controls / Settings (L, C shortcuts; 0–8 bots; Tab difficulty).
   In a match: Esc/P/Start = pause menu (resume, restart, settings, controls, quit).
 - URLs: `/?scene=match&map=mine&bots=6&diff=hard&mode=brawl|deathmatch|koth|juggernaut|gungame|coop&chaos=1&mods=bigHeads`,
-  `/?scene=lobby|controls|creator|settings`, `/?scene=art(&page=weapons)`, `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
+  `/?scene=lobby|controls|creator|settings`, `/?scene=art(&page=weapons|heroes)`, `&heroes=naruto,luffy,goku`, `&powers=0`,
+  `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
 
-## Next steps (M9 — Anime Universe, spec in `docs/ANIME_EXPANSION.md`)
-1. Hero power framework in the sim (data tables: heroes, transformations, abilities) driven by the ABILITY intent bit.
-2. Three heroes at the existing tiny pixel scale (procedural art, inspiration only), hero pickups, VFX, audio.
-3. Three maps (Hidden Leaf Forest, Grand Line Ship, Alien Energy Planet), lobby hero select, bots use powers.
-4. Known issues carried over: bots don't ride movers; title/creator previews draw arms hidden behind the body.
+## Next steps
+1. Play-test the M9 list below on real hardware with real pads; tune `sim/data/heroes.ts` (durations,
+   cooldowns, multipliers) and the power spawn timing in `sim/world.ts` (POWER_FIRST / POWER_EVERY).
+2. `npm run balance` with heroes: `runBotSim({ heroes: [...], heroPowers: true })` — check power kills stay a
+   spice, not the meta (power specials currently show up as `kurama:special` etc. in the kill table).
+3. Known: bots don't ride movers (swing platforms are bonus routes); bots never fire cannons; the forest has
+   no shallow stream (D48); controls are not listed inside the lobby (CONTROLS... entry opens them).
+4. Optional: real low-res sprite sheets per hero via `art/externalSheets.ts` (docs/ASSETS.md).
 
 ## M1 — Playable core ✅
 - [x] Docs (CLAUDE.md, GAME_DESIGN.md, DECISIONS.md, PROGRESS.md)
@@ -95,14 +99,6 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [x] HUD: deathmatch clock/scores, sudden death/overtime callouts, panels for up to 4 humans
 - [x] Tests: modes, lobby model, bindings/conflicts, intent packing; e2e lobby→deathmatch and rebinding flows
 
-## M9 — Anime Universe Expansion (QUEUED — full spec in `docs/ANIME_EXPANSION.md`)
-- [x] Pulled forward into M3: double jump, wall jump (+ wall slide), double-tap sprint
-- [ ] Ability intent + full rebinding (fold into M4's rebinding menu)
-- [ ] Hero power framework (HeroDefinition / PowerUpDefinition / TransformationState / Ability*)
-- [ ] Heroes at the existing tiny pixel scale: Naruto (Kurama Mode), Luffy (Gear 2), Goku (Super Saiyan)
-- [ ] Maps: Hidden Leaf Forest, Grand Line Ship, Alien Energy Planet; hero pickups; VFX; audio; select UI
-- [ ] External PNG sprite-sheet support in ArtProvider; bots understand powers; tests per spec
-
 ## M5 — Maps ✅
 - [x] Gimmick framework (`sim/gimmicks.ts`, data in `MapDef.gimmicks`): movers (path or pendulum; carry riders;
       carts hit), timed telegraphed hazards (crushers, laser grids, sweeping train tunnels you duck under),
@@ -162,3 +158,46 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [x] Production build: Phaser in its own cached chunk (game chunk 285 KB / 91 KB gzip), meta description + theme
       colour, version string (title screen, from package.json), on-screen crash overlay
 - [x] README (players + dev) and `docs/DEPLOY.md` (itch.io, GitHub Pages, Netlify/Cloudflare/Vercel)
+
+## M9 — Anime Universe expansion ✅ (spec: `docs/ANIME_EXPANSION.md`)
+- [x] Movement (pulled into M3): double jump, wall jump + slide, double-tap sprint; bots use all of them
+- [x] ABILITY action: intent bit, keyboard + pad bindings, rebindable with conflict warnings (M4)
+- [x] Hero power framework (`sim/hero.ts`, data in `sim/data/heroes.ts`): HeroDefinition, PowerUpDefinition,
+      AbilityDefinition (stat multipliers, combo/kick overrides, special), transformation state on the
+      Fighter (power, timer, special cooldown, ki charge), expiry/death restore everything (D43–D45)
+- [x] Naruto — Kurama Mode (chakra scroll): crimson aura, red eyes, +speed/damage/knockback, combo hit 3
+      brings 2 shadow clones (effect entities), CHAKRA BOMB special (big orb, explosive, 5 s cooldown)
+- [x] Luffy — Gear Second (straw hat token): pink skin + steam, faster stretchy combo (visible rubber arms),
+      stretch kick, RUBBER BULLET special (arm stretches 120 px and snaps back, stops at walls)
+- [x] Goku — Super Saiyan (energy core): hair turns yellow, sparks, strong/fast/energy combo, heavy kick with
+      hit-stop + shake, KI BLAST special (tap = small, hold to charge up to 3x with an explosion)
+- [x] Heroes at the existing pixel scale (new parts in the modular baker, D46); `/?scene=art&page=heroes`
+- [x] Pickups: original sprites, bobbing + glow + sparkles, rare spawner (`P` map spots, map bias, D47)
+- [x] VFX (`render/HeroFx.ts`): chunky orbiting auras, steam/flame/spark motes, charge glow, stretched limbs,
+      clones, chakra/ki orbs; transformation flash + announcer; 11 new procedural sounds
+- [x] HUD: power name, time bar, ABILITY READY / cooldown above the player panel
+- [x] Hero select: creator HERO row (animated preview alternating normal/powered, stats, power, special),
+      lobby shows the hero, HERO POWER-UPS toggle; `?heroes=` / `?powers=0` for quick matches
+- [x] Maps: Hidden Leaf Forest (giant trunks to wall-jump, village, rope ladders, lanterns, swing platform),
+      Grand Line Ship (hold/decks/mast, waves, two cannons fired with Interact, swing platforms, sea),
+      Alien Energy Planet (two low-gravity fields, floating rocks, crystal caves, energy fissures);
+      themed parallax backgrounds (ship horizon rocks gently)
+- [x] Bots: value power-ups (own hero +45), fire specials when the shot is good (range band, straight line,
+      line of sight), charge ki blasts at long range; nav handles low gravity
+- [x] External PNG sprite-sheet support (`art/externalSheets.ts`, `docs/ASSETS.md`): validated format,
+      Boot preload, state → animation mapping, procedural fallback
+- [x] Tests: hero data, transformation/expiry, generic boost, pickup, death, each special, clone lifecycle,
+      Gear 2 reach, ki charge, power spawner, determinism; waves/cannon/fissure; sheets; lobby heroes; bots
+      use specials and fetch powers; every map incl. the 3 new ones (nav, power spots, bot matches);
+      e2e per hero (power-up → powered look → combo → special → expiry → pistol) and creator hero pick
+
+### Manual play-test checklist (M9)
+- Each hero: walk over its power-up → transformation flash/announcer, aura, powered look; combo feels
+  stronger; ABILITY special hits; HUD timer/cooldown; power runs out cleanly (no leftover aura/arm).
+- Grab another hero's power-up → smaller generic boost, no special.
+- Goku: tap vs hold ABILITY (charge glow grows, big blast explodes). Luffy: rubber bullet against walls.
+- Naruto: third hit of the combo → two clones appear beside him and vanish.
+- Maps: wall-jump up the forest trunks; fire a ship cannon (Interact at the breech); waves slide barrels;
+  alien low-gravity fields + fissure eruptions; power-up spots are reachable and contested.
+- Rebind ABILITY in Controls (keyboard + pad) and check it in a match. 2 keyboards + pads at once.
+- 10 fighters with several powered heroes: frame rate on a real GPU.

@@ -38,10 +38,12 @@ export class BackgroundScene extends Phaser.Scene {
     const cy = cam.worldView.centerY;
     const auto = (def.scroll ?? 0) * this.t;
     this.far.tilePositionX = Math.round(cx * def.far + auto * 0.1);
-    this.far.y = Math.round(Math.max(-30, Math.min(30, -(cy - 300) * def.far * 0.3)));
+    // ship at sea: the horizon rocks gently (whole pixels, purely visual)
+    const bob = def.bob ? Math.round(Math.sin(this.t * 0.9) * def.bob) : 0;
+    this.far.y = Math.round(Math.max(-30, Math.min(30, -(cy - 300) * def.far * 0.3))) + bob;
     if (this.near) {
       this.near.tilePositionX = Math.round(cx * def.near + auto);
-      this.near.y = Math.round(Math.max(-40, Math.min(40, -(cy - 300) * def.near * 0.3)));
+      this.near.y = Math.round(Math.max(-40, Math.min(40, -(cy - 300) * def.near * 0.3))) + Math.round(bob * 1.5);
     }
   }
 }

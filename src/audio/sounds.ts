@@ -125,6 +125,35 @@ export const SOUNDS: Record<string, SfxDef> = {
     { wave: 'square', freq: 520, arpMul: 1.5, arpTime: 0.06, sustain: 0.12, decay: 0.15, duty: 0.3, volume: 0.18 },
     { wave: 'square', freq: 1040, arpMul: 1.335, arpTime: 0.06, sustain: 0.1, decay: 0.2, duty: 0.3, volume: 0.14, delay: 0.12 },
   ],
+  // hero powers (M9)
+  transform: [
+    { wave: 'saw', freq: 120, slide: 3, attack: 0.05, sustain: 0.15, decay: 0.3, volume: 0.25, vibDepth: 0.06, vibSpeed: 25 },
+    { wave: 'noise', freq: 1200, slide: 1, attack: 0.1, sustain: 0.1, decay: 0.3, lowpass: 0.4, volume: 0.3 },
+    { wave: 'square', freq: 880, arpMul: 1.5, arpTime: 0.07, sustain: 0.1, decay: 0.2, duty: 0.3, volume: 0.12, delay: 0.25 },
+  ],
+  powerEnd: [{ wave: 'square', freq: 700, slide: -2.5, decay: 0.25, duty: 0.3, volume: 0.14 }],
+  powerSpawn: [
+    { wave: 'sine', freq: 900, slide: 1.5, sustain: 0.1, decay: 0.3, volume: 0.2, vibDepth: 0.05, vibSpeed: 20 },
+    { wave: 'square', freq: 1800, decay: 0.05, duty: 0.2, volume: 0.1, delay: 0.15 },
+  ],
+  clone: [{ wave: 'noise', freq: 2000, slide: -2, attack: 0.01, decay: 0.12, lowpass: 0.5, volume: 0.3 }],
+  chakraBlast: [
+    { wave: 'saw', freq: 90, slide: 0.5, attack: 0.02, sustain: 0.1, decay: 0.3, volume: 0.4, vibDepth: 0.1, vibSpeed: 30 },
+    { wave: 'noise', freq: 700, slide: -1, sustain: 0.05, decay: 0.3, lowpass: 0.4, volume: 0.35 },
+  ],
+  stretch: [{ wave: 'sine', freq: 300, slide: 3, decay: 0.14, volume: 0.35, vibDepth: 0.1, vibSpeed: 40 }],
+  snap: [{ wave: 'sine', freq: 900, slide: -4, decay: 0.08, volume: 0.3 }],
+  steam: [{ wave: 'noise', freq: 5000, attack: 0.03, sustain: 0.1, decay: 0.2, highpass: 0.5, volume: 0.18 }],
+  kiCharge: [{ wave: 'sine', freq: 300, slide: 2.5, attack: 0.1, sustain: 0.6, decay: 0.2, volume: 0.18, vibDepth: 0.08, vibSpeed: 30 }],
+  kiBlast: [
+    { wave: 'square', freq: 1200, slide: -2, decay: 0.15, duty: 0.4, volume: 0.2 },
+    { wave: 'noise', freq: 2500, slide: -2, decay: 0.12, volume: 0.25 },
+  ],
+  energyHit: [
+    { wave: 'noise', freq: 1600, slide: -3, decay: 0.14, volume: 0.45 },
+    { wave: 'sine', freq: 200, slide: -3, decay: 0.18, volume: 0.6, punch: 0.4 },
+    { wave: 'square', freq: 2400, slide: -4, decay: 0.06, duty: 0.3, volume: 0.1 },
+  ],
   heal: [{ wave: 'sine', freq: 600, slide: 1.2, sustain: 0.1, decay: 0.25, volume: 0.3, vibDepth: 0.04, vibSpeed: 18 }],
   jet: [{ wave: 'noise', freq: 300, sustain: 0.06, decay: 0.05, lowpass: 0.3, volume: 0.25 }],
   crate: [

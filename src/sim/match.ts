@@ -35,6 +35,8 @@ export interface MatchConfig {
   target?: number;
   /** modifiers that are always on (data/modifiers.ts ids) */
   modifiers?: string[];
+  /** rare hero power-up pickups during rounds (M9) */
+  heroPowers?: boolean;
 }
 
 export const MODE_NAMES: Record<GameMode, string> = {
@@ -174,6 +176,7 @@ export class Match {
       modifiers: this.roundModifiers,
       ghosts: this.cfg.mode === 'brawl',
       noPickups: this.cfg.mode === 'gungame',
+      heroPowers: !!this.cfg.heroPowers && this.cfg.mode !== 'gungame',
     };
   }
 

@@ -141,9 +141,9 @@ export const FRAME_META: FrameMeta[] = POSES.map((p) => {
 
 // ------------------------------------------------------------------ drawing
 
-function drawLeg(pc: PixelCanvas, ox: number, oy: number, l: Leg, pants: string, shoes: string): void {
+function drawLeg(pc: PixelCanvas, ox: number, oy: number, l: Leg, pants: string, shoes: string, shin = pants): void {
   pc.line(ox + l.hx, oy + l.hy, ox + l.kx, oy + l.ky, pants, 2);
-  pc.line(ox + l.kx, oy + l.ky, ox + l.fx, oy + l.fy, pants, 2);
+  pc.line(ox + l.kx, oy + l.ky, ox + l.fx, oy + l.fy, shin, 2);
   pc.rect(ox + l.fx, oy + l.fy, 3, 2, shoes);
 }
 
@@ -161,8 +161,8 @@ function drawTorso(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearan
       let col: string = a.topColor;
       const x = x0 + i;
       if (isBelt) {
-        col = a.top === 'suit' ? P.ink2 : shade(a.pantsColor, -0.3);
-        if (i === 3 && a.top !== 'suit') col = P.brass;
+        col = a.top === 'suit' ? P.ink2 : a.top === 'gi' ? a.accentColor : shade(a.pantsColor, -0.3);
+        if (i === 3 && a.top !== 'suit' && a.top !== 'gi') col = P.brass;
       } else {
         switch (a.top) {
           case 'tank':
@@ -184,6 +184,20 @@ function drawTorso(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearan
           case 'vest':
             col = i === 0 || i === 1 || i === 4 || i === 5 ? a.topColor : a.accentColor;
             if (i === 4 && rowFromTop % 2 === 1) col = P.brass;
+            break;
+          case 'tracksuit':
+            // black shoulders, white collar zip
+            if (rowFromTop < 2) col = a.accentColor;
+            if (i === 4 && rowFromTop >= 1) col = P.white;
+            break;
+          case 'openvest':
+            // open front: bare chest down the middle
+            if (rowFromTop >= 1 && (i === 3 || i === 4)) col = a.skin;
+            break;
+          case 'gi':
+            // undershirt V at the collar
+            if (rowFromTop === 0 && i >= 2 && i <= 4) col = a.accentColor;
+            if (rowFromTop === 1 && i === 3) col = a.accentColor;
             break;
           case 'tshirt':
           default:
@@ -220,9 +234,10 @@ function drawBodyFrame(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appe
   if (p.special === 'roll') {
     drawRoll(pc, ox, oy, a);
   } else {
-    drawLeg(pc, ox, oy, p.back, shade(a.pantsColor, -0.3), shade(a.shoesColor, -0.3));
+    const shorts = a.legs === 'shorts';
+    drawLeg(pc, ox, oy, p.back, shade(a.pantsColor, -0.3), shade(a.shoesColor, -0.3), shorts ? shade(a.skin, -0.2) : undefined);
     drawTorso(pc, ox, oy, p, a);
-    drawLeg(pc, ox, oy, p.front, a.pantsColor, a.shoesColor);
+    drawLeg(pc, ox, oy, p.front, a.pantsColor, a.shoesColor, shorts ? a.skin : undefined);
   }
   pc.outline(ox, oy, 32, 32);
 }
@@ -235,6 +250,18 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
   const hairDark = shade(a.hairColor, -0.25);
 
   if (a.hair === 'afro') pc.circle(X(8), Y(8), 5, a.hairColor);
+  // hero hair: big spiky masses that define the silhouette (behind the skull)
+  if (a.hair === 'ninja') {
+    pc.rect(X(4), Y(4), 9, 4, a.hairColor);
+    for (const [x, y] of [[3, 5], [4, 3], [6, 2], [8, 3], [10, 2], [12, 3], [13, 5], [3, 7], [4, 8]]) pc.set(X(x), Y(y), a.hairColor);
+    pc.set(X(5), Y(3), hairDark);
+  }
+  if (a.hair === 'saiyan') {
+    pc.rect(X(4), Y(3), 9, 5, a.hairColor);
+    pc.rect(X(2), Y(4), 3, 2, a.hairColor);
+    pc.rect(X(3), Y(6), 2, 3, a.hairColor);
+    for (const [x, y] of [[3, 2], [5, 1], [5, 2], [8, 0], [8, 1], [8, 2], [11, 1], [11, 2], [13, 3], [1, 5], [2, 8], [3, 9]]) pc.set(X(x), Y(y), a.hairColor);
+  }
   if (a.hair === 'long') pc.rect(X(4), Y(7), 3, 8, hairDark);
   if (a.hair === 'ponytail') pc.rect(X(3), Y(8), 2, 4, hairDark);
 
@@ -289,9 +316,24 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
     case 'none':
       pc.set(X(9), Y(6), shade(a.skin, 0.25));
       break;
+    case 'ninja':
+      // fringe falling over the forehead
+      pc.rect(X(5), Y(6), 7, 1, hc);
+      pc.set(X(11), Y(7), hc);
+      pc.set(X(9), Y(7), hc);
+      pc.rect(X(5), Y(7), 2, 2, hc);
+      break;
+    case 'saiyan':
+      pc.rect(X(5), Y(6), 7, 1, hc);
+      pc.set(X(12), Y(6), hc);
+      pc.set(X(12), Y(7), hc);
+      pc.set(X(10), Y(7), hc);
+      pc.rect(X(5), Y(7), 2, 3, hc);
+      break;
   }
 
   // eyes
+  const eye = a.face === 'foxeyes' && mode === HEAD.NORMAL ? P.red2 : P.ink;
   if (mode === HEAD.DEAD) {
     pc.set(X(9), Y(7), P.ink);
     pc.set(X(11), Y(7), P.ink);
@@ -304,8 +346,8 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
     pc.set(X(11), Y(8), P.ink);
     pc.set(X(10), Y(11), P.ink);
   } else {
-    pc.set(X(10), Y(8), P.ink);
-    pc.set(X(10), Y(9), P.ink);
+    pc.set(X(10), Y(8), eye);
+    pc.set(X(10), Y(9), eye);
   }
 
   // face accessories
@@ -342,6 +384,17 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
       pc.rect(X(5), Y(8), 7, 1, a.accentColor);
       pc.rect(X(9), Y(7), 3, 3, P.steel1);
       pc.set(X(10), Y(8), P.glass1);
+      break;
+    case 'whiskers':
+    case 'foxeyes': {
+      const wc = a.face === 'foxeyes' ? shade(a.skin, -0.55) : shade(a.skin, -0.35);
+      pc.set(X(8), Y(10), wc);
+      pc.set(X(9), Y(11), wc);
+      pc.set(X(11), Y(11), wc);
+      break;
+    }
+    case 'scar':
+      pc.set(X(10), Y(10), shade(a.skin, -0.4));
       break;
   }
 
@@ -381,6 +434,22 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
       pc.rect(X(4), Y(6), 9, 1, hatDark);
       pc.set(X(8), Y(3), shade(hat, 0.35));
       break;
+    case 'strawhat':
+      // the silhouette: wide straw brim + red band
+      pc.rect(X(5), Y(2), 7, 3, hat);
+      pc.set(X(6), Y(2), shade(hat, 0.2));
+      pc.rect(X(5), Y(4), 7, 1, P.red1);
+      pc.rect(X(1), Y(5), 15, 1, hat);
+      pc.rect(X(2), Y(6), 13, 1, hatDark);
+      break;
+    case 'headband':
+      // forehead protector: dark cloth band + steel plate on the front
+      pc.rect(X(5), Y(6), 7, 1, hatDark);
+      pc.rect(X(8), Y(5), 4, 2, P.steel3);
+      pc.set(X(9), Y(5), P.white);
+      pc.set(X(4), Y(7), hatDark);
+      pc.set(X(3), Y(8), hatDark);
+      break;
     case 'fedora':
       pc.rect(X(6), Y(3), 5, 3, hat);
       pc.set(X(8), Y(3), hatDark);
@@ -396,7 +465,9 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
 function sleeveLen(a: Appearance, len: number): number {
   switch (a.top) {
     case 'tank':
+    case 'openvest':
       return 0;
+    case 'gi':
     case 'tshirt':
     case 'vest':
       return 3;

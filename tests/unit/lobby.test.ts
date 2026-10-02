@@ -37,3 +37,20 @@ describe('lobby', () => {
     expect(m.players[0].color).toBe(m.players[2].color);
   });
 });
+
+describe('lobby heroes (M9)', () => {
+  it('a hero slot spawns that hero with the hero look; power-ups follow the toggle', () => {
+    const c = defaultLobby();
+    c.slots[0].hero = 'goku';
+    c.slots[2].hero = 'luffy';
+    const m = lobbyToMatch(c, 1);
+    expect(m.config.fighters[0].hero).toBe('goku');
+    expect(m.players[0].look.hair).toBe('saiyan');
+    expect(m.config.fighters[2].hero).toBe('luffy');
+    expect(m.players[2].look.hat).toBe('strawhat');
+    expect(m.config.fighters[1].hero).toBeUndefined();
+    expect(m.config.heroPowers).toBe(true);
+    c.heroPowers = false;
+    expect(lobbyToMatch(c, 1).config.heroPowers).toBe(false);
+  });
+});

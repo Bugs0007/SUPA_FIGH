@@ -9,6 +9,7 @@ import { CHAR_TO_KIND, TK } from './tiles';
  *   '<' '>' conveyor belts (push left/right)
  *   'S' fighter spawn (need 10)  'w' weapon spawn  'c' crate  'b' explosive barrel  'g' gas canister
  *   't' TNT crate  'l' chandelier (hangs in place until shot down)
+ *   'P' hero power-up spawn (rare pickups, M9; maps without one use the weapon spawns)
  * Markers are placed in the cell the fighter/item stands IN (feet at the bottom of that cell).
  */
 // ---- gimmicks (all positions in TILES unless noted; see sim/gimmicks.ts)
@@ -40,7 +41,7 @@ export interface MoverDef {
 /** Rectangle that hurts while active. Cycles off → warn → on. Optional horizontal sweep while on. */
 export interface HazardDef {
   type: 'hazard';
-  kind: 'crusher' | 'laser' | 'tunnel';
+  kind: 'crusher' | 'laser' | 'tunnel' | 'fissure';
   x: number;
   y: number;
   w: number;
@@ -77,7 +78,24 @@ export interface DropDef {
   pool: string[];
 }
 
-export type GimmickDef = MoverDef | HazardDef | GravityDef | DropDef;
+/** Waves slapping the hull (ship): every few seconds props/items slide, fighters get a tiny nudge. */
+export interface WavesDef {
+  type: 'waves';
+  every: [number, number];
+  /** px/s added to loose props (fighters get a fraction) */
+  push: number;
+}
+
+/** A cannon fighters fire with Interact (tile it sits in; the ball flies in `dir`). */
+export interface CannonDef {
+  type: 'cannon';
+  x: number;
+  y: number;
+  dir: 1 | -1;
+  cooldown: number;
+}
+
+export type GimmickDef = MoverDef | HazardDef | GravityDef | DropDef | WavesDef | CannonDef;
 
 export interface MapDef {
   id: string;
@@ -91,6 +109,8 @@ export interface MapDef {
   /** description shown in the lobby */
   blurb?: string;
   gimmicks?: GimmickDef[];
+  /** hero power-up id that shows up 3x as often here (data/heroes.ts) */
+  powerBias?: string;
 }
 
 export interface MapPoint {
@@ -110,6 +130,7 @@ export interface ParsedMap {
   back: Uint8Array;
   spawns: MapPoint[];
   weaponSpawns: MapPoint[];
+  powerSpawns: MapPoint[];
   props: PropSpawn[];
 }
 
@@ -122,6 +143,7 @@ export function parseMap(def: MapDef): ParsedMap {
   const back = new Uint8Array(w * h);
   const spawns: MapPoint[] = [];
   const weaponSpawns: MapPoint[] = [];
+  const powerSpawns: MapPoint[] = [];
   const props: PropSpawn[] = [];
   const charAt = (x: number, y: number) => (y >= 0 && y < h ? def.rows[y][x] ?? '.' : '.');
 
@@ -133,6 +155,7 @@ export function parseMap(def: MapDef): ParsedMap {
       if (c === ':') back[i] = 1;
       else if (c === 'S') spawns.push(foot);
       else if (c === 'w') weaponSpawns.push(foot);
+      else if (c === 'P') powerSpawns.push(foot);
       else if (PROP_CHARS[c]) props.push({ ...foot, type: PROP_CHARS[c] });
       else if (c !== '.' && c !== ' ') {
         const k = CHAR_TO_KIND[c];
@@ -169,5 +192,5 @@ export function parseMap(def: MapDef): ParsedMap {
     if (!changed) break;
   }
 
-  return { w, h, tiles, back, spawns, weaponSpawns, props };
+  return { w, h, tiles, back, spawns, weaponSpawns, powerSpawns, props };
 }

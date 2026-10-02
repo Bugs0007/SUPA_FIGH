@@ -16,7 +16,17 @@ export interface SimReport {
   idleAt: string;
 }
 
-export function runBotSim(opts: { matches: number; bots: number; map: string; difficulty: Difficulty; seed: number; roundCap?: number }): SimReport {
+export function runBotSim(opts: {
+  matches: number;
+  bots: number;
+  map: string;
+  difficulty: Difficulty;
+  seed: number;
+  roundCap?: number;
+  /** heroes for the first bots (M9) */
+  heroes?: string[];
+  heroPowers?: boolean;
+}): SimReport {
   const kills: Record<string, number> = {};
   let rounds = 0;
   let timeouts = 0;
@@ -25,8 +35,17 @@ export function runBotSim(opts: { matches: number; bots: number; map: string; di
   let idleAt = '';
   const cap = Math.round((opts.roundCap ?? 120) / DT);
   for (let m = 0; m < opts.matches; m++) {
-    const fighters = Array.from({ length: opts.bots }, (_, i) => ({ name: 'B' + i, team: 0, isBot: true, upJumps: false }));
-    const match = new Match({ mapId: opts.map, mode: 'brawl', fighters, roundsToWin: 99, friendlyFire: false, weaponSpawnRate: 1, seed: opts.seed + m * 101 });
+    const fighters = Array.from({ length: opts.bots }, (_, i) => ({ name: 'B' + i, team: 0, isBot: true, upJumps: false, hero: opts.heroes?.[i] }));
+    const match = new Match({
+      mapId: opts.map,
+      mode: 'brawl',
+      fighters,
+      roundsToWin: 99,
+      friendlyFire: false,
+      weaponSpawnRate: 1,
+      seed: opts.seed + m * 101,
+      heroPowers: opts.heroPowers,
+    });
     const bots = fighters.map((_, i) => new BotController(() => match.world, i, { difficulty: opts.difficulty, seed: opts.seed + m }));
     const intents = bots.map((b) => b.poll());
     for (let r = 0; r < 3; r++) {

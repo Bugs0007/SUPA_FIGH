@@ -176,3 +176,58 @@ describe('drops, conveyors, chandeliers', () => {
     expect(ch.active).toBe(false);
   });
 });
+
+describe('ship and alien gimmicks (M9)', () => {
+  it('waves slide loose props and nudge grounded fighters a little', () => {
+    const w = worldWith([{ type: 'waves', every: [0.5, 0.5], push: 70 }]);
+    const p = w.spawnProp('barrel', 15 * TILE, 9 * TILE);
+    run(w, 20);
+    const x0 = p.x;
+    const f = w.fighters[0];
+    run(w, 30);
+    const wave = w.gimmicks.waves[0];
+    expect(wave.last).not.toBe(0);
+    expect(Math.sign(p.x - x0)).toBe(wave.last);
+    // fighters only get a gentle nudge (never thrown around)
+    expect(Math.abs(f.vx)).toBeLessThan(60);
+  });
+
+  it('interact at a cannon fires an explosive ball credited to the gunner', () => {
+    const w = worldWith([{ type: 'cannon', x: 4, y: 8, dir: 1, cooldown: 3 }], ROWS, 2);
+    const gunner = place(w, 0, 4 * TILE + 8 - 10, 9 * TILE);
+    const victim = place(w, 1, 14 * TILE, 9 * TILE);
+    run(w, 5);
+    victim.invuln = 0;
+    run(w, 1, () => [intent({ interact: true })]);
+    const ball = w.bullets.find((b) => b.active && b.kind === 'cannonball');
+    expect(ball).toBeDefined();
+    expect(ball!.owner).toBe(gunner.id);
+    expect(w.gimmicks.cannons[0].cd).toBeGreaterThan(2.9);
+    // on cooldown: a second press does nothing
+    run(w, 2);
+    run(w, 1, () => [intent({ interact: true })]);
+    expect(w.bullets.filter((b) => b.active && b.kind === 'cannonball').length).toBe(1);
+    run(w, 90);
+    expect(victim.hp).toBeLessThan(MAX_HP);
+    expect(victim.lastAttacker).toBe(gunner.id);
+  });
+
+  it('an energy fissure launches whoever stands on it when it erupts', () => {
+    const w = worldWith([{ type: 'hazard', kind: 'fissure', x: 10, y: 6, w: 2, h: 3, on: 1, off: 1, warn: 0.5, damage: 20, knockX: 60, knockY: -420 }]);
+    const f = place(w, 0, 11 * TILE, 9 * TILE);
+    run(w, Math.ceil(1.2 / DT));
+    expect(f.hp).toBeLessThan(MAX_HP);
+    expect(f.vy < 0 || f.y < 9 * TILE - 4).toBe(true);
+  });
+
+  it('cannons are skipped when no cannon is near (interact still picks up items)', () => {
+    const w = worldWith([{ type: 'cannon', x: 2, y: 8, dir: 1, cooldown: 3 }]);
+    const f = place(w, 0, 20 * TILE, 9 * TILE);
+    run(w, 5);
+    const it = w.spawnWeapon('pistol', f.x, f.y);
+    run(w, 2);
+    f.inv[SLOT.SIDEARM] = null;
+    run(w, 1, () => [intent({ interact: true })]);
+    expect(it.active).toBe(false);
+  });
+});

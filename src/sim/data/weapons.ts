@@ -5,7 +5,7 @@ export const SLOT = { MELEE: 0, SIDEARM: 1, HEAVY: 2, THROWABLE: 3, GADGET: 4 } 
 export const SLOT_NAMES = ['MELEE', 'SIDEARM', 'HEAVY', 'THROWABLE', 'GADGET'] as const;
 
 export type HoldStyle = 'fist' | 'melee' | 'pistol' | 'rifle' | 'throw' | 'gadget';
-export type ProjectileKind = 'bullet' | 'pellet' | 'sniper' | 'flame' | 'rocket' | 'flare';
+export type ProjectileKind = 'bullet' | 'pellet' | 'sniper' | 'flame' | 'rocket' | 'flare' | 'chakra' | 'ki' | 'cannonball';
 
 /** Radial blast. Damage/knockback fall off linearly to the edge; walls shield 65%. */
 export interface ExplosionStats {
@@ -75,6 +75,14 @@ export interface MeleeHit {
   /** render: arm swing arc (radians, local space) */
   arcFrom?: number;
   arcTo?: number;
+  /** hero powers (data/heroes.ts): shadow clones strike alongside this hit */
+  clones?: number;
+  /** render: the arm (or leg) visibly stretches out to the full reach */
+  stretch?: boolean;
+  /** impact effect flavor */
+  fx?: 'chakra' | 'steam' | 'ki';
+  /** extra hit-stop + shake on contact */
+  heavy?: boolean;
 }
 
 export interface MeleeStats {
@@ -116,7 +124,9 @@ export interface GadgetStats {
 
 /** Applied instantly on touch, never occupies a slot. */
 export interface PowerupStats {
-  kind: 'speed' | 'strength' | 'bulletTime';
+  kind: 'speed' | 'strength' | 'bulletTime' | 'hero';
+  /** hero power-up id (data/heroes.ts POWERS); duration comes from there */
+  power?: string;
   duration: number;
   /** speed/strength multiplier */
   mult: number;
@@ -140,6 +150,16 @@ export interface WeaponDef {
   muzzle?: [number, number];
   casing?: boolean;
 }
+
+/** Ship cannons (map gimmick, sim/gimmicks.ts): the ball arcs and explodes. */
+export const CANNON = {
+  speed: 320,
+  gravity: 380,
+  range: 900,
+  damage: 30,
+  knock: 300,
+  explosion: { radius: 40, damage: 40, knock: 420, breakRadius: 16, shake: 0.65 } as ExplosionStats,
+};
 
 // ---------------------------------------------------------------- fists & kicks
 
@@ -759,6 +779,32 @@ export const WEAPONS: Record<string, WeaponDef> = {
     hold: 'gadget',
     spawnWeight: 1.5,
     powerup: { kind: 'bulletTime', duration: 5, mult: 0.4 },
+  },
+
+  // ---------------- hero power-ups (M9): never at weapon spawns; the world's power spawner drops them
+  chakrascroll: {
+    id: 'chakrascroll',
+    name: 'CHAKRA SCROLL',
+    slot: SLOT.GADGET,
+    hold: 'gadget',
+    spawnWeight: 0,
+    powerup: { kind: 'hero', power: 'kurama', duration: 20, mult: 1 },
+  },
+  strawtoken: {
+    id: 'strawtoken',
+    name: 'STRAW HAT TOKEN',
+    slot: SLOT.GADGET,
+    hold: 'gadget',
+    spawnWeight: 0,
+    powerup: { kind: 'hero', power: 'gear2', duration: 18, mult: 1 },
+  },
+  energycore: {
+    id: 'energycore',
+    name: 'ENERGY CORE',
+    slot: SLOT.GADGET,
+    hold: 'gadget',
+    spawnWeight: 0,
+    powerup: { kind: 'hero', power: 'ssj', duration: 20, mult: 1 },
   },
 };
 

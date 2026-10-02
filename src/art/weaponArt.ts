@@ -309,6 +309,44 @@ export const WEAPON_ART: Record<string, WeaponArt> = {
       'yyyyyyy',
     ],
   },
+  // hero power-ups (M9): original designs, readable at a glance
+  chakrascroll: {
+    grip: [6, 3],
+    rows: [
+      '.W.........W.',
+      'WWxxxxxxxxxWW',
+      'WWxxxxRxxxxWW',
+      'WWxxxRoRxxxWW',
+      'WWxxxxRxxxxWW',
+      'WWxxxxxxxxxWW',
+      '.W.........W.',
+    ],
+  },
+  strawtoken: {
+    grip: [4, 4],
+    rows: [
+      '..yyyyy..',
+      '.ybbbbby.',
+      'ybbYYYbby',
+      'ybbRRRbby',
+      'ybYYYYYby',
+      'ybbbbbbby',
+      '.ybbbbby.',
+      '..yyyyy..',
+    ],
+  },
+  energycore: {
+    grip: [4, 3],
+    rows: [
+      '...ooo...',
+      '.ooYYYoo.',
+      '.oYYxYYo.',
+      'oYYxxxYYo',
+      '.oYYxYYo.',
+      '.ooYYYoo.',
+      '...ooo...',
+    ],
+  },
   prop_crate: {
     grip: [7, 13],
     rows: [
