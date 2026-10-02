@@ -90,7 +90,7 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   let dmg = Math.max(0, hit.damage);
   if (w.mods.has('glassJaw') && hit.kind !== 'drain') dmg *= 3;
   v.hp -= dmg;
-  if (attacker && attacker !== v && attacker.alive && w.mods.has('vampires')) attacker.hp = Math.min(100, attacker.hp + dmg * 0.5);
+  if (attacker && attacker !== v && attacker.alive && w.mods.has('vampires')) attacker.hp = Math.min(attacker.maxHp, attacker.hp + dmg * 0.5);
   if (attacker && attacker !== v) {
     v.lastAttacker = attacker.id;
     v.lastWeapon = hit.weapon;
@@ -115,11 +115,11 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
     return true;
   }
 
-  v.vx += hit.kbX;
-  v.vy += hit.kbY;
+  v.vx += hit.kbX * v.knockMul;
+  v.vy += hit.kbY * v.knockMul;
   if (hit.kbY < -1) v.grounded = false;
 
-  if (hit.knockdown) {
+  if (hit.knockdown && (v.knockMul >= 0.6 || hit.kind === 'explosion')) {
     w.releaseGrab(v);
     v.state = 'knockdown';
     v.stateTime = 0;

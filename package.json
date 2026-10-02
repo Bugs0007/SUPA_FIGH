@@ -1,7 +1,7 @@
 {
   "name": "scrapyard-riot",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "sim": "vite-node scripts/botsim.ts"
+    "sim": "vite-node scripts/botsim.ts",
+    "balance": "vite-node scripts/balance.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"

@@ -77,8 +77,13 @@ export function saveLobby(c: LobbyCfg): void {
 export function lobbyProblem(c: LobbyCfg): string | null {
   const active = c.slots.filter((s) => s.kind !== 'empty');
   if (active.length < 2) return 'NEED AT LEAST 2 FIGHTERS';
-  const teams = new Set(active.map((s, i) => (s.team > 0 ? s.team : 100 + i)));
-  if (teams.size < 2) return 'EVERYONE IS ON THE SAME TEAM';
+  if (c.mode === 'coop') {
+    if (!active.some((s) => s.kind === 'bot')) return 'CO-OP NEEDS BOT SLOTS (THE ENEMY WAVES)';
+    if (!active.some((s) => s.kind !== 'bot')) return 'CO-OP NEEDS AT LEAST ONE HUMAN';
+  } else if (c.mode !== 'juggernaut' && c.mode !== 'gungame') {
+    const teams = new Set(active.map((s, i) => (s.team > 0 ? s.team : 100 + i)));
+    if (teams.size < 2) return 'EVERYONE IS ON THE SAME TEAM';
+  }
   const inputs = active.filter((s) => s.kind !== 'bot').map((s) => s.kind);
   if (new Set(inputs).size !== inputs.length) return 'TWO SLOTS USE THE SAME CONTROLS';
   return null;

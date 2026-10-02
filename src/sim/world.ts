@@ -26,6 +26,8 @@ export interface WorldSettings {
   modifiers?: string[];
   /** dead fighters come back as poltergeists (Brawl) */
   ghosts?: boolean;
+  /** Gun Game: no weapon pickups, no drops on death (the mode hands out weapons) */
+  noPickups?: boolean;
 }
 
 export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
@@ -35,6 +37,9 @@ export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
 };
 
 const MAX_BULLETS = 512;
+/** share of map weapon spawns stocked at round start, and seconds between new drops (balance) */
+const INITIAL_WEAPON_FRACTION = 0.8;
+const WEAPON_RESPAWN: [number, number] = [5, 9];
 const MAX_WEAPON_ITEMS = 22;
 const NO_INTENT = emptyIntent();
 
@@ -59,6 +64,8 @@ export class World {
   bulletTimeOwner = -1;
   /** 0 = off, 1 = everyone revealed (bots know all positions), 2 = + HP drain */
   suddenDeath = 0;
+  /** mode objective area bots should go to (King of the Hill), px rect */
+  objective: { x: number; y: number; w: number; h: number } | null = null;
   private drainAcc = 0;
   private readonly specs: FighterSpawn[];
   events: SimEvent[] = [];
@@ -247,7 +254,7 @@ export class World {
     const rate = this.weaponRate;
     if (rate <= 0) return;
     const pts = this.rng.shuffle([...this.parsed.weaponSpawns]);
-    const n = Math.min(pts.length, Math.ceil(pts.length * 0.55 * rate));
+    const n = Math.min(pts.length, Math.ceil(pts.length * INITIAL_WEAPON_FRACTION * rate));
     for (let i = 0; i < n; i++) {
       const id = this.randomWeaponId();
       if (id) this.spawnWeapon(id, pts[i].x, pts[i].y - 1);
@@ -256,7 +263,7 @@ export class World {
 
   private nextWeaponDelay(): number {
     const rate = Math.max(0.05, this.weaponRate);
-    return this.rng.range(7, 12) / rate;
+    return this.rng.range(WEAPON_RESPAWN[0], WEAPON_RESPAWN[1]) / rate;
   }
 
   private updateWeaponSpawner(): void {
@@ -286,6 +293,7 @@ export class World {
    * autoOnly: only items the fighter would take without pressing a key (empty slot / ammo merge).
    */
   findItemNear(f: Fighter, range: number, fighterId: number, autoOnly = false): Item | null {
+    if (this.settings.noPickups) return null;
     let best: Item | null = null;
     let bestD = Infinity;
     for (const it of this.items) {
@@ -350,6 +358,11 @@ export class World {
 
   dropAllWeapons(f: Fighter): void {
     if (f.cook > 0) dropCooked(this, f);
+    if (this.settings.noPickups) {
+      f.inv.fill(null);
+      selectBestSlot(f);
+      return;
+    }
     for (let s = 0; s < f.inv.length; s++) {
       const it = f.inv[s];
       if (!it) continue;

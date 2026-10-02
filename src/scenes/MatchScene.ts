@@ -4,6 +4,7 @@ import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { PLAYER_PRESETS, randomAppearance, type Appearance } from '../art/appearance';
 import { hexToNum, TEAM_COLORS } from '../art/palette';
 import { audio } from '../audio/AudioManager';
+import { music } from '../audio/music';
 import { settings } from '../game/settings';
 import { keyboardBinds } from '../input/bindings';
 import { KeyboardController, type Controller } from '../input/controllers';
@@ -15,7 +16,7 @@ import { WorldRenderer, type FighterLook } from '../render/WorldRenderer';
 import { DT } from '../sim/constants';
 import type { FighterSpawn } from '../sim/fighter';
 import type { Intent } from '../sim/intent';
-import { Match, type MatchConfig, type MatchEvent } from '../sim/match';
+import { COOP, Match, type MatchConfig, type MatchEvent } from '../sim/match';
 import type { World } from '../sim/world';
 import { ReplayPlayer, type RoundRecording } from '../sim/replay';
 import { padMenu } from '../input/gamepad';
@@ -75,7 +76,7 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
     players,
     config: {
       mapId: params.get('map') ?? 'test',
-      mode: params.get('mode') === 'deathmatch' ? 'deathmatch' : 'brawl',
+      mode: (['deathmatch', 'koth', 'juggernaut', 'gungame', 'coop'] as const).find((m) => m === params.get('mode')) ?? 'brawl',
       timeLimit: Number(params.get('time') ?? 180) || 180,
       chaos: params.get('chaos') === '1',
       modifiers: params.get('mods')?.split(',').filter(Boolean),
@@ -118,6 +119,7 @@ export class MatchScene extends Phaser.Scene {
     acc: number;
     age: number;
   } | null = null;
+  private setupData!: MatchSceneData;
   /** match events held back while a replay plays (banners after the replay) */
   private heldEvents: MatchEvent[] = [];
 
@@ -128,6 +130,7 @@ export class MatchScene extends Phaser.Scene {
   create(data: MatchSceneData): void {
     const params = new URLSearchParams(location.search);
     const setup = data?.config ? data : defaultSetup(params);
+    this.setupData = setup;
     this.speed = Number(params.get('speed') ?? 1) || 1;
     this.players = setup.players;
     this.looks = setup.players.map((p) => ({ look: p.look, color: p.color, label: p.label }));
@@ -156,6 +159,7 @@ export class MatchScene extends Phaser.Scene {
     this.scene.sendToBack('bg');
     this.scene.launch('hud');
     audio.play('roundStart');
+    music.play('match');
   }
 
   private onRescale(k: number): void {
@@ -208,6 +212,9 @@ export class MatchScene extends Phaser.Scene {
     const alpha = Math.min(1, this.acc / DT);
     const visDt = this.paused ? 0 : dt * Math.max(0.25, this.match.timeScale);
     this.wr.bounty = this.match.bounty;
+    this.wr.hill = this.match.hill;
+    this.wr.hillColor = this.match.hillTeam === null ? 0xffffff : (this.players[this.match.membersOf(this.match.hillTeam)[0]]?.color ?? 0x5ac85a);
+    this.wr.revive = this.match.reviveProgress.map((p) => p / COOP.reviveTime);
     this.wr.sync(alpha, visDt, this.elapsed);
     this.camDir.update(dt, this.match.world, this.match.cinematic);
   }
@@ -237,7 +244,10 @@ export class MatchScene extends Phaser.Scene {
         continue;
       }
       this.matchEvents.push(e);
-      if (e.t === 'roundStart') audio.play('roundStart');
+      if (e.t === 'roundStart') {
+        audio.play('roundStart');
+        music.play('match');
+      } else if ((e.t === 'suddenDeath' && e.level === 1) || e.t === 'overtime' || (e.t === 'wave' && e.boss)) music.play('intense');
       else if (e.t === 'roundEnd' || e.t === 'matchEnd') audio.play('roundEnd');
       else if (e.t === 'finalKill') {
         audio.play('slowmo');
@@ -323,14 +333,31 @@ export class MatchScene extends Phaser.Scene {
     }
   }
 
+  /** a settings/controls overlay is open on top of the paused match */
+  get overlayOpen(): boolean {
+    return this.scene.isActive('settings') || this.scene.isActive('controls');
+  }
+
+  /** Pause menu actions (driven by the HUD). */
+  pauseAction(a: 'resume' | 'restart' | 'settings' | 'controls' | 'quit'): void {
+    if (a === 'resume') {
+      this.paused = false;
+      audio.play('uiOk');
+    } else if (a === 'restart') {
+      this.scene.restart(this.setupData);
+    } else if (a === 'quit') {
+      this.scene.start('title');
+    } else {
+      this.scene.launch(a, a === 'settings' ? { overlay: true } : { from: 'overlay' });
+      this.scene.bringToTop(a);
+    }
+  }
+
   private handleDebugKeys(): void {
-    if (keyboard.justPressed('Escape') || keyboard.justPressed('KeyP')) {
+    if (this.overlayOpen) return;
+    if (keyboard.justPressed('Escape') || keyboard.justPressed('KeyP') || padMenu.justPressed(9)) {
       this.paused = !this.paused;
       audio.play(this.paused ? 'uiBack' : 'uiOk');
-    }
-    if (this.paused && keyboard.justPressed('KeyQ')) {
-      this.scene.start('title');
-      return;
     }
     if (keyboard.justPressed('F1')) this.wr.debug = !this.wr.debug;
     if (keyboard.justPressed('F2')) this.speed = this.speed >= 4 ? 1 : this.speed * 2;

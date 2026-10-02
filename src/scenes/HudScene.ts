@@ -6,15 +6,26 @@ import { VIEW_H, VIEW_W } from '../game/display';
 import { weaponLabel } from '../render/Juice';
 import { teamKey } from '../sim/combat';
 import { computeAwards } from '../sim/awards';
+import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/match';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
+import { audio } from '../audio/AudioManager';
+import { menu } from '../input/menu';
 import { isHumanInput, type MatchScene } from './MatchScene';
 
 interface FeedLine {
   objs: Phaser.GameObjects.BitmapText[];
   life: number;
 }
+
+const PAUSE_ITEMS = [
+  { label: 'RESUME', action: 'resume' },
+  { label: 'RESTART MATCH', action: 'restart' },
+  { label: 'SETTINGS', action: 'settings' },
+  { label: 'CONTROLS', action: 'controls' },
+  { label: 'QUIT TO TITLE', action: 'quit' },
+] as const;
 
 /** Uncredited deaths: by weapon id first, then by hit kind. */
 const ENV_DEATHS: Record<string, string> = {
@@ -82,6 +93,10 @@ export class HudScene extends Phaser.Scene {
   private arrows: Phaser.GameObjects.Image[] = [];
   private pauseText!: Phaser.GameObjects.BitmapText;
   private pauseSub!: Phaser.GameObjects.BitmapText;
+  private pauseItems: Phaser.GameObjects.BitmapText[] = [];
+  private pauseDim!: Phaser.GameObjects.Rectangle;
+  private pauseIdx = 0;
+  private wasPaused = false;
   private debugText!: Phaser.GameObjects.BitmapText;
 
   constructor() {
@@ -99,12 +114,15 @@ export class HudScene extends Phaser.Scene {
     this.banner = this.add.bitmapText(VIEW_W / 2, 118, 'pxo', '').setOrigin(0.5).setScale(3).setDepth(10);
     this.bannerSub = this.add.bitmapText(VIEW_W / 2, 146, 'pxo', '').setOrigin(0.5).setDepth(10);
     this.announce = this.add.bitmapText(VIEW_W / 2, 72, 'pxo', '').setOrigin(0.5).setScale(2).setDepth(10);
-    this.pauseText = this.add.bitmapText(VIEW_W / 2, 150, 'pxo', 'PAUSED').setOrigin(0.5).setScale(3).setDepth(20).setVisible(false);
+    this.pauseText = this.add.bitmapText(VIEW_W / 2, 110, 'pxo', 'PAUSED').setOrigin(0.5).setScale(3).setDepth(20).setVisible(false);
     this.pauseSub = this.add
-      .bitmapText(VIEW_W / 2, 185, 'pxo', 'ESC: RESUME   Q: QUIT TO TITLE   F1: HITBOXES   F2: SPEED')
+      .bitmapText(VIEW_W / 2, 300, 'sm', 'F1: HITBOXES   F2: SIM SPEED   F3: FRAME STEP')
       .setOrigin(0.5)
       .setDepth(20)
-      .setVisible(false);
+      .setVisible(false)
+      .setTint(0x8d95b0);
+    this.pauseDim = this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 0.6).setOrigin(0, 0).setDepth(15).setVisible(false);
+    this.pauseItems = PAUSE_ITEMS.map((it, i) => this.add.bitmapText(VIEW_W / 2, 150 + i * 22, 'pxo', it.label).setOrigin(0.5).setDepth(20).setVisible(false));
     this.debugText = this.add.bitmapText(4, 4, 'smo', '').setDepth(20);
     this.modLabel = this.add.bitmapText(VIEW_W / 2, 21, 'sm', '').setOrigin(0.5, 0).setTint(0xb090e0);
     this.replayText = this.add.bitmapText(24, 7, 'pxo', 'INSTANT REPLAY').setDepth(30).setVisible(false);
@@ -181,10 +199,17 @@ export class HudScene extends Phaser.Scene {
     for (const o of this.awardObjs) o.destroy();
     this.awardObjs = [];
     const m = this.ms.match;
-    if (m.cfg.mode === 'deathmatch') {
-      const t = m.cfg.timeLimit ?? 180;
-      this.showBanner('DEATHMATCH', `MOST KILLS IN ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')} WINS`, 0xffffff, 1.6);
-    } else this.showBanner('ROUND ' + round, 'FIGHT!', 0xffffff, 1.2);
+    const t = m.cfg.timeLimit ?? 180;
+    const clock = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    const subs: Record<string, string> = {
+      deathmatch: `MOST KILLS IN ${clock} WINS`,
+      koth: 'STAND ON THE HILL. ALONE.',
+      juggernaut: 'KILL THE JUGGERNAUT. BECOME THE JUGGERNAUT.',
+      gungame: 'EVERY KILL UPGRADES YOUR GUN. KNIFE KILL WINS.',
+      coop: 'SURVIVE THE WAVES. HOLD INTERACT OVER A FRIEND TO REVIVE.',
+    };
+    if (m.cfg.mode === 'brawl') this.showBanner('ROUND ' + round, 'FIGHT!', 0xffffff, 1.2);
+    else this.showBanner(MODE_NAMES[m.cfg.mode], subs[m.cfg.mode], 0xffffff, 2);
   }
 
   private showBanner(text: string, sub: string, color: number, time: number): void {
@@ -247,6 +272,13 @@ export class HudScene extends Phaser.Scene {
     ms.ui.length = 0;
     for (const e of ms.matchEvents) {
       if (e.t === 'roundStart') this.roundBanner(e.round);
+      else if (e.t === 'juggernaut') this.showAnnounce(`${this.nameOf(e.f).name} IS THE JUGGERNAUT!`, 0xea4a4a);
+      else if (e.t === 'gunLevel' && e.up && e.level === GUN_LADDER.length - 1) this.showAnnounce(`${this.nameOf(e.f).name} HAS THE KNIFE!`, 0xf8c840);
+      else if (e.t === 'gunLevel' && !e.up) this.showAnnounce(`${this.nameOf(e.f).name} GOT HUMILIATED`, 0xaaaaaa);
+      else if (e.t === 'wave') this.showBanner(e.boss ? 'BOSS WAVE' : 'WAVE ' + e.wave, e.boss ? 'BIG ONE INCOMING' : 'HERE THEY COME', e.boss ? 0xea4a4a : 0xffffff, 1.6);
+      else if (e.t === 'waveCleared') this.showAnnounce('WAVE CLEARED!', 0x5ac85a);
+      else if (e.t === 'revive') this.showAnnounce(`${this.nameOf(e.by).name} REVIVED ${this.nameOf(e.f).name}!`, 0x5ac85a);
+      else if (e.t === 'hill' && e.team !== null) this.showAnnounce(`${this.teamName(e.team).name} HOLDS THE HILL`, 0x5ac85a);
       else if (e.t === 'bounty') this.showAnnounce(`${this.nameOf(e.by).name} CLAIMS THE BOUNTY!`, 0xf8c840);
       else if (e.t === 'modifier') this.showCard(e.id);
       else if (e.t === 'suddenDeath') this.showAnnounce(e.level >= 2 ? 'NO MERCY!' : 'SUDDEN DEATH!', 0xea4a4a);
@@ -288,11 +320,14 @@ export class HudScene extends Phaser.Scene {
     } else this.announce.setAlpha(0);
 
     // ---- scoreboard
-    const dm = m.cfg.mode === 'deathmatch';
-    if (dm) {
+    const dm = m.cfg.mode !== 'brawl';
+    if (m.cfg.mode === 'coop') {
+      this.roundText.setText(`CO-OP SURVIVAL  -  WAVE ${m.wave}/${COOP.victoryWave}  -  LIVES ${m.lives}`).setTint(m.lives === 0 ? 0xea4a4a : 0xffffff);
+    } else if (dm) {
       const tl = Math.ceil(m.timeLeft);
       const clock = `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
-      this.roundText.setText(m.overtime ? 'DEATHMATCH  -  OVERTIME' : `DEATHMATCH  -  ${clock}`).setTint(tl <= 10 && m.phase === 'fight' ? 0xea4a4a : 0xffffff);
+      const goal = m.cfg.mode === 'koth' ? `  -  FIRST TO ${m.cfg.target ?? KOTH_TARGET}` : m.cfg.mode === 'juggernaut' ? `  -  FIRST TO ${m.cfg.target ?? JUGGERNAUT.target}` : '';
+      this.roundText.setText(m.overtime ? `${MODE_NAMES[m.cfg.mode]}  -  OVERTIME` : `${MODE_NAMES[m.cfg.mode]}  -  ${clock}${goal}`).setTint(tl <= 10 && m.phase === 'fight' ? 0xea4a4a : 0xffffff);
     } else {
       const sd = ms.match.world.suddenDeath > 0 ? '  -  SUDDEN DEATH' : '';
       this.roundText.setText(`ROUND ${m.round}  -  FIRST TO ${m.cfg.roundsToWin}${sd}`).setTint(sd ? 0xea4a4a : 0xffffff);
@@ -306,7 +341,7 @@ export class HudScene extends Phaser.Scene {
     g.clear();
     while (this.scoreTexts.length < teams.length) this.scoreTexts.push(this.add.bitmapText(0, 0, 'smo', ''));
     const pip = 4;
-    const entryW = (t: number) => textWidth(this.teamName(t).name, 'smo') + 4 + (dm ? 14 : m.cfg.roundsToWin * (pip + 1));
+    const entryW = (t: number) => textWidth(this.teamName(t).name, 'smo') + 4 + (dm ? (m.cfg.mode === 'gungame' ? 24 : 14) : m.cfg.roundsToWin * (pip + 1));
     const shown = teams.slice(0, 10);
     const total = shown.reduce((s, t) => s + entryW(t) + 10, -10);
     let x = Math.round(VIEW_W / 2 - total / 2);
@@ -317,7 +352,8 @@ export class HudScene extends Phaser.Scene {
       let px = x + txt.width + 3;
       if (dm) {
         while (this.dmScores.length <= i) this.dmScores.push(this.add.bitmapText(0, 0, 'smo', ''));
-        this.dmScores[i].setText(String(score)).setPosition(px, 12).setVisible(true).setTint(0xfff4a0);
+        const label = m.cfg.mode === 'gungame' ? `${Math.min(score + 1, GUN_LADDER.length)}/${GUN_LADDER.length}` : String(score);
+        this.dmScores[i].setText(label).setPosition(px, 12).setVisible(true).setTint(m.cfg.mode === 'koth' && m.hillTeam === t ? 0x5ac85a : 0xfff4a0);
       } else this.dmScores[i]?.setVisible(false);
       for (let r = 0; r < (dm ? 0 : m.cfg.roundsToWin); r++) {
         g.fillStyle(hexToNum(P.ink), 1).fillRect(px - 1, 12, pip + 2, pip + 3);
@@ -362,7 +398,7 @@ export class HudScene extends Phaser.Scene {
       g.fillStyle(hexToNum(P.ink), 0.75).fillRect(px - 3, py - 3, PW, 38);
       g.lineStyle(1, p.color, 1).strokeRect(px - 3.5, py - 3.5, PW + 1, 39);
       nameT.setText(p.label).setTint(p.color).setPosition(px, py);
-      const hpFrac = Math.max(0, f.hp) / 100;
+      const hpFrac = Math.max(0, f.hp) / f.maxHp;
       g.fillStyle(0x3a3448, 1).fillRect(px + 22, py + 2, 74, 5);
       const hpCol = hpFrac > 0.6 ? P.green2 : hpFrac > 0.3 ? P.yellow : P.red2;
       g.fillStyle(hexToNum(f.burn > 0 && Math.floor(this.time.now / 120) % 2 ? P.orange : hpCol), 1).fillRect(px + 22, py + 2, Math.round(74 * hpFrac), 5);
@@ -436,9 +472,25 @@ export class HudScene extends Phaser.Scene {
     for (; ai < this.arrows.length; ai++) this.arrows[ai].setVisible(false);
 
     // ---- pause & debug
-    this.pauseText.setVisible(ms.paused);
-    this.pauseSub.setVisible(ms.paused);
-    if (ms.paused) g.fillStyle(0x000000, 0.5).fillRect(0, 0, VIEW_W, VIEW_H);
+    const showPause = ms.paused && !ms.overlayOpen;
+    this.pauseDim.setVisible(ms.paused);
+    this.pauseText.setVisible(showPause);
+    this.pauseSub.setVisible(showPause);
+    if (showPause && !this.wasPaused) this.pauseIdx = 0;
+    else if (showPause) {
+      // (input ignored on the frame the menu opens: START both pauses and confirms)
+      if (menu.up()) {
+        this.pauseIdx = (this.pauseIdx - 1 + PAUSE_ITEMS.length) % PAUSE_ITEMS.length;
+        audio.play('uiMove');
+      }
+      if (menu.down()) {
+        this.pauseIdx = (this.pauseIdx + 1) % PAUSE_ITEMS.length;
+        audio.play('uiMove');
+      }
+      if (menu.confirm()) ms.pauseAction(PAUSE_ITEMS[this.pauseIdx].action);
+    }
+    this.wasPaused = ms.paused;
+    this.pauseItems.forEach((t, i) => t.setVisible(showPause).setText((i === this.pauseIdx ? '> ' : '') + PAUSE_ITEMS[i].label).setTint(i === this.pauseIdx ? 0xffffff : 0x8d95b0));
     if (ms.wr?.debug) {
       const alive = w.fighters.filter((f) => f.alive).length;
       this.debugText.setText(`FPS ${Math.round(this.game.loop.actualFps)}  SPEED ${ms.speed}X  TICK ${w.tick}  ALIVE ${alive}  BULLETS ${w.bullets.filter((b) => b.active).length}`);

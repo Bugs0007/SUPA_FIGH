@@ -116,6 +116,10 @@ export interface Fighter extends Body {
   state: FState;
   stateTime: number;
   hp: number;
+  /** 100 normally; more for juggernauts / bosses */
+  maxHp: number;
+  /** knockback taken multiplier (heavies shrug hits off) */
+  knockMul: number;
   alive: boolean;
   /** removed from the world (fell off the map) */
   gone: boolean;
@@ -239,6 +243,8 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     state: 'normal',
     stateTime: 0,
     hp: MAX_HP,
+    maxHp: MAX_HP,
+    knockMul: 1,
     alive: true,
     gone: false,
     invuln: 0,
@@ -1078,11 +1084,11 @@ function beginThrowable(w: World, f: Fighter, th: ThrowStats, inp: Intent): void
 
 function useMedkit(w: World, f: Fighter): void {
   const item = activeItem(f)!;
-  if (f.hp >= MAX_HP) {
+  if (f.hp >= f.maxHp) {
     w.emit({ t: 'empty', f: f.id });
     return;
   }
-  const amount = Math.min(MAX_HP - f.hp, item.ammo);
+  const amount = Math.min(f.maxHp - f.hp, item.ammo);
   f.hp += amount;
   f.burn = 0;
   f.inv[f.active] = null;

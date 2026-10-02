@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from './audio/AudioManager';
+import { music } from './audio/music';
 import { computeScale, VIEW_H, VIEW_W } from './game/display';
 import { settings } from './game/settings';
 import { padMenu } from './input/gamepad';
@@ -12,9 +13,20 @@ import { ArtDebugScene } from './scenes/ArtDebugScene';
 import { BackgroundScene } from './scenes/BackgroundScene';
 import { ControlsScene } from './scenes/ControlsScene';
 import { CreatorScene } from './scenes/CreatorScene';
+import { SettingsScene } from './scenes/SettingsScene';
 import { LobbyScene } from './scenes/LobbyScene';
 
 keyboard.attach(window);
+
+// Show uncaught errors on screen (players can report them; the game keeps running if it can).
+const crash = (msg: string) => {
+  const el = document.getElementById('crash');
+  if (!el) return;
+  el.style.display = 'block';
+  el.textContent = `Something broke (v${__APP_VERSION__}): ${msg}\nPlease report it. Press F5 to reload.`;
+};
+window.addEventListener('error', (e) => crash(String(e.message || e.error)));
+window.addEventListener('unhandledrejection', (e) => crash(String(e.reason)));
 
 let k = computeScale();
 const game = new Phaser.Game({
@@ -31,7 +43,7 @@ const game = new Phaser.Game({
   disableContextMenu: true,
   // ?timer=1 drives the loop with setTimeout (hidden tabs / automated tests where rAF is paused)
   fps: { target: 60, forceSetTimeOut: new URLSearchParams(location.search).has('timer') },
-  scene: [BootScene, BackgroundScene, TitleScene, LobbyScene, ControlsScene, CreatorScene, MatchScene, HudScene, ArtDebugScene],
+  scene: [BootScene, BackgroundScene, TitleScene, LobbyScene, ControlsScene, CreatorScene, SettingsScene, MatchScene, HudScene, ArtDebugScene],
 });
 game.registry.set('scale', k);
 
@@ -52,6 +64,7 @@ window.addEventListener('resize', () => {
 const unlock = () => {
   audio.unlock();
   audio.setVolumes(settings.masterVolume, settings.sfxVolume, settings.musicVolume);
+  music.resume();
 };
 window.addEventListener('keydown', unlock);
 window.addEventListener('pointerdown', unlock);

@@ -54,6 +54,11 @@ export class WorldRenderer {
   debug = false;
   /** fighter wearing the bounty crown (-1 = none), set by the scene each frame */
   bounty = -1;
+  /** King of the Hill zone + holder color (set by the scene) */
+  hill: { x: number; y: number; w: number; h: number } | null = null;
+  hillColor = 0xffffff;
+  /** co-op revive progress per fighter (0..1) */
+  revive: number[] = [];
 
   constructor(
     private scene: Phaser.Scene,
@@ -226,9 +231,23 @@ export class WorldRenderer {
     this.drawGimmicks(alpha, dt, time);
     this.drawAimAids(alpha);
 
-    // health bars (+ the bounty crown)
+    // health bars (+ the bounty crown, hill, revive progress)
     const bars = this.bars;
     bars.clear();
+    if (this.hill) {
+      const h = this.hill;
+      const pulse = 0.5 + Math.sin(time * 4) * 0.25;
+      bars.fillStyle(this.hillColor, 0.08 + pulse * 0.06).fillRect(h.x, h.y, h.w, h.h);
+      bars.lineStyle(1, this.hillColor, pulse).strokeRect(h.x + 0.5, h.y + 0.5, h.w - 1, h.h - 1);
+      bars.fillStyle(hexToNum(P.steel3), 1).fillRect(h.x + h.w / 2, h.y - 18, 1, 18);
+      bars.fillStyle(this.hillColor, 1).fillRect(h.x + h.w / 2 + 1, h.y - 18, 8, 5);
+    }
+    this.revive.forEach((p, i) => {
+      const f = w.fighters[i];
+      if (!f || f.alive || f.gone || p <= 0) return;
+      bars.fillStyle(hexToNum(P.ink), 1).fillRect(f.x - 9, f.y - 20, 18, 4);
+      bars.fillStyle(hexToNum(P.green2), 1).fillRect(f.x - 8, f.y - 19, Math.round(16 * Math.min(1, p)), 2);
+    });
     const bf = this.bounty >= 0 ? w.fighters[this.bounty] : null;
     if (bf && bf.alive && !bf.gone) {
       const cx = Math.round(lerp(bf.px, bf.x, alpha));
@@ -242,8 +261,8 @@ export class WorldRenderer {
       if (!f.alive || f.gone) continue;
       const x = Math.round(lerp(f.px, f.x, alpha)) - 7;
       const y = Math.round(lerp(f.py, f.y, alpha)) - 28;
-      const frac = Math.max(0, f.hp) / 100;
-      const trail = Math.max(0, v.hpTrail) / 100;
+      const frac = Math.max(0, f.hp) / f.maxHp;
+      const trail = Math.max(0, v.hpTrail) / f.maxHp;
       bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y - 1, 16, 4);
       bars.fillStyle(0xffffff, 1).fillRect(x, y, Math.round(14 * trail), 2);
       const col = frac > 0.6 ? P.green2 : frac > 0.3 ? P.yellow : P.red2;

@@ -3,23 +3,20 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1–M6 DONE** (core, combat depth, bots, match setup, maps, spice). Next: **M7 Modes, menus, settings, audio**.
-- Queued expansion: **M9 Anime Universe** — full spec in `docs/ANIME_EXPANSION.md`.
-- `npm run dev` → http://localhost:5173 · `npm test` (151 unit tests) · `npm run test:e2e` (21 Playwright tests;
+- **M1–M8 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
+  build). Next: the queued **M9 Anime Universe** (`docs/ANIME_EXPANSION.md`).
+- `npm run dev` → http://localhost:5173 · `npm test` (160 unit tests) · `npm run test:e2e` (26 Playwright tests;
   in containers `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 <map> normal 1`
-- Title: Enter = quick match, L = lobby (maps, modes, teams, chaos cards, fighter creator via LOOK), C = controls.
-- URLs: `/?scene=match&map=mine&bots=6&diff=hard&mode=deathmatch&chaos=1&mods=bigHeads,lowGravity`,
-  `/?scene=lobby|controls|creator`, `/?scene=art(&page=weapons)`, `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
+- Title menu: Quick Match / Match Setup / Controls / Settings (L, C shortcuts; 0–8 bots; Tab difficulty).
+  In a match: Esc/P/Start = pause menu (resume, restart, settings, controls, quit).
+- URLs: `/?scene=match&map=mine&bots=6&diff=hard&mode=brawl|deathmatch|koth|juggernaut|gungame|coop&chaos=1&mods=bigHeads`,
+  `/?scene=lobby|controls|creator|settings`, `/?scene=art(&page=weapons)`, `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
 
-## Next steps (start of M7)
-1. Modes: King of the Hill (zone on each map: add `hills` points to MapDef or pick a central node), Juggernaut
-   (one big armored fighter vs everyone), Gun Game (weapon ladder per kill), Co-op Survival (waves of bots
-   vs humans, boss every 5 waves, shared lives, revives). `GameMode` in match.ts + mode rules + HUD + lobby.
-2. Menus: pause menu (resume / restart / settings / quit) instead of the text overlay; settings screen
-   (volumes, screen shake, gore, damage numbers, replays, fullscreen) using `settings.ts`.
-3. Audio polish: procedural music loops (title, match, sudden death) with the sfxr synth or a tiny tracker;
-   volume categories already exist in AudioManager.
-4. Update the title screen into a real main menu (Quick Match / Match Setup / Controls / Settings).
+## Next steps (M9 — Anime Universe, spec in `docs/ANIME_EXPANSION.md`)
+1. Hero power framework in the sim (data tables: heroes, transformations, abilities) driven by the ABILITY intent bit.
+2. Three heroes at the existing tiny pixel scale (procedural art, inspiration only), hero pickups, VFX, audio.
+3. Three maps (Hidden Leaf Forest, Grand Line Ship, Alien Energy Planet), lobby hero select, bots use powers.
+4. Known issues carried over: bots don't ride movers; title/creator previews draw arms hidden behind the body.
 
 ## M1 — Playable core ✅
 - [x] Docs (CLAUDE.md, GAME_DESIGN.md, DECISIONS.md, PROGRESS.md)
@@ -142,5 +139,26 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [x] Slow-mo + parachute supply drops + smart camera + off-screen arrows were already in (M1/M5)
 - [x] Tests: awards, bounty, modifiers, ghosts, replay determinism; e2e replay, chaos, creator
 
-## M7 — Modes, menus, settings, audio polish (music loops)
-## M8 — Balance, performance, production build, deploy docs
+## M7 — Modes, menus, settings, audio ✅
+- [x] Modes (`sim/match.ts`): King of the Hill (auto hill near the map center, hold alone to score, bots go
+      for it), Juggernaut (400 HP minigunner, kill to take over, knockback/knockdown resistant), Gun Game
+      (12-weapon ladder, melee kills demote, final knife kill wins, weapons handed out, no pickups), Co-op
+      Survival (humans vs bot waves, boss every 5 waves, shared lives, revive by holding interact, 15 waves)
+- [x] Per-fighter max HP + knockback resistance; mode team rules (FFA for Juggernaut/Gun Game, humans vs bots)
+- [x] HUD per mode (clock/target, ladder levels, wave/lives, hill holder), callouts, hill zone + revive bars
+- [x] Lobby cycles all 6 modes with per-mode validation; `?mode=` for quick matches
+- [x] Pause menu (resume / restart / settings / controls / quit) with overlays; Settings scene (volumes, shake,
+      gore, damage numbers, replays, fullscreen); title main menu navigable by keyboard and pads
+- [x] Procedural chiptune music (`audio/music.ts`): title, match and intense (sudden death / overtime / boss) loops
+- [x] Tests: mode rules (KotH, Juggernaut, Gun Game, Co-op waves/lives/revive), bots finish every timed mode;
+      e2e every mode boots, pause menu + settings overlay
+
+## M8 — Balance, performance, production build, deploy docs ✅
+- [x] Balance survey `npm run balance` (bots on every map): fists dropped from 31.5% to 18.5% of kills at normal
+      (5/5/10 combo; more weapons on the floor at round start, faster weapon respawns); hard bots: top weapon
+      rifle 17.3%, 0 timeouts, ~23–25 s average rounds
+- [x] Performance check: sim tick ~0.16 ms and renderer sync ~0.8 ms for 10 fighters (CPU headroom is large;
+      software-GL containers are GPU bound)
+- [x] Production build: Phaser in its own cached chunk (game chunk 285 KB / 91 KB gzip), meta description + theme
+      colour, version string (title screen, from package.json), on-screen crash overlay
+- [x] README (players + dev) and `docs/DEPLOY.md` (itch.io, GitHub Pages, Netlify/Cloudflare/Vercel)

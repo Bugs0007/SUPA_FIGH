@@ -202,3 +202,32 @@ live next to the systems they change (gravity in World, damage in combat, bounce
 Brawl leader = most round wins (kills break ties), Deathmatch leader = kills − suicides; nobody wears the
 crown while tied. The bounty is captured at the start of each tick so the kill that takes the lead from
 the bounty still counts as claiming it.
+
+### D37 — Modes share one "respawn mode" flow in Match
+Everything except Brawl is one long round with a respawn queue; mode rules hook into `modeKill` (scoring) and
+`stepDeathmatch` (per-tick rules + win checks). Kill events are processed by `processWorldEvents(from)` so
+tests can kill fighters directly. Team rules are normalized in the Match constructor per mode.
+
+### D38 — KotH hill placement is automatic
+The hill is the spawn/weapon point closest to the map center (vertically weighted), 5 tiles wide. No map data
+needed, so every current and future map supports KotH; maps can add explicit hills later if needed.
+
+### D39 — Co-op uses fixed fighter slots for waves
+The World's fighter list is fixed, so bot slots start "gone" and are respawned per wave (count = wave + 1,
+capped by slots; HP and weapons scale; every 5th wave one bot becomes a boss). Revives refund the life a
+queued respawn would have cost.
+
+### D40 — Music is sequenced live, not rendered
+A 25 ms lookahead scheduler plays oscillator notes from data patterns (tempo, chord roots, 16-step patterns).
+Tiny, tweakable as data, and switches tracks instantly (title → match → intense on sudden death/overtime/boss).
+
+### D41 — Balance by survey, not by feel
+`npm run balance` runs bot matches on every map and prints kills per weapon and round lengths. Target: no weapon
+above ~25% of kills, rounds 20–60 s. The fists were dominant because bots spawned unarmed and kept brawling, so the
+fix went into the data (combo damage 5/5/10, 80% of weapon spawns filled at round start, 5–9 s respawns) rather
+than into bot logic.
+
+### D42 — Phaser in its own chunk, version baked in, errors shown on screen
+The engine is ~80% of the bundle and changes rarely, so `manualChunks` keeps it cacheable across game updates.
+`__APP_VERSION__` (vite `define`, from package.json) is shown on the title and in the crash overlay, so bug
+reports name a build. Uncaught errors show a small overlay instead of failing silently.

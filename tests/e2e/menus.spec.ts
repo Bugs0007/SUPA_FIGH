@@ -95,3 +95,37 @@ test('fighter creator edits a lobby slot look', async ({ page }) => {
   expect(after).not.toBe(before);
   expect(errors).toEqual([]);
 });
+
+test('pause menu: settings overlay, then quit to title', async ({ page }) => {
+  const errors = collectErrors(page);
+  type Hud = { pauseIdx: number; wasPaused: boolean };
+  const hud = () => `(window.__GAME__.game.scene.getScene('hud'))`;
+  const waitHud = (cond: string) => page.waitForFunction(`(() => { const h = ${hud()}; return ${cond}; })()`);
+  void ({} as Hud);
+  await page.goto('/?scene=match&timer=1&humans=1&bots=1');
+  await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 20);
+  await press(page, 'Escape');
+  await waitHud('h.wasPaused === true');
+  for (let i = 1; i <= 2; i++) {
+    await press(page, 'ArrowDown');
+    await waitHud(`h.pauseIdx === ${i}`);
+  }
+  await press(page, 'Enter'); // SETTINGS
+  await onScene(page, 'settings');
+  const vol0 = await page.evaluate(() => JSON.parse(localStorage.getItem('scrapyard.settings') ?? '{}').sfxVolume ?? 0.9);
+  await press(page, 'ArrowDown'); // SFX
+  await press(page, 'ArrowLeft');
+  await page.waitForFunction((v) => JSON.parse(localStorage.getItem('scrapyard.settings') ?? '{}').sfxVolume < v - 0.05, vol0);
+  await page.screenshot({ path: 'tests/e2e/screenshots/settings.png' });
+  await press(page, 'Escape');
+  await page.waitForFunction(() => !(window as unknown as { __GAME__: Handle }).__GAME__.scene().includes('settings'));
+  // still paused: QUIT is index 4
+  for (let i = 3; i <= 4; i++) {
+    await press(page, 'ArrowDown');
+    await waitHud(`h.pauseIdx === ${i}`);
+  }
+  await page.screenshot({ path: 'tests/e2e/screenshots/pause.png' });
+  await press(page, 'Enter');
+  await onScene(page, 'title');
+  expect(errors).toEqual([]);
+});

@@ -9,7 +9,9 @@ import { menu } from '../input/menu';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { parseMap } from '../sim/map/mapData';
 import { tileDef } from '../sim/map/tiles';
-import { MODE_NAMES } from '../sim/match';
+import { MODE_NAMES, type GameMode } from '../sim/match';
+
+const MODE_ORDER: GameMode[] = ['brawl', 'deathmatch', 'koth', 'juggernaut', 'gungame', 'coop'];
 import {
   DIFF_ORDER,
   lobbyProblem,
@@ -222,9 +224,10 @@ export class LobbyScene extends Phaser.Scene {
         );
         return true;
       case 'mode':
-        c.mode = c.mode === 'brawl' ? 'deathmatch' : 'brawl';
+        c.mode = cycle(MODE_ORDER, c.mode, d);
         return true;
       case 'length':
+        if (c.mode === 'coop') return false;
         if (c.mode === 'brawl') c.roundsToWin = Math.max(1, Math.min(10, c.roundsToWin + d));
         else c.timeLimit = cycle(TIME_OPTIONS, c.timeLimit, d);
         return true;
@@ -284,7 +287,12 @@ export class LobbyScene extends Phaser.Scene {
     const vals: Record<Setting, string> = {
       map: `MAP: ${MAP_LIST.find((m) => m.id === c.mapId)?.name ?? c.mapId}`,
       mode: `MODE: ${MODE_NAMES[c.mode]}`,
-      length: c.mode === 'brawl' ? `FIRST TO: ${c.roundsToWin} ROUNDS` : `TIME: ${Math.floor(c.timeLimit / 60)}:${String(c.timeLimit % 60).padStart(2, '0')}`,
+      length:
+        c.mode === 'brawl'
+          ? `FIRST TO: ${c.roundsToWin} ROUNDS`
+          : c.mode === 'coop'
+            ? 'LENGTH: SURVIVE 15 WAVES'
+            : `TIME: ${Math.floor(c.timeLimit / 60)}:${String(c.timeLimit % 60).padStart(2, '0')}`,
       sudden: `SUDDEN DEATH: ${c.mode === 'brawl' ? (c.suddenDeath ? c.suddenDeath + 'S' : 'OFF') : '-'}`,
       ff: `FRIENDLY FIRE: ${c.friendlyFire ? 'ON' : 'OFF'}`,
       weapons: `WEAPONS: ${WEAPON_RATE_LABELS[WEAPON_RATES.indexOf(c.weaponSpawnRate)] ?? 'NORMAL'}`,

@@ -4,22 +4,32 @@ import { PLAYER_PRESETS, type Appearance } from '../art/appearance';
 import { armFrame, BF, FRAME_META } from '../art/fighterArt';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
+import { music } from '../audio/music';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboardBinds, keyLabel, type Action } from '../input/bindings';
 import { keyboard } from '../input/keyboard';
+import { menu } from '../input/menu';
 import { saveSettings, settings } from '../game/settings';
 import { defaultSetup } from './MatchScene';
 
 const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
+
+const MAIN_MENU = [
+  { label: 'QUICK MATCH', action: 'quick' },
+  { label: 'MATCH SETUP', action: 'lobby' },
+  { label: 'CONTROLS', action: 'controls' },
+  { label: 'SETTINGS', action: 'settings' },
+] as const;
 
 const PLAYER_COLORS = [0xea4a4a, 0x4a8af0];
 
 /** Title + controls cards. M7 replaces this with the full menu and live bot battle. */
 export class TitleScene extends Phaser.Scene {
   private bots = settings.quickBots;
+  private menuIdx = 0;
+  private menuTexts: Phaser.GameObjects.BitmapText[] = [];
   private diffIdx = Math.max(0, DIFF_ORDER.indexOf(settings.botDifficulty));
   private dummyText!: Phaser.GameObjects.BitmapText;
-  private prompt!: Phaser.GameObjects.BitmapText;
   private t = 0;
   private sparks: { x: number; y: number; vy: number; img: Phaser.GameObjects.Image }[] = [];
 
@@ -33,6 +43,7 @@ export class TitleScene extends Phaser.Scene {
     this.game.events.on('rescale', this.applyZoom, this);
     this.events.once('shutdown', () => this.game.events.off('rescale', this.applyZoom, this));
     this.cameras.main.setBackgroundColor(P.night);
+    music.play('title');
 
     // drifting embers
     for (let i = 0; i < 40; i++) {
@@ -63,15 +74,38 @@ export class TitleScene extends Phaser.Scene {
     this.card(0, 20, 146, PLAYER_PRESETS[0]);
     this.card(1, VIEW_W - 20 - 280, 146, PLAYER_PRESETS[1]);
 
-    this.prompt = this.add.bitmapText(VIEW_W / 2, 312, 'pxo', 'ENTER: QUICK MATCH').setOrigin(0.5).setScale(2);
-    this.add.bitmapText(VIEW_W / 2, 330, 'smo', 'L: MATCH SETUP (TEAMS, GAMEPADS, MODES)     C: CONTROLS').setOrigin(0.5).setTint(0xfff4a0);
+    this.menuTexts = MAIN_MENU.map((m, i) => this.add.bitmapText(0, 318, 'pxo', m.label).setOrigin(0.5).setScale(i === 0 ? 2 : 1));
+    this.layoutMenu();
     this.dummyText = this.add.bitmapText(VIEW_W / 2, 344, 'smo', '').setOrigin(0.5).setTint(0xc3c9dc);
+    this.add.bitmapText(VIEW_W - 4, VIEW_H - 8, 'sm', 'V' + __APP_VERSION__).setOrigin(1, 0).setTint(0x5a5668);
     this.updateDummyText();
   }
 
   private applyZoom(k: number): void {
     this.cameras.main.setZoom(k);
     this.cameras.main.centerOn(VIEW_W / 2, VIEW_H / 2);
+  }
+
+  private layoutMenu(): void {
+    let x = 0;
+    const widths = this.menuTexts.map((t, i) => (i === this.menuIdx ? t.setScale(2) : t.setScale(1)).width);
+    const total = widths.reduce((a, b) => a + b + 26, -26);
+    x = VIEW_W / 2 - total / 2;
+    this.menuTexts.forEach((t, i) => {
+      t.setPosition(Math.round(x + widths[i] / 2), 318).setTint(i === this.menuIdx ? 0xffffff : 0x8d95b0);
+      x += widths[i] + 26;
+    });
+  }
+
+  private go(action: (typeof MAIN_MENU)[number]['action']): void {
+    audio.play('uiOk');
+    if (action === 'quick') {
+      const params = new URLSearchParams(location.search);
+      params.set('bots', String(this.bots));
+      params.set('diff', DIFF_ORDER[this.diffIdx]);
+      this.scene.start('match', defaultSetup(params));
+    } else if (action === 'lobby') this.scene.start('lobby');
+    else this.scene.start(action, { from: 'title' });
   }
 
   private updateDummyText(): void {
@@ -123,7 +157,14 @@ export class TitleScene extends Phaser.Scene {
   override update(_t: number, deltaMs: number): void {
     const dt = deltaMs / 1000;
     this.t += dt;
-    this.prompt.setAlpha(Math.floor(this.t * 2.5) % 2 === 0 ? 1 : 0.35);
+    this.menuTexts[this.menuIdx]?.setAlpha(Math.floor(this.t * 2.5) % 2 === 0 ? 1 : 0.6);
+    const lr = menu.left() ? -1 : menu.right() ? 1 : 0;
+    if (lr) {
+      this.menuTexts[this.menuIdx].setAlpha(1);
+      this.menuIdx = (this.menuIdx + lr + MAIN_MENU.length) % MAIN_MENU.length;
+      this.layoutMenu();
+      audio.play('uiMove');
+    }
     for (const s of this.sparks) {
       s.y -= s.vy * dt;
       s.x += Math.sin(this.t * 2 + s.vy) * 6 * dt;
@@ -149,22 +190,8 @@ export class TitleScene extends Phaser.Scene {
       this.updateDummyText();
       audio.play('uiMove');
     }
-    if (keyboard.justPressed('KeyL')) {
-      audio.play('uiOk');
-      this.scene.start('lobby');
-      return;
-    }
-    if (keyboard.justPressed('KeyC')) {
-      audio.play('uiOk');
-      this.scene.start('controls', { from: 'title' });
-      return;
-    }
-    if (keyboard.justPressed('Enter') || keyboard.justPressed('Space') || keyboard.justPressed('NumpadEnter')) {
-      audio.play('uiOk');
-      const params = new URLSearchParams(location.search);
-      params.set('bots', String(this.bots));
-      params.set('diff', DIFF_ORDER[this.diffIdx]);
-      this.scene.start('match', defaultSetup(params));
-    }
+    if (keyboard.justPressed('KeyL')) return this.go('lobby');
+    if (keyboard.justPressed('KeyC')) return this.go('controls');
+    if (menu.confirm()) this.go(MAIN_MENU[this.menuIdx].action);
   }
 }
