@@ -42,11 +42,14 @@ test('a match runs, fighters take damage, keyboard drives P1', async ({ page }) 
   const x1 = await page.evaluate(() => (window as unknown as { __GAME__: GameHandle }).__GAME__.match()!.world.fighters[0].x);
   expect(Math.abs(x1 - x0)).toBeGreaterThan(20);
 
-  // let the dummies brawl at 4x for a while
+  // let the dummies brawl at 4x for 600+ ticks (wall-clock time varies a lot with the GPU:
+  // software-rendered headless browsers only manage ~25 fps)
   const t0 = await tick(page);
-  await page.waitForTimeout(8000);
-  const t1 = await tick(page);
-  expect(t1 - t0).toBeGreaterThan(600);
+  await page.waitForFunction(
+    (start) => ((window as unknown as { __GAME__: GameHandle }).__GAME__.match()?.world.tick ?? 0) > start + 600,
+    t0,
+    { timeout: 45_000 },
+  );
   const hurt = await page.evaluate(() =>
     (window as unknown as { __GAME__: GameHandle }).__GAME__.match()!.world.fighters.some((f) => !f.alive || f.hp < 100),
   );

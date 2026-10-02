@@ -17,6 +17,28 @@ export type UiEvent =
 
 const IMPACT_SOUND: Record<string, string> = { wood: 'impactWood', dirt: 'impactWood' };
 
+/** Shot sound per weapon (default: pistol). */
+const SHOT_SOUND: Record<string, string> = {
+  shotgun: 'shotgun',
+  revolver: 'magnum',
+  uzi: 'smg',
+  smg: 'smg',
+  rifle: 'rifle',
+  sniper: 'sniper',
+  minigun: 'minigun',
+  flamer: 'flame',
+  bazooka: 'rocket',
+  flaregun: 'flare',
+};
+
+const SWING_PITCH: Record<string, number> = { knife: 1.4, machete: 1.1, bat: 0.85, pipe: 0.9, sledge: 0.6 };
+
+const POWERUP_TEXT: Record<string, [string, string]> = {
+  speed: ['SPEED!', P.yellow],
+  strength: ['STRENGTH!', P.red2],
+  bulletTime: ['BULLET TIME!', P.glass1],
+};
+
 export function weaponLabel(id: string): string {
   const special: Record<string, string> = {
     kick: 'KICK',
@@ -27,6 +49,10 @@ export function weaponLabel(id: string): string {
     water: 'WATER',
     wall: 'WALL',
     floor: 'FLOOR',
+    fire: 'FIRE',
+    barrel: 'BARREL',
+    crate: 'CRATE',
+    gas: 'GAS CAN',
   };
   return special[id] ?? weaponDef(id).name;
 }
@@ -58,18 +84,25 @@ export class Juice {
         const f = w.fighters[e.f];
         const def = weaponDef(e.weapon);
         const big = (def.gun?.pellets ?? 1) > 1 || def.hold === 'rifle';
-        fx.muzzle(e.x, e.y, e.angle, big);
+        if (e.weapon !== 'flamer') fx.muzzle(e.x, e.y, e.angle, big);
         if (def.casing) {
           const g = gunGeometry(f, activeWeapon(f));
           fx.casing(g.handX, g.handY - 1, f.facing, e.weapon === 'shotgun');
         }
-        this.sfx(e.weapon === 'shotgun' ? 'shotgun' : 'pistol', e.x);
+        if (e.weapon === 'bazooka') fx.smoke(e.x - Math.cos(e.angle) * 16, e.y - Math.sin(e.angle) * 16, 6, 0x8a8698);
+        this.sfx(SHOT_SOUND[e.weapon] ?? 'pistol', e.x, e.weapon === 'flamer' ? 0.5 : 1);
         this.cam.addTrauma(def.gun?.shake ?? 0.1);
         break;
       }
       case 'hit': {
         const heavy = e.kind === 'kick' || e.damage >= 10 || e.kind === 'bodyslam' || e.kind === 'splat';
-        if (e.kind === 'bullet') {
+        if (e.kind === 'fire') {
+          if (!e.corpse) this.r.views[e.victim]?.onHit();
+          break;
+        }
+        if (e.kind === 'explosion') {
+          fx.blood(e.x, e.y, e.dirX, e.dirY, e.corpse ? 4 : 10);
+        } else if (e.kind === 'bullet') {
           fx.blood(e.x, e.y, e.dirX, e.dirY, e.corpse ? 3 : 6);
           fx.sparks(e.x, e.y, -e.dirX, -e.dirY, 2, 0xffffff, 90);
           if (!e.corpse) this.sfx('hurt', e.x, 0.5, 1.2);
@@ -134,7 +167,7 @@ export class Juice {
         this.sfx('land', e.x, Math.min(1, e.speed / 400));
         break;
       case 'swing':
-        this.sfx('swing', w.fighters[e.f].x, 0.8, 1 + e.step * 0.1);
+        this.sfx('swing', w.fighters[e.f].x, 0.8, (SWING_PITCH[e.weapon] ?? 1) + e.step * 0.1);
         break;
       case 'kick':
         this.sfx('swing', w.fighters[e.f].x, 0.9, 0.8);
@@ -198,6 +231,90 @@ export class Juice {
       case 'corpseLand':
         fx.dust(e.x, e.y, 3, 40);
         this.sfx('thud', e.x, Math.min(1, e.speed / 300));
+        break;
+      case 'explosion': {
+        const big = e.radius >= 45;
+        fx.explosion(e.x, e.y, e.radius);
+        this.sfx(big ? 'explosion' : 'explosionSmall', e.x);
+        this.cam.addTrauma(e.shake);
+        this.hitstop = Math.max(this.hitstop, big ? 0.08 : 0.05);
+        break;
+      }
+      case 'ignite': {
+        const f = w.fighters[e.f];
+        this.sfx('ignite', f.x, 0.7);
+        if (f.alive) this.r.floatText(f.x, f.y - 30, 'BURNING!', hexToNum(P.orange));
+        break;
+      }
+      case 'extinguish': {
+        const f = w.fighters[e.f];
+        fx.smoke(f.x, f.y - 10, 4, 0x8a8698);
+        this.sfx('hiss', f.x, 0.6);
+        break;
+      }
+      case 'tileIgnite':
+        this.sfx('ignite', e.tx * TILE + 8, 0.35, 0.8);
+        break;
+      case 'propHit':
+        if (e.type === 'crate') {
+          fx.chips(e.x, e.y, 3);
+          this.sfx('impactWood', e.x, 0.7);
+        } else {
+          fx.sparks(e.x, e.y, 0, -1, 4, 0xfff4a0, 140);
+          this.sfx('clang', e.x, 0.6);
+        }
+        break;
+      case 'propBreak':
+        if (e.type === 'crate') {
+          fx.chips(e.x, e.y, 16);
+          fx.dust(e.x, e.y + 6, 4, 40);
+          this.sfx('crate', e.x);
+          this.cam.addTrauma(0.15);
+        }
+        break;
+      case 'pin':
+        this.sfx('pin', w.fighters[e.f].x, 0.8);
+        break;
+      case 'throwOut':
+        this.sfx('toss', w.fighters[e.f].x, 1, 0.9);
+        break;
+      case 'stick':
+        this.sfx('stick', e.x, 0.8);
+        break;
+      case 'mineArm':
+        this.sfx('beep', e.x, 0.7);
+        break;
+      case 'mineTrigger':
+        this.sfx('beep2', e.x);
+        this.r.floatText(e.x, e.y - 10, '!', hexToNum(P.red2), true);
+        break;
+      case 'burst':
+        fx.shards(e.x, e.y, 10);
+        for (let i = 0; i < 14; i++) fx.flame(e.x + (Math.random() - 0.5) * 20, e.y, 1.5, (Math.random() - 0.5) * 80);
+        this.sfx('glass', e.x);
+        this.sfx('ignite', e.x);
+        this.cam.addTrauma(0.2);
+        break;
+      case 'powerup': {
+        const [text, col] = POWERUP_TEXT[e.kind] ?? ['POWER!', P.white];
+        fx.motes(e.x, e.y - 6, 14, hexToNum(col));
+        this.sfx('powerup', e.x);
+        this.r.floatText(e.x, e.y - 22, text, hexToNum(col), true);
+        if (e.kind === 'bulletTime') {
+          this.ui.push({ t: 'announce', text: 'BULLET TIME', color: hexToNum(col) });
+          audio.play('slowmo');
+        }
+        break;
+      }
+      case 'heal': {
+        const f = w.fighters[e.f];
+        fx.motes(f.x, f.y - 10, 12, hexToNum(P.green2));
+        this.sfx('heal', f.x);
+        this.r.floatText(f.x, f.y - 30, '+' + Math.round(e.amount), hexToNum(P.green2), true);
+        break;
+      }
+      case 'spinUp':
+        this.sfx('spinup', w.fighters[e.f].x, 0.8);
         break;
       case 'weaponBreak':
         fx.chips(e.x, e.y, 10);

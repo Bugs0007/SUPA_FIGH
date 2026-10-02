@@ -52,4 +52,19 @@ export type SimEvent =
   | { t: 'splat'; f: number; x: number; y: number; speed: number }
   | { t: 'itemLand'; x: number; y: number; speed: number }
   | { t: 'weaponSpawn'; x: number; y: number; weapon: string }
-  | { t: 'corpseLand'; x: number; y: number; speed: number };
+  | { t: 'corpseLand'; x: number; y: number; speed: number }
+  | { t: 'explosion'; x: number; y: number; radius: number; weapon: string; shake: number }
+  | { t: 'ignite'; f: number }
+  | { t: 'extinguish'; f: number }
+  | { t: 'tileIgnite'; tx: number; ty: number }
+  | { t: 'propHit'; x: number; y: number; type: string }
+  | { t: 'propBreak'; x: number; y: number; type: string }
+  | { t: 'pin'; f: number; weapon: string }
+  | { t: 'throwOut'; f: number; weapon: string }
+  | { t: 'stick'; x: number; y: number }
+  | { t: 'mineArm'; x: number; y: number }
+  | { t: 'mineTrigger'; x: number; y: number }
+  | { t: 'burst'; x: number; y: number; weapon: string }
+  | { t: 'powerup'; f: number; kind: string; x: number; y: number }
+  | { t: 'heal'; f: number; amount: number }
+  | { t: 'spinUp'; f: number };

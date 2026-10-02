@@ -3,21 +3,24 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1 Playable core: DONE** (committed). Next: **M2 Combat depth**.
-- `npm run dev` → http://localhost:5173 · `npm test` (30 unit tests) · `npm run test:e2e` (3 Playwright tests, Edge)
-- Useful URLs: `/?scene=match&bots=4` (skip title, 4 sparring dummies), `/?scene=art` (sprite inspector),
-  `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1` (setTimeout loop for hidden tabs/automation).
+- **M1 Playable core: DONE.** **M2 Combat depth: DONE** (see checklist for the few deferred items).
+  Next: **M3 Bots**.
+- `npm run dev` → http://localhost:5173 · `npm test` (56 unit tests) · `npm run test:e2e` (6 Playwright tests;
+  in containers use `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`)
+- Useful URLs: `/?scene=match&bots=4` (skip title, 4 sparring dummies), `/?scene=art` (fighter sprites),
+  `/?scene=art&page=weapons` (every weapon/prop sprite with grip markers), `&speed=4`, `&seed=N`, `&humans=0`,
+  `&timer=1` (setTimeout loop for hidden tabs/automation).
 
-## Next steps (start of M2)
-1. Expand `src/sim/data/weapons.ts` with every weapon (melee, sidearms, heavy, throwables, gadgets) and
-   add ASCII sprites in `src/art/weaponArt.ts` for each id.
-2. Melee weapons: use `MeleeHit.arcFrom/arcTo` for swing visuals; durability (chair) already wired (`wearMelee`).
-3. New projectile kinds: rocket (explodes), flame (short-lived, ignites), flare (ignites), sniper (pierce + laser).
-4. Add `sim/explosion.ts` (radial damage + knockback + tile/prop breaking), `sim/fire.ts` (burning status,
-   fire spreading over wood tiles), `sim/prop.ts` (crates, barrels, gas canisters, dynamic physics bodies).
-5. Throwables: hold attack to aim/cook, release to throw (arc preview), fuse timers.
-6. Gadgets + powerups; inventory HUD shows all 5 slots with icons.
-7. Juice pass: explosions (shockwave, debris, scorch decals), fire particles, bigger hit-stop on explosions.
+## Next steps (start of M3)
+1. Delete `ai/Wanderer.ts`; add `src/ai/` nav graph built from map geometry (walk/jump/drop/ladder edges) + A*.
+2. Utility AI producing `Intent`: pick up weapons (value table per weapon id), fight at the right range per
+   weapon (melee rush, sniper keep distance), throw grenades using `throwVelocity()` for arcs, dodge (roll)
+   incoming bullets/rockets, avoid fire patches / burning tiles / armed mines, stop-drop-and-roll when burning,
+   use medkits below ~40 HP, shoot barrels near enemies, carry crates as shields.
+3. Difficulty (reaction time, aim error, decision rate) + personalities; stuck detection and recovery.
+4. Headless balance sim in Node: bots-only matches, report kills per weapon (target <= 25% each).
+5. Deferred from M2 (pick up when convenient): grappling hook, riot shield, teleport pads, smoke grenade
+   (mostly matters once bots have line-of-sight), throwing props through glass windows.
 
 ## M1 — Playable core ✅
 - [x] Docs (CLAUDE.md, GAME_DESIGN.md, DECISIONS.md, PROGRESS.md)
@@ -42,10 +45,27 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [x] Tests: 30 unit tests (physics, moveset on real map, weapons data, damage, match flow, determinism),
       3 Playwright tests (boot, match run + keyboard, title→match), production build OK
 
-## M2 — Combat depth
-- [ ] All weapons data-driven (melee, sidearms, heavy, throwables, gadgets, powerups)
-- [ ] Throwables, props (crates, barrels, gas canisters, glass), explosions, fire spread
-- [ ] Pickups, 5-slot inventory UI, juice pass
+## M2 — Combat depth ✅
+- [x] Weapons (all data in `sim/data/weapons.ts`, sprites in `art/weaponArt.ts`):
+      melee knife, machete, katana, bat, pipe, chair (4 hits), sledgehammer · sidearms pistol, magnum, uzi,
+      flare gun · heavy shotgun, SMG, assault rifle, sniper (pierce + laser sight), minigun (spin-up, slows you),
+      flamethrower, bazooka · throwables grenade (cookable), molotov, sticky remote C4, proximity mine ·
+      gadgets medkit, jetpack · powerups speed, strength, Bullet Time
+- [x] Projectile kinds: rockets explode, flames (rise, slow down, ignite, stop on wood), flares (arc, ignite)
+- [x] `sim/explosion.ts`: falloff + wall cover, knockdown, chain reactions, glass/wood destruction, fire scatter
+- [x] `sim/fire.ts`: burning status (DoT, touch spread, roll/water/medkit extinguish), fire patches,
+      burning wooden tiles that spread and collapse
+- [x] `sim/prop.ts` + `sim/data/props.ts`: crates (loot drops), explosive barrels, gas canisters that rocket
+      off when punctured; standable, pushable, shootable, kickable, liftable + throwable (Interact)
+- [x] Throwables: hold to aim with power ramp + arc preview, cooking, fumbles drop live grenades, C4 detonator
+- [x] Bullet Time (world 40%, owner double-updates), speed/strength boosts with HUD timers
+- [x] HUD: 5-slot inventory with icons + charge counts, ammo/fuel readout, burning HP flash, bullet-time tint
+- [x] Juice: explosions (flash, shockwave ring, fireballs, smoke, debris, scorch decals, hit-stop), flames,
+      jet exhaust, rocket smoke trails, flare glow, mine/C4 blink, fuse sparks, heal/powerup motes; ~25 new sounds
+- [x] Test Arena has crates/barrels/gas cans on every floor
+- [x] Tests: 26 new unit tests (explosions, throwables, special guns, fire spread, props, carrying, gadgets,
+      determinism); e2e arsenal tour fires every weapon through the real keyboard path
+- [ ] Deferred: grappling hook, riot shield, teleport pads, smoke grenade
 
 ## M3 — Bots
 - [ ] Nav graph (walk/jump/drop/ladder) + A*

@@ -1,7 +1,10 @@
 import { applyHit, computeDamage } from './combat';
 import { DT } from './constants';
-import type { ProjectileKind } from './data/weapons';
+import type { ExplosionStats, ProjectileKind } from './data/weapons';
+import { explode } from './explosion';
+import { ignite, igniteTile, isFlammableTile, spawnFire } from './fire';
 import { segmentAabb } from './physics';
+import { damageProp, pushProp } from './prop';
 import type { World } from './world';
 
 export interface Bullet {
@@ -28,6 +31,9 @@ export interface Bullet {
   hitIds: number[];
   canHitOwner: boolean;
   kind: ProjectileKind;
+  gravity: number;
+  explosion: ExplosionStats | null;
+  ignite: number;
 }
 
 export interface BulletSpawn {
@@ -46,6 +52,9 @@ export interface BulletSpawn {
   ricochet: boolean;
   pierce: number;
   kind: ProjectileKind;
+  gravity?: number;
+  explosion?: ExplosionStats | null;
+  ignite?: number;
 }
 
 export function newBullet(): Bullet {
@@ -72,6 +81,9 @@ export function newBullet(): Bullet {
     hitIds: [],
     canHitOwner: false,
     kind: 'bullet',
+    gravity: 0,
+    explosion: null,
+    ignite: 0,
   };
 }
 
@@ -96,7 +108,25 @@ export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
   b.hitIds.length = 0;
   b.canHitOwner = false;
   b.kind = s.kind;
+  b.gravity = s.gravity ?? 0;
+  b.explosion = s.explosion ?? null;
+  b.ignite = s.ignite ?? 0;
   return b;
+}
+
+/** Kinds that don't pass through wood/glass (they burn or blow up on it instead). */
+const SOLID_HITTERS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>(['flame', 'rocket', 'flare']);
+
+function burst(w: World, b: Bullet, x: number, y: number): void {
+  if (b.explosion) explode(w, x - Math.sign(b.vx) * 2, y - Math.sign(b.vy) * 2, b.explosion, b.owner, b.weapon);
+}
+
+/** Flames and flares light up what they land on. */
+function scorch(w: World, b: Bullet, x: number, y: number, tx: number, ty: number): void {
+  if (b.kind !== 'flame' && b.kind !== 'flare') return;
+  if (isFlammableTile(w.map.get(tx, ty))) igniteTile(w, tx, ty, b.owner);
+  const chance = b.kind === 'flare' ? 1 : 0.06;
+  if (w.rng.chance(chance)) spawnFire(w, x - Math.sign(b.vx) * 3, y - 3, -b.vx * 0.05, -40, b.owner);
 }
 
 interface WallHit {
@@ -105,6 +135,8 @@ interface WallHit {
   ny: number;
   ricochet: boolean;
   material: string;
+  tx: number;
+  ty: number;
 }
 
 /** Advance every active bullet by one tick: swept vs fighters and tiles. */
@@ -114,6 +146,11 @@ export function updateBullets(w: World): void {
     if (!b.active) continue;
     b.px = b.x;
     b.py = b.y;
+    if (b.gravity !== 0) b.vy += b.gravity * DT;
+    if (b.kind === 'flame') {
+      b.vx *= 0.97;
+      b.vy *= 0.97;
+    }
     let remaining = DT;
     // a tick can split into several segments (ricochets, pierced fighters)
     for (let seg = 0; seg < 5 && remaining > 1e-6 && b.active; seg++) {
@@ -135,6 +172,18 @@ export function updateBullets(w: World): void {
           bestF = f.id;
         }
       }
+      // props are solid targets (stop every projectile)
+      let bestP = -1;
+      for (let i = 0; i < w.props.length; i++) {
+        const p = w.props[i];
+        if (!p.active) continue;
+        const t = segmentAabb(b.x, b.y, nx, ny, p.x - p.w / 2, p.y - p.h, p.x + p.w / 2, p.y);
+        if (t >= 0 && t < bestT) {
+          bestT = t;
+          bestP = i;
+          bestF = -1;
+        }
+      }
 
       // tiles up to the fighter
       let wall: WallHit | null = null;
@@ -144,7 +193,7 @@ export function updateBullets(w: World): void {
         if (t > bestT) return true;
         const d = map.def(tx, ty);
         if (!d.solid) return false;
-        if (d.bulletPass) {
+        if (d.bulletPass && !SOLID_HITTERS.has(b.kind)) {
           if (t > 0) {
             b.damage *= d.passMul;
             if (d.breakable) w.breakTile(tx, ty);
@@ -152,7 +201,7 @@ export function updateBullets(w: World): void {
           }
           return false;
         }
-        wall = { t, nx: cnx, ny: cny, ricochet: d.ricochet, material: d.material };
+        wall = { t, nx: cnx, ny: cny, ricochet: d.ricochet, material: d.material, tx, ty };
         return true;
       });
 
@@ -165,6 +214,7 @@ export function updateBullets(w: World): void {
         if (wh.t === 0 && wh.nx === 0 && wh.ny === 0) {
           // spawned inside a wall
           w.emit({ t: 'impact', x: hx, y: hy, nx: 0, ny: 0, material: wh.material });
+          burst(w, b, hx, hy);
           b.active = false;
           break;
         }
@@ -188,10 +238,27 @@ export function updateBullets(w: World): void {
           w.emit({ t: 'ricochet', x: hx, y: hy });
           continue;
         }
-        w.emit({ t: 'impact', x: hx, y: hy, nx: wh.nx, ny: wh.ny, material: wh.material });
+        if (b.kind !== 'flame') w.emit({ t: 'impact', x: hx, y: hy, nx: wh.nx, ny: wh.ny, material: wh.material });
         b.x = hx;
         b.y = hy;
         b.active = false;
+        burst(w, b, hx, hy);
+        scorch(w, b, hx, hy, wh.tx, wh.ty);
+        break;
+      }
+
+      if (bestP >= 0) {
+        const p = w.props[bestP];
+        const hx = b.x + (nx - b.x) * bestT;
+        const hy = b.y + (ny - b.y) * bestT;
+        const speed = Math.hypot(b.vx, b.vy) || 1;
+        b.x = hx;
+        b.y = hy;
+        b.active = false;
+        if (b.kind !== 'flame') w.emit({ t: 'impact', x: hx, y: hy, nx: -Math.sign(b.vx), ny: 0, material: p.type === 'crate' ? 'wood' : 'metal' });
+        pushProp(p, (b.vx / speed) * b.knock * 0.8, (b.vy / speed) * b.knock * 0.4 - 10);
+        damageProp(w, p, b.damage, b.owner);
+        burst(w, b, hx, hy);
         break;
       }
 
@@ -202,17 +269,23 @@ export function updateBullets(w: World): void {
         const speed = Math.hypot(b.vx, b.vy) || 1;
         const dist = b.traveled + segLen * bestT;
         const dmg = computeDamage({ base: b.damage, falloff: b.falloff, distFrac: dist / b.range });
-        applyHit(w, f, {
+        const connected = applyHit(w, f, {
           damage: dmg,
           kbX: (b.vx / speed) * b.knock,
           kbY: (b.vy / speed) * b.knock * 0.5,
           attacker: b.owner,
           weapon: b.weapon,
-          kind: 'bullet',
+          kind: b.kind === 'flame' ? 'fire' : 'bullet',
           x: hx,
           y: hy,
         });
+        if (connected && b.ignite > 0) ignite(w, f, b.ignite, b.owner);
         b.hitIds.push(f.id);
+        if (b.explosion) {
+          b.active = false;
+          burst(w, b, hx, hy);
+          break;
+        }
         b.x = hx;
         b.y = hy;
         b.traveled = dist;
@@ -232,7 +305,10 @@ export function updateBullets(w: World): void {
       b.traveled += segLen;
       remaining = 0;
     }
-    if (b.traveled >= b.range) b.active = false;
+    if (b.traveled >= b.range && b.active) {
+      b.active = false;
+      burst(w, b, b.x, b.y);
+    }
     if (b.x < -300 || b.x > map.pxW + 300 || b.y < -300 || b.y > map.pxH + 300) b.active = false;
   }
 }

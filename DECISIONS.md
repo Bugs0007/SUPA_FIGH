@@ -76,3 +76,44 @@ combat alone now (`?bots=N` or 0-8 on the title screen). It will be deleted when
 ### D13 — Playwright uses the installed Microsoft Edge on Windows
 Avoids a ~150 MB Chromium download; CI/other OSes fall back to bundled Chromium (`PW_CHANNEL` overrides).
 `?timer=1` switches Phaser to a setTimeout loop so automated/hidden tabs still simulate.
+
+### D14 — Throwables: hold to aim + power ramp, release to throw; grenades cook from the pin
+Same "hold attack, sweep with up/down, release" gesture as guns, so there's one aiming skill. Throw
+power ramps from 55% to 100% over 0.45 s of holding, so a tap is a short lob and a held throw goes
+far. Frag grenades start their fuse when the pin is pulled (attack pressed): cooking is a real
+risk/reward choice, and getting knocked out of the throw (or dying) drops the live grenade at your
+feet. Humans get a dotted arc preview (not bots — they'll compute it themselves).
+
+### D15 — Mines and C4 are throwables, the medkit is a gadget, powerups are instant
+The design doc listed prox mines / remote C4 under gadgets. As throwables they reuse the whole
+aim/throw/live-item pipeline (and stack charges on pickup). C4 keeps its slot at 0 charges as a
+detonator while any of your charges are live. Medkit sits in the gadget slot so you choose when to
+heal; speed / strength / Bullet Time apply on touch and never take a slot.
+
+### D16 — Bullet Time = the world slows to 40%, its owner gets two updates per tick
+Instead of special-casing timers, the owner's fighter update simply runs twice per sim tick while the
+match timeScale drops to 0.4. Their movement, aim, fire rate and cooldowns are all 2x relative to
+everyone else, bullets stay at world speed, and the sim stays deterministic.
+
+### D17 — Props are one-way-from-above platforms, pushed sideways, solid to every projectile
+Full rigid-body stacking would be overkill. Bodies falling onto a prop land on its top (same feel as a
+one-way platform, drop-through-able); walking into one pushes it at 70% of your speed (heavier
+barrels resist). Every projectile stops on props — carried crates double as bullet shields, carried
+barrels are a terrible idea. Interact lifts the prop next to you; any action button throws it.
+
+### D18 — Fire: status on fighters, patches on the ground, burning tiles in a map
+Burning fighters take 7 HP/s (credited to whoever lit them) and spread it by touch; rolling burns it
+off 3.5x faster, water/medkit puts it out. Fire patches are tiny falling bodies with a lifetime.
+Wooden walls/platforms ignite, spread to wooden neighbors and collapse after ~3 s — fire reshapes maps.
+Flames, flares and rockets do NOT pass through wood/glass like bullets (they burn / explode on it).
+
+### D19 — Explosions: linear falloff, 65% cover from bullet-stopping walls, always knock down
+Blast damage = base * (0.2 + 0.8k) with k = 1 - dist/radius (dist measured from the body's edge),
+knockback biased upward so bodies fly. Line of sight is checked against bullet-stopping tiles only
+(glass and wood are blown through). Explosions ignore roll i-frames. Live explosives in range
+sympathetically detonate after 0.08–0.2 s so chains ripple instead of popping in one frame.
+
+### D20 — E2E tests don't assume wall-clock frame rates
+Headless Chromium in CI/cloud containers renders with software GL at ~25 fps. Tests wait for sim
+ticks with a generous timeout instead of asserting ticks-per-second. `PW_EXECUTABLE=/path/to/chrome`
+points Playwright at a preinstalled browser when the bundled one doesn't match.

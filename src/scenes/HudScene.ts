@@ -5,6 +5,7 @@ import { hexToNum, P } from '../art/palette';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { weaponLabel } from '../render/Juice';
 import { teamKey } from '../sim/combat';
+import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
 import type { MatchScene } from './MatchScene';
 
@@ -19,6 +20,8 @@ const KILL_QUIPS: Record<string, string> = {
   splat: 'SPLATTERED!',
   bodyslam: 'HUMAN BOWLING!',
   throw: 'BONK!',
+  explosion: 'BLOWN TO BITS!',
+  fire: 'ROASTED!',
 };
 
 /** Screen-space overlay: scores, banners, kill feed, player panels, off-screen arrows, pause. */
@@ -34,7 +37,9 @@ export class HudScene extends Phaser.Scene {
   private roundText!: Phaser.GameObjects.BitmapText;
   private scoreTexts: Phaser.GameObjects.BitmapText[] = [];
   private panelTexts: Phaser.GameObjects.BitmapText[][] = [];
-  private panelIcons: Phaser.GameObjects.Image[] = [];
+  /** per panel: 5 slot icons */
+  private panelIcons: Phaser.GameObjects.Image[][] = [];
+  private panelCounts: Phaser.GameObjects.BitmapText[][] = [];
   private arrows: Phaser.GameObjects.Image[] = [];
   private pauseText!: Phaser.GameObjects.BitmapText;
   private pauseSub!: Phaser.GameObjects.BitmapText;
@@ -70,7 +75,8 @@ export class HudScene extends Phaser.Scene {
         this.add.bitmapText(0, 0, 'smo', ''),
         this.add.bitmapText(0, 0, 'smo', ''),
       ]);
-      this.panelIcons.push(this.add.image(0, 0, 'weapons').setVisible(false));
+      this.panelIcons.push(Array.from({ length: 5 }, () => this.add.image(0, 0, 'weapons').setVisible(false)));
+      this.panelCounts.push(Array.from({ length: 5 }, () => this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 1).setDepth(2)));
     });
     this.showBanner('ROUND 1', 'FIGHT!', 0xffffff, 1.2);
   }
@@ -212,38 +218,54 @@ export class HudScene extends Phaser.Scene {
       fy += 9;
     }
 
-    // ---- player panels
+    // ---- player panels: name + HP, active weapon + ammo, 5 inventory slots
     const humans = ms.players.map((p, i) => ({ p, i })).filter(({ p }) => p.input.startsWith('kb'));
     humans.forEach(({ p, i }, n) => {
       const f = w.fighters[i];
       const [nameT, weapT, ammoT] = this.panelTexts[n];
-      const icon = this.panelIcons[n];
       const right = n % 2 === 1;
-      const px = right ? VIEW_W - 110 : 8;
-      const py = VIEW_H - 30;
-      g.fillStyle(hexToNum(P.ink), 0.75).fillRect(px - 3, py - 3, 104, 27);
-      g.lineStyle(1, p.color, 1).strokeRect(px - 3.5, py - 3.5, 105, 28);
+      const PW = 104;
+      const px = right ? VIEW_W - PW - 6 : 8;
+      const py = VIEW_H - 40;
+      g.fillStyle(hexToNum(P.ink), 0.75).fillRect(px - 3, py - 3, PW, 38);
+      g.lineStyle(1, p.color, 1).strokeRect(px - 3.5, py - 3.5, PW + 1, 39);
       nameT.setText(p.label).setTint(p.color).setPosition(px, py);
       const hpFrac = Math.max(0, f.hp) / 100;
       g.fillStyle(0x3a3448, 1).fillRect(px + 22, py + 2, 74, 5);
       const hpCol = hpFrac > 0.6 ? P.green2 : hpFrac > 0.3 ? P.yellow : P.red2;
-      g.fillStyle(hexToNum(hpCol), 1).fillRect(px + 22, py + 2, Math.round(74 * hpFrac), 5);
+      g.fillStyle(hexToNum(f.burn > 0 && Math.floor(this.time.now / 120) % 2 ? P.orange : hpCol), 1).fillRect(px + 22, py + 2, Math.round(74 * hpFrac), 5);
+      // boost timers under the HP bar
+      if (f.alive && f.speedBoost > 0) g.fillStyle(hexToNum(P.yellow), 1).fillRect(px + 22, py + 7, Math.round(74 * Math.min(1, f.speedBoost / 10)), 1);
+      if (f.alive && f.strengthBoost > 0) g.fillStyle(hexToNum(P.red2), 1).fillRect(px + 22, py + 8, Math.round(74 * Math.min(1, f.strengthBoost / 12)), 1);
       const def = activeWeapon(f);
       const item = f.inv[f.active];
-      weapT.setText(f.alive ? def.name : 'DEAD').setPosition(px, py + 12).setTint(f.alive ? 0xffffff : 0x888888);
-      ammoT.setText(item && def.gun ? 'x' + item.ammo : '').setPosition(px + 70, py + 12).setTint(item && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
-      const wf = item ? Art.weapon(item.id) : undefined;
-      if (wf && f.alive) icon.setVisible(true).setTexture(wf.key, wf.frame).setPosition(px + 52, py + 15);
-      else icon.setVisible(false);
-      // inventory slot pips
+      weapT.setText(f.alive ? def.name : 'DEAD').setPosition(px, py + 11).setTint(f.alive ? 0xffffff : 0x888888);
+      const ammo = item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
+      ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 11).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
       for (let s = 0; s < 5; s++) {
-        const sx = px + 22 + s * 8;
-        const has = !!f.inv[s];
-        const active = f.active === s;
-        g.fillStyle(has ? (s === 0 ? 0x94603a : 0x8d95b0) : 0x2a2438, 1).fillRect(sx, py + 9, 6, 2);
-        if (active) g.fillStyle(0xffffff, 1).fillRect(sx, py + 8, 6, 1);
+        const bx = px + s * 20;
+        const by = py + 20;
+        const inv = f.inv[s];
+        const active = f.active === s && f.alive;
+        g.fillStyle(active ? 0x4a4060 : 0x241e32, 1).fillRect(bx, by, 18, 12);
+        if (active) g.lineStyle(1, 0xffffff, 1).strokeRect(bx - 0.5, by - 0.5, 19, 13);
+        const icon = this.panelIcons[n][s];
+        const cnt = this.panelCounts[n][s];
+        const wf = inv ? Art.weapon(inv.id) : undefined;
+        if (wf && f.alive) {
+          const k = Math.min(1, 17 / wf.w, 11 / wf.h);
+          icon.setVisible(true).setTexture(wf.key, wf.frame).setScale(k).setPosition(bx + 9, by + 6).setAlpha(active ? 1 : 0.7);
+        } else icon.setVisible(false);
+        const idef = inv ? weaponDef(inv.id) : null;
+        cnt.setText(inv && f.alive && idef?.throw ? String(inv.ammo) : '').setPosition(bx + 18, by + 13);
       }
     });
+
+    // ---- bullet time tint
+    if (w.bulletTime > 0) {
+      const a = Math.min(1, w.bulletTime * 2, (5 - w.bulletTime) * 4) * 0.12;
+      g.fillStyle(0x4a8af0, a).fillRect(0, 0, VIEW_W, VIEW_H);
+    }
 
     // ---- off-screen arrows
     const cam = ms.cameras.main;

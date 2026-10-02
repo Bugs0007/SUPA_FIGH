@@ -3,7 +3,7 @@ import type { Appearance } from '../art/appearance';
 import { Art } from '../art';
 import { ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD } from '../art/fighterArt';
 import { ARM_LONG, ARM_SHORT, ROLL_TIME } from '../sim/constants';
-import { weaponDef } from '../sim/data/weapons';
+import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
 
 /** Rig pivot: body center, this many px above the feet. */
@@ -20,6 +20,7 @@ export class FighterView {
   private backArm: Phaser.GameObjects.Image;
   private frontArm: Phaser.GameObjects.Image;
   private weapon: Phaser.GameObjects.Image;
+  private pack: Phaser.GameObjects.Image;
   readonly tag: Phaser.GameObjects.BitmapText;
   private runPhase = 0;
   private climbPhase = 0;
@@ -46,8 +47,10 @@ export class FighterView {
     this.body = scene.add.image(0, RIG_Y, tex.body, BF.IDLE0).setOrigin(0.5, 1);
     this.head = scene.add.image(0, 0, tex.head, HEAD.NORMAL).setOrigin(8 / 16, 13 / 16);
     this.weapon = scene.add.image(0, 0, 'weapons').setVisible(false);
+    const jf = Art.weapon('jetpack');
+    this.pack = scene.add.image(-5, RIG_Y - 13, jf?.key ?? 'weapons', jf?.frame).setVisible(false);
     this.frontArm = scene.add.image(0, 0, tex.arm, 0);
-    this.rig.add([this.backArm, this.body, this.head, this.weapon, this.frontArm]);
+    this.rig.add([this.pack, this.backArm, this.body, this.head, this.weapon, this.frontArm]);
     this.root.add(this.rig);
     this.root.setDepth(40);
     this.tag = scene.add.bitmapText(fighter.x, fighter.y - 34, 'smo', label.toUpperCase()).setOrigin(0.5, 1).setTint(color).setDepth(70);
@@ -223,6 +226,18 @@ export class FighterView {
         break;
       case 'aim': {
         frame = f.crouchAim ? BF.CROUCH : BF.AIM;
+        if (def.throw) {
+          // wind up over the shoulder while aiming, follow through after the release
+          const a = f.aimAngle;
+          const follow = Math.min(1, f.stateTime / 0.12);
+          front = f.aimHeld ? -2.5 + a * 0.3 : lerp(-2.5, a + 0.3, follow);
+          frontLen = 1;
+          back = a;
+          backLen = 1;
+          weaponAngle = front;
+          showWeapon = f.aimHeld || follow < 0.2;
+          break;
+        }
         const recoil = Math.max(0, 1 - (simTime - f.lastShotTime) * 12);
         const a = f.aimAngle - recoil * 0.12;
         front = a;
@@ -287,6 +302,15 @@ export class FighterView {
         break;
     }
 
+    // carrying a prop overhead: both arms up
+    if (f.carry >= 0 && f.alive && (f.state === 'normal' || f.state === 'crouch' || f.state === 'flinch')) {
+      front = -1.75;
+      back = -1.45;
+      frontLen = 1;
+      backLen = 1;
+      showWeapon = false;
+    }
+
     // ---- apply
     this.lieAmount += (lie - this.lieAmount) * Math.min(1, dt * 20);
     this.root.setPosition(x, y);
@@ -326,8 +350,10 @@ export class FighterView {
     }
 
     // held weapon
+    this.pack.setVisible(f.alive && f.inv[SLOT.GADGET]?.id === 'jetpack' && !meta.hideArms && frame !== BF.ROLL);
+    this.pack.setY(RIG_Y - 13 + (frame === BF.CROUCH || frame === BF.CRAWL0 || frame === BF.CRAWL1 ? 7 : 0));
     const item = f.inv[f.active];
-    const wf = item ? Art.weapon(item.id) : undefined;
+    const wf = item && item.id !== 'jetpack' ? Art.weapon(item.id) : undefined;
     if (wf && showWeapon && armsVisible && f.alive) {
       const ang = weaponAngle ?? front;
       const handL = frontLen === 1 ? ARM_LONG : ARM_SHORT;
@@ -346,6 +372,11 @@ export class FighterView {
     if (this.flash > 0) {
       this.flash -= dt;
       for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTintFill(0xffffff);
+    } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) {
+      for (const p of [this.body, this.head, this.frontArm]) p.setTint(0xffa060);
+      this.backArm.setTint(0xc08060);
+    } else if (!f.alive && f.burn > 0) {
+      for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTint(0x605050);
     } else {
       this.body.clearTint();
       this.head.clearTint();
