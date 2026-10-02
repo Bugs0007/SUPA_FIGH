@@ -41,7 +41,7 @@ export interface MoverDef {
 /** Rectangle that hurts while active. Cycles off → warn → on. Optional horizontal sweep while on. */
 export interface HazardDef {
   type: 'hazard';
-  kind: 'crusher' | 'laser' | 'tunnel';
+  kind: 'crusher' | 'laser' | 'tunnel' | 'fissure';
   x: number;
   y: number;
   w: number;
@@ -78,7 +78,24 @@ export interface DropDef {
   pool: string[];
 }
 
-export type GimmickDef = MoverDef | HazardDef | GravityDef | DropDef;
+/** Waves slapping the hull (ship): every few seconds props/items slide, fighters get a tiny nudge. */
+export interface WavesDef {
+  type: 'waves';
+  every: [number, number];
+  /** px/s added to loose props (fighters get a fraction) */
+  push: number;
+}
+
+/** A cannon fighters fire with Interact (tile it sits in; the ball flies in `dir`). */
+export interface CannonDef {
+  type: 'cannon';
+  x: number;
+  y: number;
+  dir: 1 | -1;
+  cooldown: number;
+}
+
+export type GimmickDef = MoverDef | HazardDef | GravityDef | DropDef | WavesDef | CannonDef;
 
 export interface MapDef {
   id: string;

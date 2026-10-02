@@ -160,7 +160,15 @@ export class HeroFx {
     const g = this.orbs;
     g.clear();
     for (const bl of this.world.bullets) {
-      if (!bl.active || (bl.kind !== 'chakra' && bl.kind !== 'ki')) continue;
+      if (!bl.active) continue;
+      if (bl.kind === 'cannonball') {
+        const cx = lerp(bl.px, bl.x, alpha);
+        const cy = lerp(bl.py, bl.y, alpha);
+        this.disc(g, cx, cy, 3.5, INK, 1);
+        this.disc(g, cx - 1, cy - 1, 1, hexToNum(P.steel2), 1);
+        continue;
+      }
+      if (bl.kind !== 'chakra' && bl.kind !== 'ki') continue;
       const x = lerp(bl.px, bl.x, alpha);
       const y = lerp(bl.py, bl.y, alpha);
       const r = Math.max(2, bl.size + 1);

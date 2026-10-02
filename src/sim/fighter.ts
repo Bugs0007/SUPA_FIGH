@@ -76,7 +76,7 @@ import { heroDef } from './data/heroes';
 import { ability, chargeScale, endPower, fireSpecial, special, spawnClones, stretchDuration, stretchHitbox, stretchReach, updatePower } from './hero';
 import { detonate } from './item';
 import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
-import { conveyorPush } from './gimmicks';
+import { conveyorPush, useCannon } from './gimmicks';
 import { copyIntent, emptyIntent, type Intent } from './intent';
 import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, type Body, type MoveResult } from './physics';
 import type { World } from './world';
@@ -1615,6 +1615,7 @@ export function cycleWeapon(w: World, f: Fighter): void {
 // ------------------------------------------------------------------ interact / pickup / grab
 
 function interact(w: World, f: Fighter): boolean {
+  if (w.gimmicks.cannons.length > 0 && f.grounded && useCannon(w, f)) return true;
   const item = w.findItemNear(f, ITEM_PICKUP_RANGE, f.id);
   if (item) {
     w.pickUp(f, item, true);

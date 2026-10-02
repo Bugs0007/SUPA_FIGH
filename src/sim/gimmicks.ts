@@ -4,12 +4,15 @@
 //   hazards — timed kill/damage rectangles (crushers, laser grids, train tunnels), telegraphed by a warn phase
 //   gravity — zones with a gravity multiplier (optionally toggling)
 //   drops   — supply crates falling from the sky at intervals
+//   waves   — the sea slaps the ship: loose props/items slide, fighters get a nudge (never a shove)
+//   cannons — fire with Interact when standing at the breech; the ball arcs and explodes
 // Conveyor belts are tiles (tiles.ts `conveyor`), applied via conveyorPush().
 
 import { applyHit } from './combat';
 import { DT, TILE } from './constants';
 import type { Fighter } from './fighter';
-import type { DropDef, GravityDef, HazardDef, MoverDef } from './map/mapData';
+import type { CannonDef, DropDef, GravityDef, HazardDef, MoverDef, WavesDef } from './map/mapData';
+import { CANNON } from './data/weapons';
 import type { Body } from './physics';
 import { damageProp } from './prop';
 import type { World } from './world';
@@ -59,15 +62,27 @@ export interface GravZone {
   active: boolean;
 }
 
+export interface Cannon {
+  def: CannonDef;
+  /** px: the tile's bottom center (where the carriage stands) */
+  x: number;
+  y: number;
+  cd: number;
+  /** time of the last shot (render recoil) */
+  shotAt: number;
+}
+
 export interface Gimmicks {
   movers: Mover[];
   hazards: Hazard[];
   gravity: GravZone[];
   drops: { def: DropDef; timer: number }[];
+  waves: { def: WavesDef; timer: number; last: number }[];
+  cannons: Cannon[];
 }
 
 export function buildGimmicks(w: World): Gimmicks {
-  const g: Gimmicks = { movers: [], hazards: [], gravity: [], drops: [] };
+  const g: Gimmicks = { movers: [], hazards: [], gravity: [], drops: [], waves: [], cannons: [] };
   for (const d of w.def.gimmicks ?? []) {
     if (d.type === 'mover') {
       const m: Mover = {
@@ -97,6 +112,10 @@ export function buildGimmicks(w: World): Gimmicks {
       g.gravity.push({ def: d, l: d.x * TILE, t: d.y * TILE, r: (d.x + d.w) * TILE, b: (d.y + d.h) * TILE, active: true });
     } else if (d.type === 'drops') {
       g.drops.push({ def: d, timer: w.rng.range(d.every[0], d.every[1]) });
+    } else if (d.type === 'waves') {
+      g.waves.push({ def: d, timer: w.rng.range(d.every[0], d.every[1]), last: 0 });
+    } else if (d.type === 'cannon') {
+      g.cannons.push({ def: d, x: d.x * TILE + TILE / 2, y: (d.y + 1) * TILE, cd: 0, shotAt: -10 });
     }
   }
   return g;
@@ -240,8 +259,60 @@ function updateDrops(w: World, g: Gimmicks): void {
   }
 }
 
+function updateWaves(w: World, g: Gimmicks): void {
+  for (const wv of g.waves) {
+    wv.timer -= DT;
+    if (wv.timer > 0) continue;
+    wv.timer = w.rng.range(wv.def.every[0], wv.def.every[1]);
+    const dir = w.rng.chance(0.5) ? 1 : -1;
+    wv.last = dir;
+    const push = wv.def.push * dir;
+    for (const p of w.props) if (p.active && p.carriedBy < 0 && p.grounded && !p.def.anchored) p.vx += push;
+    for (const it of w.items) if (it.active && !it.live && it.grounded) it.vx += push * 0.8;
+    for (const f of w.fighters) if (f.alive && f.grounded && f.state === 'normal') f.vx += push * 0.35;
+    w.emit({ t: 'wave', dir });
+  }
+}
+
+/** Interact at a cannon's breech fires it. Returns true if the fighter is at a cannon (even on cooldown). */
+export function useCannon(w: World, f: Fighter): boolean {
+  for (const c of w.gimmicks.cannons) {
+    if (Math.abs(f.x - (c.x - c.def.dir * 10)) > 12 || Math.abs(f.y - c.y) > 6) continue;
+    if (c.cd > 0) return true;
+    c.cd = c.def.cooldown;
+    c.shotAt = w.time;
+    const mx = c.x + c.def.dir * 12;
+    const my = c.y - 7;
+    w.spawnBullet({
+      x: c.x,
+      y: my,
+      vx: c.def.dir * CANNON.speed,
+      vy: -70,
+      ox: mx,
+      oy: my,
+      owner: f.id,
+      weapon: 'cannon',
+      damage: CANNON.damage,
+      range: CANNON.range,
+      falloff: 1,
+      knock: CANNON.knock,
+      ricochet: false,
+      pierce: 0,
+      kind: 'cannonball',
+      gravity: CANNON.gravity,
+      size: 2,
+      explosion: CANNON.explosion,
+    });
+    w.emit({ t: 'cannon', x: mx, y: my, dir: c.def.dir });
+    return true;
+  }
+  return false;
+}
+
 export function updateGimmicks(w: World): void {
   const g = w.gimmicks;
+  for (const c of g.cannons) if (c.cd > 0) c.cd -= DT;
+  updateWaves(w, g);
   for (const m of g.movers) updateMover(w, m);
   for (const h of g.hazards) updateHazard(w, h);
   for (const z of g.gravity) {

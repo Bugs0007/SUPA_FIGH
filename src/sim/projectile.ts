@@ -120,7 +120,7 @@ export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
 }
 
 /** Kinds that don't pass through wood/glass (they burn or blow up on it instead). */
-const SOLID_HITTERS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>(['flame', 'rocket', 'flare', 'chakra', 'ki']);
+const SOLID_HITTERS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>(['flame', 'rocket', 'flare', 'chakra', 'ki', 'cannonball']);
 
 function burst(w: World, b: Bullet, x: number, y: number): void {
   if (b.explosion) explode(w, x - Math.sign(b.vx) * 2, y - Math.sign(b.vy) * 2, b.explosion, b.owner, b.weapon);

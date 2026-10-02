@@ -69,6 +69,8 @@ export function weaponLabel(id: string): string {
     girder: 'GIRDER',
     tnt: 'TNT',
     chandelier: 'CHANDELIER',
+    cannon: 'CANNON',
+    fissure: 'ENERGY FISSURE',
   };
   return special[id] ?? heroAttackLabel(id) ?? weaponDef(id).name;
 }
@@ -359,6 +361,17 @@ export class Juice {
       case 'gravity':
         this.ui.push({ t: 'announce', text: e.on ? 'LOW GRAVITY!' : 'GRAVITY ON', color: hexToNum(P.teal) });
         this.sfx('slowmo', e.x, 0.5, e.on ? 1.4 : 0.8);
+        break;
+      case 'wave':
+        this.cam.addTrauma(0.14);
+        this.sfx('splat', this.cam.x, 0.5, 0.6);
+        this.sfx('roll', this.cam.x, 0.6, 0.5);
+        break;
+      case 'cannon':
+        fx.muzzle(e.x, e.y, e.dir > 0 ? 0 : Math.PI, true);
+        fx.smoke(e.x, e.y, 10, 0x9a96a8);
+        this.sfx('explosion', e.x, 0.7, 1.4);
+        this.cam.addTrauma(0.35);
         break;
       case 'poltergeist':
         fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.35, s0: 0.3, s1: 4.2, a0: 0.8, a1: 0, tint: 0xb0e0ff, depth: 64 });

@@ -212,6 +212,10 @@ export class WorldRenderer {
         continue;
       }
       if (b.kind === 'chakra' || b.kind === 'ki') continue; // HeroFx draws energy orbs
+      if (b.kind === 'cannonball') {
+        for (let i = emitCount(30, dt); i > 0; i--) this.fx.smokeTrail(hx - dx * 4, hy - dy * 4);
+        continue; // the ball itself is drawn by HeroFx (normal blend layer)
+      }
       if (b.kind === 'rocket') {
         let img = this.rockets[rocketN];
         if (!img) {
@@ -406,6 +410,22 @@ export class WorldRenderer {
           } else if (h.warn && blink) fg.lineStyle(1, 0xff2030, 0.35).lineBetween(bx, h.y, bx, h.y + h.h);
           fg.fillStyle(h.active || (h.warn && blink) ? 0xff4040 : 0x602020, 1).fillRect(bx - 1, h.y - 2, 2, 1);
         }
+      } else if (d.kind === 'fissure') {
+        // glowing crack in the ground; erupts as a column of energy when active
+        const gx = h.x;
+        const gy = h.y + h.h;
+        fg.fillStyle(0x0a0614, 1).fillRect(gx - 1, gy - 2, h.w + 2, 2);
+        fg.fillStyle(0x4af0e0, h.warn && blink ? 1 : 0.6).fillRect(gx + 2, gy - 2, h.w - 4, 1);
+        if (h.active) {
+          for (let i = 0; i < h.w; i += 2) {
+            const flick = Math.sin(time * 40 + i) * 3;
+            fg.fillStyle(i % 4 ? 0x4af0e0 : 0xc8fff8, 0.85).fillRect(gx + i, h.y + flick, 2, h.h - flick);
+          }
+          fg.fillStyle(0xffffff, 0.9).fillRect(gx + h.w / 2 - 1, h.y, 2, h.h);
+          if (dt > 0 && Math.random() < dt * 40) this.fx.spawn({ frame: 'p2', x: gx + Math.random() * h.w, y: gy - 4, vy: -160 - Math.random() * 120, vx: (Math.random() - 0.5) * 40, life: 0.4, a0: 1, a1: 0, tint: 0x4af0e0, add: true, depth: 62 });
+        } else if (h.warn && dt > 0 && Math.random() < dt * 25) {
+          this.fx.spawn({ frame: 'p1', x: gx + Math.random() * h.w, y: gy - 3, vy: -40, life: 0.3, a0: 1, a1: 0, tint: 0x4af0e0, add: true, depth: 62 });
+        }
       } else if (d.kind === 'tunnel') {
         if (h.active) {
           fg.fillStyle(0x07060c, 1).fillRect(h.x - 40, h.y - 60, 40 + h.w, h.h + 60);
@@ -413,6 +433,22 @@ export class WorldRenderer {
         } else if (h.warn && blink) {
           fg.fillStyle(hexToNum(P.red2), 0.8).fillRect(d.x * TILE + 2, h.y + h.h / 2 - 3, 6, 6);
         }
+      }
+    }
+    // ship cannons: wooden carriage + iron barrel; recoil and a fuse spark while reloading
+    for (const c of w.gimmicks.cannons) {
+      const dir = c.def.dir;
+      const recoil = Math.max(0, 1 - (w.time - c.shotAt) * 4) * 4;
+      const bx = Math.round(c.x - dir * recoil);
+      const by = c.y;
+      g.fillStyle(hexToNum(P.wood1), 1).fillRect(bx - 7, by - 5, 14, 5);
+      g.fillStyle(hexToNum(P.ink), 1).fillCircle(bx - 4, by - 1, 2).fillCircle(bx + 4, by - 1, 2);
+      g.fillStyle(hexToNum(P.steel0), 1).fillRect(bx - 6 + (dir > 0 ? 0 : -6), by - 10, 18, 5);
+      g.fillStyle(hexToNum(P.steel1), 1).fillRect(bx - 6 + (dir > 0 ? 0 : -6), by - 10, 18, 1);
+      g.fillStyle(hexToNum(P.steel0), 1).fillRect(dir > 0 ? bx + 11 : bx - 13, by - 11, 2, 7);
+      if (c.cd <= 0) {
+        // ready: little 'interact' hint glow at the breech
+        if (blink) g.fillStyle(hexToNum(P.yellow), 1).fillRect(bx - dir * 8 - 1, by - 12, 2, 2);
       }
     }
     // parachutes on falling supply crates

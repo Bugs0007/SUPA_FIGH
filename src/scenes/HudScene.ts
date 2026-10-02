@@ -40,6 +40,8 @@ const ENV_DEATHS: Record<string, string> = {
   hook: 'GOT HOOKED',
   girder: 'GOT GIRDERED',
   chandelier: 'GOT CHANDELIERED',
+  fissure: 'GOT ERUPTED',
+  cannon: 'GOT CANNONED',
   explosion: 'BLEW UP',
   fire: 'BURNED',
   drain: 'RAN OUT OF TIME',
@@ -62,6 +64,8 @@ const PROP_QUIPS: Record<string, string> = {
   hook: 'OFF THE HOOK!',
   girder: 'STEEL TOE!',
   crate: 'SPECIAL DELIVERY!',
+  fissure: 'ERUPTION!',
+  cannon: 'BROADSIDE!',
 };
 
 const KILL_QUIPS: Record<string, string> = {

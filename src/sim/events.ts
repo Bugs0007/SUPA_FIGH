@@ -74,6 +74,8 @@ export type SimEvent =
   | { t: 'supplyDrop'; x: number; y: number }
   | { t: 'gravity'; on: boolean; x: number; y: number }
   | { t: 'poltergeist'; f: number; x: number; y: number }
+  | { t: 'wave'; dir: number }
+  | { t: 'cannon'; x: number; y: number; dir: number }
   // hero powers (M9)
   | { t: 'transform'; f: number; power: string; full: boolean; x: number; y: number }
   | { t: 'powerEnd'; f: number; power: string }

@@ -5,7 +5,7 @@ export const SLOT = { MELEE: 0, SIDEARM: 1, HEAVY: 2, THROWABLE: 3, GADGET: 4 } 
 export const SLOT_NAMES = ['MELEE', 'SIDEARM', 'HEAVY', 'THROWABLE', 'GADGET'] as const;
 
 export type HoldStyle = 'fist' | 'melee' | 'pistol' | 'rifle' | 'throw' | 'gadget';
-export type ProjectileKind = 'bullet' | 'pellet' | 'sniper' | 'flame' | 'rocket' | 'flare' | 'chakra' | 'ki';
+export type ProjectileKind = 'bullet' | 'pellet' | 'sniper' | 'flame' | 'rocket' | 'flare' | 'chakra' | 'ki' | 'cannonball';
 
 /** Radial blast. Damage/knockback fall off linearly to the edge; walls shield 65%. */
 export interface ExplosionStats {
@@ -150,6 +150,16 @@ export interface WeaponDef {
   muzzle?: [number, number];
   casing?: boolean;
 }
+
+/** Ship cannons (map gimmick, sim/gimmicks.ts): the ball arcs and explodes. */
+export const CANNON = {
+  speed: 320,
+  gravity: 380,
+  range: 900,
+  damage: 30,
+  knock: 300,
+  explosion: { radius: 40, damage: 40, knock: 420, breakRadius: 16, shake: 0.65 } as ExplosionStats,
+};
 
 // ---------------------------------------------------------------- fists & kicks
 
