@@ -12,6 +12,9 @@ import type { World } from '../sim/world';
 import { segmentAabb as segmentAabbT } from '../sim/physics';
 import { FighterView } from './FighterView';
 import { Fx } from './Fx';
+import { HeroFx } from './HeroFx';
+import { POWER_COLORS } from '../art/heroArt';
+import { powerForItem } from '../sim/data/heroes';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -35,6 +38,7 @@ export interface FighterLook {
 export class WorldRenderer {
   readonly fx: Fx;
   readonly views: FighterView[] = [];
+  readonly heroFx: HeroFx;
   private tilemap: Phaser.Tilemaps.Tilemap;
   private fg: Phaser.Tilemaps.TilemapLayer;
   private bg: Phaser.Tilemaps.TilemapLayer;
@@ -94,6 +98,7 @@ export class WorldRenderer {
       this.views.push(v);
     });
 
+    this.heroFx = new HeroFx(scene, world, this.views, this.fx);
     this.tracers = scene.add.graphics().setDepth(55).setBlendMode(Phaser.BlendModes.ADD);
     this.overlay = scene.add.graphics().setDepth(66);
     this.gimmickBack = scene.add.graphics().setDepth(30);
@@ -142,6 +147,7 @@ export class WorldRenderer {
     this.syncTiles();
 
     for (const v of this.views) v.update(alpha, dt, time, w.time);
+    this.heroFx.sync(alpha, dt, time);
 
     // items
     const seen = new Set<number>();
@@ -159,7 +165,14 @@ export class WorldRenderer {
       const def = weaponDef(it.weaponId);
       if (def.powerup) {
         y -= 3 + Math.sin(time * 4 + it.id) * 2;
-        if (Math.random() < dt * 8) this.fx.motes(x, y + 4, 1, POWERUP_GLOW[it.weaponId] ?? 0xffffff);
+        const hero = powerForItem(it.weaponId);
+        if (hero) {
+          // rare hero power-up: bigger bob, glow and a steady sparkle so it reads from across the map
+          const col = hexToNum(POWER_COLORS[hero.id]?.[0] ?? P.white);
+          y -= 2;
+          this.fx.glowDot(x, y, col, 1.2 + Math.sin(time * 6) * 0.2);
+          if (Math.random() < dt * 20) this.fx.motes(x, y + 4, 1, col);
+        } else if (Math.random() < dt * 8) this.fx.motes(x, y + 4, 1, POWERUP_GLOW[it.weaponId] ?? 0xffffff);
       }
       img.setPosition(x, y).setRotation(it.rot);
       if (it.live) {
@@ -198,6 +211,7 @@ export class WorldRenderer {
         if (dt > 0) this.fx.flameBlob(hx, hy, b.vx, b.vy, b.traveled / b.range);
         continue;
       }
+      if (b.kind === 'chakra' || b.kind === 'ki') continue; // HeroFx draws energy orbs
       if (b.kind === 'rocket') {
         let img = this.rockets[rocketN];
         if (!img) {
@@ -583,6 +597,7 @@ export class WorldRenderer {
 
   destroy(): void {
     for (const v of this.views) v.destroy();
+    this.heroFx.destroy();
     for (const img of this.items.values()) img.destroy();
     for (const f of this.floats) f.obj.destroy();
     for (const v of this.props.values()) v.img.destroy();

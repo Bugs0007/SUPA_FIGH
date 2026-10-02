@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { BotController } from '../ai/bot';
 import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { PLAYER_PRESETS, randomAppearance, type Appearance } from '../art/appearance';
+import { heroLook } from '../art/heroArt';
+import { HEROES } from '../sim/data/heroes';
 import { hexToNum, TEAM_COLORS } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { music } from '../audio/music';
@@ -43,7 +45,11 @@ export interface MatchSceneData {
 
 const PLAYER_COLORS = [0xea4a4a, 0x4a8af0, 0x5ac85a, 0xf8c840];
 
-/** Quick-match setup: keyboard players (?humans=0..2) + bots (?bots=N, ?diff=easy|normal|hard|expert). */
+/**
+ * Quick-match setup: keyboard players (?humans=0..2) + bots (?bots=N, ?diff=easy|normal|hard|expert).
+ * ?heroes=naruto,luffy,goku assigns heroes in player order (humans first, '-' = scrapyard fighter);
+ * hero power-ups spawn unless ?powers=0.
+ */
 export function defaultSetup(params: URLSearchParams): MatchSceneData {
   const bots = Math.max(0, Math.min(8, Number(params.get('bots') ?? 0)));
   const diffParam = params.get('diff') ?? settings.botDifficulty;
@@ -51,10 +57,11 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
   const seed = Number(params.get('seed') ?? Math.floor(Math.random() * 1e9));
   const humans = Math.max(0, Math.min(2, Number(params.get('humans') ?? 2)));
   const players: PlayerSetup[] = [];
+  const heroes = (params.get('heroes') ?? '').split(',').map((h) => (h in HEROES ? h : ''));
   for (let i = 0; i < humans; i++) {
     players.push({
-      spawn: { name: 'P' + (i + 1), team: 0, isBot: false, upJumps: true },
-      look: PLAYER_PRESETS[i],
+      spawn: { name: 'P' + (i + 1), team: 0, isBot: false, upJumps: true, hero: heroes[i] },
+      look: heroLook(heroes[i] ?? '', PLAYER_PRESETS[i]),
       color: PLAYER_COLORS[i],
       label: 'P' + (i + 1),
       input: 'kb' + i,
@@ -64,8 +71,8 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
   const rand = () => ((r = (r * 1103515245 + 12345) >>> 0) / 4294967296);
   for (let i = 0; i < bots; i++) {
     players.push({
-      spawn: { name: 'BOT ' + (i + 1), team: 0, isBot: true, upJumps: false },
-      look: randomAppearance(rand),
+      spawn: { name: 'BOT ' + (i + 1), team: 0, isBot: true, upJumps: false, hero: heroes[humans + i] },
+      look: heroLook(heroes[humans + i] ?? '', randomAppearance(rand)),
       color: hexToNum(TEAM_COLORS[0]),
       label: 'B' + (i + 1),
       input: 'bot',
@@ -84,6 +91,7 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
       roundsToWin: 5,
       friendlyFire: false,
       weaponSpawnRate: 1,
+      heroPowers: params.get('powers') !== '0',
       seed,
     },
   };

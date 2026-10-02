@@ -12,6 +12,8 @@ import { AIM_LIMIT, DT, GRAVITY, TILE } from '../sim/constants';
 import { SLOT, THROW_AIM, weaponDef, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
+import { powerForItem } from '../sim/data/heroes';
+import { special } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
@@ -41,7 +43,7 @@ interface Memory {
   since: number;
 }
 
-type Btn = 'jump' | 'attack' | 'kick' | 'interact' | 'cycle';
+type Btn = 'jump' | 'attack' | 'kick' | 'interact' | 'cycle' | 'ability';
 
 const STUCK_TIME = 1.1;
 
@@ -82,6 +84,8 @@ export class BotController implements Controller {
   private lootSince = 0;
   private lootId = -1;
   private ignoreItems = new Map<number, number>();
+  /** ticks left to hold ABILITY (charging a ki blast) */
+  private chargeTicks = 0;
 
   constructor(
     private getWorld: () => World,
@@ -107,6 +111,7 @@ export class BotController implements Controller {
     o.kick = false;
     o.interact = false;
     o.cycle = false;
+    o.ability = false;
     const f = w.fighters[this.id];
     if (f && f.alive && !f.gone) {
       this.now = w.time;
@@ -128,6 +133,7 @@ export class BotController implements Controller {
     this.prev.kick = o.kick;
     this.prev.interact = o.interact;
     this.prev.cycle = o.cycle;
+    this.prev.ability = o.ability;
     return o;
   }
 
@@ -273,6 +279,9 @@ export class BotController implements Controller {
       const cur = f.inv[def.slot];
       let gain = ai.value - (cur ? weaponAi(cur.id).value : 0);
       if (def.powerup) gain = ai.value;
+      const hp = powerForItem(it.weaponId);
+      // hero power-ups: huge for the matching hero, still good for anyone (and denies them)
+      if (hp) gain = f.power ? 8 : ai.value + (hp.hero === f.hero ? 45 : 0);
       if (def.gadget?.kind === 'medkit') gain += (100 - f.hp) * 0.4;
       if (ai.kind === 'melee') gain += this.persona.meleeLove;
       if (gain <= 3) continue;
@@ -489,6 +498,9 @@ export class BotController implements Controller {
       }
     }
 
+    // hero special (Kurama chakra bomb, Gear 2 rubber bullet, Super Saiyan ki blast)
+    if (this.useSpecial(w, f, e, seen)) return;
+
     // keep throwing if we're mid-throw
     const act = activeWeapon(f);
     if (act.throw && f.state === 'aim' && f.aimHeld) {
@@ -547,6 +559,38 @@ export class BotController implements Controller {
       return;
     }
     this.navigate(w, f, tx, ty);
+  }
+
+  /**
+   * Fire the hero special when it's ready and the shot is good: straight line, in its range band,
+   * clear line of sight. Holds ABILITY to charge ki blasts at long range. Returns true while busy.
+   */
+  private useSpecial(w: World, f: Fighter, e: Fighter, seen: boolean): boolean {
+    if (this.chargeTicks > 0) {
+      this.chargeTicks--;
+      this.out.ability = this.chargeTicks > 0;
+      if (f.state === 'special' && f.facing !== (e.x >= f.x ? 1 : -1)) this.out.moveX = e.x >= f.x ? 1 : -1;
+      return true;
+    }
+    if (f.state === 'special') return true;
+    const sp = special(f);
+    if (!sp || f.specialCd > 0 || !seen || f.state !== 'normal' || !f.grounded) return false;
+    const dx = e.x - f.x;
+    const dy = Math.abs(e.y - f.y);
+    const dist = Math.abs(dx);
+    let band: [number, number] = [50, 240];
+    if (sp.kind === 'stretch') band = [24, (sp.stretch?.range ?? 100) + 6];
+    else if (sp.charge) band = [40, 300];
+    if (dist < band[0] || dist > band[1] || dy > (sp.kind === 'stretch' ? 8 : 18)) return false;
+    if (!w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12)) return false;
+    // decide a little randomly so it isn't fired the very first frame every time
+    if (!this.rng.chance(0.15 + this.diff.throwChance * 0.2)) return false;
+    const face = dx >= 0 ? 1 : -1;
+    this.out.moveX = face;
+    if (sp.charge && dist > 120) this.chargeTicks = Math.round(this.rng.range(0.4, 1) * (sp.charge.time * 60));
+    else this.chargeTicks = 1;
+    this.out.ability = true;
+    return true;
   }
 
   /** Which slot to fight with at this distance. */

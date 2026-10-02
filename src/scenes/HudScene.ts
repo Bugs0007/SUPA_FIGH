@@ -8,6 +8,8 @@ import { teamKey } from '../sim/combat';
 import { computeAwards } from '../sim/awards';
 import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/match';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
+import { POWERS } from '../sim/data/heroes';
+import { POWER_COLORS } from '../art/heroArt';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
 import { audio } from '../audio/AudioManager';
@@ -132,6 +134,7 @@ export class HudScene extends Phaser.Scene {
     humans.forEach(() => {
       this.panelTexts.push([
         this.add.bitmapText(0, 0, 'pxo', ''),
+        this.add.bitmapText(0, 0, 'smo', ''),
         this.add.bitmapText(0, 0, 'smo', ''),
         this.add.bitmapText(0, 0, 'smo', ''),
       ]);
@@ -389,7 +392,7 @@ export class HudScene extends Phaser.Scene {
     const humans = ms.players.map((p, i) => ({ p, i })).filter(({ p }) => isHumanInput(p.input));
     humans.forEach(({ p, i }, n) => {
       const f = w.fighters[i];
-      const [nameT, weapT, ammoT] = this.panelTexts[n];
+      const [nameT, weapT, ammoT, powT] = this.panelTexts[n];
       const right = n % 2 === 1;
       const inner = n >= 2; // players 3/4 sit next to players 1/2
       const PW = 104;
@@ -411,6 +414,17 @@ export class HudScene extends Phaser.Scene {
       weapT.setText(f.alive ? def.name : ghostText).setPosition(px, py + 11).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
       const ammo = item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
       ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 11).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
+      // hero power: name, time left, special cooldown (above the panel)
+      if (f.alive && f.power) {
+        const pd = POWERS[f.power];
+        const col = hexToNum(POWER_COLORS[f.power]?.[0] ?? P.white);
+        const sp = f.powerFull ? pd?.ability.special : undefined;
+        const ready = sp && f.specialCd <= 0;
+        const label = (f.powerFull ? pd?.name : 'POWERED UP') ?? '';
+        powT.setText(sp ? `${label}  ${ready ? 'ABILITY READY' : 'ABILITY ' + Math.ceil(f.specialCd) + 'S'}` : label).setPosition(px, py - 13).setTint(col).setVisible(true);
+        g.fillStyle(hexToNum(P.ink), 0.75).fillRect(px - 3, py - 15, PW, 11);
+        g.fillStyle(col, 1).fillRect(px - 3, py - 5, Math.round(PW * Math.max(0, f.powerTime / f.powerMax)), 1);
+      } else powT.setVisible(false);
       for (let s = 0; s < 5; s++) {
         const bx = px + s * 20;
         const by = py + 20;

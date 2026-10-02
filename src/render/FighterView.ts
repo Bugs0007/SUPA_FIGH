@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import type { Appearance } from '../art/appearance';
 import { Art } from '../art';
-import { ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD } from '../art/fighterArt';
+import { ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD, type FighterTextures } from '../art/fighterArt';
+import { poweredLook } from '../art/heroArt';
 import { ARM_LONG, ARM_SHORT, ROLL_TIME } from '../sim/constants';
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
+import { ability } from '../sim/hero';
 
 /** Rig pivot: body center, this many px above the feet. */
 const RIG_Y = 11;
@@ -34,6 +36,12 @@ export class FighterView {
   /** smoothed hp for the damage trail on the health bar */
   hpTrail: number;
   readonly color: number;
+  /** normal + fully transformed textures (heroes) */
+  readonly tex: FighterTextures;
+  readonly poweredTex: FighterTextures | null;
+  private curTex: FighterTextures;
+  readonly look: Appearance;
+  readonly powered: Appearance | null;
 
   constructor(
     scene: Phaser.Scene,
@@ -43,6 +51,11 @@ export class FighterView {
     label: string,
   ) {
     const tex = Art.fighter(scene, look);
+    this.tex = tex;
+    this.curTex = tex;
+    this.look = look;
+    this.powered = fighter.hero ? poweredLook(fighter.hero) : null;
+    this.poweredTex = this.powered ? Art.fighter(scene, this.powered) : null;
     this.color = color;
     this.root = scene.add.container(fighter.x, fighter.y);
     this.rig = scene.add.container(0, -RIG_Y);
@@ -221,7 +234,8 @@ export class FighterView {
         showWeapon = false;
         break;
       case 'melee': {
-        const m = (def.melee ?? weaponDef('fists').melee)!;
+        const heroCombo = def.hold === 'fist' ? ability(f)?.combo : undefined;
+        const m = heroCombo ? { combo: heroCombo } : (def.melee ?? weaponDef('fists').melee)!;
         const hit = m.combo[Math.min(f.combo, m.combo.length - 1)];
         const t = f.stateTime;
         const inWind = t < hit.windup;
@@ -251,6 +265,16 @@ export class FighterView {
         }
         break;
       }
+      case 'special':
+        // charging / casting: both hands pushed forward; stretch: the arm itself is drawn by HeroFx
+        frame = BF.AIM;
+        front = f.specialKind === 'charge' ? 0.15 + Math.sin(time * 40) * 0.05 : 0;
+        back = f.specialKind === 'charge' ? 0.3 : 0.1;
+        frontLen = 1;
+        backLen = 1;
+        showWeapon = false;
+        if (f.specialKind === 'stretch') frame = BF.PUNCH;
+        break;
       case 'kick':
         frame = f.airKick ? BF.AIRKICK : BF.KICK;
         front = f.airKick ? -0.4 : 2.3;
@@ -346,6 +370,14 @@ export class FighterView {
     }
 
     // ---- apply
+    const want = f.power && f.powerFull && this.poweredTex ? this.poweredTex : this.tex;
+    if (want !== this.curTex) {
+      this.curTex = want;
+      this.body.setTexture(want.body);
+      this.head.setTexture(want.head);
+      this.frontArm.setTexture(want.arm);
+      this.backArm.setTexture(want.arm);
+    }
     this.lieAmount += (lie - this.lieAmount) * Math.min(1, dt * 20);
     this.root.setPosition(x, y);
     this.squash *= Math.pow(0.001, dt * 6);
@@ -375,7 +407,8 @@ export class FighterView {
     }
 
     const armsVisible = !hideArms && !meta.hideArms;
-    this.frontArm.setVisible(armsVisible);
+    // a stretched rubber arm replaces the front arm sprite (drawn by HeroFx)
+    this.frontArm.setVisible(armsVisible && !(f.stretchLen > 0 && f.state !== 'kick'));
     this.backArm.setVisible(armsVisible);
     const [sx, sy] = this.fp(meta.shX, meta.shY);
     const [bsx, bsy] = this.fp(meta.bshX, meta.bshY);
