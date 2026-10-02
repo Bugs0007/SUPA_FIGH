@@ -3,6 +3,7 @@ import type { Appearance } from '../art/appearance';
 import { Art } from '../art';
 import { ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD, type FighterTextures } from '../art/fighterArt';
 import { poweredLook } from '../art/heroArt';
+import { animFor, EXTERNAL_SHEETS, sheetFrame, type ExternalSheetDef } from '../art/externalSheets';
 import { ARM_LONG, ARM_SHORT, ROLL_TIME } from '../sim/constants';
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
@@ -42,6 +43,8 @@ export class FighterView {
   private curTex: FighterTextures;
   readonly look: Appearance;
   readonly powered: Appearance | null;
+  /** external PNG sheet replacing the modular rig (heroes only, when it loaded) */
+  private sheet: { def: ExternalSheetDef; img: Phaser.GameObjects.Image } | null = null;
 
   constructor(
     scene: Phaser.Scene,
@@ -77,6 +80,29 @@ export class FighterView {
     this.ghostImg.add(scene.add.image(gm.neckX - 16, gm.neckY - 32, tex.head, HEAD.DEAD).setOrigin(8 / 16, 13 / 16).setTint(0xb0e0ff));
     this.lastHp = fighter.hp;
     this.hpTrail = fighter.hp;
+    const sd = EXTERNAL_SHEETS[fighter.hero];
+    if (sd && scene.textures.exists(sd.key)) {
+      const img = scene.add.image(0, 0, sd.key, 0).setOrigin(sd.originX / sd.frameW, sd.originY / sd.frameH);
+      this.root.add(img);
+      this.rig.setVisible(false);
+      this.sheet = { def: sd, img };
+    }
+  }
+
+  /** Sheet-based hero: one image, frame picked from the fighter's state (art/externalSheets.ts). */
+  private updateSheet(x: number, y: number, dt: number, time: number, simTime: number): void {
+    const f = this.fighter;
+    const { def, img } = this.sheet!;
+    const { anim, t } = animFor(f, simTime);
+    img.setFrame(sheetFrame(def, anim, t, !!f.power && f.powerFull));
+    this.root.setPosition(x, y).setScale(f.facing, 1).setRotation(f.state === 'dead' && !f.grounded ? f.rot * f.facing : 0);
+    if (this.flash > 0) {
+      this.flash -= dt;
+      img.setTintFill(0xffffff);
+    } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) img.setTint(0xffa060);
+    else img.clearTint();
+    this.root.setAlpha(f.alive && f.invuln > 0 && f.state !== 'roll' && Math.floor(time * 20) % 2 === 0 ? 0.45 : 1);
+    this.tag.setVisible(f.alive).setPosition(Math.round(x), Math.round(y - 30));
   }
 
   onLand(speed: number): void {
@@ -129,6 +155,10 @@ export class FighterView {
     if (f.hp < this.lastHp) this.onHit();
     this.lastHp = f.hp;
     this.hpTrail = this.hpTrail > f.hp ? Math.max(f.hp, this.hpTrail - dt * 60) : f.hp;
+    if (this.sheet) {
+      this.updateSheet(x, y, dt, time, simTime);
+      return;
+    }
 
     // ---- choose body frame, arm angles, rig rotation
     let frame: number = BF.IDLE0;

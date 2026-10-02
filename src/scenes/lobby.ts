@@ -2,6 +2,7 @@
 // Kept free of Phaser so it can be unit tested.
 
 import { randomAppearance, PLAYER_PRESETS, type Appearance } from '../art/appearance';
+import { heroLook } from '../art/heroArt';
 import { hexToNum, TEAM_COLORS } from '../art/palette';
 import type { Difficulty } from '../ai/botData';
 import { load, save } from '../game/storage';
@@ -33,6 +34,8 @@ export interface SlotCfg {
   team: number;
   difficulty: Difficulty;
   look: Appearance;
+  /** hero id (sim/data/heroes.ts), '' = scrapyard fighter with the custom look */
+  hero: string;
 }
 
 export interface LobbyCfg {
@@ -46,6 +49,8 @@ export interface LobbyCfg {
   suddenDeath: number;
   /** flip a chaos modifier card every round */
   chaos: boolean;
+  /** rare hero power-up pickups (M9) */
+  heroPowers: boolean;
 }
 
 export const MAX_SLOTS = 10;
@@ -56,8 +61,9 @@ export function defaultLobby(): LobbyCfg {
     team: 0,
     difficulty: 'normal',
     look: i < 2 ? PLAYER_PRESETS[i] : randomAppearance(),
+    hero: '',
   }));
-  return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75, chaos: false };
+  return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75, chaos: false, heroPowers: true };
 }
 
 export function loadLobby(): LobbyCfg {
@@ -100,8 +106,8 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
     const label = isBot ? 'B' + ++bot : 'P' + ++human;
     const color = s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : isBot ? hexToNum(TEAM_COLORS[0]) : PLAYER_COLORS[(human - 1) % PLAYER_COLORS.length];
     players.push({
-      spawn: { name: label, team: s.team, isBot, upJumps: s.kind === 'kb0' || s.kind === 'kb1' },
-      look: s.look,
+      spawn: { name: label, team: s.team, isBot, upJumps: s.kind === 'kb0' || s.kind === 'kb1', hero: s.hero || undefined },
+      look: heroLook(s.hero, s.look),
       color,
       label,
       input: s.kind,
@@ -120,6 +126,7 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
       friendlyFire: c.friendlyFire,
       weaponSpawnRate: c.weaponSpawnRate,
       chaos: c.chaos,
+      heroPowers: c.heroPowers,
       seed,
     },
   };
