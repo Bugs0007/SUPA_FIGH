@@ -7,13 +7,17 @@ import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboardBinds, keyLabel, type Action } from '../input/bindings';
 import { keyboard } from '../input/keyboard';
+import { saveSettings, settings } from '../game/settings';
 import { defaultSetup } from './MatchScene';
+
+const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
 
 const PLAYER_COLORS = [0xea4a4a, 0x4a8af0];
 
 /** Title + controls cards. M7 replaces this with the full menu and live bot battle. */
 export class TitleScene extends Phaser.Scene {
-  private dummies = 0;
+  private bots = settings.quickBots;
+  private diffIdx = Math.max(0, DIFF_ORDER.indexOf(settings.botDifficulty));
   private dummyText!: Phaser.GameObjects.BitmapText;
   private prompt!: Phaser.GameObjects.BitmapText;
   private t = 0;
@@ -70,7 +74,7 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private updateDummyText(): void {
-    this.dummyText.setText(`SPARRING DUMMIES: ${this.dummies}   (PRESS 0-8 TO CHANGE)   REAL BOTS ARRIVE IN MILESTONE 3`);
+    this.dummyText.setText(`BOTS: ${this.bots} (PRESS 0-8)     DIFFICULTY: ${DIFF_ORDER[this.diffIdx].toUpperCase()} (TAB)`);
   }
 
   private card(idx: number, x: number, y: number, look: Appearance): void {
@@ -129,15 +133,25 @@ export class TitleScene extends Phaser.Scene {
     }
     for (let d = 0; d <= 8; d++) {
       if (keyboard.justPressed('Digit' + d) || keyboard.justPressed('Numpad' + d)) {
-        this.dummies = d;
+        this.bots = d;
+        settings.quickBots = d;
+        saveSettings();
         this.updateDummyText();
         audio.play('uiMove');
       }
     }
+    if (keyboard.justPressed('Tab')) {
+      this.diffIdx = (this.diffIdx + 1) % DIFF_ORDER.length;
+      settings.botDifficulty = DIFF_ORDER[this.diffIdx];
+      saveSettings();
+      this.updateDummyText();
+      audio.play('uiMove');
+    }
     if (keyboard.justPressed('Enter') || keyboard.justPressed('Space') || keyboard.justPressed('NumpadEnter')) {
       audio.play('uiOk');
       const params = new URLSearchParams(location.search);
-      params.set('bots', String(this.dummies));
+      params.set('bots', String(this.bots));
+      params.set('diff', DIFF_ORDER[this.diffIdx]);
       this.scene.start('match', defaultSetup(params));
     }
   }

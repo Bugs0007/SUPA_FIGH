@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "sim": "vite-node scripts/botsim.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0"

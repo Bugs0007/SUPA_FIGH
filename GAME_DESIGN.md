@@ -29,6 +29,8 @@ fighter/team standing wins the round → slow-mo final kill + instant replay →
   semi-automatic weapons fire when you let go. Tap = instant hip shot.
 - **Melee:** Attack = 3-hit combo (jab, cross, haymaker). Kick = knockback. Air kick = flying kick.
 - **Movement:** Down while running = roll (i-frames). Down in the air while moving = dive.
+  Jump again in the air = double jump. Jump while touching a wall in the air = wall jump (not twice off
+  the same wall before landing); holding into a wall while falling = wall slide. Double-tap a direction = sprint.
   Down + Jump = drop through a platform. Up at a ladder = climb. Walk into a ledge while falling = grab.
 - **Interact:** pick up / swap a weapon, grab an enemy (then Attack to throw them), pick up props.
 

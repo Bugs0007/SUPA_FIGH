@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { WandererController } from '../ai/Wanderer';
+import { BotController } from '../ai/bot';
+import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { PLAYER_PRESETS, randomAppearance, type Appearance } from '../art/appearance';
 import { hexToNum, TEAM_COLORS } from '../art/palette';
 import { audio } from '../audio/AudioManager';
@@ -21,8 +22,9 @@ export interface PlayerSetup {
   look: Appearance;
   color: number;
   label: string;
-  /** 'kb0' | 'kb1' | 'dummy' */
+  /** 'kb0' | 'kb1' | 'bot' */
   input: string;
+  difficulty?: Difficulty;
 }
 
 export interface MatchSceneData {
@@ -32,9 +34,11 @@ export interface MatchSceneData {
 
 const PLAYER_COLORS = [0xea4a4a, 0x4a8af0, 0x5ac85a, 0xf8c840];
 
-/** Default M1 setup: two keyboard players (+ optional dummies via ?bots=N). */
+/** Quick-match setup: keyboard players (?humans=0..2) + bots (?bots=N, ?diff=easy|normal|hard|expert). */
 export function defaultSetup(params: URLSearchParams): MatchSceneData {
   const bots = Math.max(0, Math.min(8, Number(params.get('bots') ?? 0)));
+  const diffParam = params.get('diff') ?? settings.botDifficulty;
+  const difficulty: Difficulty = diffParam in DIFFICULTIES ? (diffParam as Difficulty) : 'normal';
   const seed = Number(params.get('seed') ?? Math.floor(Math.random() * 1e9));
   const humans = Math.max(0, Math.min(2, Number(params.get('humans') ?? 2)));
   const players: PlayerSetup[] = [];
@@ -51,11 +55,12 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
   const rand = () => ((r = (r * 1103515245 + 12345) >>> 0) / 4294967296);
   for (let i = 0; i < bots; i++) {
     players.push({
-      spawn: { name: 'DUMMY ' + (i + 1), team: 0, isBot: true, upJumps: false },
+      spawn: { name: 'BOT ' + (i + 1), team: 0, isBot: true, upJumps: false },
       look: randomAppearance(rand),
       color: hexToNum(TEAM_COLORS[0]),
-      label: 'D' + (i + 1),
-      input: 'dummy',
+      label: 'B' + (i + 1),
+      input: 'bot',
+      difficulty,
     });
   }
   return {
@@ -106,7 +111,7 @@ export class MatchScene extends Phaser.Scene {
     this.match = new Match(setup.config);
     this.controllers = setup.players.map((p, i) => {
       if (p.input === 'kb0' || p.input === 'kb1') return new KeyboardController(keyboard, keyboardBinds[p.input === 'kb0' ? 0 : 1], p.label);
-      return new WandererController(() => this.match.world, i);
+      return new BotController(() => this.match.world, i, { difficulty: p.difficulty, seed: setup.config.seed });
     });
     this.intents = this.controllers.map((c) => c.poll());
 

@@ -117,3 +117,27 @@ sympathetically detonate after 0.08–0.2 s so chains ripple instead of popping 
 Headless Chromium in CI/cloud containers renders with software GL at ~25 fps. Tests wait for sim
 ticks with a generous timeout instead of asserting ticks-per-second. `PW_EXECUTABLE=/path/to/chrome`
 points Playwright at a preinstalled browser when the bundled one doesn't match.
+
+### D21 — Double jump, wall jump and sprint pulled forward from the anime spec (M9) into M3
+The owner queued an anime expansion (docs/ANIME_EXPANSION.md) whose movement changes apply to every
+fighter. Bots navigate with a graph built from movement capabilities, so the moves landed before the
+nav graph instead of forcing a rebuild later. Wall jumps can't repeat off the same side until you land
+or touch the other wall (no infinite climbing); one air jump, refreshed by landing and by wall jumps;
+sprint = double-tap a direction (in the sim, from intent edges, so bots and replays get it for free).
+
+### D22 — Nav graph edges come from simulating the real fighter, bots replay the same scripts
+Hand-modelling jump arcs drifts from the real physics the moment a constant changes. Instead each
+standable node runs ~25 scripted input sequences (running jump, late steer, short hop, double jumps,
+walk-offs, drop-throughs) through `updateFighter` in a sandbox World; wherever the fighter lands
+becomes an edge. Bots line up on the node center, stand still, and replay that exact script, so they
+land where the graph says. ~150 ms per map, cached per map definition. Tiles that break later
+(glass, burnt wood) aren't rebuilt into the graph: bots notice a failed edge, penalize it and re-plan.
+
+### D23 — Bot perception is honest; bots are deterministic per seed
+Bots see enemies only within a difficulty-based sight radius with tile line of sight (glass/wood are
+see-through), hear anyone within 70 px or anyone who fired within 650 px, and remember last-known
+positions for 5 s. Each bot has its own seeded Rng, so headless sims and replays are reproducible.
+
+### D24 — Rounds have no time limit yet
+In ~300 simulated bot rounds, 2 ended as two survivors who never met (120 s sim cap). A sudden-death
+rule (shrinking arena / hazards / "hunted" reveal) belongs with the mode rules in M4/M7.
