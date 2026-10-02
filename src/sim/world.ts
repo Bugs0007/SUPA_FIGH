@@ -26,6 +26,8 @@ export interface WorldSettings {
   modifiers?: string[];
   /** dead fighters come back as poltergeists (Brawl) */
   ghosts?: boolean;
+  /** Gun Game: no weapon pickups, no drops on death (the mode hands out weapons) */
+  noPickups?: boolean;
 }
 
 export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
@@ -59,6 +61,8 @@ export class World {
   bulletTimeOwner = -1;
   /** 0 = off, 1 = everyone revealed (bots know all positions), 2 = + HP drain */
   suddenDeath = 0;
+  /** mode objective area bots should go to (King of the Hill), px rect */
+  objective: { x: number; y: number; w: number; h: number } | null = null;
   private drainAcc = 0;
   private readonly specs: FighterSpawn[];
   events: SimEvent[] = [];
@@ -286,6 +290,7 @@ export class World {
    * autoOnly: only items the fighter would take without pressing a key (empty slot / ammo merge).
    */
   findItemNear(f: Fighter, range: number, fighterId: number, autoOnly = false): Item | null {
+    if (this.settings.noPickups) return null;
     let best: Item | null = null;
     let bestD = Infinity;
     for (const it of this.items) {
@@ -350,6 +355,11 @@ export class World {
 
   dropAllWeapons(f: Fighter): void {
     if (f.cook > 0) dropCooked(this, f);
+    if (this.settings.noPickups) {
+      f.inv.fill(null);
+      selectBestSlot(f);
+      return;
+    }
     for (let s = 0; s < f.inv.length; s++) {
       const it = f.inv[s];
       if (!it) continue;

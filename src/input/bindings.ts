@@ -101,7 +101,8 @@ export function saveKeyBinds(): void {
 
 export function resetKeyBinds(player?: number): void {
   DEFAULT_KEYBOARD.forEach((d, i) => {
-    if (player === undefined || player === i) keyboardBinds[i] = clone(d);
+    // mutate in place: live KeyboardControllers hold a reference to these objects
+    if (player === undefined || player === i) Object.assign(keyboardBinds[i], clone(d));
   });
   saveKeyBinds();
 }

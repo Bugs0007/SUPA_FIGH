@@ -51,11 +51,13 @@ src/ai/       Bots (pure TS, no Phaser — run headless too). Same Controller/In
 src/art/      Procedural pixel-art generators that bake Phaser textures at boot.
               ArtProvider (art/index.ts) is the asset-loader abstraction: swap in real sprite
               sheets later by implementing the same interface.
-src/audio/    sfxr-style WebAudio synth + sound definitions + AudioManager (pitch randomized).
+src/audio/    sfxr-style WebAudio synth + sound definitions + AudioManager (pitch randomized);
+              music.ts = procedural chiptune sequencer (tracks as data).
 src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particles), CameraDirector.
               Reads sim state each frame (interpolated with prevX/prevY) — never mutates it.
-src/scenes/   Boot (bake assets) -> Title -> [Lobby | Controls] -> Match (+ Hud overlay above,
-              Background parallax scene below).
+src/scenes/   Boot (bake assets) -> Title menu -> [Lobby (+ Creator) | Controls | Settings] -> Match
+              (+ Hud overlay above with the pause menu, Background parallax scene below).
+              Settings/Controls also run as overlays over a paused match.
               lobby.ts = Phaser-free lobby model (slots/rules -> MatchSceneData), unit tested.
 src/game/     Display config (640x360 native, integer scale factor), settings/profile storage.
 ```

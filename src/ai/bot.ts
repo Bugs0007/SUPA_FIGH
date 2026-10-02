@@ -284,6 +284,20 @@ export class BotController implements Controller {
     }
 
     const fightScore = target >= 0 ? (8 + mine * 0.25) * (0.4 + this.persona.aggression) * (this.visible(target) ? 1.5 : 1) : 0;
+
+    // mode objective (King of the Hill): get on it and stay on it
+    const obj = w.objective;
+    if (obj) {
+      const inside = f.x >= obj.x && f.x <= obj.x + obj.w && f.y - f.h / 2 >= obj.y && f.y - f.h / 2 <= obj.y + obj.h;
+      const closeFight = target >= 0 && this.visible(target) && Math.hypot((this.mem.get(target)?.x ?? 0) - f.x, (this.mem.get(target)?.y ?? 0) - f.y) < 120;
+      if (!closeFight && (!inside || target < 0 || this.rng.chance(0.7))) {
+        const n = g.nearest(obj.x + obj.w / 2, obj.y + obj.h);
+        if (n) {
+          this.goal = { t: 'roam', node: n.id };
+          return;
+        }
+      }
+    }
     // unarmed bots want a weapon badly (unless the enemy is right here)
     const close = target >= 0 && Math.hypot((this.mem.get(target)?.x ?? 0) - f.x, (this.mem.get(target)?.y ?? 0) - f.y) < 40;
     const lootScore = item >= 0 ? itemScore * (mine === 0 && !close ? 4 : mine < 30 ? 2 : 1) : 0;

@@ -29,6 +29,7 @@ export class ControlsScene extends Phaser.Scene {
   private col = 0;
   private capturing = false;
   private from = 'title';
+  private overlay = false;
   private texts: Phaser.GameObjects.BitmapText[][] = [];
   private tabText!: Phaser.GameObjects.BitmapText;
   private footer!: Phaser.GameObjects.BitmapText;
@@ -42,13 +43,15 @@ export class ControlsScene extends Phaser.Scene {
 
   create(data: { from?: string }): void {
     this.from = data?.from ?? 'title';
+    this.overlay = this.from === 'overlay';
     bindZoom(this, VIEW_W, VIEW_H);
-    this.cameras.main.setBackgroundColor(P.night);
+    if (!this.overlay) this.cameras.main.setBackgroundColor(P.night);
     this.tab = 0;
     this.row = 0;
     this.col = 0;
     this.capturing = false;
     this.texts = [];
+    if (this.overlay) this.add.graphics().fillStyle(0x000000, 0.9).fillRect(0, 0, VIEW_W, VIEW_H);
     this.gfx = this.add.graphics();
     this.add.bitmapText(VIEW_W / 2, 8, 'pxo', 'CONTROLS').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
     this.tabText = this.add.bitmapText(VIEW_W / 2, 36, 'pxo', '').setOrigin(0.5, 0);
@@ -82,7 +85,7 @@ export class ControlsScene extends Phaser.Scene {
     }
     if (menu.back() && !keyboard.justPressed('Backspace')) {
       audio.play('uiBack');
-      this.scene.start(this.from);
+      this.leave();
       return;
     }
     if (menu.up()) {
@@ -112,7 +115,7 @@ export class ControlsScene extends Phaser.Scene {
         audio.play('uiOk');
       } else if (this.row === nActions + 2) {
         audio.play('uiBack');
-        this.scene.start(this.from);
+        this.leave();
         return;
       }
     }
@@ -121,6 +124,11 @@ export class ControlsScene extends Phaser.Scene {
       saveKeyBinds();
     }
     this.render();
+  }
+
+  private leave(): void {
+    if (this.overlay) this.scene.stop();
+    else this.scene.start(this.from);
   }
 
   private capture(): void {
