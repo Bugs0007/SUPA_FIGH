@@ -14,6 +14,26 @@ interface FeedLine {
   life: number;
 }
 
+/** Uncredited deaths: by weapon id first, then by hit kind. */
+const ENV_DEATHS: Record<string, string> = {
+  water: 'DROWNED',
+  fall: 'FELL',
+  crusher: 'GOT CRUSHED',
+  laser: 'GOT LASERED',
+  tunnel: 'HIT A TUNNEL',
+  minecart: 'GOT RUN OVER',
+  hook: 'GOT HOOKED',
+  girder: 'GOT GIRDERED',
+  chandelier: 'GOT CHANDELIERED',
+  explosion: 'BLEW UP',
+  fire: 'BURNED',
+  drain: 'RAN OUT OF TIME',
+  splat: 'SPLATTERED',
+  barrel: 'BLEW UP',
+  tnt: 'BLEW UP',
+  gas: 'BLEW UP',
+};
+
 const KILL_QUIPS: Record<string, string> = {
   fall: 'YEETED!',
   water: 'SLEEPS WITH THE FISHES',
@@ -124,7 +144,7 @@ export class HudScene extends Phaser.Scene {
     const v = this.nameOf(victim);
     const parts: { text: string; color: number }[] = [];
     if (killer < 0) {
-      parts.push({ text: v.name, color: v.color }, { text: cause === 'water' ? 'DROWNED' : 'FELL', color: 0xaaaaaa });
+      parts.push({ text: v.name, color: v.color }, { text: ENV_DEATHS[weapon] ?? ENV_DEATHS[cause] ?? 'FELL', color: 0xaaaaaa });
     } else if (killer === victim) {
       parts.push({ text: v.name, color: v.color }, { text: 'SELF-DESTRUCTED', color: 0xaaaaaa });
     } else {

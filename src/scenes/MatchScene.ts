@@ -134,7 +134,10 @@ export class MatchScene extends Phaser.Scene {
       this.game.events.off('rescale', this.onRescale, this);
       this.wr?.destroy();
       this.scene.stop('hud');
+      this.scene.stop('bg');
     });
+    this.scene.launch('bg', { theme: this.match.world.def.theme });
+    this.scene.sendToBack('bg');
     this.scene.launch('hud');
     audio.play('roundStart');
   }

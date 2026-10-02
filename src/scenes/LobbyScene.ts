@@ -6,7 +6,9 @@ import { VIEW_H, VIEW_W } from '../game/display';
 import { connectedPads, padMenu } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
-import { MAP_LIST } from '../sim/map/maps';
+import { getMap, MAP_LIST } from '../sim/map/maps';
+import { parseMap } from '../sim/map/mapData';
+import { tileDef } from '../sim/map/tiles';
 import { MODE_NAMES } from '../sim/match';
 import {
   DIFF_ORDER,
@@ -43,6 +45,9 @@ export class LobbyScene extends Phaser.Scene {
   private hint!: Phaser.GameObjects.BitmapText;
   private status!: Phaser.GameObjects.BitmapText;
   private t = 0;
+  private preview!: Phaser.GameObjects.Graphics;
+  private previewMap = '';
+  private blurb!: Phaser.GameObjects.BitmapText;
 
   constructor() {
     super('lobby');
@@ -69,8 +74,39 @@ export class LobbyScene extends Phaser.Scene {
     SETTINGS.forEach((_, i) => this.settingTexts.push(this.add.bitmapText(352, 48 + i * 22, 'pxo', '')));
     this.hint = this.add.bitmapText(VIEW_W / 2, VIEW_H - 12, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc);
     this.status = this.add.bitmapText(352, 48 + SETTINGS.length * 22 + 6, 'smo', '').setTint(0xea4a4a);
+    this.preview = this.add.graphics();
+    this.blurb = this.add.bitmapText(352, 340, 'sm', '').setTint(0x8d95b0);
     this.refreshPreviews();
     this.render();
+  }
+
+  /** Minimap of the selected map: solids, platforms, ladders, water, spawns. */
+  private drawMapPreview(): void {
+    if (this.previewMap === this.cfg.mapId) return;
+    this.previewMap = this.cfg.mapId;
+    const def = getMap(this.cfg.mapId);
+    const pm = parseMap(def);
+    const g = this.preview.clear();
+    const maxW = 280;
+    const maxH = 96;
+    const k = Math.max(1, Math.floor(Math.min(maxW / pm.w, maxH / pm.h)));
+    const ox = 352 + Math.floor((maxW - pm.w * k) / 2);
+    const oy = 236;
+    g.fillStyle(0x0e0b16, 1).fillRect(ox - 2, oy - 2, pm.w * k + 4, pm.h * k + 4);
+    for (let y = 0; y < pm.h; y++) {
+      for (let x = 0; x < pm.w; x++) {
+        const d = tileDef(pm.tiles[y * pm.w + x]);
+        let c = pm.back[y * pm.w + x] ? 0x241e32 : -1;
+        if (d.solid) c = d.material === 'glass' ? 0x5fa8c8 : d.material === 'wood' ? 0x94603a : 0x8d95b0;
+        else if (d.oneWay) c = 0xb98450;
+        else if (d.ladder) c = 0x6e4228;
+        else if (d.hazard === 'water') c = 0x2d5a9a;
+        if (c >= 0) g.fillStyle(c, 1).fillRect(ox + x * k, oy + y * k, k, d.oneWay ? Math.max(1, k >> 1) : k);
+      }
+    }
+    g.fillStyle(0xea4a4a, 1);
+    for (const s of pm.spawns) g.fillRect(ox + Math.floor(s.x / 16) * k, oy + (Math.floor(s.y / 16) - 1) * k, k, k);
+    this.blurb.setText((def.blurb ?? '').toUpperCase());
   }
 
   private get rows(): number {
@@ -252,6 +288,7 @@ export class LobbyScene extends Phaser.Scene {
       if (sel) g.fillStyle(0x3a3054, 1).fillRect(344, y - 4, 290, 16);
       this.settingTexts[i].setText(vals[s]).setTint(s === 'start' ? hexToNum(P.green2) : sel ? 0xffffff : 0xc3c9dc);
     });
+    this.drawMapPreview();
     const problem = lobbyProblem(c);
     this.status.setText(problem ?? '').setVisible(!!problem);
     const pads = connectedPads().length;

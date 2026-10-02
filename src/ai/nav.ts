@@ -106,6 +106,13 @@ export class NavGraph {
     const spec: FighterSpawn = { name: 'nav', team: 0, isBot: true, upJumps: false };
     const sandbox = new World(def, [spec], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 1);
     sandbox.props.length = 0;
+    // static geometry only: no movers/hazards/supply drops; only permanent gravity zones affect jumps
+    sandbox.gimmicks = {
+      movers: [],
+      hazards: [],
+      drops: [],
+      gravity: sandbox.gimmicks.gravity.filter((z) => !z.def.toggle),
+    };
     const map = sandbox.map;
     this.w = map.w;
     this.h = map.h;
@@ -293,7 +300,7 @@ function simulate(w: World, f: Fighter, spec: FighterSpawn, n: NavNode, policy: 
     policy(t, f, dir, out);
     w.step([out]);
     w.events.length = 0;
-    if (!f.alive) return null;
+    if (!f.alive || f.y > w.map.pxH) return null; // fell out of the map: no edge
     if (!f.grounded) airborne = true;
     if (airborne && f.grounded && f.state === 'normal') return { x: f.x, y: f.y, ticks: t + 1 };
     if (!airborne && t > 25) return null; // never left the ground (blocked)

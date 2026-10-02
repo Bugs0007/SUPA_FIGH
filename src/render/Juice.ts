@@ -54,6 +54,14 @@ export function weaponLabel(id: string): string {
     crate: 'CRATE',
     gas: 'GAS CAN',
     suddendeath: 'SUDDEN DEATH',
+    crusher: 'CRUSHER',
+    laser: 'LASER GRID',
+    tunnel: 'TUNNEL',
+    minecart: 'MINECART',
+    hook: 'CRANE HOOK',
+    girder: 'GIRDER',
+    tnt: 'TNT',
+    chandelier: 'CHANDELIER',
   };
   return special[id] ?? weaponDef(id).name;
 }
@@ -97,7 +105,7 @@ export class Juice {
       }
       case 'hit': {
         const heavy = e.kind === 'kick' || e.damage >= 10 || e.kind === 'bodyslam' || e.kind === 'splat';
-        if (e.kind === 'fire' || e.kind === 'drain') {
+        if (e.kind === 'fire' || e.kind === 'drain' || (e.kind === 'hazard' && e.damage < 5)) {
           if (!e.corpse) this.r.views[e.victim]?.onHit();
           break;
         }
@@ -328,6 +336,23 @@ export class Juice {
         this.r.floatText(f.x, f.y - 30, '+' + Math.round(e.amount), hexToNum(P.green2), true);
         break;
       }
+      case 'hazard':
+        if (e.kind === 'crusher') {
+          fx.dust(e.x, e.y + 16, 5, 50);
+          this.sfx('thud', e.x, 1, 0.7);
+          this.cam.addTrauma(0.12);
+        } else if (e.kind === 'laser') this.sfx('beep', e.x, 0.4, 0.6);
+        else this.sfx('rocket', e.x, 0.6, 0.6);
+        break;
+      case 'supplyDrop':
+        this.r.heli(e.x);
+        this.sfx('spawn', e.x, 0.8, 0.7);
+        this.ui.push({ t: 'announce', text: 'SUPPLY DROP!', color: hexToNum(P.yellow) });
+        break;
+      case 'gravity':
+        this.ui.push({ t: 'announce', text: e.on ? 'LOW GRAVITY!' : 'GRAVITY ON', color: hexToNum(P.teal) });
+        this.sfx('slowmo', e.x, 0.5, e.on ? 1.4 : 0.8);
+        break;
       case 'respawn':
         fx.sparks(e.x, e.y - 10, 0, -1, 14, 0xffffff, 120);
         fx.motes(e.x, e.y - 8, 8, 0xffffff);

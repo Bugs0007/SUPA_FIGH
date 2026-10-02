@@ -9,6 +9,7 @@ import { HudScene } from './scenes/HudScene';
 import { MatchScene } from './scenes/MatchScene';
 import { TitleScene } from './scenes/TitleScene';
 import { ArtDebugScene } from './scenes/ArtDebugScene';
+import { BackgroundScene } from './scenes/BackgroundScene';
 import { ControlsScene } from './scenes/ControlsScene';
 import { LobbyScene } from './scenes/LobbyScene';
 
@@ -29,7 +30,7 @@ const game = new Phaser.Game({
   disableContextMenu: true,
   // ?timer=1 drives the loop with setTimeout (hidden tabs / automated tests where rAF is paused)
   fps: { target: 60, forceSetTimeOut: new URLSearchParams(location.search).has('timer') },
-  scene: [BootScene, TitleScene, LobbyScene, ControlsScene, MatchScene, HudScene, ArtDebugScene],
+  scene: [BootScene, BackgroundScene, TitleScene, LobbyScene, ControlsScene, MatchScene, HudScene, ArtDebugScene],
 });
 game.registry.set('scale', k);
 

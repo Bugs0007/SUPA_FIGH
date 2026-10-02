@@ -31,6 +31,7 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
   fire.ts         Burning status, fire patches, burning/spreading wooden tiles.
   prop.ts         Crates / barrels / gas canisters: dynamic bodies (standable, pushable, carryable).
   item.ts         Weapons lying around + live throwables (fuses, sticky C4, mines, molotov impact).
+  gimmicks.ts     Map gimmicks from MapDef.gimmicks: movers, hazards, gravity zones, supply drops, conveyors.
   data/weapons.ts ALL weapon stats live here (guns, melee, throwables, gadgets, powerups, FIRE/CARRY
                   tunables). Balance by editing this file only. Prop stats: data/props.ts.
   map/            Tile types, ASCII map parser, runtime TileMap, map definitions (maps/*.ts).
@@ -51,7 +52,8 @@ src/art/      Procedural pixel-art generators that bake Phaser textures at boot.
 src/audio/    sfxr-style WebAudio synth + sound definitions + AudioManager (pitch randomized).
 src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particles), CameraDirector.
               Reads sim state each frame (interpolated with prevX/prevY) — never mutates it.
-src/scenes/   Boot (bake assets) -> Title -> [Lobby | Controls] -> Match (+ Hud overlay).
+src/scenes/   Boot (bake assets) -> Title -> [Lobby | Controls] -> Match (+ Hud overlay above,
+              Background parallax scene below).
               lobby.ts = Phaser-free lobby model (slots/rules -> MatchSceneData), unit tested.
 src/game/     Display config (640x360 native, integer scale factor), settings/profile storage.
 ```
@@ -77,8 +79,10 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
   (ASCII pixel map keyed by the same id). Unit test `tests/unit/weapons.test.ts` validates data.
   Throwables/gadgets/powerups are the same table (`throw` / `gadget` / `powerup` blocks instead of `gun`/`melee`).
   Check the sprite at `/?scene=art&page=weapons` (magenta dot = grip).
-- Map: add `sim/map/maps/<name>.ts` (ASCII rows + legend, 10 `S` spawns, `w` weapon spawns, props
-  `c` crate / `b` barrel / `g` gas canister) and register it in `sim/map/maps/index.ts`.
+- Map: add a builder function to `scripts/mapgen.py` (or hand-write `sim/map/maps/<name>.ts`): ASCII rows +
+  legend (see mapData.ts), 10 `S` spawns, `w` weapon spawns, props `c b g t l`, optional `gimmicks`, and a
+  theme (`art/tileArt.ts` THEMES + `art/backgroundArt.ts`). Register it in `sim/map/maps/index.ts`.
+  `tests/unit/maps.test.ts` checks spawns, bot connectivity and a stuck-free bot match automatically.
 - Sound: add an sfxr param set in `audio/sounds.ts`, trigger from an event handler in MatchScene.
 
 ## Testing
