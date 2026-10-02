@@ -288,6 +288,37 @@ describe('props', () => {
   });
 });
 
+describe('carrying props', () => {
+  it('lift a crate with interact and throw it into someone', () => {
+    const { w, a, b } = duel(PROPMAP);
+    run(w, 30);
+    const crate = w.props.find((p) => p.type === 'crate')!;
+    place(a, crate.x - 13);
+    place(b, crate.x + 70);
+    run(w, 1, () => [intent({ interact: true })]);
+    expect(a.carry).toBe(crate.id);
+    run(w, 5);
+    expect(crate.y).toBeLessThan(a.y - 20);
+    run(w, 1, () => [intent({ attack: true })]);
+    expect(a.carry).toBe(-1);
+    run(w, 40);
+    expect(b.hp).toBeLessThan(MAX_HP);
+  });
+
+  it('dropping happens when the carrier is knocked down', () => {
+    const { w, a } = duel(PROPMAP);
+    run(w, 30);
+    const crate = w.props.find((p) => p.type === 'crate')!;
+    place(a, crate.x - 13);
+    run(w, 1, () => [intent({ interact: true })]);
+    expect(crate.carriedBy).toBe(a.id);
+    explode(w, a.x - 30, a.y - 8, { radius: 40, damage: 5, knock: 300, breakRadius: 0, shake: 0 }, -1, 'test');
+    run(w, 3);
+    expect(crate.carriedBy).toBe(-1);
+    expect(a.carry).toBe(-1);
+  });
+});
+
 describe('gadgets and powerups', () => {
   it('medkit heals and is consumed', () => {
     const { w, a } = duel();

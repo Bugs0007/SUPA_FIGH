@@ -26,7 +26,12 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
   physics.ts      Custom AABB-vs-tile physics (one-way platforms, ladders, drop-through).
   combat.ts       Damage/knockback math (pure functions, unit tested).
   projectile.ts   Bullets: swept raycast vs tiles + fighters, ricochet/pierce rules.
-  data/weapons.ts ALL weapon stats live here. Balance by editing this file only.
+  explosion.ts    Radial blasts: damage/knockback falloff, wall cover, chain reactions, tile breaking.
+  fire.ts         Burning status, fire patches, burning/spreading wooden tiles.
+  prop.ts         Crates / barrels / gas canisters: dynamic bodies (standable, pushable, carryable).
+  item.ts         Weapons lying around + live throwables (fuses, sticky C4, mines, molotov impact).
+  data/weapons.ts ALL weapon stats live here (guns, melee, throwables, gadgets, powerups, FIRE/CARRY
+                  tunables). Balance by editing this file only. Prop stats: data/props.ts.
   map/            Tile types, ASCII map parser, runtime TileMap, map definitions (maps/*.ts).
   events.ts       SimEvent union. The sim pushes events (shot, hit, kill, land...) that the
                   renderer/audio drain for juice. The sim never plays sounds or draws.
@@ -61,18 +66,24 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
 ## Adding things
 - Weapon: add an entry to `WEAPONS` in `sim/data/weapons.ts` + a pixel sprite in `art/weaponArt.ts`
   (ASCII pixel map keyed by the same id). Unit test `tests/unit/weapons.test.ts` validates data.
-- Map: add `sim/map/maps/<name>.ts` (ASCII rows + legend, 10 `S` spawns, `w` weapon spawns) and
-  register it in `sim/map/maps/index.ts`.
+  Throwables/gadgets/powerups are the same table (`throw` / `gadget` / `powerup` blocks instead of `gun`/`melee`).
+  Check the sprite at `/?scene=art&page=weapons` (magenta dot = grip).
+- Map: add `sim/map/maps/<name>.ts` (ASCII rows + legend, 10 `S` spawns, `w` weapon spawns, props
+  `c` crate / `b` barrel / `g` gas canister) and register it in `sim/map/maps/index.ts`.
 - Sound: add an sfxr param set in `audio/sounds.ts`, trigger from an event handler in MatchScene.
 
 ## Testing
 - `tests/unit/*.test.ts` — Vitest, Node. Pure sim logic only (no Phaser).
-- `tests/e2e/*.spec.ts` — Playwright. The game exposes `window.__GAME__` (`match()`, `scene()`, `game`).
-  URL params: `?scene=match` skip title, `?scene=art` sprite inspector, `?bots=N` (sparring dummies until
+- `tests/e2e/*.spec.ts` — Playwright (`PW_EXECUTABLE=/path/to/chrome` to use a preinstalled browser;
+  in cloud containers: `/opt/pw-browsers/chromium`). Screenshots go to `tests/e2e/screenshots/` (ignored).
+  The game exposes `window.__GAME__` (`match()`, `scene()`, `game`).
+  URL params: `?scene=match` skip title, `?scene=art` sprite inspector (`&page=weapons`), `?bots=N` (sparring dummies until
   M3), `?humans=0..2`, `?speed=4`, `?seed=123`, `?map=test`, `?timer=1` (setTimeout game loop — needed
   when the tab is hidden, e.g. the Claude browser pane, where requestAnimationFrame is paused).
 - Debug keys in match: F1 hitboxes/debug overlay, F2 cycle sim speed (1x/2x/4x), F3 frame step, Esc pause.
 - Synthetic `KeyboardEvent`s dispatched on `window` with a `code` drive the real input path (handy in tests).
+- `src/sim` modules import each other in a cycle (fighter → item → explosion → prop → explosion...). That's
+  fine because they only call each other at runtime; never use another sim module's exports at load time.
 
 ## Gotchas
 - Don't name Scene members `renderer` or `time` (they shadow Phaser.Scene properties).

@@ -5,7 +5,7 @@ import { armFrame, BF, BODY_FRAMES, FRAME_META } from '../art/fighterArt';
 import { WEAPON_ART } from '../art/weaponArt';
 import { VIEW_H, VIEW_W } from '../game/display';
 
-/** Dev-only sprite inspector: /?scene=art */
+/** Dev-only sprite inspector: /?scene=art (fighters) and /?scene=art&page=weapons */
 export class ArtDebugScene extends Phaser.Scene {
   constructor() {
     super('art');
@@ -14,6 +14,10 @@ export class ArtDebugScene extends Phaser.Scene {
   create(): void {
     const k = (this.registry.get('scale') as number) ?? 1;
     this.cameras.main.setZoom(k).centerOn(VIEW_W / 2, VIEW_H / 2).setBackgroundColor('#3a3448');
+    if (new URLSearchParams(location.search).get('page') === 'weapons') {
+      this.weaponsPage();
+      return;
+    }
     const looks = [...PLAYER_PRESETS, randomAppearance(), randomAppearance()];
     const s = 2;
     looks.slice(0, 3).forEach((look, row) => {
@@ -30,11 +34,27 @@ export class ArtDebugScene extends Phaser.Scene {
         this.add.bitmapText(x, y + 2, 'sm', String(i));
       }
     });
-    let wx = 12;
+    this.add.bitmapText(12, 345, 'sm', 'WEAPONS & PROPS: ?scene=art&page=weapons');
+  }
+
+  /** Every weapon/prop/projectile sprite at 2x with its id and grip marker. */
+  private weaponsPage(): void {
+    let x = 10;
+    let y = 16;
+    let rowH = 0;
     for (const id of Object.keys(WEAPON_ART)) {
       const wf = Art.weapon(id)!;
-      this.add.image(wx, 345, wf.key, wf.frame).setOrigin(0, 0.5).setScale(3);
-      wx += wf.w * 3 + 12;
+      const w = Math.max(wf.w * 2, id.length * 4) + 10;
+      if (x + w > VIEW_W - 6) {
+        x = 10;
+        y += rowH + 14;
+        rowH = 0;
+      }
+      this.add.image(x, y, wf.key, wf.frame).setOrigin(0, 0).setScale(2);
+      this.add.rectangle(x + wf.gripX * 2 + 1, y + wf.gripY * 2 + 1, 2, 2, 0xff00ff);
+      this.add.bitmapText(x, y + wf.h * 2 + 2, 'sm', id.toUpperCase());
+      rowH = Math.max(rowH, wf.h * 2 + 8);
+      x += w;
     }
   }
 }

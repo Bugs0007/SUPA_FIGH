@@ -45,6 +45,7 @@ import {
 import { applyHit, killFighter, sameTeam } from './combat';
 import {
   AIR_KICK,
+  CARRY,
   FISTS,
   GRAB,
   KICK,
@@ -58,7 +59,7 @@ import {
   type WeaponDef,
 } from './data/weapons';
 import { detonate } from './item';
-import { damageProp, onProp, pushProp, supportOnProps } from './prop';
+import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
 import { copyIntent, emptyIntent, type Intent } from './intent';
 import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, type Body, type MoveResult } from './physics';
 import type { World } from './world';
@@ -168,6 +169,8 @@ export interface Fighter extends Body {
   /** jetpack firing this tick (render) */
   jetting: boolean;
   swingProps: number[];
+  /** id of the prop held overhead (-1 = none) */
+  carry: number;
   prev: Intent;
 }
 
@@ -252,6 +255,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     throwHold: 0,
     jetting: false,
     swingProps: [],
+    carry: -1,
     prev: emptyIntent(),
   };
 }
@@ -383,6 +387,14 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.strengthBoost > 0) f.strengthBoost -= dt;
   f.jetting = false;
   f.speedMul = (activeWeapon(f).moveSpeedMul ?? 1) * (f.speedBoost > 0 ? (weaponDef('speed').powerup?.mult ?? 1) : 1);
+  if (f.carry >= 0) {
+    f.speedMul *= CARRY.speedMul;
+    // carrying: every action button throws the prop instead
+    if ((e.attackP || e.interactP || e.kickP) && (f.state === 'normal' || f.state === 'crouch')) {
+      throwProp(w, f, inp);
+      e.attackP = e.interactP = e.kickP = false;
+    }
+  }
 
   switch (f.state) {
     case 'normal':
@@ -863,6 +875,7 @@ function commonActionsLimited(w: World, f: Fighter, e: Edges): boolean {
 }
 
 function beginAttack(w: World, f: Fighter, inp: Intent): void {
+  if (f.carry >= 0) return;
   const def = activeWeapon(f);
   if (def.throw) {
     beginThrowable(w, f, def.throw, inp);
@@ -1311,6 +1324,13 @@ function interact(w: World, f: Fighter): boolean {
     w.pickUp(f, item, true);
     return true;
   }
+  if ((f.state === 'normal' || f.state === 'crouch') && f.grounded) {
+    const p = findLiftableProp(w, f);
+    if (p) {
+      liftProp(w, f, p);
+      return true;
+    }
+  }
   if (f.state === 'normal' || f.state === 'crouch') {
     const target = findGrabTarget(w, f);
     if (target) {
@@ -1324,6 +1344,53 @@ function interact(w: World, f: Fighter): boolean {
     return true;
   }
   return false;
+}
+
+function findLiftableProp(w: World, f: Fighter): Prop | null {
+  let best: Prop | null = null;
+  let bestD = Infinity;
+  for (const p of w.props) {
+    if (!p.active || p.carriedBy >= 0 || p.fuse >= 0) continue;
+    const dx = p.x - f.x;
+    if (Math.abs(dx) > (f.w + p.w) / 2 + 6) continue;
+    if (Math.abs(p.y - f.y) > 4) continue; // standing next to it, on the same floor
+    if (Math.sign(dx) !== f.facing && Math.abs(dx) > 3) continue;
+    if (Math.abs(dx) < bestD) {
+      bestD = Math.abs(dx);
+      best = p;
+    }
+  }
+  return best;
+}
+
+function liftProp(w: World, f: Fighter, p: Prop): void {
+  // need room overhead for the prop
+  if (w.map.rectSolid(f.x - p.w / 2, f.y - FIGHTER_H - 1 - p.h, f.x + p.w / 2, f.y - FIGHTER_H - 1)) return;
+  if (f.h !== FIGHTER_H) {
+    if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
+    f.h = FIGHTER_H;
+    setState(f, 'normal');
+  }
+  f.carry = p.id;
+  p.carriedBy = f.id;
+  p.thrownBy = -1;
+  w.emit({ t: 'grab', f: f.id, victim: -1 });
+}
+
+function throwProp(w: World, f: Fighter, inp: Intent): void {
+  const p = w.props.find((q) => q.id === f.carry);
+  f.carry = -1;
+  if (!p || !p.active) return;
+  releaseProp(w, p);
+  const up = inp.moveY < -0.5;
+  const down = inp.moveY > 0.5;
+  p.vx = f.facing * CARRY.throwX * (up ? 0.55 : down ? 0.35 : 1) + f.vx * 0.5;
+  p.vy = up ? -330 : down ? -40 : CARRY.throwY;
+  p.vrot = f.facing * 9;
+  p.thrownBy = f.id;
+  p.thrownT = w.time;
+  p.lastBy = f.id;
+  w.emit({ t: 'throw', f: f.id, victim: -1 });
 }
 
 function autoPickup(w: World, f: Fighter): void {

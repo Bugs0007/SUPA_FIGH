@@ -50,6 +50,8 @@ export interface SpawnOpts {
 
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 const BLOOD = [hexToNum(P.blood), hexToNum(P.blood2), hexToNum(P.red1)];
+const FIRE = [hexToNum(P.yellow2), hexToNum(P.yellow), hexToNum(P.orange), hexToNum(P.red2)];
+const SMOKE = [0x4a4658, 0x5a5668, 0x6a6678, 0x3a3648];
 
 /** Pooled, map-aware particles (Phaser images from the single 'fx' atlas). */
 export class Fx {
@@ -308,6 +310,134 @@ export class Fx {
   chips(x: number, y: number, n: number, tint?: number): void {
     for (let i = 0; i < n; i++) {
       this.spawn({ frame: 'chip', x, y, vx: rnd(-80, 80), vy: rnd(-140, -40), g: 700, life: rnd(0.4, 0.8), vr: rnd(-20, 20), collide: true, bounce: 0.3, tint });
+    }
+  }
+
+  /** Big boom: flash, shockwave, fireball, smoke, debris, scorch mark. */
+  explosion(x: number, y: number, r: number): void {
+    const k = r / 48;
+    this.spawn({ frame: 'glowBig', x, y, life: 0.16, s0: (r / 15) * 1.5, s1: (r / 15) * 2, a0: 0.55, a1: 0, tint: hexToNum(P.orange), add: true, depth: 64 });
+    this.spawn({ frame: 'boom', x, y, life: 0.07, s0: r / 10, s1: r / 8, a0: 0.95, a1: 0.4, tint: hexToNum(P.yellow2), add: true, depth: 65 });
+    this.spawn({ frame: 'ring', x, y, life: 0.28, s0: 0.3, s1: r / 12, a0: 1, a1: 0, tint: hexToNum(P.yellow2), depth: 64 });
+    const balls = Math.round(10 * k + 4);
+    for (let i = 0; i < balls; i++) {
+      const a = rnd(0, Math.PI * 2);
+      const d = rnd(0, r * 0.45);
+      const s = rnd(20, 90) * k;
+      this.spawn({
+        frame: 'puff6',
+        x: x + Math.cos(a) * d,
+        y: y + Math.sin(a) * d * 0.7,
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s - 40,
+        drag: 4,
+        life: rnd(0.25, 0.5),
+        s0: rnd(0.8, 1.5) * k,
+        s1: 0.2,
+        a0: 1,
+        a1: 0.2,
+        tint: FIRE[i % FIRE.length],
+        add: true,
+        depth: 63,
+      });
+    }
+    for (let i = 0; i < balls; i++) {
+      const a = rnd(0, Math.PI * 2);
+      const d = rnd(0, r * 0.5);
+      this.spawn({
+        frame: 'puff6',
+        x: x + Math.cos(a) * d,
+        y: y + Math.sin(a) * d * 0.6,
+        vx: rnd(-25, 25),
+        vy: rnd(-55, -20),
+        drag: 1.5,
+        life: rnd(0.9, 1.7),
+        s0: rnd(0.6, 1.2) * k,
+        s1: rnd(1.6, 2.4) * k,
+        a0: 0.75,
+        a1: 0,
+        tint: SMOKE[i % SMOKE.length],
+        depth: 56,
+      });
+    }
+    this.sparks(x, y, 0, -1, Math.round(16 * k), hexToNum(P.yellow2), 320);
+    for (let i = 0; i < 10 * k; i++) {
+      this.spawn({ frame: Math.random() < 0.5 ? 'chip' : 'p2', x, y, vx: rnd(-220, 220), vy: rnd(-300, -60), g: 800, life: rnd(0.6, 1.2), vr: rnd(-25, 25), collide: true, bounce: 0.3, tint: 0x3a3648, depth: 59 });
+    }
+    this.scorch(x, y, r);
+  }
+
+  /** Burn mark on the nearest floor/wall within reach. */
+  scorch(x: number, y: number, r: number): void {
+    if (!this.decals) return;
+    for (let d = 0; d < r * 0.6; d += 2) {
+      if (this.map.solidAtPx(x, y + d)) {
+        const fy = Math.floor((y + d) / 16) * 16;
+        this.decals.stamp('fx', 'scorch', Math.round(x), fy + 1, { alpha: 0.75, scaleX: r / 40, scaleY: 1 });
+        return;
+      }
+    }
+  }
+
+  flame(x: number, y: number, scale = 1, vx = 0): void {
+    const t = Math.random();
+    this.spawn({
+      frame: 'flame',
+      x: x + rnd(-2, 2),
+      y,
+      vx: vx + rnd(-10, 10),
+      vy: rnd(-55, -25),
+      life: rnd(0.2, 0.42),
+      s0: scale * rnd(0.7, 1.1),
+      s1: 0.15,
+      a0: 0.95,
+      a1: 0.3,
+      tint: FIRE[t < 0.25 ? 0 : t < 0.55 ? 1 : t < 0.85 ? 2 : 3],
+      add: true,
+      depth: 62,
+    });
+    if (Math.random() < 0.15) {
+      this.spawn({ frame: 'puff3', x, y: y - 6, vx: rnd(-8, 8), vy: rnd(-40, -20), drag: 1, life: rnd(0.5, 0.9), s0: 0.6 * scale, s1: 1.6 * scale, a0: 0.4, a1: 0, tint: SMOKE[0], depth: 56 });
+    }
+  }
+
+  /** Flamethrower stream blob. */
+  flameBlob(x: number, y: number, vx: number, vy: number, age: number): void {
+    const t = Math.min(1, age);
+    this.spawn({
+      frame: 'puff3',
+      x,
+      y,
+      vx: vx * 0.2,
+      vy: vy * 0.2 - 20,
+      life: 0.12,
+      s0: 0.5 + t * 1.4,
+      s1: 0.3 + t * 1.6,
+      a0: 0.9,
+      a1: 0.2,
+      tint: FIRE[Math.min(3, Math.floor(t * 4 + Math.random() * 1.2))],
+      add: true,
+      depth: 62,
+    });
+  }
+
+  jet(x: number, y: number): void {
+    this.spawn({ frame: 'flame', x: x + rnd(-1, 1), y, vx: rnd(-8, 8), vy: rnd(90, 150), rot: Math.PI, life: rnd(0.08, 0.16), s0: 0.9, s1: 0.3, tint: FIRE[Math.floor(Math.random() * 3)], add: true, depth: 39 });
+    if (Math.random() < 0.4) this.spawn({ frame: 'puff3', x, y: y + 4, vx: rnd(-20, 20), vy: rnd(30, 60), drag: 3, life: rnd(0.3, 0.6), s0: 0.5, s1: 1.4, a0: 0.5, a1: 0, tint: SMOKE[2], depth: 38 });
+  }
+
+  smokeTrail(x: number, y: number, tint = 0x8a8698): void {
+    this.spawn({ frame: 'puff3', x: x + rnd(-1, 1), y: y + rnd(-1, 1), vx: rnd(-10, 10), vy: rnd(-20, -5), drag: 2, life: rnd(0.4, 0.8), s0: 0.4, s1: 1.4, a0: 0.6, a1: 0, tint, depth: 54 });
+  }
+
+  glowDot(x: number, y: number, tint: number, scale = 1): void {
+    this.spawn({ frame: 'glow', x, y, life: 0.05, s0: scale, s1: scale, a0: 0.8, a1: 0.8, tint, add: true, depth: 61 });
+  }
+
+  /** Rising '+' sparkles (heal) or colored motes (powerups). */
+  motes(x: number, y: number, n: number, tint: number): void {
+    for (let i = 0; i < n; i++) {
+      this.spawn({ frame: Math.random() < 0.3 ? 'p2' : 'p1', x: x + rnd(-6, 6), y: y + rnd(-10, 4), vy: rnd(-50, -20), vx: rnd(-10, 10), life: rnd(0.4, 0.8), a0: 1, a1: 0, tint, add: true, depth: 63 });
     }
   }
 

@@ -1,5 +1,7 @@
+import { applyHit } from './combat';
 import { DT, GRAVITY, MAX_FALL } from './constants';
 import { PROPS, type PropDef, type PropType } from './data/props';
+import { CARRY } from './data/weapons';
 import { explode } from './explosion';
 import { moveBody, newMoveResult, type Body } from './physics';
 import type { World } from './world';
@@ -19,6 +21,11 @@ export interface Prop extends Body {
   lastBy: number;
   /** >= 0: counting down to detonation */
   fuse: number;
+  /** fighter holding it over their head (-1 = none) */
+  carriedBy: number;
+  /** fighter who threw it (-1 = none); a fast thrown prop hurts whoever it hits */
+  thrownBy: number;
+  thrownT: number;
 }
 
 const res = newMoveResult();
@@ -44,6 +51,9 @@ export function createProp(id: number, type: PropType, x: number, y: number): Pr
     vrot: 0,
     lastBy: -1,
     fuse: -1,
+    carriedBy: -1,
+    thrownBy: -1,
+    thrownT: 0,
   };
 }
 
@@ -54,7 +64,7 @@ export function createProp(id: number, type: PropType, x: number, y: number): Pr
 export function supportOnProps(w: World, b: Body, prevY: number, selfId: number): boolean {
   if (b.vy < 0) return false;
   for (const p of w.props) {
-    if (!p.active || p.id === selfId) continue;
+    if (!p.active || p.id === selfId || p.carriedBy >= 0) continue;
     const top = p.y - p.h;
     if (b.x + b.w / 2 <= p.x - p.w / 2 + 1 || b.x - b.w / 2 >= p.x + p.w / 2 - 1) continue;
     if (prevY > top + 1.5 || b.y < top) continue;
@@ -69,7 +79,7 @@ export function supportOnProps(w: World, b: Body, prevY: number, selfId: number)
 /** Is the body standing exactly on a prop? */
 export function onProp(w: World, b: Body, selfId = -1): boolean {
   for (const p of w.props) {
-    if (!p.active || p.id === selfId) continue;
+    if (!p.active || p.id === selfId || p.carriedBy >= 0) continue;
     if (b.x + b.w / 2 <= p.x - p.w / 2 + 1 || b.x - b.w / 2 >= p.x + p.w / 2 - 1) continue;
     if (Math.abs(b.y - (p.y - p.h)) < 0.6) return true;
   }
@@ -106,6 +116,7 @@ export function pushProp(p: Prop, vx: number, vy: number): void {
 
 function destroyProp(w: World, p: Prop): void {
   p.active = false;
+  releaseProp(w, p);
   const cy = p.y - p.h / 2;
   w.emit({ t: 'propBreak', x: p.x, y: cy, type: p.type });
   if (p.def.explosion) explode(w, p.x, cy, p.def.explosion, p.lastBy, p.type);
@@ -118,11 +129,83 @@ function destroyProp(w: World, p: Prop): void {
   }
 }
 
+/** Let go of a carried prop (the carrier forgets it too). */
+export function releaseProp(w: World, p: Prop): void {
+  if (p.carriedBy < 0) return;
+  const f = w.fighters[p.carriedBy];
+  if (f && f.carry === p.id) f.carry = -1;
+  p.carriedBy = -1;
+  p.grounded = false;
+}
+
+/** Can a fighter at this state keep holding a prop overhead? */
+const CAN_CARRY = new Set(['normal', 'crouch', 'aim', 'flinch']);
+
+function carriedUpdate(w: World, p: Prop): boolean {
+  const f = w.fighters[p.carriedBy];
+  if (!f || !f.alive || f.carry !== p.id || !CAN_CARRY.has(f.state)) {
+    releaseProp(w, p);
+    if (f && f.alive) {
+      p.vx = f.vx * 0.5 + f.facing * 40;
+      p.vy = -60;
+    }
+    return false;
+  }
+  p.x = f.x;
+  p.y = f.y - f.h - 1;
+  p.vx = f.vx;
+  p.vy = f.vy;
+  p.rot = 0;
+  p.vrot = 0;
+  return true;
+}
+
+function thrownHits(w: World, p: Prop): void {
+  if (p.thrownBy < 0) return;
+  const speed = Math.abs(p.vx) + Math.abs(p.vy);
+  if (speed < CARRY.hitSpeed || w.time - p.thrownT > 2) {
+    if (p.grounded) p.thrownBy = -1;
+    return;
+  }
+  for (const f of w.fighters) {
+    if (!f.alive || f.gone) continue;
+    if (f.id === p.thrownBy && w.time - p.thrownT < 0.4) continue;
+    if (Math.abs(f.x - p.x) > (f.w + p.w) / 2 || p.y - p.h > f.y || p.y < f.y - f.h) continue;
+    const dir = Math.sign(p.vx) || 1;
+    const hit = applyHit(w, f, {
+      damage: CARRY.damage,
+      kbX: dir * CARRY.knockX,
+      kbY: CARRY.knockY,
+      attacker: p.thrownBy,
+      weapon: p.type,
+      kind: 'throw',
+      knockdown: true,
+      x: p.x,
+      y: p.y - p.h / 2,
+    });
+    if (hit) {
+      p.vx *= -0.3;
+      p.vy = -100;
+      p.thrownBy = -1;
+      w.emit({ t: 'bonk', x: p.x, y: p.y - p.h / 2 });
+      damageProp(w, p, CARRY.propSelfDamage, p.lastBy);
+      return;
+    }
+  }
+}
+
 export function updateProps(w: World): void {
   for (const p of w.props) {
     if (!p.active) continue;
     p.px = p.x;
     p.py = p.y;
+    if (p.carriedBy >= 0 && carriedUpdate(w, p)) {
+      if (p.fuse >= 0) {
+        p.fuse -= DT;
+        if (p.fuse <= 0) destroyProp(w, p);
+      }
+      continue;
+    }
     if (p.fuse >= 0) {
       p.fuse -= DT;
       if (p.def.rocket && !p.grounded) p.vy -= 500 * DT; // thrust
@@ -155,6 +238,7 @@ export function updateProps(w: World): void {
     } else {
       p.rot += p.vrot * DT;
     }
+    thrownHits(w, p);
     if (p.y > w.killY + 50) p.active = false;
   }
 }

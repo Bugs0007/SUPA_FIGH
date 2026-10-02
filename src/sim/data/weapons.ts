@@ -210,6 +210,9 @@ export const GRAB = {
   struggleToEscape: 7,
 };
 
+/** Carried props (Interact next to a crate/barrel to lift it, Attack/Interact/Kick to throw) */
+export const CARRY = { speedMul: 0.8, throwX: 320, throwY: -150, hitSpeed: 160, damage: 14, knockX: 260, knockY: -160, propSelfDamage: 8 };
+
 /** A tossed weapon that hits someone */
 export const TOSS = { speed: 300, damage: 9, knockX: 140, knockY: -70, stun: 0.25 };
 
@@ -305,6 +308,32 @@ export const WEAPONS: Record<string, WeaponDef> = {
         hit({ damage: 11, windup: 0.08, active: 0.07, recover: 0.17, range: 14, knockX: 120, arcFrom: 1.2, arcTo: -1.4 }),
         hit({ damage: 16, windup: 0.12, active: 0.08, recover: 0.3, range: 15, knockX: 260, knockY: -160, knockdown: true, arcFrom: -2.8, arcTo: 1.4 }),
       ],
+    },
+  },
+  katana: {
+    id: 'katana',
+    name: 'KATANA',
+    slot: SLOT.MELEE,
+    hold: 'melee',
+    spawnWeight: 3,
+    melee: {
+      durability: 40,
+      combo: [
+        hit({ damage: 16, windup: 0.06, active: 0.07, recover: 0.16, range: 17, knockX: 90, arcFrom: -2.4, arcTo: 1.0 }),
+        hit({ damage: 16, windup: 0.06, active: 0.07, recover: 0.16, range: 17, knockX: 90, arcFrom: 1.3, arcTo: -1.6 }),
+        hit({ damage: 24, windup: 0.12, active: 0.08, recover: 0.32, range: 19, knockX: 240, knockY: -140, knockdown: true, lunge: 140, arcFrom: -0.2, arcTo: 0.2 }),
+      ],
+    },
+  },
+  chair: {
+    id: 'chair',
+    name: 'CHAIR',
+    slot: SLOT.MELEE,
+    hold: 'melee',
+    spawnWeight: 4,
+    melee: {
+      durability: 4,
+      combo: [hit({ damage: 22, windup: 0.18, active: 0.09, recover: 0.3, range: 15, knockX: 330, knockY: -200, stun: 0.4, knockdown: true, arcFrom: -2.8, arcTo: 1.2 })],
     },
   },
   sledge: {
@@ -474,7 +503,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     slot: SLOT.HEAVY,
     hold: 'rifle',
     spawnWeight: 7,
-    muzzle: [12, -2],
+    muzzle: [10, -1],
     casing: true,
     gun: {
       damage: 9,
@@ -500,7 +529,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     slot: SLOT.HEAVY,
     hold: 'rifle',
     spawnWeight: 6,
-    muzzle: [16, -2],
+    muzzle: [14, -1],
     casing: true,
     gun: {
       damage: 13,
@@ -526,7 +555,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     slot: SLOT.HEAVY,
     hold: 'rifle',
     spawnWeight: 4,
-    muzzle: [19, -2],
+    muzzle: [16, -1],
     casing: true,
     gun: {
       damage: 75,
@@ -553,7 +582,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     slot: SLOT.HEAVY,
     hold: 'rifle',
     spawnWeight: 2,
-    muzzle: [18, 0],
+    muzzle: [14, -2],
     casing: true,
     moveSpeedMul: 0.55,
     gun: {
@@ -581,7 +610,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     slot: SLOT.HEAVY,
     hold: 'rifle',
     spawnWeight: 3,
-    muzzle: [16, 0],
+    muzzle: [11, -2],
     gun: {
       damage: 2,
       fireRate: 22,
@@ -608,7 +637,7 @@ export const WEAPONS: Record<string, WeaponDef> = {
     slot: SLOT.HEAVY,
     hold: 'rifle',
     spawnWeight: 3,
-    muzzle: [14, -1],
+    muzzle: [13, -2],
     moveSpeedMul: 0.85,
     gun: {
       damage: 20,

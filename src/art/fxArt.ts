@@ -22,6 +22,23 @@ const puff = (r: number): Painter => (pc, x, y) => {
     }
 };
 
+const ring = (r: number): Painter => (pc, x, y) => {
+  for (let j = 0; j < r * 2 + 1; j++)
+    for (let i = 0; i < r * 2 + 1; i++) {
+      const d = Math.hypot(i - r, j - r);
+      if (d <= r + 0.5 && d > r - 1.5) pc.set(x + i, y + j, P.white, d > r - 0.5 ? 255 : 140);
+    }
+};
+
+/** Soft round blob, alpha falling off to the edge (glows, scorch marks). */
+const soft = (r: number, hex: string, maxA: number): Painter => (pc, x, y) => {
+  for (let j = 0; j < r * 2 + 1; j++)
+    for (let i = 0; i < r * 2 + 1; i++) {
+      const d = Math.hypot(i - r, j - r) / (r + 0.5);
+      if (d < 1) pc.set(x + i, y + j, hex, Math.round(maxA * (1 - d * d)));
+    }
+};
+
 const DEFS: FxDef[] = [
   { name: 'p1', w: 1, h: 1, paint: (pc, x, y) => pc.set(x, y, P.white) },
   { name: 'p2', w: 2, h: 2, paint: (pc, x, y) => pc.rect(x, y, 2, 2, P.white) },
@@ -97,6 +114,25 @@ const DEFS: FxDef[] = [
       pc.set(x + 1, y, P.wood3);
     },
   },
+  { name: 'ring', w: 25, h: 25, paint: ring(12) },
+  { name: 'boom', w: 15, h: 15, paint: puff(7) },
+  { name: 'glow', w: 15, h: 15, paint: soft(7, P.white, 200) },
+  { name: 'glowBig', w: 31, h: 31, paint: soft(15, P.white, 170) },
+  { name: 'scorch', w: 21, h: 9, paint: (pc, x, y) => {
+    for (let j = 0; j < 9; j++)
+      for (let i = 0; i < 21; i++) {
+        const d = Math.hypot((i - 10) / 10.5, (j - 4) / 4.5);
+        if (d < 1 && (d < 0.7 || (i * 7 + j * 13) % 3 !== 0)) pc.set(x + i, y + j, P.ink, Math.round(210 * (1 - d * d * 0.6)));
+      }
+  } },
+  {
+    name: 'flame',
+    w: 5,
+    h: 8,
+    paint: (pc, x, y) => {
+      pc.ascii(x, y, ['..W..', '..W..', '.WWW.', '.WWW.', 'WWWWW', 'WWWWW', 'WWWWW', '.WWW.'], { W: P.white });
+    },
+  },
   {
     name: 'arrow',
     w: 7,
@@ -126,7 +162,7 @@ export function bakeFx(scene: Phaser.Scene): void {
     layout.push({ name: 'splat' + i, x, w: rows[0].length, h: rows.length });
     x += rows[0].length + pad;
   });
-  const pc = new PixelCanvas(x, 16);
+  const pc = new PixelCanvas(x, 32);
   DEFS.forEach((d, i) => d.paint(pc, layout[i].x, 0));
   SPLATS.forEach((rows, i) => {
     const l = layout[DEFS.length + i];

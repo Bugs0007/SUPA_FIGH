@@ -1,7 +1,8 @@
 import { defineConfig } from '@playwright/test';
 
 // On Windows use the installed Edge (no browser download needed); elsewhere the bundled Chromium
-// (run `npx playwright install chromium` once). Override with PW_CHANNEL=chrome|msedge|chromium.
+// (run `npx playwright install chromium` once). Override with PW_CHANNEL=chrome|msedge|chromium,
+// or point at a specific browser binary with PW_EXECUTABLE=/path/to/chromium.
 const envChannel = process.env.PW_CHANNEL;
 const channel = envChannel ? (envChannel === 'chromium' ? undefined : envChannel) : process.platform === 'win32' ? 'msedge' : undefined;
 
@@ -15,7 +16,10 @@ export default defineConfig({
     baseURL: 'http://localhost:5199',
     channel,
     viewport: { width: 1280, height: 720 },
-    launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
+    launchOptions: {
+      args: ['--autoplay-policy=no-user-gesture-required'],
+      executablePath: process.env.PW_EXECUTABLE || undefined,
+    },
   },
   webServer: {
     command: 'npx vite --port 5199 --strictPort',
