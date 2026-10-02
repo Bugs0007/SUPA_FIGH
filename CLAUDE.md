@@ -14,6 +14,7 @@ npm run preview    # serve dist/
 npm test           # Vitest unit tests (pure sim logic, runs in Node)
 npm run test:e2e   # Playwright browser tests (uses installed Edge on Windows, else bundled Chromium)
 npm run typecheck  # tsc --noEmit
+npm run balance    # bot survey across every map (scripts/balance.ts)
 npm run sim -- 8 8 test normal 1   # headless bots-only balance report (matches bots map difficulty seed)
 ```
 

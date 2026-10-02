@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Scrapyard Riot</title>
+    <meta name="description" content="Scrapyard Riot: a chaotic pixel-art party brawler for up to 10 fighters. Local multiplayer + bots, in your browser." />
+    <meta name="theme-color" content="#0b0912" />
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'%3E%3Crect width='8' height='8' fill='%23140f1e'/%3E%3Crect x='1' y='2' width='6' height='4' fill='%23ea4a4a'/%3E%3Crect x='2' y='1' width='4' height='1' fill='%23f8c840'/%3E%3Crect x='2' y='6' width='4' height='1' fill='%23f8c840'/%3E%3C/svg%3E"
@@ -24,6 +26,19 @@
         align-items: center;
         justify-content: center;
       }
+      #crash {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        max-width: 60%;
+        padding: 6px 10px;
+        font: 12px monospace;
+        color: #fff4a0;
+        background: #3a0a14cc;
+        border: 1px solid #ea4a4a;
+        display: none;
+        white-space: pre-wrap;
+      }
       #game canvas {
         image-rendering: pixelated;
         image-rendering: crisp-edges;
@@ -35,6 +50,7 @@
   </head>
   <body>
     <div id="game"></div>
+    <div id="crash"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

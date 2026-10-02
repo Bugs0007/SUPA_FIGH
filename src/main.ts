@@ -18,6 +18,16 @@ import { LobbyScene } from './scenes/LobbyScene';
 
 keyboard.attach(window);
 
+// Show uncaught errors on screen (players can report them; the game keeps running if it can).
+const crash = (msg: string) => {
+  const el = document.getElementById('crash');
+  if (!el) return;
+  el.style.display = 'block';
+  el.textContent = `Something broke (v${__APP_VERSION__}): ${msg}\nPlease report it. Press F5 to reload.`;
+};
+window.addEventListener('error', (e) => crash(String(e.message || e.error)));
+window.addEventListener('unhandledrejection', (e) => crash(String(e.reason)));
+
 let k = computeScale();
 const game = new Phaser.Game({
   type: Phaser.AUTO,

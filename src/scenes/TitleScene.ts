@@ -77,6 +77,7 @@ export class TitleScene extends Phaser.Scene {
     this.menuTexts = MAIN_MENU.map((m, i) => this.add.bitmapText(0, 318, 'pxo', m.label).setOrigin(0.5).setScale(i === 0 ? 2 : 1));
     this.layoutMenu();
     this.dummyText = this.add.bitmapText(VIEW_W / 2, 344, 'smo', '').setOrigin(0.5).setTint(0xc3c9dc);
+    this.add.bitmapText(VIEW_W - 4, VIEW_H - 8, 'sm', 'V' + __APP_VERSION__).setOrigin(1, 0).setTint(0x5a5668);
     this.updateDummyText();
   }
 

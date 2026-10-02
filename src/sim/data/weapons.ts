@@ -152,10 +152,10 @@ export const FISTS: WeaponDef = {
   melee: {
     durability: Infinity,
     combo: [
-      { damage: 6, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
-      { damage: 6, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
+      { damage: 5, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
+      { damage: 5, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
       {
-        damage: 11,
+        damage: 10,
         windup: 0.09,
         active: 0.07,
         recover: 0.26,

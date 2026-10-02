@@ -3,8 +3,8 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1–M7 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio). Next: **M8 Balance,
-  performance, production build, deploy docs**. Then the queued **M9 Anime Universe** (`docs/ANIME_EXPANSION.md`).
+- **M1–M8 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
+  build). Next: the queued **M9 Anime Universe** (`docs/ANIME_EXPANSION.md`).
 - `npm run dev` → http://localhost:5173 · `npm test` (160 unit tests) · `npm run test:e2e` (26 Playwright tests;
   in containers `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 <map> normal 1`
 - Title menu: Quick Match / Match Setup / Controls / Settings (L, C shortcuts; 0–8 bots; Tab difficulty).
@@ -12,16 +12,11 @@ Status legend: [x] done · [~] partial · [ ] todo
 - URLs: `/?scene=match&map=mine&bots=6&diff=hard&mode=brawl|deathmatch|koth|juggernaut|gungame|coop&chaos=1&mods=bigHeads`,
   `/?scene=lobby|controls|creator|settings`, `/?scene=art(&page=weapons)`, `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
 
-## Next steps (M8)
-1. Balance pass with `npm run sim` across maps/modes: kills per weapon <= 25% (fists ~22–27% now), round
-   length 20–60 s, check every map for spawn camping / dominant spots; tune data tables only.
-2. Performance: profile 10 fighters + heavy FX on a real GPU (60 fps target); Fx pool size, Graphics redraws
-   per frame (gimmicks/overlay) → cache static parts; consider culling off-screen particles.
-3. Production build: code-split Phaser chunk (the bundle is ~1.7 MB / 400 KB gzip), favicon, meta, a "click to
-   start audio" gate, error overlay, version string.
-4. Deploy docs (static hosting: itch.io / GitHub Pages / Netlify) + README for players (controls, modes).
-5. Known issues to look at: bots don't ride movers; rare 2-bot standoffs end by sudden death (by design);
-   title/creator previews draw arms hidden behind the body.
+## Next steps (M9 — Anime Universe, spec in `docs/ANIME_EXPANSION.md`)
+1. Hero power framework in the sim (data tables: heroes, transformations, abilities) driven by the ABILITY intent bit.
+2. Three heroes at the existing tiny pixel scale (procedural art, inspiration only), hero pickups, VFX, audio.
+3. Three maps (Hidden Leaf Forest, Grand Line Ship, Alien Energy Planet), lobby hero select, bots use powers.
+4. Known issues carried over: bots don't ride movers; title/creator previews draw arms hidden behind the body.
 
 ## M1 — Playable core ✅
 - [x] Docs (CLAUDE.md, GAME_DESIGN.md, DECISIONS.md, PROGRESS.md)
@@ -158,4 +153,12 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [x] Tests: mode rules (KotH, Juggernaut, Gun Game, Co-op waves/lives/revive), bots finish every timed mode;
       e2e every mode boots, pause menu + settings overlay
 
-## M8 — Balance, performance, production build, deploy docs
+## M8 — Balance, performance, production build, deploy docs ✅
+- [x] Balance survey `npm run balance` (bots on every map): fists dropped from 31.5% to 18.5% of kills at normal
+      (5/5/10 combo; more weapons on the floor at round start, faster weapon respawns); hard bots: top weapon
+      rifle 17.3%, 0 timeouts, ~23–25 s average rounds
+- [x] Performance check: sim tick ~0.16 ms and renderer sync ~0.8 ms for 10 fighters (CPU headroom is large;
+      software-GL containers are GPU bound)
+- [x] Production build: Phaser in its own cached chunk (game chunk 285 KB / 91 KB gzip), meta description + theme
+      colour, version string (title screen, from package.json), on-screen crash overlay
+- [x] README (players + dev) and `docs/DEPLOY.md` (itch.io, GitHub Pages, Netlify/Cloudflare/Vercel)

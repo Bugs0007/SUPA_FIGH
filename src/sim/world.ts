@@ -37,6 +37,9 @@ export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
 };
 
 const MAX_BULLETS = 512;
+/** share of map weapon spawns stocked at round start, and seconds between new drops (balance) */
+const INITIAL_WEAPON_FRACTION = 0.8;
+const WEAPON_RESPAWN: [number, number] = [5, 9];
 const MAX_WEAPON_ITEMS = 22;
 const NO_INTENT = emptyIntent();
 
@@ -251,7 +254,7 @@ export class World {
     const rate = this.weaponRate;
     if (rate <= 0) return;
     const pts = this.rng.shuffle([...this.parsed.weaponSpawns]);
-    const n = Math.min(pts.length, Math.ceil(pts.length * 0.55 * rate));
+    const n = Math.min(pts.length, Math.ceil(pts.length * INITIAL_WEAPON_FRACTION * rate));
     for (let i = 0; i < n; i++) {
       const id = this.randomWeaponId();
       if (id) this.spawnWeapon(id, pts[i].x, pts[i].y - 1);
@@ -260,7 +263,7 @@ export class World {
 
   private nextWeaponDelay(): number {
     const rate = Math.max(0.05, this.weaponRate);
-    return this.rng.range(7, 12) / rate;
+    return this.rng.range(WEAPON_RESPAWN[0], WEAPON_RESPAWN[1]) / rate;
   }
 
   private updateWeaponSpawner(): void {

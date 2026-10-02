@@ -220,3 +220,14 @@ queued respawn would have cost.
 ### D40 — Music is sequenced live, not rendered
 A 25 ms lookahead scheduler plays oscillator notes from data patterns (tempo, chord roots, 16-step patterns).
 Tiny, tweakable as data, and switches tracks instantly (title → match → intense on sudden death/overtime/boss).
+
+### D41 — Balance by survey, not by feel
+`npm run balance` runs bot matches on every map and prints kills per weapon and round lengths. Target: no weapon
+above ~25% of kills, rounds 20–60 s. The fists were dominant because bots spawned unarmed and kept brawling, so the
+fix went into the data (combo damage 5/5/10, 80% of weapon spawns filled at round start, 5–9 s respawns) rather
+than into bot logic.
+
+### D42 — Phaser in its own chunk, version baked in, errors shown on screen
+The engine is ~80% of the bundle and changes rarely, so `manualChunks` keeps it cacheable across game updates.
+`__APP_VERSION__` (vite `define`, from package.json) is shown on the title and in the crash overlay, so bug
+reports name a build. Uncaught errors show a small overlay instead of failing silently.
