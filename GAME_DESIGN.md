@@ -25,7 +25,7 @@ fighter/team standing wins the round → slow-mo final kill + instant replay →
 | Interact (pick up / grab / throw) | T | Num8 | O | Y |
 | Cycle weapon | R | Num7 | I | RB |
 | Use gadget (medkit) | V | Num9 | U | LB |
-| Ability (hero powers, M9) | B | Num1 | P | LT |
+| Ability (hero special) | B | Num1 | P | LT |
 
 - **Guns:** hold Attack to aim (Up/Down sweeps the angle). Automatic weapons fire while held;
   semi-automatic weapons fire when you let go. Tap = instant hip shot.
@@ -64,3 +64,20 @@ Test Arena · Neon Rooftops (heli supply drops) · Night Train (moving roofs + t
 Casino (chandeliers, elevator) · Harbor Docks (containers, deadly water) · Office Tower
 (shatterable windows, server-room fire) · Secret Lab (laser grids, low-grav switch) · Abandoned
 Mine (minecarts, TNT).
+
+## Anime heroes (M9 expansion)
+Pick **Naruto**, **Luffy** or **Goku** instead of a scrapyard fighter (creator HERO row / lobby). They are
+the same tiny pixel fighters (same hitbox, same moves, stats within ~5%) until they find their **power-up**,
+a rare pickup that can appear on any map (one at a time; the anime maps favor their own):
+
+| Hero | Power-up | Transformation | ABILITY special |
+|---|---|---|---|
+| Naruto | Chakra scroll | Kurama Mode: crimson aura, faster, harder hits; combo hit 3 brings two shadow clones | Chakra bomb: big explosive orb |
+| Luffy | Straw hat token | Gear Second: steam, pink skin, quick stretchy punches and kicks with extra reach | Rubber bullet: the arm stretches across the room |
+| Goku | Energy core | Super Saiyan: yellow hair, heavy hits with hit-stop, stronger kick | Ki blast: tap = small, hold = charged big blast |
+
+Anyone can grab any power-up: the matching hero transforms fully (18–20 s); everyone else gets a short
+generic boost. Weapons keep working while powered. Maps: **Hidden Leaf Forest** (giant trees, village,
+canopy), **Grand Line Ship** (decks, hold, mast, cannons, waves), **Alien Energy Planet** (low-gravity
+fields, floating rocks, energy fissures).
+

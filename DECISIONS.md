@@ -231,3 +231,47 @@ than into bot logic.
 The engine is ~80% of the bundle and changes rarely, so `manualChunks` keeps it cacheable across game updates.
 `__APP_VERSION__` (vite `define`, from package.json) is shown on the title and in the crash overlay, so bug
 reports name a build. Uncaught errors show a small overlay instead of failing silently.
+
+## M9 — Anime Universe expansion
+
+### D43 — Any fighter can grab any hero power-up
+Hero, map and power-up are independent (spec). The matching hero gets the full transformation (combo,
+kick, special, 18–20 s); anyone else gets `GENERIC_BOOST` (+12% speed, +20% melee damage, +15% knockback,
+12 s, aura in the power's color, no special). Pickups stay contested and denying one is a real play.
+
+### D44 — The ABILITY button fires the special; guns are never replaced
+The game has no built-in ranged attack, so "replaces the ranged attack" became "the special lives on the
+ABILITY intent bit": chakra bomb, rubber bullet (stretch), ki blast (tap = small, hold = charge up to 3x).
+Transformed combos replace only the bare-fist combo; held melee weapons keep their own combos but get the
+damage/knockback/reach multipliers; picked-up guns work exactly as normal while powered. Expiry restores
+everything (and so does death).
+
+### D45 — Shadow clones are sim effect entities
+`World.clones` hold position/facing/timer; each strikes once in a short window and vanishes. They never
+think, never take damage and are not fighters (the fighter list stays fixed for replays/bots). Deterministic,
+so instant replays show them.
+
+### D46 — Heroes are the modular fighter with new parts, not new sprites
+Hair (`ninja`, `saiyan`), hats (`strawhat`, `headband`), faces (`whiskers`, `foxeyes`, `scar`), tops
+(`tracksuit`, `openvest`, `gi`) and shorts were added to the same baker, so heroes have exactly the same pixel
+density, poses and arm system as every fighter (spec §1). The powered look is just a second Appearance
+(yellow hair, red eyes, flushed skin). External PNG sheets are optional per hero (`art/externalSheets.ts`,
+validated, low-res only) and fall back to procedural art when missing.
+
+### D47 — Power-ups are rare, one at a time
+After 12–20 s, then every 26–38 s, one power-up drops at the map's `P` spot (fallback: weapon spawns) if
+none is lying around. The themed map's own power is 3x likelier. On by default in the lobby and quick
+match, off in Gun Game and in every unit test unless enabled (keeps old seeds deterministic).
+
+### D48 — Map gimmicks for the anime maps stay fair
+Ship waves shove loose props/items but only nudge grounded fighters (35% of the push, standing still) —
+never a cheap ring-out. The ship "rocks" visually (background bob) instead of tilting the camera, so pixels
+stay crisp and controls stay honest. Cannons fire on Interact with a 5 s cooldown and credit the gunner.
+Alien gravity fields are static (no toggle) so the nav graph knows the bigger jumps. Leaf trunks are dirt
+(not burnable wood) so fire can't delete wall-jump surfaces the nav graph relies on. The forest stream was
+left out: water tiles are deadly and a shallow-water tile wasn't worth a new tile kind yet.
+
+### D49 — Names in data (IP)
+Hero names, power names, pickup names and palettes live only in `sim/data/heroes.ts`, `data/weapons.ts` and
+`art/heroArt.ts`. Before any public release they can be renamed/re-skinned into original archetypes without
+code changes. No anime artwork, music or sounds are used; everything is procedural or original.

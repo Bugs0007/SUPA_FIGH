@@ -32,6 +32,24 @@ describe.each(MAP_LIST.map((m) => [m.id, m] as const))('map %s', (_id, def) => {
     });
     expect(bad.map((p) => `${p.x / 16 - 0.5},${p.y / 16 - 1}`)).toEqual([]);
   });
+
+  it('hero power-up spawns (P) are reachable', () => {
+    const g = new NavGraph(def);
+    const s = g.nodeAtPx(parsed.spawns[0].x, parsed.spawns[0].y)!;
+    for (const p of parsed.powerSpawns) {
+      const n = g.nearest(p.x, p.y);
+      expect(n && g.path(s.id, n.id), `power spawn ${p.x / 16 - 0.5},${p.y / 16 - 1}`).toBeTruthy();
+    }
+  });
+});
+
+describe('anime universe maps (M9)', () => {
+  it.each(['leaf', 'ship', 'alien'])('%s has a contested power-up spot and a themed power bias', (id) => {
+    const def = MAP_LIST.find((m) => m.id === id)!;
+    expect(def).toBeDefined();
+    expect(parseMap(def).powerSpawns.length).toBeGreaterThanOrEqual(1);
+    expect(def.powerBias).toBeTruthy();
+  });
 });
 
 describe('bots on every map', () => {

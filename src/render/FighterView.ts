@@ -105,6 +105,11 @@ export class FighterView {
     this.tag.setVisible(f.alive).setPosition(Math.round(x), Math.round(y - 30));
   }
 
+  /** the transformed (powered) textures are on screen (tests / debug) */
+  get showsPowered(): boolean {
+    return this.poweredTex !== null && this.curTex === this.poweredTex;
+  }
+
   onLand(speed: number): void {
     this.squash = Math.min(0.35, speed / 1200);
   }

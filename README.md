@@ -41,6 +41,13 @@ Pause with Esc, P or Start.
 
 **Interact:** grab an enemy, then press Attack to throw them.
 
+### Anime heroes
+In the fighter creator (lobby → HERO / LOOK) you can pick **Naruto**, **Luffy** or **Goku**. Each has a rare
+power-up somewhere on the map (chakra scroll, straw hat token, energy core) that transforms them. Press
+**Ability** for their special (chakra bomb, rubber bullet, ki blast; hold it to charge Goku's blast). Anyone
+can grab any power-up for a smaller boost. Three maps fit them: Hidden Leaf Forest, Grand Line Ship, and
+Alien Energy Planet. Quick match: `?heroes=naruto,luffy,goku`.
+
 ### Modes
 - **Brawl:** rounds, last fighter standing. The dead come back as ghosts who can shove things around.
 - **Deathmatch:** timed, with respawns.
@@ -71,6 +78,6 @@ To get started with the code:
 Useful URL parameters:
 - `?scene=match&map=mine&bots=6&diff=hard&mode=koth&chaos=1`
 - `?scene=lobby`
-- `?scene=art&page=weapons`
+- `?scene=art&page=weapons` (or `&page=heroes`)
 - `&speed=4`
 - `&seed=N`
