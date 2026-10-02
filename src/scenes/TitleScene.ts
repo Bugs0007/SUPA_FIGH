@@ -115,9 +115,9 @@ export class TitleScene extends Phaser.Scene {
     });
     this.add.bitmapText(x + 84, y + 104, 'sm', 'GUNS: HOLD ATTACK, UP/DOWN AIMS,').setTint(0xc3c9dc);
     this.add.bitmapText(x + 84, y + 112, 'sm', 'LET GO TO FIRE. SMGS SPRAY WHILE HELD.').setTint(0xc3c9dc);
-    this.add.bitmapText(x + 84, y + 124, 'sm', 'DOWN WHILE RUNNING = ROLL  DOWN+JUMP =').setTint(0xc3c9dc);
-    this.add.bitmapText(x + 84, y + 132, 'sm', 'DROP  DOWN IN AIR = DIVE  2X JUMP, WALL').setTint(0xc3c9dc);
-    this.add.bitmapText(x + 84, y + 140, 'sm', `JUMP  2X TAP = SPRINT  ${keys('gadget')} = MEDKIT`).setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 124, 'sm', 'RUN + DOWN = ROLL   DOWN + JUMP = DROP').setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 132, 'sm', 'AIR JUMP = DOUBLE/WALL JUMP  AIR DOWN = DIVE').setTint(0xc3c9dc);
+    this.add.bitmapText(x + 84, y + 140, 'sm', `2X TAP DIRECTION = SPRINT  ${keys('gadget')} = MEDKIT`).setTint(0xc3c9dc);
   }
 
   override update(_t: number, deltaMs: number): void {

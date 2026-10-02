@@ -1,10 +1,12 @@
 import { DT, MATCH_END_TIME, ROUND_END_CONFIRM, ROUND_END_TIME, SUDDEN_DEATH_DRAIN_AFTER } from './constants';
 import { teamKey } from './combat';
+import { MODIFIERS } from './data/modifiers';
 import { weaponDef } from './data/weapons';
 import type { FighterSpawn } from './fighter';
 import type { Intent } from './intent';
 import { getMap } from './map/maps';
 import { World, type WorldSettings } from './world';
+import { RoundRecording } from './replay';
 
 /** brawl = rounds, last team standing. deathmatch = one timed round with respawns, most kills wins. */
 export type GameMode = 'brawl' | 'deathmatch';
@@ -23,6 +25,10 @@ export interface MatchConfig {
   suddenDeath?: number;
   /** deathmatch respawn delay (s), default 2.5 */
   respawnDelay?: number;
+  /** flip a random chaos modifier card every round */
+  chaos?: boolean;
+  /** modifiers that are always on (data/modifiers.ts ids) */
+  modifiers?: string[];
 }
 
 export const MODE_NAMES: Record<GameMode, string> = { brawl: 'BRAWL', deathmatch: 'DEATHMATCH' };
@@ -36,6 +42,8 @@ export type MatchEvent =
   | { t: 'finalKill'; x: number; y: number }
   | { t: 'multiKill'; f: number; count: number }
   | { t: 'suddenDeath'; level: number }
+  | { t: 'bounty'; f: number; by: number }
+  | { t: 'modifier'; id: string }
   | { t: 'overtime' };
 
 export interface FighterStats {
@@ -44,7 +52,28 @@ export interface FighterStats {
   suicides: number;
   damage: number;
   roundsWon: number;
+  explosiveKills: number;
+  fireKills: number;
+  meleeKills: number;
+  /** kills credited via the environment (knocked into something / off something) or by map hazards/props */
+  envKills: number;
+  bounties: number;
 }
+
+const freshStats = (): FighterStats => ({
+  kills: 0,
+  deaths: 0,
+  suicides: 0,
+  damage: 0,
+  roundsWon: 0,
+  explosiveKills: 0,
+  fireKills: 0,
+  meleeKills: 0,
+  envKills: 0,
+  bounties: 0,
+});
+
+const PROP_WEAPONS = new Set(['barrel', 'gas', 'tnt', 'chandelier', 'crate']);
 
 /** A match = a series of rounds on one map. Owns the current World. Pure sim, runs headless. */
 export class Match {
@@ -75,7 +104,7 @@ export class Match {
 
   constructor(cfg: MatchConfig) {
     this.cfg = cfg;
-    this.stats = cfg.fighters.map(() => ({ kills: 0, deaths: 0, suicides: 0, damage: 0, roundsWon: 0 }));
+    this.stats = cfg.fighters.map(freshStats);
     this.startRound();
   }
 
@@ -83,13 +112,44 @@ export class Match {
     return new Set(this.cfg.fighters.map((f, i) => teamKey({ id: i, team: f.team }))).size;
   }
 
+  /** intent log of the current round (Brawl) for instant replays */
+  recording: RoundRecording | null = null;
+  /** recording of the round that just ended (kept until the next one ends) */
+  lastRecording: RoundRecording | null = null;
+
+  /** Modifiers active this round: fixed ones + this round's chaos card. */
+  roundModifiers: string[] = [];
+
   worldSettings(): WorldSettings {
-    return { friendlyFire: this.cfg.friendlyFire, weaponSpawnRate: this.cfg.weaponSpawnRate, gravityScale: 1 };
+    return {
+      friendlyFire: this.cfg.friendlyFire,
+      weaponSpawnRate: this.cfg.weaponSpawnRate,
+      gravityScale: 1,
+      modifiers: this.roundModifiers,
+      ghosts: this.cfg.mode === 'brawl',
+    };
+  }
+
+  private pickModifiers(): void {
+    const mods = [...(this.cfg.modifiers ?? [])];
+    if (this.cfg.chaos) {
+      // deterministic per seed + round; never the same card twice in a row
+      const prev = this.roundModifiers.find((m) => !mods.includes(m));
+      const pool = MODIFIERS.filter((m) => m.id !== prev && !mods.includes(m.id));
+      const h = Math.abs(Math.imul(this.cfg.seed ^ 0x5bd1e995, this.round * 2654435761) >>> 0);
+      mods.push(pool[h % pool.length].id);
+    }
+    this.roundModifiers = mods;
   }
 
   startRound(): void {
     this.round++;
-    this.world = new World(getMap(this.cfg.mapId), this.cfg.fighters, this.worldSettings(), this.cfg.seed + this.round * 7919);
+    this.pickModifiers();
+    const def = getMap(this.cfg.mapId);
+    const settings = this.worldSettings();
+    const seed = this.cfg.seed + this.round * 7919;
+    this.world = new World(def, this.cfg.fighters, settings, seed);
+    this.recording = this.cfg.mode === 'brawl' ? new RoundRecording(def, this.cfg.fighters, settings, seed) : null;
     this.phase = 'fight';
     this.phaseTime = 0;
     this.decideTimer = -1;
@@ -98,11 +158,15 @@ export class Match {
     this.respawnAt.clear();
     this.overtime = false;
     this.events.push({ t: 'roundStart', round: this.round });
+    if (this.cfg.chaos) this.events.push({ t: 'modifier', id: this.roundModifiers[this.roundModifiers.length - 1] });
   }
 
   step(intents: readonly Intent[]): void {
     const w = this.world;
     const evStart = w.events.length;
+    const bounty = this.bounty; // who wore the crown when this tick started
+    // keeps recording through the round-end phase so replays include the tumbling aftermath
+    if (this.recording) this.recording.record(intents, w.suddenDeath);
     w.step(intents);
     this.phaseTime += DT;
 
@@ -113,7 +177,20 @@ export class Match {
       } else if (e.t === 'kill') {
         this.stats[e.victim].deaths++;
         if (e.killer >= 0 && e.killer !== e.victim) {
-          this.stats[e.killer].kills++;
+          const ks = this.stats[e.killer];
+          ks.kills++;
+          if (e.cause === 'explosion') ks.explosiveKills++;
+          else if (e.cause === 'fire') ks.fireKills++;
+          else if ((e.cause === 'melee' || e.cause === 'kick') && !e.env) ks.meleeKills++;
+          if (e.env || PROP_WEAPONS.has(e.weapon) || e.cause === 'hazard') ks.envKills++;
+          if (e.victim === bounty) {
+            ks.bounties++;
+            this.events.push({ t: 'bounty', f: e.victim, by: e.killer });
+            if (this.cfg.mode === 'deathmatch') {
+              const kt = teamKey({ id: e.killer, team: this.cfg.fighters[e.killer].team });
+              this.scores.set(kt, (this.scores.get(kt) ?? 0) + 1); // bounty bonus point
+            }
+          }
           this.recentKills.push({ killer: e.killer, tick: w.tick });
           const n = this.recentKills.filter((k) => k.killer === e.killer && w.tick - k.tick < 90).length;
           if (n >= 2) {
@@ -130,6 +207,11 @@ export class Match {
         }
         if (this.phase === 'fight' && this.teamCount > 1 && w.aliveTeams().size <= 1) {
           this.events.push({ t: 'finalKill', x: e.x, y: e.y });
+          if (this.recording) {
+            this.recording.finalKillTick = w.tick;
+            this.recording.finalKillX = e.x;
+            this.recording.finalKillY = e.y;
+          }
           this.startSlowmo(1.5, e.x, e.y);
         }
       }
@@ -169,6 +251,26 @@ export class Match {
     } else if (this.phase === 'matchEnd') {
       if (this.phaseTime >= MATCH_END_TIME) this.resetMatch();
     }
+  }
+
+  /**
+   * The bounty: the single fighter leading the match (round wins in Brawl, kills in Deathmatch).
+   * -1 while nobody leads alone. Killing them is announced (and worth +1 in Deathmatch).
+   */
+  get bounty(): number {
+    const key = (s: FighterStats) => (this.cfg.mode === 'deathmatch' ? s.kills - s.suicides : s.roundsWon * 100 + s.kills);
+    let best = -1;
+    let bestV = 0;
+    let tie = false;
+    this.stats.forEach((s, i) => {
+      const v = key(s);
+      if (v > bestV) {
+        bestV = v;
+        best = i;
+        tie = false;
+      } else if (v === bestV && v > 0) tie = true;
+    });
+    return tie ? -1 : best;
   }
 
   /** Deathmatch seconds left (0 in other modes). */
@@ -232,6 +334,7 @@ export class Match {
   }
 
   private endRound(): void {
+    this.lastRecording = this.recording;
     const alive = [...this.world.aliveTeams()];
     const winner = alive.length === 1 ? alive[0] : null;
     this.roundWinner = winner;
@@ -251,7 +354,7 @@ export class Match {
     this.cineScale = 1;
     this.matchWinner = null;
     this.round = 0;
-    for (const s of this.stats) Object.assign(s, { kills: 0, deaths: 0, suicides: 0, damage: 0, roundsWon: 0 });
+    for (const s of this.stats) Object.assign(s, freshStats());
     this.startRound();
   }
 

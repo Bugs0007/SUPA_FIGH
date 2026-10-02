@@ -17,6 +17,8 @@ import type { FighterSpawn } from '../sim/fighter';
 import type { Intent } from '../sim/intent';
 import { Match, type MatchConfig, type MatchEvent } from '../sim/match';
 import type { World } from '../sim/world';
+import { ReplayPlayer, type RoundRecording } from '../sim/replay';
+import { padMenu } from '../input/gamepad';
 
 export interface PlayerSetup {
   spawn: FighterSpawn;
@@ -75,6 +77,8 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
       mapId: params.get('map') ?? 'test',
       mode: params.get('mode') === 'deathmatch' ? 'deathmatch' : 'brawl',
       timeLimit: Number(params.get('time') ?? 180) || 180,
+      chaos: params.get('chaos') === '1',
+      modifiers: params.get('mods')?.split(',').filter(Boolean),
       fighters: players.map((p) => p.spawn),
       roundsToWin: 5,
       friendlyFire: false,
@@ -104,6 +108,18 @@ export class MatchScene extends Phaser.Scene {
   private intents: Intent[] = [];
   private frameStep = false;
   private elapsed = 0;
+  /** instant replay in progress (match paused underneath) */
+  replay: {
+    rec: RoundRecording;
+    player: ReplayPlayer;
+    start: number;
+    end: number;
+    ready: boolean;
+    acc: number;
+    age: number;
+  } | null = null;
+  /** match events held back while a replay plays (banners after the replay) */
+  private heldEvents: MatchEvent[] = [];
 
   constructor() {
     super('match');
@@ -158,6 +174,10 @@ export class MatchScene extends Phaser.Scene {
     const dt = Math.min(deltaMs / 1000, 0.1);
     this.elapsed += dt;
     this.handleDebugKeys();
+    if (this.replay) {
+      this.updateReplay(dt);
+      return;
+    }
 
     if (!this.paused || this.frameStep) {
       if (this.hitstop > 0) {
@@ -173,6 +193,7 @@ export class MatchScene extends Phaser.Scene {
           this.acc -= DT;
           steps++;
           this.drainEvents();
+          if (this.replay) break; // the round ended on a kill: play it back first
           if (this.match.world !== this.renderedWorld) {
             this.buildRenderer();
             break;
@@ -186,6 +207,7 @@ export class MatchScene extends Phaser.Scene {
     audio.timePitch = 0.6 + 0.4 * this.match.timeScale;
     const alpha = Math.min(1, this.acc / DT);
     const visDt = this.paused ? 0 : dt * Math.max(0.25, this.match.timeScale);
+    this.wr.bounty = this.match.bounty;
     this.wr.sync(alpha, visDt, this.elapsed);
     this.camDir.update(dt, this.match.world, this.match.cinematic);
   }
@@ -206,6 +228,14 @@ export class MatchScene extends Phaser.Scene {
       this.juice.ui.length = 0;
     }
     for (const e of this.match.events) {
+      if ((e.t === 'roundEnd' || e.t === 'matchEnd') && this.startReplay()) {
+        this.heldEvents.push(e);
+        continue;
+      }
+      if (this.replay) {
+        this.heldEvents.push(e);
+        continue;
+      }
       this.matchEvents.push(e);
       if (e.t === 'roundStart') audio.play('roundStart');
       else if (e.t === 'roundEnd' || e.t === 'matchEnd') audio.play('roundEnd');
@@ -215,6 +245,67 @@ export class MatchScene extends Phaser.Scene {
       }
     }
     this.match.events.length = 0;
+  }
+
+  // ------------------------------------------------------------ instant replay
+
+  private startReplay(): boolean {
+    const rec = this.match.lastRecording;
+    if (!settings.replays || !rec || rec.finalKillTick <= 0 || this.speed > 1) return false;
+    const killIdx = rec.finalKillTick - 1;
+    this.replay = {
+      rec,
+      player: new ReplayPlayer(rec),
+      start: Math.max(0, killIdx - 150),
+      end: Math.min(rec.ticks, killIdx + 80),
+      ready: false,
+      acc: 0,
+      age: 0,
+    };
+    return true;
+  }
+
+  private updateReplay(dt: number): void {
+    const r = this.replay!;
+    if (!r.ready) {
+      // fast-forward in chunks so long rounds don't hitch
+      if (!r.player.skipTo(r.start, 1500)) return;
+      r.ready = true;
+      this.wr.destroy();
+      this.renderedWorld = r.player.world;
+      this.wr = new WorldRenderer(this, r.player.world, this.looks);
+      this.juice = new Juice(this.wr, this.camDir);
+      this.acc = 0;
+      audio.play('uiOk', { pitch: 0.6 });
+    }
+    r.age += dt;
+    const skip = r.age > 0.4 && (keyboard.anyJustPressed() || padMenu.justPressed(0) || padMenu.justPressed(2) || padMenu.justPressed(9));
+    const w = r.player.world;
+    const nearKill = r.player.t >= r.rec.finalKillTick - 1 - 40;
+    const scale = nearKill ? 0.25 : 0.55;
+    r.acc += dt * scale;
+    while (r.acc >= DT && !r.player.done && r.player.t < r.end) {
+      r.player.step();
+      r.acc -= DT;
+      for (const e of w.events) this.juice.handle(e, w);
+      w.events.length = 0;
+      this.juice.ui.length = 0;
+      this.juice.hitstop = 0;
+    }
+    audio.timePitch = 0.6 + 0.4 * scale;
+    this.wr.sync(Math.min(1, r.acc / DT), dt * scale, this.elapsed);
+    const focus = nearKill ? { x: r.rec.finalKillX, y: r.rec.finalKillY, ticks: 30 } : null;
+    this.camDir.update(dt, w, focus);
+    if (skip || r.player.done || r.player.t >= r.end) this.endReplay();
+  }
+
+  private endReplay(): void {
+    this.replay = null;
+    audio.timePitch = 1;
+    this.buildRenderer();
+    this.matchEvents.push(...this.heldEvents);
+    for (const e of this.heldEvents) if (e.t === 'roundEnd' || e.t === 'matchEnd') audio.play('roundEnd');
+    this.heldEvents.length = 0;
   }
 
   /** Gamepad rumble for the fighters that pads control. */

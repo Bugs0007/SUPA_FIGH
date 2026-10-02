@@ -13,6 +13,8 @@ export interface Settings {
   botDifficulty: 'easy' | 'normal' | 'hard' | 'expert';
   /** number of bots in a quick match from the title screen */
   quickBots: number;
+  /** instant replay of every round-ending kill */
+  replays: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -25,6 +27,7 @@ const DEFAULTS: Settings = {
   fullscreen: false,
   botDifficulty: 'normal',
   quickBots: 3,
+  replays: true,
 };
 
 export const settings: Settings = load('settings', DEFAULTS);

@@ -9,6 +9,10 @@ import {
   WALL_JUMP_VX,
   WALL_JUMP_VY,
   WALL_SLIDE_MAX,
+  GHOST_COOLDOWN,
+  GHOST_DELAY,
+  GHOST_RADIUS,
+  GHOST_SPEED,
   AIM_ACCEL,
   AIM_LIMIT,
   AIM_MAX_SPEED,
@@ -198,6 +202,13 @@ export interface Fighter extends Body {
   swingProps: number[];
   /** id of the prop held overhead (-1 = none) */
   carry: number;
+  /** ghost (dead, Brawl): floating position, poltergeist cooldown */
+  ghost: boolean;
+  gx: number;
+  gy: number;
+  gvx: number;
+  gvy: number;
+  ghostCd: number;
   prev: Intent;
 }
 
@@ -293,6 +304,12 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     jetting: false,
     swingProps: [],
     carry: -1,
+    ghost: false,
+    gx: 0,
+    gy: 0,
+    gvx: 0,
+    gvy: 0,
+    ghostCd: 0,
     prev: emptyIntent(),
   };
 }
@@ -408,9 +425,11 @@ const moveRes: MoveResult = newMoveResult();
 export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   f.px = f.x;
   f.py = f.y;
-  if (f.gone) return;
+  if (f.gone && !w.settings.ghosts) return;
   if (!f.alive) {
-    updateCorpse(w, f);
+    if (!f.gone) updateCorpse(w, f);
+    else f.stateTime += DT;
+    if (w.settings.ghosts) updateGhost(w, f, inp);
     copyIntent(f.prev, inp);
     return;
   }
@@ -1682,6 +1701,72 @@ function stKnockdown(w: World, f: Fighter, dt: number): void {
       restoreHeight(w, f);
     }
   }
+}
+
+// ------------------------------------------------------------------ ghosts
+
+function updateGhost(w: World, f: Fighter, inp: Intent): void {
+  if (!f.ghost) {
+    if (f.stateTime < GHOST_DELAY) return;
+    f.ghost = true;
+    f.gx = clamp(f.x, TILE, w.map.pxW - TILE);
+    f.gy = clamp(f.y - 14, TILE, w.map.pxH - TILE * 2);
+    f.gvx = 0;
+    f.gvy = -40;
+    f.ghostCd = 2;
+  }
+  const dt = DT;
+  if (f.ghostCd > 0) f.ghostCd -= dt;
+  const mx = Math.abs(inp.moveX) > 0.25 ? inp.moveX : 0;
+  const my = Math.abs(inp.moveY) > 0.25 ? inp.moveY : 0;
+  f.gvx = approach(f.gvx, mx * GHOST_SPEED, 500 * dt);
+  f.gvy = approach(f.gvy, my * GHOST_SPEED, 500 * dt);
+  f.gx = clamp(f.gx + f.gvx * dt, 4, w.map.pxW - 4);
+  f.gy = clamp(f.gy + f.gvy * dt, 8, w.map.pxH - 4);
+  if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
+  const pressed = (inp.attack && !f.prev.attack) || (inp.kick && !f.prev.kick) || (inp.interact && !f.prev.interact);
+  if (pressed && f.ghostCd <= 0) poltergeist(w, f);
+}
+
+/** BOO: shove everything near the ghost away from it. */
+function poltergeist(w: World, f: Fighter): void {
+  f.ghostCd = GHOST_COOLDOWN;
+  const R = GHOST_RADIUS;
+  const push = (x: number, y: number, k: number) => {
+    const dx = x - f.gx;
+    const dy = y - f.gy;
+    const d = Math.hypot(dx, dy);
+    if (d > R) return null;
+    const s = (1 - d / R) * 0.6 + 0.4;
+    return { vx: (Math.sign(dx) || f.facing) * k * s, vy: -k * 0.7 * s };
+  };
+  for (const p of w.props) {
+    if (!p.active) continue;
+    const v = push(p.x, p.y - p.h / 2, 240);
+    if (v) {
+      pushProp(p, v.vx, v.vy);
+      if (p.def.anchored && !p.released) damageProp(w, p, 999, -1); // shake the chandelier loose
+    }
+  }
+  for (const it of w.items) {
+    if (!it.active) continue;
+    const v = push(it.x, it.y, 220);
+    if (v) {
+      it.vx += v.vx;
+      it.vy += v.vy;
+      it.grounded = false;
+      it.vrot += f.facing * 14;
+    }
+  }
+  for (const o of w.fighters) {
+    if (o === f || o.gone) continue;
+    const v = push(o.x, o.y - o.h / 2, o.alive ? 140 : 220);
+    if (!v) continue;
+    o.vx += v.vx;
+    o.vy += v.vy;
+    o.grounded = false;
+  }
+  w.emit({ t: 'poltergeist', f: f.id, x: f.gx, y: f.gy });
 }
 
 // ------------------------------------------------------------------ corpses

@@ -73,9 +73,14 @@ export const CORPSE_FRICTION = 0.86;
 // Rounds
 export const ROUND_END_CONFIRM = 0.9; // seconds after last kill before the round is decided
 export const ROUND_END_TIME = 2.6; // banner time before the next round
-export const MATCH_END_TIME = 4.5;
+export const MATCH_END_TIME = 9; // awards screen
 export const LAST_HIT_CREDIT = 6;
 // Modes
 export const SUDDEN_DEATH_DRAIN_AFTER = 15; // seconds after sudden death starts until HP drains
 export const SUDDEN_DEATH_DPS = 2;
-export const RESPAWN_PROTECTION = 1.5; // environmental deaths within N seconds credit the last attacker
+export const RESPAWN_PROTECTION = 1.5;
+// Ghosts (Brawl): the dead haunt the living
+export const GHOST_DELAY = 1.2; // seconds after death before the ghost rises
+export const GHOST_SPEED = 110;
+export const GHOST_COOLDOWN = 8; // poltergeist recharge
+export const GHOST_RADIUS = 52; // environmental deaths within N seconds credit the last attacker

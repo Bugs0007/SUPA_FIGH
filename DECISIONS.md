@@ -182,3 +182,23 @@ zoom camera, reads the match camera's view center for parallax, and the match ca
 A tiny Python grid builder (rects, platforms, ladders, markers that nudge themselves onto free floor)
 keeps 70–96 column maps consistent and editable. The output is still the plain ASCII MapDef format, so
 hand edits work too (but regenerate after editing the builder).
+
+### D33 — Replays re-simulate instead of snapshotting
+Recording a round costs 1 + 3×fighters numbers per tick (intents + sudden-death level). The replay builds a
+fresh World with the round's seed/settings and re-steps the log — a unit test asserts the replayed world
+equals the original one field by field. Fast-forward runs in 1500-tick chunks per frame so long rounds
+don't hitch. Brawl only (Deathmatch respawns are Match-driven and rounds don't end on a kill).
+
+### D34 — Ghosts are Brawl-only and push, never damage
+Ghosts keep dead players busy (pillar: no dead time) without deciding rounds: BOO shoves things around and
+can shake a chandelier loose (which can kill — credited to nobody/last hitter), but ghosts deal no direct
+damage and are invisible to bot targeting.
+
+### D35 — One chaos card per round, deterministic from seed + round
+Cards never repeat back to back. Fixed modifiers (`?mods=`/config) stack with the round's card. Effects
+live next to the systems they change (gravity in World, damage in combat, bounces in projectiles).
+
+### D36 — Bounty = sole match leader
+Brawl leader = most round wins (kills break ties), Deathmatch leader = kills − suicides; nobody wears the
+crown while tied. The bounty is captured at the start of each tick so the kill that takes the lead from
+the bounty still counts as claiming it.

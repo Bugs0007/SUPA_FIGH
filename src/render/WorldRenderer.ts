@@ -52,6 +52,8 @@ export class WorldRenderer {
   private floats: FloatText[] = [];
   private debugGfx: Phaser.GameObjects.Graphics;
   debug = false;
+  /** fighter wearing the bounty crown (-1 = none), set by the scene each frame */
+  bounty = -1;
 
   constructor(
     private scene: Phaser.Scene,
@@ -82,7 +84,9 @@ export class WorldRenderer {
 
     world.fighters.forEach((f, i) => {
       const l = looks[i];
-      this.views.push(new FighterView(scene, f, l.look, l.color, l.label));
+      const v = new FighterView(scene, f, l.look, l.color, l.label);
+      v.bigHead = world.mods.has('bigHeads');
+      this.views.push(v);
     });
 
     this.tracers = scene.add.graphics().setDepth(55).setBlendMode(Phaser.BlendModes.ADD);
@@ -222,9 +226,17 @@ export class WorldRenderer {
     this.drawGimmicks(alpha, dt, time);
     this.drawAimAids(alpha);
 
-    // health bars
+    // health bars (+ the bounty crown)
     const bars = this.bars;
     bars.clear();
+    const bf = this.bounty >= 0 ? w.fighters[this.bounty] : null;
+    if (bf && bf.alive && !bf.gone) {
+      const cx = Math.round(lerp(bf.px, bf.x, alpha));
+      const cy = Math.round(lerp(bf.py, bf.y, alpha)) - 44 + Math.round(Math.sin(time * 4) * 1);
+      bars.fillStyle(hexToNum(P.ink), 1).fillRect(cx - 5, cy - 1, 11, 7);
+      bars.fillStyle(hexToNum(P.yellow), 1).fillRect(cx - 4, cy + 2, 9, 3).fillRect(cx - 4, cy, 1, 2).fillRect(cx, cy - 1, 1, 3).fillRect(cx + 4, cy, 1, 2);
+      bars.fillStyle(hexToNum(P.red2), 1).fillRect(cx, cy + 3, 1, 1);
+    }
     for (const v of this.views) {
       const f = v.fighter;
       if (!f.alive || f.gone) continue;

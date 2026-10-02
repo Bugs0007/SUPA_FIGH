@@ -44,6 +44,8 @@ export interface LobbyCfg {
   friendlyFire: boolean;
   weaponSpawnRate: number;
   suddenDeath: number;
+  /** flip a chaos modifier card every round */
+  chaos: boolean;
 }
 
 export const MAX_SLOTS = 10;
@@ -55,7 +57,7 @@ export function defaultLobby(): LobbyCfg {
     difficulty: 'normal',
     look: i < 2 ? PLAYER_PRESETS[i] : randomAppearance(),
   }));
-  return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75 };
+  return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75, chaos: false };
 }
 
 export function loadLobby(): LobbyCfg {
@@ -112,6 +114,7 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
       suddenDeath: c.suddenDeath,
       friendlyFire: c.friendlyFire,
       weaponSpawnRate: c.weaponSpawnRate,
+      chaos: c.chaos,
       seed,
     },
   };

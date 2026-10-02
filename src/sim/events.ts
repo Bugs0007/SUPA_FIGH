@@ -72,4 +72,5 @@ export type SimEvent =
   | { t: 'respawn'; f: number; x: number; y: number }
   | { t: 'hazard'; kind: string; x: number; y: number; on: boolean }
   | { t: 'supplyDrop'; x: number; y: number }
-  | { t: 'gravity'; on: boolean; x: number; y: number };
+  | { t: 'gravity'; on: boolean; x: number; y: number }
+  | { t: 'poltergeist'; f: number; x: number; y: number };

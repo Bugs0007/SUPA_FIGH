@@ -117,6 +117,9 @@ export class BotController implements Controller {
       }
       this.act(w, f);
       this.applyTaps();
+    } else if (f && f.ghost) {
+      this.haunt(w, f);
+      this.applyTaps();
     }
     this.prev.moveX = o.moveX;
     this.prev.moveY = o.moveY;
@@ -157,6 +160,26 @@ export class BotController implements Controller {
         this.taps.delete(b);
       }
     }
+  }
+
+  /** Dead bot in Brawl: drift toward the nearest living enemy and BOO them when it's charged. */
+  private haunt(w: World, f: Fighter): void {
+    let best: Fighter | null = null;
+    let bestD = Infinity;
+    for (const e of w.fighters) {
+      if (!e.alive || e.gone || sameTeam(e, f)) continue;
+      const d = Math.hypot(e.x - f.gx, e.y - 10 - f.gy);
+      if (d < bestD) {
+        bestD = d;
+        best = e;
+      }
+    }
+    if (!best) return;
+    const dx = best.x - f.gx;
+    const dy = best.y - 12 - f.gy;
+    this.out.moveX = Math.abs(dx) > 8 ? Math.sign(dx) : 0;
+    this.out.moveY = Math.abs(dy) > 8 ? Math.sign(dy) : 0;
+    if (bestD < 36 && f.ghostCd <= 0 && this.rng.chance(0.05)) this.tap('attack');
   }
 
   // ------------------------------------------------------------------ perception

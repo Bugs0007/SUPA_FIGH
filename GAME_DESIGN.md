@@ -23,7 +23,9 @@ fighter/team standing wins the round → slow-mo final kill + instant replay →
 | Attack (hold = aim) | F | Num4 | L | X / RT |
 | Kick | H | Num6 | J | B |
 | Interact (pick up / grab / throw) | T | Num8 | O | Y |
-| Cycle weapon | R | Num7 | I | LB / RB |
+| Cycle weapon | R | Num7 | I | RB |
+| Use gadget (medkit) | V | Num9 | U | LB |
+| Ability (hero powers, M9) | B | Num1 | P | LT |
 
 - **Guns:** hold Attack to aim (Up/Down sweeps the angle). Automatic weapons fire while held;
   semi-automatic weapons fire when you let go. Tap = instant hip shot.

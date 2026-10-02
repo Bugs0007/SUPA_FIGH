@@ -12,6 +12,6 @@ export class BootScene extends Phaser.Scene {
     Art.tileset(this, 'arena');
     const params = new URLSearchParams(location.search);
     const target = params.get('scene');
-    this.scene.start(target && ['match', 'art', 'lobby', 'controls'].includes(target) ? target : 'title');
+    this.scene.start(target && ['match', 'art', 'lobby', 'controls', 'creator'].includes(target) ? target : 'title');
   }
 }

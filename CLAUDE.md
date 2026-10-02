@@ -32,6 +32,8 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
   prop.ts         Crates / barrels / gas canisters: dynamic bodies (standable, pushable, carryable).
   item.ts         Weapons lying around + live throwables (fuses, sticky C4, mines, molotov impact).
   gimmicks.ts     Map gimmicks from MapDef.gimmicks: movers, hazards, gravity zones, supply drops, conveyors.
+  replay.ts       RoundRecording (intents per tick) + ReplayPlayer (deterministic re-simulation).
+  awards.ts       Post-match awards from match stats. data/modifiers.ts = chaos cards.
   data/weapons.ts ALL weapon stats live here (guns, melee, throwables, gadgets, powerups, FIRE/CARRY
                   tunables). Balance by editing this file only. Prop stats: data/props.ts.
   map/            Tile types, ASCII map parser, runtime TileMap, map definitions (maps/*.ts).

@@ -21,6 +21,9 @@ export class FighterView {
   private frontArm: Phaser.GameObjects.Image;
   private weapon: Phaser.GameObjects.Image;
   private pack: Phaser.GameObjects.Image;
+  private ghostImg: Phaser.GameObjects.Container;
+  /** chaos modifier: 2x heads */
+  bigHead = false;
   readonly tag: Phaser.GameObjects.BitmapText;
   private runPhase = 0;
   private climbPhase = 0;
@@ -54,6 +57,11 @@ export class FighterView {
     this.root.add(this.rig);
     this.root.setDepth(40);
     this.tag = scene.add.bitmapText(fighter.x, fighter.y - 34, 'smo', label.toUpperCase()).setOrigin(0.5, 1).setTint(color).setDepth(70);
+    // ghost: a translucent, tinted copy of the body + head (Brawl, after death)
+    this.ghostImg = scene.add.container(0, 0).setDepth(64).setVisible(false).setAlpha(0.5);
+    this.ghostImg.add(scene.add.image(0, 0, tex.body, BF.FALL).setOrigin(0.5, 1).setTint(0xb0e0ff));
+    const gm = FRAME_META[BF.FALL];
+    this.ghostImg.add(scene.add.image(gm.neckX - 16, gm.neckY - 32, tex.head, HEAD.DEAD).setOrigin(8 / 16, 13 / 16).setTint(0xb0e0ff));
     this.lastHp = fighter.hp;
     this.hpTrail = fighter.hp;
   }
@@ -73,6 +81,19 @@ export class FighterView {
   destroy(): void {
     this.root.destroy();
     this.tag.destroy();
+    this.ghostImg.destroy();
+  }
+
+  private updateGhost(time: number): void {
+    const f = this.fighter;
+    const show = !f.alive && f.ghost;
+    this.ghostImg.setVisible(show);
+    if (!show) return;
+    const bob = Math.sin(time * 3 + f.id) * 2;
+    this.ghostImg
+      .setPosition(Math.round(f.gx), Math.round(f.gy + 12 + bob))
+      .setScale(f.facing, 1)
+      .setAlpha(f.ghostCd <= 0 ? 0.55 + Math.sin(time * 8) * 0.15 : 0.35);
   }
 
   /** frame px -> rig-local px */
@@ -82,6 +103,7 @@ export class FighterView {
 
   update(alpha: number, dt: number, time: number, simTime: number): void {
     const f = this.fighter;
+    this.updateGhost(time);
     if (f.gone) {
       this.root.setVisible(false);
       this.tag.setVisible(false);
@@ -349,6 +371,7 @@ export class FighterView {
       const [hx, hy] = this.fp(meta.neckX, meta.neckY);
       this.head.setPosition(hx, hy);
       this.head.setFrame(headFrame);
+      this.head.setScale(this.bigHead ? 2 : 1);
     }
 
     const armsVisible = !hideArms && !meta.hideArms;

@@ -1,7 +1,7 @@
 import { applyHit, teamKey } from './combat';
 import { DT, RESPAWN_PROTECTION, SUDDEN_DEATH_DPS, TILE } from './constants';
 import { freshAmmo, spawnableWeapons, stacks, weaponDef } from './data/weapons';
-import { updateBurning, updateFire, type BurningTile, type FirePatch } from './fire';
+import { spawnFire, updateBurning, updateFire, type BurningTile, type FirePatch } from './fire';
 import type { SimEvent } from './events';
 import { activeWeapon, createFighter, dropCooked, selectBestSlot, updateFighter, type Fighter, type FighterSpawn } from './fighter';
 import { emptyIntent, type Intent } from './intent';
@@ -22,6 +22,10 @@ export interface WorldSettings {
   gravityScale: number;
   /** restrict map weapon spawns to these ids (undefined = all spawnable) */
   weaponPool?: string[];
+  /** active chaos modifier ids (data/modifiers.ts) */
+  modifiers?: string[];
+  /** dead fighters come back as poltergeists (Brawl) */
+  ghosts?: boolean;
 }
 
 export const DEFAULT_WORLD_SETTINGS: WorldSettings = {
@@ -61,6 +65,10 @@ export class World {
   killY: number;
   gravityScale: number;
   gimmicks: Gimmicks;
+  /** active chaos modifiers */
+  readonly mods: Set<string>;
+  private weaponRate: number;
+  private fireStormTimer = 3;
   private nextItemId = 1;
   private nextPropId = 1;
   private weaponTimer = 0;
@@ -71,7 +79,9 @@ export class World {
     this.map = new TileMap(this.parsed);
     this.rng = new Rng(seed);
     this.settings = settings;
-    this.gravityScale = settings.gravityScale * (def.gravityScale ?? 1);
+    this.mods = new Set(settings.modifiers ?? []);
+    this.weaponRate = settings.weaponSpawnRate * (this.mods.has('armory') ? 3 : 1);
+    this.gravityScale = settings.gravityScale * (def.gravityScale ?? 1) * (this.mods.has('lowGravity') ? 0.5 : 1);
     this.killY = this.map.pxH + (def.killMargin ?? 48);
     this.specs = specs;
 
@@ -84,10 +94,11 @@ export class World {
       f.facing = p.x < this.map.pxW / 2 ? 1 : -1;
       f.grounded = true;
       f.invuln = 0.6; // brief spawn protection
+      if (this.mods.has('turbo')) f.speedBoost = 1e9;
       this.fighters.push(f);
     });
 
-    for (const p of this.parsed.props) this.spawnProp(p.type, p.x, p.y);
+    for (const p of this.parsed.props) this.spawnProp(this.mods.has('explosive') && p.type === 'crate' ? 'barrel' : p.type, p.x, p.y);
     this.gimmicks = buildGimmicks(this);
     this.spawnInitialWeapons();
     this.weaponTimer = this.nextWeaponDelay();
@@ -116,12 +127,20 @@ export class World {
     }
     if (this.bulletTime > 0) this.bulletTime = Math.max(0, this.bulletTime - DT);
     if (this.suddenDeath >= 2) this.drain();
+    if (this.mods.has('firestorm')) this.fireStorm();
     updateBullets(this);
     updateItems(this);
     updateProps(this);
     updateFire(this);
     this.updateWeaponSpawner();
     if (this.tick % 120 === 0) this.items = this.items.filter((it) => it.active);
+  }
+
+  private fireStorm(): void {
+    this.fireStormTimer -= DT;
+    if (this.fireStormTimer > 0) return;
+    this.fireStormTimer = this.rng.range(0.6, 1.6);
+    spawnFire(this, this.rng.range(TILE, this.map.pxW - TILE), -TILE, this.rng.range(-30, 30), 80, -1);
   }
 
   private drain(): void {
@@ -148,6 +167,7 @@ export class World {
       }
     }
     Object.assign(f, createFighter(f.id, this.specs[f.id], best.x, best.y));
+    if (this.mods.has('turbo')) f.speedBoost = 1e9;
     f.facing = best.x < this.map.pxW / 2 ? 1 : -1;
     f.grounded = true;
     f.invuln = RESPAWN_PROTECTION;
@@ -169,11 +189,21 @@ export class World {
   // ------------------------------------------------------------ spawning
 
   spawnBullet(s: BulletSpawn): Bullet | null {
-    for (const b of this.bullets) if (!b.active) return initBullet(b, s);
-    if (this.bullets.length >= MAX_BULLETS) return null;
-    const b = newBullet();
-    this.bullets.push(b);
-    return initBullet(b, s);
+    let b: Bullet | null = null;
+    for (const c of this.bullets) {
+      if (!c.active) {
+        b = c;
+        break;
+      }
+    }
+    if (!b) {
+      if (this.bullets.length >= MAX_BULLETS) return null;
+      b = newBullet();
+      this.bullets.push(b);
+    }
+    initBullet(b, s);
+    if (this.mods.has('bouncy') && b.kind !== 'flame' && b.kind !== 'rocket') b.bounces = 4;
+    return b;
   }
 
   spawnProp(type: PropType, x: number, y: number): Prop {
@@ -201,7 +231,8 @@ export class World {
   }
 
   private pool() {
-    const all = spawnableWeapons();
+    let all = spawnableWeapons();
+    if (this.mods.has('noGuns')) all = all.filter((w) => !w.gun);
     const ids = this.settings.weaponPool;
     return ids ? all.filter((w) => ids.includes(w.id)) : all;
   }
@@ -213,7 +244,7 @@ export class World {
   }
 
   private spawnInitialWeapons(): void {
-    const rate = this.settings.weaponSpawnRate;
+    const rate = this.weaponRate;
     if (rate <= 0) return;
     const pts = this.rng.shuffle([...this.parsed.weaponSpawns]);
     const n = Math.min(pts.length, Math.ceil(pts.length * 0.55 * rate));
@@ -224,12 +255,12 @@ export class World {
   }
 
   private nextWeaponDelay(): number {
-    const rate = Math.max(0.05, this.settings.weaponSpawnRate);
+    const rate = Math.max(0.05, this.weaponRate);
     return this.rng.range(7, 12) / rate;
   }
 
   private updateWeaponSpawner(): void {
-    if (this.settings.weaponSpawnRate <= 0) return;
+    if (this.weaponRate <= 0) return;
     this.weaponTimer -= DT;
     if (this.weaponTimer > 0) return;
     this.weaponTimer = this.nextWeaponDelay();

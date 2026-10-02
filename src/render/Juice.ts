@@ -353,6 +353,13 @@ export class Juice {
         this.ui.push({ t: 'announce', text: e.on ? 'LOW GRAVITY!' : 'GRAVITY ON', color: hexToNum(P.teal) });
         this.sfx('slowmo', e.x, 0.5, e.on ? 1.4 : 0.8);
         break;
+      case 'poltergeist':
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.35, s0: 0.3, s1: 4.2, a0: 0.8, a1: 0, tint: 0xb0e0ff, depth: 64 });
+        fx.motes(e.x, e.y, 10, 0xb0e0ff);
+        this.sfx('slowmo', e.x, 0.6, 1.8);
+        this.r.floatText(e.x, e.y - 12, 'BOO!', 0xb0e0ff, true);
+        this.cam.addTrauma(0.12);
+        break;
       case 'respawn':
         fx.sparks(e.x, e.y - 10, 0, -1, 14, 0xffffff, 120);
         fx.motes(e.x, e.y - 8, 8, 0xffffff);

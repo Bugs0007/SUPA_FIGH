@@ -35,8 +35,8 @@ test('title -> lobby -> deathmatch with teams', async ({ page }) => {
   await press(page, 'ArrowDown', 11);
   await press(page, 'ArrowRight'); // brawl -> deathmatch
   await page.screenshot({ path: 'tests/e2e/screenshots/lobby.png' });
-  // START row = slots(10) + 6
-  await press(page, 'ArrowDown', 5);
+  // START row = slots(10) + 7 (map, mode, length, sudden, ff, weapons, chaos, START)
+  await press(page, 'ArrowDown', 6);
   await press(page, 'Enter');
   await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 20);
   const info = await page.evaluate(() => {
@@ -73,5 +73,25 @@ test('rebind P1 jump, see it saved, restore defaults', async ({ page }) => {
   expect(after).not.toContain('KeyQ');
   await press(page, 'Escape');
   await onScene(page, 'title');
+  expect(errors).toEqual([]);
+});
+
+test('fighter creator edits a lobby slot look', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?scene=lobby&timer=1');
+  await onScene(page, 'lobby');
+  await page.waitForTimeout(200);
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('scrapyard.lobby') ?? 'null')?.slots?.[0]?.look?.skin ?? null);
+  await press(page, 'ArrowRight', 3); // LOOK column
+  await press(page, 'Enter');
+  await onScene(page, 'creator');
+  await page.waitForTimeout(200);
+  await press(page, 'ArrowRight'); // next skin tone
+  await page.screenshot({ path: 'tests/e2e/screenshots/creator.png' });
+  await press(page, 'Escape');
+  await onScene(page, 'lobby');
+  const after = await page.evaluate(() => JSON.parse(localStorage.getItem('scrapyard.lobby') ?? 'null')?.slots?.[0]?.look?.skin);
+  expect(after).toBeTruthy();
+  expect(after).not.toBe(before);
   expect(errors).toEqual([]);
 });

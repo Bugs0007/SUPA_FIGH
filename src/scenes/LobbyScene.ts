@@ -28,7 +28,7 @@ import {
 import { bindZoom, fighterPreview } from './ui';
 
 const SLOT_COLS = ['kind', 'team', 'skill', 'look'] as const;
-const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'start', 'controls'] as const;
+const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'start', 'controls'] as const;
 type Setting = (typeof SETTINGS)[number];
 
 const cycle = <T,>(list: readonly T[], cur: T, d: number): T => list[(list.indexOf(cur) + d + list.length) % list.length];
@@ -71,9 +71,9 @@ export class LobbyScene extends Phaser.Scene {
       this.texts.push([0, 1, 2, 3].map((c) => this.add.bitmapText([36, 130, 186, 244][c], y + 6, 'smo', '')));
       this.previews.push(this.add.container(0, 0));
     }
-    SETTINGS.forEach((_, i) => this.settingTexts.push(this.add.bitmapText(352, 48 + i * 22, 'pxo', '')));
+    SETTINGS.forEach((_, i) => this.settingTexts.push(this.add.bitmapText(352, 48 + i * 19, 'pxo', '')));
     this.hint = this.add.bitmapText(VIEW_W / 2, VIEW_H - 12, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc);
-    this.status = this.add.bitmapText(352, 48 + SETTINGS.length * 22 + 6, 'smo', '').setTint(0xea4a4a);
+    this.status = this.add.bitmapText(352, 48 + SETTINGS.length * 19 + 2, 'smo', '').setTint(0xea4a4a);
     this.preview = this.add.graphics();
     this.blurb = this.add.bitmapText(352, 340, 'sm', '').setTint(0x8d95b0);
     this.refreshPreviews();
@@ -91,7 +91,7 @@ export class LobbyScene extends Phaser.Scene {
     const maxH = 96;
     const k = Math.max(1, Math.floor(Math.min(maxW / pm.w, maxH / pm.h)));
     const ox = 352 + Math.floor((maxW - pm.w * k) / 2);
-    const oy = 236;
+    const oy = 240;
     g.fillStyle(0x0e0b16, 1).fillRect(ox - 2, oy - 2, pm.w * k + 4, pm.h * k + 4);
     for (let y = 0; y < pm.h; y++) {
       for (let x = 0; x < pm.w; x++) {
@@ -150,6 +150,12 @@ export class LobbyScene extends Phaser.Scene {
       if (lr) {
         this.col = (this.col + lr + SLOT_COLS.length) % SLOT_COLS.length;
         audio.play('uiMove');
+      }
+      if ((menu.confirm() || keyboard.justPressed('Tab')) && SLOT_COLS[this.col] === 'look' && this.cfg.slots[this.row].kind !== 'empty') {
+        saveLobby(this.cfg);
+        audio.play('uiOk');
+        this.scene.start('creator', { slot: this.row });
+        return;
       }
       if (menu.confirm() || keyboard.justPressed('Tab')) {
         this.changeSlot(this.row, SLOT_COLS[this.col], keyboard.isDown('ShiftLeft') || keyboard.isDown('ShiftRight') ? -1 : 1);
@@ -231,6 +237,9 @@ export class LobbyScene extends Phaser.Scene {
       case 'weapons':
         c.weaponSpawnRate = cycle(WEAPON_RATES, c.weaponSpawnRate, d);
         return true;
+      case 'chaos':
+        c.chaos = !c.chaos;
+        return true;
       default:
         return false;
     }
@@ -264,7 +273,7 @@ export class LobbyScene extends Phaser.Scene {
       kind.setText(SLOT_KIND_LABELS[s.kind]).setTint(s.kind.startsWith('pad') && !connectedPads()[Number(s.kind.slice(3))] ? 0xc08060 : dim);
       team.setText(s.kind === 'empty' ? '' : TEAM_NAMES[s.team]).setTint(s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : 0xc3c9dc);
       skill.setText(s.kind === 'bot' ? s.difficulty.toUpperCase() : '').setTint(0xc3c9dc);
-      look.setText(s.kind === 'empty' ? '' : 'SHUFFLE').setTint(0x8d95b0);
+      look.setText(s.kind === 'empty' ? '' : 'EDIT...').setTint(0x8d95b0);
       if (sel) {
         const x = [36, 130, 186, 244][this.col];
         const w = [88, 50, 52, 50][this.col];
@@ -279,13 +288,14 @@ export class LobbyScene extends Phaser.Scene {
       sudden: `SUDDEN DEATH: ${c.mode === 'brawl' ? (c.suddenDeath ? c.suddenDeath + 'S' : 'OFF') : '-'}`,
       ff: `FRIENDLY FIRE: ${c.friendlyFire ? 'ON' : 'OFF'}`,
       weapons: `WEAPONS: ${WEAPON_RATE_LABELS[WEAPON_RATES.indexOf(c.weaponSpawnRate)] ?? 'NORMAL'}`,
+      chaos: `CHAOS CARDS: ${c.chaos ? 'ON' : 'OFF'}`,
       start: '>> START MATCH <<',
       controls: 'CONTROLS...',
     };
     SETTINGS.forEach((s, i) => {
       const sel = this.row === MAX_SLOTS + i;
-      const y = 48 + i * 22;
-      if (sel) g.fillStyle(0x3a3054, 1).fillRect(344, y - 4, 290, 16);
+      const y = 48 + i * 19;
+      if (sel) g.fillStyle(0x3a3054, 1).fillRect(344, y - 3, 290, 14);
       this.settingTexts[i].setText(vals[s]).setTint(s === 'start' ? hexToNum(P.green2) : sel ? 0xffffff : 0xc3c9dc);
     });
     this.drawMapPreview();
