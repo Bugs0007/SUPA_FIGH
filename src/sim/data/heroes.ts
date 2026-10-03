@@ -71,6 +71,39 @@ export interface PowerUpDefinition {
   comboName: string;
 }
 
+/**
+ * A hero's signature move in base form (D51), on the ABILITY button. While fully transformed the
+ * button fires the power's special instead (the generic boost from another hero's pickup keeps it).
+ *   fly       free 8-direction levitation with a meter that refills on the ground (Goku)
+ *   rasengan  wind up, then a gravity-free dash; the first fighter touched gets blasted away (Naruto)
+ *   pistol    a stretch punch at 0 / up / down angles; if the fist hits a wall Luffy rockets to it
+ */
+export interface BaseAbility {
+  kind: 'fly' | 'rasengan' | 'pistol';
+  name: string;
+  /** short menu description (two lines max at the select screen) */
+  desc: string;
+  /** seconds between uses (flight: between take-offs) */
+  cooldown: number;
+  /** seconds of flight in the meter, refill per second on the ground, max speed, accel, take-off kick */
+  fly?: { meter: number; regen: number; speed: number; accel: number; liftoff: number; minMeter: number };
+  dash?: { windup: number; time: number; speed: number; recover: number; damage: number; knockX: number; knockY: number; stun: number; radius: number };
+  /** angles in radians (0 = forward, negative = up); the fist stops at walls and then pulls Luffy in */
+  stretch?: {
+    range: number;
+    out: number;
+    hold: number;
+    back: number;
+    damage: number;
+    knockX: number;
+    knockY: number;
+    upAngle: number;
+    downAngle: number;
+    rocketSpeed: number;
+    rocketTime: number;
+  };
+}
+
 export interface HeroDefinition {
   id: string;
   name: string;
@@ -80,6 +113,8 @@ export interface HeroDefinition {
   power: string;
   /** base stat multipliers (kept within a few % of the scrapyard fighter) */
   stats: { speed: number; hp: number };
+  /** always-available signature move (D51) */
+  base: BaseAbility;
 }
 
 /** Shadow clone strikes (Kurama combo hit 3): timings in seconds, offsets/range in px. */
@@ -206,6 +241,13 @@ export const HEROES: Record<string, HeroDefinition> = {
     blurb: 'KURAMA MODE: SHADOW CLONE STRIKES + CHAKRA BOMB',
     power: 'kurama',
     stats: { speed: 1.03, hp: 100 },
+    base: {
+      kind: 'rasengan',
+      name: 'RASENGAN',
+      desc: 'DASHING SPIRAL STRIKE. WORKS IN THE AIR TOO.',
+      cooldown: 3.2,
+      dash: { windup: 0.14, time: 0.2, speed: 330, recover: 0.16, damage: 13, knockX: 330, knockY: -190, stun: 0.35, radius: 7 },
+    },
   },
   luffy: {
     id: 'luffy',
@@ -213,6 +255,13 @@ export const HEROES: Record<string, HeroDefinition> = {
     blurb: 'GEAR SECOND: STRETCHY REACH + RUBBER BULLET',
     power: 'gear2',
     stats: { speed: 1.0, hp: 105 },
+    base: {
+      kind: 'pistol',
+      name: 'GUM-GUM PISTOL',
+      desc: 'STRETCH PUNCH (HOLD UP/DOWN TO ANGLE). HIT A WALL TO ROCKET TO IT.',
+      cooldown: 1.2,
+      stretch: { range: 100, out: 0.12, hold: 0.05, back: 0.12, damage: 9, knockX: 260, knockY: -130, upAngle: -0.8, downAngle: 0.8, rocketSpeed: 420, rocketTime: 0.3 },
+    },
   },
   goku: {
     id: 'goku',
@@ -220,6 +269,13 @@ export const HEROES: Record<string, HeroDefinition> = {
     blurb: 'SUPER SAIYAN: HEAVY HITS + CHARGED KI BLAST',
     power: 'ssj',
     stats: { speed: 1.0, hp: 100 },
+    base: {
+      kind: 'fly',
+      name: 'LEVITATION',
+      desc: 'FLY IN ALL 4 DIRECTIONS. ABILITY = TAKE OFF / LAND. AIR JUMP WHEN OUT OF JUMPS TOO.',
+      cooldown: 0.25,
+      fly: { meter: 4.5, regen: 1.1, speed: 135, accel: 1100, liftoff: 150, minMeter: 0.4 },
+    },
   },
 };
 
@@ -247,5 +303,11 @@ export function heroAttackLabel(id: string): string | null {
     if (id === p.id + ':special') return p.ability.special?.name ?? null;
   }
   if (id === 'clone') return 'SHADOW CLONE';
+  for (const h of Object.values(HEROES)) if (id === baseWeaponId(h.base)) return h.base.name;
   return null;
+}
+
+/** Kill-credit weapon id of a base ability ('rasengan', 'gumgum'). */
+export function baseWeaponId(b: BaseAbility): string {
+  return b.kind === 'pistol' ? 'gumgum' : b.kind;
 }

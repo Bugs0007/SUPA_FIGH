@@ -3,8 +3,9 @@
 
 import { applyHit } from './combat';
 import { DT, SHOULDER_Y_STAND } from './constants';
-import { CLONE, GENERIC_BOOST, GENERIC_DURATION, POWERS, powerDef, type AbilityDefinition, type AbilitySpecial } from './data/heroes';
-import type { MeleeHit } from './data/weapons';
+import { CLONE, GENERIC_BOOST, GENERIC_DURATION, heroDef, POWERS, powerDef, type AbilityDefinition, type AbilitySpecial, type BaseAbility } from './data/heroes';
+import { weaponDef, type MeleeHit } from './data/weapons';
+import { segmentAabb } from './physics';
 import type { Fighter } from './fighter';
 import { damageProp, pushProp } from './prop';
 import type { World } from './world';
@@ -182,6 +183,124 @@ export function stretchHitbox(w: World, f: Fighter, sp: AbilitySpecial, reach: n
     if (connected) w.emit({ t: 'heroFx', fx: 'steam', heavy: true, x: o.x - f.facing * (o.w / 2), y });
   }
   return len;
+}
+
+// ------------------------------------------------------------------ base abilities (D51)
+
+/** The hero's always-available signature move (null for scrapyard fighters). */
+export function baseAbility(f: Fighter): BaseAbility | null {
+  return heroDef(f.hero)?.base ?? null;
+}
+
+/** Melee-style damage/knockback multipliers (strength pickup, generic hero boost). */
+function meleeMuls(f: Fighter): { dmg: number; knock: number } {
+  const strength = f.strengthBoost > 0 ? (weaponDef('strength').powerup?.mult ?? 1) : 1;
+  const ab = ability(f);
+  return { dmg: strength * (ab?.damageMul ?? 1), knock: (1 + (strength - 1) * 0.5) * (ab?.knockMul ?? 1) };
+}
+
+/** Where the Rasengan orb sits (in front of the palm). */
+export function rasenganPoint(f: Fighter): { x: number; y: number } {
+  return { x: f.x + f.facing * (f.w / 2 + 4), y: f.y - SHOULDER_Y_STAND + 1 };
+}
+
+/** Rasengan contact: the first fighter the orb touches is blasted away. Props get shoved. True on a hit. */
+export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['dash']>): boolean {
+  const { x: hx, y: hy } = rasenganPoint(f);
+  const r = d.radius;
+  const m = meleeMuls(f);
+  const touches = (l: number, t: number, rr: number, b: number) => {
+    const nx = Math.max(l, Math.min(hx, rr));
+    const ny = Math.max(t, Math.min(hy, b));
+    return (nx - hx) ** 2 + (ny - hy) ** 2 <= r * r;
+  };
+  for (const p of w.props) {
+    if (!p.active || f.swingProps.includes(p.id)) continue;
+    if (!touches(p.x - p.w / 2, p.y - p.h, p.x + p.w / 2, p.y)) continue;
+    f.swingProps.push(p.id);
+    pushProp(p, f.facing * d.knockX * m.knock, d.knockY * 0.6);
+    damageProp(w, p, d.damage * m.dmg, f.id);
+  }
+  for (const o of w.fighters) {
+    if (o === f || o.gone || !o.alive || f.swingHit.includes(o.id)) continue;
+    if (!touches(o.x - o.w / 2, o.y - o.h, o.x + o.w / 2, o.y)) continue;
+    f.swingHit.push(o.id);
+    const connected = applyHit(w, o, {
+      damage: d.damage * m.dmg,
+      kbX: f.facing * d.knockX * m.knock,
+      kbY: d.knockY * m.knock,
+      attacker: f.id,
+      weapon: 'rasengan',
+      kind: 'melee',
+      stun: d.stun,
+      knockdown: true,
+      x: hx,
+      y: hy,
+    });
+    if (connected) {
+      w.emit({ t: 'heroFx', fx: 'rasengan', heavy: true, x: hx, y: hy });
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Fist position of an angled stretch punch at a given reach (from the shoulder). */
+export function stretchFist(f: Fighter, angle: number, reach: number): { x0: number; y0: number; x1: number; y1: number } {
+  const x0 = f.x + f.facing * 2;
+  const y0 = f.y - SHOULDER_Y_STAND + 1;
+  return { x0, y0, x1: x0 + Math.cos(angle) * f.facing * (f.w / 2 + reach), y1: y0 + Math.sin(angle) * (f.w / 2 + reach) };
+}
+
+/**
+ * Gum-Gum Pistol: the arm reaches `reach` px along `angle`. Hits every fighter/prop on the segment once.
+ * Returns the actual arm length (stops at the first solid tile) and whether the fist touched a wall.
+ */
+export function pistolHits(w: World, f: Fighter, s: NonNullable<BaseAbility['stretch']>, angle: number, reach: number): { len: number; wall: boolean } {
+  const dx = Math.cos(angle) * f.facing;
+  const dy = Math.sin(angle);
+  const { x0, y0 } = stretchFist(f, angle, 0);
+  const total = f.w / 2 + reach;
+  let len = total;
+  let wall = false;
+  for (let d = 0; d <= total; d += 2) {
+    if (w.map.solidAtPx(x0 + dx * d, y0 + dy * d)) {
+      len = Math.max(0, d - 2);
+      wall = true;
+      break;
+    }
+  }
+  const x1 = x0 + dx * len;
+  const y1 = y0 + dy * len;
+  const m = meleeMuls(f);
+  for (const p of w.props) {
+    if (!p.active || f.swingProps.includes(p.id)) continue;
+    if (segmentAabb(x0, y0, x1, y1, p.x - p.w / 2 - 2, p.y - p.h - 2, p.x + p.w / 2 + 2, p.y + 2) < 0) continue;
+    f.swingProps.push(p.id);
+    pushProp(p, dx * s.knockX * 0.8 * m.knock, -80);
+    damageProp(w, p, s.damage * m.dmg, f.id);
+  }
+  for (const o of w.fighters) {
+    if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
+    // a little fist radius so grazing hits count
+    if (segmentAabb(x0, y0, x1, y1, o.x - o.w / 2 - 2, o.y - o.h - 2, o.x + o.w / 2 + 2, o.y + 2) < 0) continue;
+    f.swingHit.push(o.id);
+    const hx = Math.max(o.x - o.w / 2, Math.min(x1, o.x + o.w / 2));
+    const connected = applyHit(w, o, {
+      damage: s.damage * m.dmg,
+      kbX: f.facing * s.knockX * m.knock,
+      kbY: s.knockY * m.knock + dy * 120,
+      attacker: f.id,
+      weapon: 'gumgum',
+      kind: 'melee',
+      stun: 0.3,
+      knockdown: true,
+      x: hx,
+      y: o.y - o.h / 2,
+    });
+    if (connected) w.emit({ t: 'heroFx', fx: 'steam', heavy: false, x: hx, y: o.y - o.h / 2 });
+  }
+  return { len, wall };
 }
 
 // ------------------------------------------------------------------ shadow clones

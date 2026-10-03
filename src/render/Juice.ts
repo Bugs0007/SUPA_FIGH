@@ -193,6 +193,11 @@ export class Juice {
         this.sfx('swing', f.x, 0.6, 0.7);
         break;
       }
+      case 'drop':
+        this.r.views[e.f]?.onJump();
+        fx.dust(e.x, e.y, 2, 18);
+        this.sfx('swing', e.x, 0.45, 0.6);
+        break;
       case 'land':
         this.r.views[e.f]?.onLand(e.speed);
         fx.dust(e.x, e.y, Math.min(6, Math.floor(e.speed / 90)), 35 + e.speed * 0.05);
