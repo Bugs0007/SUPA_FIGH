@@ -13,7 +13,7 @@ import { SLOT, THROW_AIM, weaponDef, type ThrowStats } from '../sim/data/weapons
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
 import { powerForItem } from '../sim/data/heroes';
-import { special } from '../sim/hero';
+import { baseAbility, special } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
@@ -574,7 +574,8 @@ export class BotController implements Controller {
     }
     if (f.state === 'special') return true;
     const sp = special(f);
-    if (!sp || f.specialCd > 0 || !seen || f.state !== 'normal' || !f.grounded) return false;
+    if (!sp) return this.useBase(w, f, e, seen);
+    if (f.specialCd > 0 || !seen || f.state !== 'normal' || !f.grounded) return false;
     const dx = e.x - f.x;
     const dy = Math.abs(e.y - f.y);
     const dist = Math.abs(dx);
@@ -589,6 +590,26 @@ export class BotController implements Controller {
     this.out.moveX = face;
     if (sp.charge && dist > 120) this.chargeTicks = Math.round(this.rng.range(0.4, 1) * (sp.charge.time * 60));
     else this.chargeTicks = 1;
+    this.out.ability = true;
+    return true;
+  }
+
+  /**
+   * Hero base abilities (D51): Rasengan dash / Gum-Gum Pistol when the target is level and in front at
+   * the right distance with nothing in between. (Goku's levitation isn't in the nav graph: bots walk.)
+   */
+  private useBase(w: World, f: Fighter, e: Fighter, seen: boolean): boolean {
+    const b = baseAbility(f);
+    if (!b || b.kind === 'fly' || f.baseCd > 0 || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0) return false;
+    const dx = e.x - f.x;
+    const dist = Math.abs(dx);
+    const dy = Math.abs(e.y - f.y);
+    const band: [number, number] = b.kind === 'rasengan' ? [24, 80] : [26, (b.stretch?.range ?? 90) + 4];
+    if (dist < band[0] || dist > band[1] || dy > 8 || e.state === 'roll' || e.invuln > 0.15) return false;
+    if (!w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12)) return false;
+    if (!this.rng.chance(0.12 + this.diff.throwChance * 0.2)) return false;
+    this.out.moveX = dx >= 0 ? 1 : -1;
+    this.chargeTicks = 1;
     this.out.ability = true;
     return true;
   }
