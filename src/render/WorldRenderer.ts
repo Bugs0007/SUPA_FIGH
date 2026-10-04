@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Art } from '../art';
 import type { Appearance } from '../art/appearance';
 import { hexToNum, P } from '../art/palette';
-import { BACK_ROW, backMask, THEMES, tileMask } from '../art/tileArt';
+import { BACK_ROW, backMask, backVariant, THEMES, tileMask } from '../art/tileArt';
 import { GRAVITY, TILE } from '../sim/constants';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwPower, throwVelocity, type Fighter } from '../sim/fighter';
@@ -13,6 +13,7 @@ import { segmentAabb as segmentAabbT } from '../sim/physics';
 import { FighterView } from './FighterView';
 import { Fx } from './Fx';
 import { HeroFx } from './HeroFx';
+import { DecorLayer } from './Decor';
 import { POWER_COLORS } from '../art/heroArt';
 import { powerForItem } from '../sim/data/heroes';
 import { baseAbility } from '../sim/hero';
@@ -40,6 +41,8 @@ export class WorldRenderer {
   readonly fx: Fx;
   readonly views: FighterView[] = [];
   readonly heroFx: HeroFx;
+  /** background decorations (map detailing) */
+  private decor: DecorLayer;
   private tilemap: Phaser.Tilemaps.Tilemap;
   private fg: Phaser.Tilemaps.TilemapLayer;
   private bg: Phaser.Tilemaps.TilemapLayer;
@@ -84,11 +87,12 @@ export class WorldRenderer {
     this.fg = this.tilemap.createBlankLayer('fg', ts)!.setDepth(20);
     for (let y = 0; y < map.h; y++) {
       for (let x = 0; x < map.w; x++) {
-        if (map.back[y * map.w + x]) this.bg.putTileAt(BACK_ROW * 16 + backMask(map, x, y), x, y);
+        if (map.back[y * map.w + x]) this.bg.putTileAt((BACK_ROW + backVariant(x, y)) * 16 + backMask(map, x, y), x, y);
         this.refreshTile(x, y);
       }
     }
 
+    this.decor = new DecorLayer(scene, map, world.def);
     this.decals = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0, 0).setDepth(25);
     this.fx = new Fx(scene, map, this.decals);
 
@@ -149,6 +153,7 @@ export class WorldRenderer {
 
     for (const v of this.views) v.update(alpha, dt, time, w.time);
     this.heroFx.sync(alpha, dt, time);
+    this.decor.update(time);
 
     // items
     const seen = new Set<number>();
@@ -644,6 +649,7 @@ export class WorldRenderer {
   destroy(): void {
     for (const v of this.views) v.destroy();
     this.heroFx.destroy();
+    this.decor.destroy();
     for (const img of this.items.values()) img.destroy();
     for (const f of this.floats) f.obj.destroy();
     for (const v of this.props.values()) v.img.destroy();
