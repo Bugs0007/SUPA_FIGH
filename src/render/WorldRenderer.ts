@@ -15,6 +15,7 @@ import { Fx } from './Fx';
 import { HeroFx } from './HeroFx';
 import { POWER_COLORS } from '../art/heroArt';
 import { powerForItem } from '../sim/data/heroes';
+import { baseAbility } from '../sim/hero';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -269,7 +270,7 @@ export class WorldRenderer {
     const bf = this.bounty >= 0 ? w.fighters[this.bounty] : null;
     if (bf && bf.alive && !bf.gone) {
       const cx = Math.round(lerp(bf.px, bf.x, alpha));
-      const cy = Math.round(lerp(bf.py, bf.y, alpha)) - 44 + Math.round(Math.sin(time * 4) * 1);
+      const cy = Math.round(lerp(bf.py, bf.y, alpha)) - 49 + Math.round(Math.sin(time * 4) * 1);
       bars.fillStyle(hexToNum(P.ink), 1).fillRect(cx - 5, cy - 1, 11, 7);
       bars.fillStyle(hexToNum(P.yellow), 1).fillRect(cx - 4, cy + 2, 9, 3).fillRect(cx - 4, cy, 1, 2).fillRect(cx, cy - 1, 1, 3).fillRect(cx + 4, cy, 1, 2);
       bars.fillStyle(hexToNum(P.red2), 1).fillRect(cx, cy + 3, 1, 1);
@@ -278,13 +279,22 @@ export class WorldRenderer {
       const f = v.fighter;
       if (!f.alive || f.gone) continue;
       const x = Math.round(lerp(f.px, f.x, alpha)) - 7;
-      const y = Math.round(lerp(f.py, f.y, alpha)) - 28;
+      const y = Math.round(lerp(f.py, f.y, alpha)) - 33;
       const frac = Math.max(0, f.hp) / f.maxHp;
       const trail = Math.max(0, v.hpTrail) / f.maxHp;
       bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y - 1, 16, 4);
       bars.fillStyle(0xffffff, 1).fillRect(x, y, Math.round(14 * trail), 2);
       const col = frac > 0.6 ? P.green2 : frac > 0.3 ? P.yellow : P.red2;
       bars.fillStyle(hexToNum(col), 1).fillRect(x, y, Math.round(14 * frac), 2);
+      // levitation ki meter (Goku): a strip under the HP bar while it isn't full / while flying
+      const fly = baseAbility(f)?.fly;
+      if (fly && !(f.powerFull && f.power) && (f.flying || f.flyMeter < fly.meter)) {
+        const k = Math.max(0, Math.min(1, f.flyMeter / fly.meter));
+        const low = k < 0.25 && Math.floor(time * 8) % 2 === 0;
+        bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y + 3, 16, 2);
+        bars.fillStyle(0x2a3550, 1).fillRect(x, y + 3, 14, 1);
+        bars.fillStyle(low ? 0xff6a5a : 0x8ad8ff, 1).fillRect(x, y + 3, Math.round(14 * k), 1);
+      }
     }
 
     // floating texts

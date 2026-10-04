@@ -27,11 +27,11 @@ export class ArtDebugScene extends Phaser.Scene {
     }
     const looks = [...PLAYER_PRESETS, randomAppearance(), randomAppearance()];
     const s = 2;
-    looks.slice(0, 3).forEach((look, row) => {
+    looks.slice(0, 2).forEach((look, row) => {
       const tex = Art.fighter(this, look);
       for (let i = 0; i < BODY_FRAMES; i++) {
-        const x = 12 + (i % 13) * 48;
-        const y = 50 + row * 110 + Math.floor(i / 13) * 52;
+        const x = 12 + (i % 12) * 52;
+        const y = 50 + row * 162 + Math.floor(i / 12) * 52;
         const m = FRAME_META[i];
         const c = this.add.container(x + 16, y).setScale(s);
         if (!m.hideArms) c.add(this.add.image(m.bshX - 16, m.bshY - 32, tex.arm, armFrame(1.8, 0)).setTint(0xb0a8c0));
