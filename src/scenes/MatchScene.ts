@@ -387,7 +387,9 @@ export class MatchScene extends Phaser.Scene {
 
   private handleDebugKeys(): void {
     if (this.overlayOpen) return;
-    if (keyboard.justPressed('Escape') || keyboard.justPressed('KeyP') || padMenu.justPressed(9)) {
+    // P pauses too, unless a player has it bound (P2's laptop layout uses P for the hero ability)
+    const pKey = keyboard.justPressed('KeyP') && !keyboard.gameKeys.has('KeyP');
+    if (keyboard.justPressed('Escape') || pKey || padMenu.justPressed(9)) {
       this.paused = !this.paused;
       audio.play(this.paused ? 'uiBack' : 'uiOk');
     }

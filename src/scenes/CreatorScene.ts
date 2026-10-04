@@ -217,16 +217,16 @@ export class CreatorScene extends Phaser.Scene {
       ? [
           hero.name,
           `SPEED ${Math.round(hero.stats.speed * 100)}%   HP ${hero.stats.hp}`,
-          `POWER-UP: ${weaponDef(pw.item).name}`,
-          `TRANSFORMS INTO ${pw.name} (${pw.duration}S)`,
-          `ABILITY BUTTON: ${pw.ability.special?.name ?? '-'}`,
+          `ABILITY: ${hero.base.name}`,
+          hero.base.desc.length > 46 ? hero.base.desc.slice(0, hero.base.desc.lastIndexOf(' ', 46)) : hero.base.desc,
+          `POWER-UP: ${weaponDef(pw.item).name} -> ${pw.name} (${pw.duration}S)`,
+          `POWERED ABILITY: ${pw.ability.special?.name ?? '-'}`,
           hero.blurb,
           'POWER-UPS ARE RARE PICKUPS ON ANY MAP.',
-          'OTHER FIGHTERS GET A SMALLER BOOST FROM IT.',
           'NORMAL WEAPONS ALWAYS WORK.',
         ]
       : [];
-    this.info.forEach((t, i) => t.setText(lines[i] ?? '').setTint(i === 0 ? hexToNum(P.yellow) : i === 5 ? hexToNum(P.orange) : 0xc3c9dc));
+    this.info.forEach((t, i) => t.setText(lines[i] ?? '').setTint(i === 0 ? hexToNum(P.yellow) : i === 2 ? hexToNum(P.orange) : 0xc3c9dc));
     FIELDS.forEach((f, i) => {
       const r = R_FIRST + i;
       const sel = this.row === r;

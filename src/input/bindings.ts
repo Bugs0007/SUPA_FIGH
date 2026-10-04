@@ -7,15 +7,15 @@ export type KeyBinds = Record<Action, string[]>;
 export const ACTION_LABELS: Record<Action, string> = {
   left: 'LEFT',
   right: 'RIGHT',
-  up: 'UP / AIM UP',
-  down: 'DOWN / CROUCH',
+  up: 'UP = JUMP / AIM UP',
+  down: 'DOWN (2X = DROP)',
   jump: 'JUMP',
   attack: 'ATTACK (HOLD=AIM)',
   kick: 'KICK',
   interact: 'PICK UP / GRAB',
   cycle: 'SWITCH WEAPON',
   gadget: 'USE GADGET',
-  ability: 'ABILITY',
+  ability: 'HERO ABILITY',
 };
 
 // Ctrl/Alt are deliberately never bound: P2 holding Ctrl while P1 presses W would close the tab.
