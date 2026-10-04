@@ -9,8 +9,6 @@ import { connectedPads, padMenu } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { getMap, MAP_LIST } from '../sim/map/maps';
-import { parseMap } from '../sim/map/mapData';
-import { tileDef } from '../sim/map/tiles';
 import { MODE_NAMES, type GameMode } from '../sim/match';
 
 const MODE_ORDER: GameMode[] = ['brawl', 'deathmatch', 'koth', 'juggernaut', 'gungame', 'coop'];
@@ -29,7 +27,7 @@ import {
   WEAPON_RATES,
   type LobbyCfg,
 } from './lobby';
-import { bindZoom, fighterPreview } from './ui';
+import { bindZoom, drawMinimap, fighterPreview } from './ui';
 
 const SLOT_COLS = ['kind', 'team', 'skill', 'look'] as const;
 const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'start', 'controls'] as const;
@@ -94,29 +92,8 @@ export class LobbyScene extends Phaser.Scene {
   private drawMapPreview(): void {
     if (this.previewMap === this.cfg.mapId) return;
     this.previewMap = this.cfg.mapId;
-    const def = getMap(this.cfg.mapId);
-    const pm = parseMap(def);
-    const g = this.preview.clear();
-    const maxW = 280;
-    const maxH = 96;
-    const k = Math.max(1, Math.floor(Math.min(maxW / pm.w, maxH / pm.h)));
-    const ox = 352 + Math.floor((maxW - pm.w * k) / 2);
-    const oy = 240;
-    g.fillStyle(0x0e0b16, 1).fillRect(ox - 2, oy - 2, pm.w * k + 4, pm.h * k + 4);
-    for (let y = 0; y < pm.h; y++) {
-      for (let x = 0; x < pm.w; x++) {
-        const d = tileDef(pm.tiles[y * pm.w + x]);
-        let c = pm.back[y * pm.w + x] ? 0x241e32 : -1;
-        if (d.solid) c = d.material === 'glass' ? 0x5fa8c8 : d.material === 'wood' ? 0x94603a : 0x8d95b0;
-        else if (d.oneWay) c = 0xb98450;
-        else if (d.ladder) c = 0x6e4228;
-        else if (d.hazard === 'water') c = 0x2d5a9a;
-        if (c >= 0) g.fillStyle(c, 1).fillRect(ox + x * k, oy + y * k, k, d.oneWay ? Math.max(1, k >> 1) : k);
-      }
-    }
-    g.fillStyle(0xea4a4a, 1);
-    for (const s of pm.spawns) g.fillRect(ox + Math.floor(s.x / 16) * k, oy + (Math.floor(s.y / 16) - 1) * k, k, k);
-    this.blurb.setText((def.blurb ?? '').toUpperCase());
+    drawMinimap(this.preview.clear(), this.cfg.mapId, 352, 240, 280, 96);
+    this.blurb.setText((getMap(this.cfg.mapId).blurb ?? '').toUpperCase());
   }
 
   private get rows(): number {

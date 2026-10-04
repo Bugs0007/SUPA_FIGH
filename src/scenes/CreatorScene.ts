@@ -10,7 +10,7 @@ import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
-import { loadLobby, saveLobby } from './lobby';
+import { loadLobby, saveLobby, syncSlotToProfile } from './lobby';
 import { bindZoom } from './ui';
 
 const PANTS = ['#2a2a3a', '#1f3a7a', '#3a4a2a', '#4a3a2a', '#1e1e28', '#646b87', '#5a2a28'];
@@ -152,6 +152,7 @@ export class CreatorScene extends Phaser.Scene {
     c.slots[this.slot].look = this.look;
     c.slots[this.slot].hero = this.hero;
     saveLobby(c);
+    syncSlotToProfile(c.slots[this.slot]);
   }
 
   override update(_time: number, deltaMs: number): void {

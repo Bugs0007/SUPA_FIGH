@@ -8,6 +8,8 @@ import { hexToNum, TEAM_COLORS } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { music } from '../audio/music';
 import { settings } from '../game/settings';
+import { profiles } from '../game/profiles';
+import { MAP_LIST } from '../sim/map/maps';
 import { keyboardBinds } from '../input/bindings';
 import { KeyboardController, type Controller } from '../input/controllers';
 import { GamepadController } from '../input/gamepad';
@@ -45,6 +47,12 @@ export interface MatchSceneData {
 
 const PLAYER_COLORS = [0xea4a4a, 0x4a8af0, 0x5ac85a, 0xf8c840];
 
+/** 'random' (title screen choice) -> a map picked from the seed; unknown ids fall back to the test arena. */
+function quickMapId(id: string, seed: number): string {
+  if (id === 'random') return MAP_LIST[Math.abs(seed) % MAP_LIST.length].id;
+  return id;
+}
+
 /**
  * Quick-match setup: keyboard players (?humans=0..2) + bots (?bots=N, ?diff=easy|normal|hard|expert).
  * ?heroes=naruto,luffy,goku assigns heroes in player order (humans first, '-' = scrapyard fighter);
@@ -55,15 +63,19 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
   const diffParam = params.get('diff') ?? settings.botDifficulty;
   const difficulty: Difficulty = diffParam in DIFFICULTIES ? (diffParam as Difficulty) : 'normal';
   const seed = Number(params.get('seed') ?? Math.floor(Math.random() * 1e9));
-  const humans = Math.max(0, Math.min(2, Number(params.get('humans') ?? 2)));
+  const humans = Math.max(0, Math.min(2, Number(params.get('humans') ?? settings.quickPlayers)));
   const players: PlayerSetup[] = [];
-  const heroes = (params.get('heroes') ?? '').split(',').map((h) => (h in HEROES ? h : ''));
+  // ?heroes= wins (tests, links); otherwise the title screen's fighter cards (profiles) decide
+  const heroes = params.has('heroes')
+    ? (params.get('heroes') ?? '').split(',').map((h) => (h in HEROES ? h : ''))
+    : profiles.map((p) => p.hero);
   for (let i = 0; i < humans; i++) {
+    const name = profiles[i]?.name ?? 'P' + (i + 1);
     players.push({
-      spawn: { name: 'P' + (i + 1), team: 0, isBot: false, upJumps: true, hero: heroes[i] },
-      look: heroLook(heroes[i] ?? '', PLAYER_PRESETS[i]),
+      spawn: { name, team: 0, isBot: false, upJumps: settings.upJump, hero: heroes[i] || undefined },
+      look: heroLook(heroes[i] ?? '', profiles[i]?.look ?? PLAYER_PRESETS[i]),
       color: PLAYER_COLORS[i],
-      label: 'P' + (i + 1),
+      label: name,
       input: 'kb' + i,
     });
   }
@@ -82,7 +94,7 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
   return {
     players,
     config: {
-      mapId: params.get('map') ?? 'test',
+      mapId: quickMapId(params.get('map') ?? settings.quickMap, seed),
       mode: (['deathmatch', 'koth', 'juggernaut', 'gungame', 'coop'] as const).find((m) => m === params.get('mode')) ?? 'brawl',
       timeLimit: Number(params.get('time') ?? 180) || 180,
       chaos: params.get('chaos') === '1',

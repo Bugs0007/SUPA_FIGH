@@ -117,8 +117,8 @@ export function keyLabel(code: string): string {
   const map: Record<string, string> = {
     ArrowLeft: '<',
     ArrowRight: '>',
-    ArrowUp: '^',
-    ArrowDown: 'v',
+    ArrowUp: 'UP',
+    ArrowDown: 'DOWN',
     Space: 'SPACE',
     ShiftLeft: 'LSHIFT',
     ShiftRight: 'RSHIFT',

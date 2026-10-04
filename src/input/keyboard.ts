@@ -5,6 +5,8 @@ export class Keyboard {
   private down = new Set<string>();
   private latched = new Set<string>();
   private pressedThisFrame = new Set<string>();
+  /** printable characters typed since the last endFrame() (name entry; respects the keyboard layout) */
+  typed: string[] = [];
   /** codes whose browser default (scrolling, etc.) we suppress */
   gameKeys = new Set<string>();
   private attached = false;
@@ -17,6 +19,7 @@ export class Keyboard {
         this.latched.add(e.code);
         this.pressedThisFrame.add(e.code);
       }
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) this.typed.push(e.key);
       this.down.add(e.code);
       if (this.gameKeys.has(e.code) || e.code.startsWith('Arrow') || e.code === 'Space' || e.code === 'Tab') e.preventDefault();
     });
@@ -33,6 +36,7 @@ export class Keyboard {
     this.down.clear();
     this.latched.clear();
     this.pressedThisFrame.clear();
+    this.typed.length = 0;
   }
 
   isDown(code: string): boolean {
@@ -65,6 +69,7 @@ export class Keyboard {
 
   endFrame(): void {
     this.pressedThisFrame.clear();
+    this.typed.length = 0;
   }
 }
 
