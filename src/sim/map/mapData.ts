@@ -31,6 +31,8 @@ export interface MoverDef {
   speed?: number;
   /** seconds to wait at each waypoint */
   pause?: number;
+  /** seconds before the first departure (round start) */
+  delay?: number;
   /** loop the path instead of ping-ponging */
   loop?: boolean;
   swing?: { length: number; amp: number; period: number };

@@ -99,7 +99,8 @@ export function buildGimmicks(w: World): Gimmicks {
         t: 0,
         seg: 0,
         dir: 1,
-        wait: 0,
+        // first departure (path movers): give fighters a moment after spawning
+        wait: d.delay ?? 0,
         hitCd: [],
       };
       if (d.swing) placeSwing(m, 0);

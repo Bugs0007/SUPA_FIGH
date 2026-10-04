@@ -166,7 +166,8 @@ def factory():
     g.rect(13, H - 5, 15, H - 3, 'M')
     g.rect(54, H - 5, 56, H - 3, 'M')
     g.rect(28, 13, 29, 16, 'M'); g.rect(40, 13, 41, 16, 'M')
-    for x, r in [(3, H - 2), (10, H - 2), (24, H - 2), (45, H - 2), (59, H - 2), (66, H - 2), (8, 22), (61, 22), (16, 11), (53, 11)]:
+    # nobody spawns on a conveyor: an idle player would ride it into a crusher in seconds
+    for x, r in [(3, H - 2), (14, H - 5), (31, 17), (38, 17), (55, H - 5), (66, H - 2), (8, 22), (61, 22), (16, 11), (53, 11)]:
         g.mark(x, r, 'S')
     for x, r in [(35, 17), (2, 22), (67, 22), (11, 11), (58, 11), (34, H - 9)]:
         g.mark(x, r, 'w')
@@ -413,15 +414,16 @@ def mine():
     # bottom rail floor (metal)
     g.hl(2, 31, 32, 'X'); g.hl(43, 73, 32, 'X')
     g.hl(32, 32, 32, 'X'); g.hl(42, 42, 32, 'X')
-    for x, r in [(4, 32), (17, 32), (25, 32), (50, 32), (62, 32), (71, 32), (15, 23), (60, 22), (18, 12), (44, 12)]:
+    # (nobody spawns where a cart starts; the carts wait a few seconds before their first run)
+    for x, r in [(4, 23), (17, 32), (25, 32), (50, 32), (62, 32), (56, 22), (15, 23), (60, 22), (18, 12), (44, 12)]:
         g.mark(x, r, 'S')
     for x, r in [(26, 23), (45, 22), (30, 12), (57, 12), (36, 22), (8, 32)]:
         g.mark(x, r, 'w')
     for x, r, c in [(10, 32, 't'), (20, 32, 't'), (55, 32, 't'), (67, 32, 't'), (24, 23, 'c'), (70, 22, 't'), (40, 12, 'b'), (14, 12, 'c')]:
         g.mark(x, r, c)
     gim = [
-        {'type': 'mover', 'kind': 'cart', 'x': 2, 'y': 31.25, 'w': 2, 'h': 12, 'path': [[28, 0]], 'speed': 150, 'pause': 2.5, 'hits': {'damage': 30, 'knock': 320}},
-        {'type': 'mover', 'kind': 'cart', 'x': 71, 'y': 31.25, 'w': 2, 'h': 12, 'path': [[-28, 0]], 'speed': 150, 'pause': 3.5, 'hits': {'damage': 30, 'knock': 320}},
+        {'type': 'mover', 'kind': 'cart', 'x': 2, 'y': 31.25, 'w': 2, 'h': 12, 'path': [[28, 0]], 'speed': 150, 'pause': 2.5, 'delay': 5, 'hits': {'damage': 30, 'knock': 320}},
+        {'type': 'mover', 'kind': 'cart', 'x': 71, 'y': 31.25, 'w': 2, 'h': 12, 'path': [[-28, 0]], 'speed': 150, 'pause': 3.5, 'delay': 6.5, 'hits': {'damage': 30, 'knock': 320}},
     ]
     emit('mine', 'mine', 'ABANDONED MINE', 'mine', 'Runaway minecarts, TNT everywhere and a very cold lake.', g, gim)
 
