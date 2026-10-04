@@ -8,11 +8,16 @@ All art, sound and music are generated procedurally when the game starts. There 
 
 ## Playing
 
-Open the game, then pick an option from the title menu:
-- **Quick Match** jumps straight in against bots. On the title screen, 0–8 sets the bot count and Tab sets the difficulty.
+Open the game. The main menu has a card for each keyboard player and a quick-match panel:
+- **Name:** press Enter on NAME and type (up to 8 characters). Names show above heads, in the HUD and in the kill feed.
+- **Fighter:** pick SCRAPPER (customize the look in Match Setup) or an anime hero: **Goku**, **Naruto** or **Luffy**.
+  The card shows an animated preview of the fighter's signature move.
+- **Map** (or RANDOM), **Players** (1 or 2 on the keyboard), **Bots** (0–8) and **Bot skill**. The selected map's
+  backdrop and minimap show up right in the menu.
+- **Quick Match** starts with those settings (0–8 and Tab still work as shortcuts).
 - **Match Setup** opens the lobby. There you set the players, teams, map, mode, rounds and chaos cards.
 - **Controls** lets you rebind every action for both keyboard layouts and up to 4 gamepads.
-- **Settings** covers volumes, screen shake, gore, damage numbers, replays and fullscreen.
+- **Settings** covers volumes, screen shake, gore, damage numbers, replays, fullscreen and UP / W JUMPS.
 
 On a gamepad, press START in the lobby to join.
 
@@ -20,15 +25,20 @@ On a gamepad, press START in the lobby to join.
 | Action | P1 | P2 (numpad) | P2 (laptop) | Gamepad |
 |---|---|---|---|---|
 | Move / aim | W A S D | Arrows | Arrows | Left stick / D-pad |
-| Jump | G / Space | Num5 | K | A |
+| Jump | **W** / G / Space | **Up** / Num5 | **Up** / K | A |
+| Drop through a platform | **S S** (double tap) | **Down Down** | **Down Down** | Down Down |
 | Attack (hold = aim) | F | Num4 | L | X / RT |
 | Kick | H | Num6 | J | B |
 | Interact (pick up / grab / throw) | T | Num8 | O | Y |
 | Cycle weapon | R | Num7 | I | RB |
 | Use gadget | V | Num9 | U | LB |
-| Ability | B | Num1 | P | LT |
+| Hero ability | B | Num1 | P | LT |
 
-Pause with Esc, P or Start.
+Pause with Esc or Start (P too, if nobody has it bound).
+
+**W / Up is a full jump button:** ground jump, double jump, wall jump, and a short tap is a short hop. Up still
+climbs ladders, climbs ledges and sweeps your aim while you hold Attack (it never jumps then). You can turn
+this off in Settings (then only the Jump key jumps).
 
 **Guns:** hold Attack to aim (Up and Down sweep the angle), or tap it for a hip shot.
 
@@ -37,16 +47,22 @@ Pause with Esc, P or Start.
 - Jump again in the air to double jump.
 - Jump off walls to wall jump.
 - Double-tap a direction to sprint.
-- Press Down + Jump to drop through a platform.
+- Double-tap Down to drop through a platform (a long crouch never drops you).
 
 **Interact:** grab an enemy, then press Attack to throw them.
 
 ### Anime heroes
-In the fighter creator (lobby → HERO / LOOK) you can pick **Naruto**, **Luffy** or **Goku**. Each has a rare
-power-up somewhere on the map (chakra scroll, straw hat token, energy core) that transforms them. Press
-**Ability** for their special (chakra bomb, rubber bullet, ki blast; hold it to charge Goku's blast). Anyone
-can grab any power-up for a smaller boost. Three maps fit them: Hidden Leaf Forest, Grand Line Ship, and
-Alien Energy Planet. Quick match: `?heroes=naruto,luffy,goku`.
+Pick **Goku**, **Naruto** or **Luffy** on the main menu (or in the lobby's fighter creator). Every hero has a
+signature move on the **Ability** button from the start:
+
+| Hero | Base ability | Rare power-up | Transformation + powered ability |
+|---|---|---|---|
+| Goku | **Levitation:** take off with Ability (or jump again when you're out of air jumps) and fly freely in all 4 directions; a ki meter drains while flying and refills on the ground; getting hit knocks you out of the sky | Energy core | Super Saiyan: heavy hits, unlimited flight, Ability = ki blast (tap = small, hold = charged) |
+| Naruto | **Rasengan:** a spinning orb forms in his palm, then a gravity-free dash; the first fighter touched is blasted away (works in the air, crosses gaps) | Chakra scroll | Kurama Mode: shadow-clone combo, Ability = chakra bomb |
+| Luffy | **Gum-Gum Pistol:** a stretch punch (hold Up/Down to angle it); if the fist hits a wall, he rockets to it (Gum-Gum Rocket) | Straw hat token | Gear Second: stretchy combo, Ability = rubber bullet |
+
+Anyone can grab any power-up for a smaller boost. Three maps fit them: Hidden Leaf Forest, Grand Line Ship, and
+Alien Energy Planet. Quick match link: `?heroes=naruto,luffy,goku`.
 
 ### Modes
 - **Brawl:** rounds, last fighter standing. The dead come back as ghosts who can shove things around.
