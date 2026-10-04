@@ -50,6 +50,10 @@ export const SPRINT_TAP_WINDOW = 0.25; // double-tap a direction within this win
 export const SPRINT_MUL = 1.45;
 export const SPRINT_RAMP = 0.18; // seconds to reach full sprint speed
 export const SPRINT_COOLDOWN = 0.35;
+// Double-tap Down to drop through a platform: the first press must be a tap (released within HOLD),
+// the second press must come within WINDOW of that release. Long crouches never drop you.
+export const DROP_TAP_HOLD = 0.25;
+export const DROP_TAP_WINDOW = 0.3;
 
 // Aiming
 export const AIM_MAX_SPEED = 2.7; // rad/s at full stick

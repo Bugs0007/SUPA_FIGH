@@ -193,6 +193,11 @@ export class Juice {
         this.sfx('swing', f.x, 0.6, 0.7);
         break;
       }
+      case 'drop':
+        this.r.views[e.f]?.onJump();
+        fx.dust(e.x, e.y, 2, 18);
+        this.sfx('swing', e.x, 0.45, 0.6);
+        break;
       case 'land':
         this.r.views[e.f]?.onLand(e.speed);
         fx.dust(e.x, e.y, Math.min(6, Math.floor(e.speed / 90)), 35 + e.speed * 0.05);
@@ -442,7 +447,46 @@ export class Juice {
       case 'cloneGone':
         fx.smoke(e.x, e.y - 10, 3, 0xe0e0e8);
         break;
+      case 'flyStart': {
+        const f = w.fighters[e.f];
+        fx.dust(e.x, e.y, f.grounded || e.y > f.y - 2 ? 5 : 2, 60);
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y - 4, life: 0.25, s0: 0.3, s1: 1.8, a0: 0.9, a1: 0, tint: 0xd8f4ff, depth: 64 });
+        this.sfx('flyUp', e.x, 0.8);
+        break;
+      }
+      case 'flyEnd':
+        this.sfx('flyDown', e.x, 0.6);
+        if (e.empty) this.r.floatText(e.x, e.y - 30, 'OUT OF KI', 0xa0d8ff);
+        break;
+      case 'rasengan': {
+        const f = w.fighters[e.f];
+        if (e.phase === 'form') this.sfx('rasengan', f.x, 0.9);
+        else {
+          this.sfx('swing', f.x, 0.9, 0.6);
+          fx.dust(f.x, f.y, 2, 40);
+        }
+        break;
+      }
+      case 'rocket':
+        fx.chips(e.x, e.y, 4);
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.15, s0: 0.2, s1: 1, a0: 1, a1: 0, tint: 0xffe0c0, depth: 64 });
+        this.sfx('rubberSnap', e.x);
+        break;
       case 'heroFx': {
+        if (e.fx === 'rasengan') {
+          // spiral burst: blue rings, white core flash, swirling sparks
+          const blue = hexToNum('#5ab8ff');
+          fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.14, s0: 1, s1: e.heavy ? 2.6 : 1.4, a0: 0.9, a1: 0, tint: 0xe8f8ff, add: true, depth: 64 });
+          fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.22, s0: 0.3, s1: e.heavy ? 2.8 : 1.4, a0: 1, a1: 0, tint: blue, depth: 64 });
+          if (e.heavy) fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.32, s0: 0.2, s1: 3.6, a0: 0.7, a1: 0, tint: 0xffffff, depth: 64 });
+          fx.sparks(e.x, e.y, 0, -1, e.heavy ? 16 : 6, blue, e.heavy ? 260 : 140);
+          this.sfx(e.heavy ? 'rasenganHit' : 'impact', e.x);
+          if (e.heavy) {
+            this.hitstop = Math.max(this.hitstop, 0.09);
+            this.cam.addTrauma(0.35);
+          }
+          break;
+        }
         const tint = e.fx === 'chakra' ? hexToNum('#ff6a1a') : e.fx === 'steam' ? hexToNum('#ff9ad0') : hexToNum('#fff8c0');
         fx.sparks(e.x, e.y, 0, -1, e.heavy ? 12 : 6, tint, e.heavy ? 240 : 150);
         fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.18, s0: 0.2, s1: e.heavy ? 2.2 : 1.4, a0: 1, a1: 0, tint, depth: 64 });

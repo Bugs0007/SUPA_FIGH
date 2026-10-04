@@ -10,7 +10,7 @@ import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
-import { loadLobby, saveLobby } from './lobby';
+import { loadLobby, saveLobby, syncSlotToProfile } from './lobby';
 import { bindZoom } from './ui';
 
 const PANTS = ['#2a2a3a', '#1f3a7a', '#3a4a2a', '#4a3a2a', '#1e1e28', '#646b87', '#5a2a28'];
@@ -152,6 +152,7 @@ export class CreatorScene extends Phaser.Scene {
     c.slots[this.slot].look = this.look;
     c.slots[this.slot].hero = this.hero;
     saveLobby(c);
+    syncSlotToProfile(c.slots[this.slot]);
   }
 
   override update(_time: number, deltaMs: number): void {
@@ -216,16 +217,16 @@ export class CreatorScene extends Phaser.Scene {
       ? [
           hero.name,
           `SPEED ${Math.round(hero.stats.speed * 100)}%   HP ${hero.stats.hp}`,
-          `POWER-UP: ${weaponDef(pw.item).name}`,
-          `TRANSFORMS INTO ${pw.name} (${pw.duration}S)`,
-          `ABILITY BUTTON: ${pw.ability.special?.name ?? '-'}`,
+          `ABILITY: ${hero.base.name}`,
+          hero.base.desc.length > 46 ? hero.base.desc.slice(0, hero.base.desc.lastIndexOf(' ', 46)) : hero.base.desc,
+          `POWER-UP: ${weaponDef(pw.item).name} -> ${pw.name} (${pw.duration}S)`,
+          `POWERED ABILITY: ${pw.ability.special?.name ?? '-'}`,
           hero.blurb,
           'POWER-UPS ARE RARE PICKUPS ON ANY MAP.',
-          'OTHER FIGHTERS GET A SMALLER BOOST FROM IT.',
           'NORMAL WEAPONS ALWAYS WORK.',
         ]
       : [];
-    this.info.forEach((t, i) => t.setText(lines[i] ?? '').setTint(i === 0 ? hexToNum(P.yellow) : i === 5 ? hexToNum(P.orange) : 0xc3c9dc));
+    this.info.forEach((t, i) => t.setText(lines[i] ?? '').setTint(i === 0 ? hexToNum(P.yellow) : i === 2 ? hexToNum(P.orange) : 0xc3c9dc));
     FIELDS.forEach((f, i) => {
       const r = R_FIRST + i;
       const sel = this.row === r;

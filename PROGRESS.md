@@ -3,24 +3,29 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1–M9 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
-  build, anime universe expansion). See "Next steps" for ideas; manual play-test list under M9.
-- `npm run dev` → http://localhost:5173 · `npm test` (220 unit tests) · `npm run test:e2e` (33 Playwright tests;
+- **M1–M10 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
+  build, anime universe expansion, M10 overhaul: crash fix, controls, hero base abilities, main menu, camera,
+  animation, map detail). Manual play-test lists under M9 and M10.
+- `npm run dev` → http://localhost:5173 · `npm test` (259 unit tests) · `npm run test:e2e` (45 Playwright tests;
   in containers `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 <map> normal 1`
-- Title menu: Quick Match / Match Setup / Controls / Settings (L, C shortcuts; 0–8 bots; Tab difficulty).
-  In a match: Esc/P/Start = pause menu (resume, restart, settings, controls, quit).
+- Main menu: player cards (NAME: Enter to type; FIGHTER: Scrapper/Goku/Naruto/Luffy), quick-match panel (MAP incl.
+  RANDOM, PLAYERS 1/2, BOTS, BOT SKILL), buttons Quick Match / Match Setup / Controls / Settings (L, C shortcuts;
+  0–8 bots; Tab difficulty). In a match: Esc/Start = pause menu (P too unless a player has it bound).
+- Controls: W / Up = jump (full: double/wall jumps, variable height), double-tap Down = drop through platforms,
+  hero ability = B (P1) / Num1 or P (P2).
 - URLs: `/?scene=match&map=mine&bots=6&diff=hard&mode=brawl|deathmatch|koth|juggernaut|gungame|coop&chaos=1&mods=bigHeads`,
   `/?scene=lobby|controls|creator|settings`, `/?scene=art(&page=weapons|heroes)`, `&heroes=naruto,luffy,goku`, `&powers=0`,
-  `&speed=4`, `&seed=N`, `&humans=0`, `&timer=1`.
+  `&speed=4`, `&seed=N`, `&humans=0..2`, `&timer=1`. Without `heroes`/`map`/`humans`, quick matches use the title
+  screen's profiles and settings.
 
 ## Next steps
-1. Play-test the M9 list below on real hardware with real pads; tune `sim/data/heroes.ts` (durations,
-   cooldowns, multipliers) and the power spawn timing in `sim/world.ts` (POWER_FIRST / POWER_EVERY).
-2. `npm run balance` with heroes: `runBotSim({ heroes: [...], heroPowers: true })` — check power kills stay a
-   spice, not the meta (power specials currently show up as `kurama:special` etc. in the kill table).
-3. Known: bots don't ride movers (swing platforms are bonus routes); bots never fire cannons; the forest has
-   no shallow stream (D48); controls are not listed inside the lobby (CONTROLS... entry opens them).
-4. Optional: real low-res sprite sheets per hero via `art/externalSheets.ts` (docs/ASSETS.md).
+1. Play-test the M10 list below on real hardware (two people on one keyboard + pads): Goku flight feel (speed
+   135, meter 4.5 s, regen 1.1/s in `sim/data/heroes.ts`), Rasengan / Gum-Gum Pistol cooldowns, camera zoom limits
+   (`render/CameraDirector.ts` Z_COMFORT / Z_FLOOR / pads), decor density (`render/Decor.ts` target / caps).
+2. Bots: teach Goku bots to fly (needs flight edges in the nav graph or a direct "fly to target" mode).
+3. Decorations for the outdoor themes that have none yet (docks, construction) and per-map hand-placed hero props.
+4. More fighters on the character select (the hero framework + modular baker make new heroes mostly data + art).
+5. Older ideas: real low-res sprite sheets per hero via `art/externalSheets.ts` (docs/ASSETS.md); bots ride movers.
 
 ## M1 — Playable core ✅
 - [x] Docs (CLAUDE.md, GAME_DESIGN.md, DECISIONS.md, PROGRESS.md)
@@ -201,3 +206,42 @@ Status legend: [x] done · [~] partial · [ ] todo
   alien low-gravity fields + fissure eruptions; power-up spots are reachable and contested.
 - Rebind ABILITY in Controls (keyboard + pad) and check it in a match. 2 keyboards + pads at once.
 - 10 fighters with several powered heroes: frame rate on a real GPU.
+
+## M10 — Overhaul ✅ (2026-10)
+- [x] Crash fix: "Cannot read properties of null (reading 'chars')" on the 2nd match / lobby re-entry (scenes kept
+      destroyed BitmapTexts across runs, D56); restart from the pause menu no longer starts paused
+- [x] Controls (D50): W / Up is a full jump for keyboard players (latched while Up climbs/aims/grabs/flies);
+      double-tap Down drops through platforms (one-way tiles, props, movers); crouch + jump = jump; bots drop
+      with the same double tap; Settings → UP / W JUMPS toggle; P only pauses when nobody has it bound
+- [x] Hero base abilities (D51): Goku Levitation (8-dir flight, ki meter, ABILITY or a 3rd jump to take off,
+      unlimited as Super Saiyan), Naruto Rasengan (orb + gravity-free dash strike), Luffy Gum-Gum Pistol
+      (angled stretch punch, Gum-Gum Rocket off walls); FX, sounds, HUD status, bots use Rasengan / Pistol
+- [x] Main menu (D53): per-player NAME (typed) and FIGHTER (animated preview of the signature move), MAP incl.
+      RANDOM with live backdrop + minimap, PLAYERS 1/2, BOTS, BOT SKILL; profiles shared with the lobby;
+      names everywhere (tags, HUD panels, score bar, kill feed); quick match refuses < 2 fighters
+- [x] HUD panels redesigned for names (name + ability status / ki meter, full-width HP, weapon, slots) and fade
+      when a fighter is behind them
+- [x] Camera (D52): human players always on screen (zoom floor 0.3, hard post-smoothing correction, HUD-aware
+      screen-space margins); bots framed when comfortable
+- [x] Animation (D57): new poses (apex, hover, skid, land, windup, cross, haymaker, idle shift), reworked run
+      cycle, eased arm swings, lean, turn squeeze, landing crouch, per-fighter breathing; overhead bars no
+      longer cover heads
+- [x] Map detail (D54): themed back-wall materials with variants; ~60 procedural decorations across 11 themes
+      with light pools and small animations; rooftop buildings get lit windows, AC units, antennas
+- [x] Fair spawns (D55): factory spawns off the conveyors, mine spawns off the cart starts + cart start delay;
+      new test: idle at any spawn is safe for 8 s
+- [x] Tests: +39 unit (controls, base abilities, bot abilities, spawn safety) and +12 e2e (re-entry, camera on
+      the widest maps, title menu flow, abilities through the real keyboard); balance survey with heroes: base
+      abilities < 3% of kills
+
+### Manual play-test checklist (M10)
+- Two players on one keyboard: W and Up jump, double jump, wall jump; S S / Down Down drop through platforms;
+  holding S to crouch never drops; aiming a gun with W never jumps.
+- Goku: B takes off, WASD/arrows fly in all directions, meter drains and refills, S to the floor lands, a punch
+  knocks him down; Super Saiyan flight never runs out.
+- Naruto: Rasengan on the ground and mid-air (crosses gaps); Luffy: pistol straight, up (hold W) and down
+  (in the air), rocket off a wall.
+- Main menu: rename both players, pick fighters + map, Quick Match uses them; Match Setup shows the same
+  fighters for KEYBOARD 1/2; the creator's changes show up back on the title.
+- Camera: run to opposite ends of Night Train / Docks — both players stay on screen.
+- Restart a match 3x from the pause menu, quit to title and play again: no crash.

@@ -12,6 +12,7 @@ import { POWERS } from '../sim/data/heroes';
 import { POWER_COLORS } from '../art/heroArt';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
+import { baseAbility } from '../sim/hero';
 import { audio } from '../audio/AudioManager';
 import { menu } from '../input/menu';
 import { isHumanInput, type MatchScene } from './MatchScene';
@@ -20,6 +21,9 @@ interface FeedLine {
   objs: Phaser.GameObjects.BitmapText[];
   life: number;
 }
+
+/** player panel width (fits an 8-letter name next to the hero ability label) */
+const PANEL_W = 124;
 
 const PAUSE_ITEMS = [
   { label: 'RESUME', action: 'resume' },
@@ -110,6 +114,22 @@ export class HudScene extends Phaser.Scene {
   }
 
   create(): void {
+    // The scene instance survives restarts: drop every reference to the previous run's objects
+    // (they're destroyed, and touching a destroyed BitmapText crashes on its null font data).
+    this.feed = [];
+    this.scoreTexts = [];
+    this.dmScores = [];
+    this.panelTexts = [];
+    this.panelIcons = [];
+    this.panelCounts = [];
+    this.arrows = [];
+    this.awardObjs = [];
+    this.card = null;
+    this.cardTime = 0;
+    this.bannerTime = 0;
+    this.announceTime = 0;
+    this.pauseIdx = 0;
+    this.wasPaused = false;
     this.ms = this.scene.get("match") as unknown as MatchScene;
     this.applyZoom((this.registry.get('scale') as number) ?? 1);
     this.game.events.on('rescale', this.applyZoom, this);
@@ -141,11 +161,34 @@ export class HudScene extends Phaser.Scene {
         this.add.bitmapText(0, 0, 'smo', ''),
         this.add.bitmapText(0, 0, 'smo', ''),
         this.add.bitmapText(0, 0, 'smo', ''),
+        this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 0),
       ]);
       this.panelIcons.push(Array.from({ length: 5 }, () => this.add.image(0, 0, 'weapons').setVisible(false)));
       this.panelCounts.push(Array.from({ length: 5 }, () => this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 1).setDepth(2)));
     });
     this.roundBanner(1);
+  }
+
+  /** per panel alpha this frame */
+  private panelAlpha: number[] = [];
+
+  /** Is any visible fighter (body or ghost) on screen inside this HUD rect? */
+  private panelBlocked(x: number, y: number, w: number, h: number): boolean {
+    const cam = this.ms.cameras.main;
+    const v = cam.worldView;
+    const sx = (wx: number) => ((wx - v.x) / v.width) * VIEW_W;
+    const sy = (wy: number) => ((wy - v.y) / v.height) * VIEW_H;
+    for (const f of this.ms.match.world.fighters) {
+      if (f.gone) continue;
+      const fx = f.alive || !f.ghost ? f.x : f.gx;
+      const fy = f.alive || !f.ghost ? f.y : f.gy + 12;
+      const l = sx(fx - 6);
+      const r = sx(fx + 6);
+      const t = sy(fy - 24);
+      const b = sy(fy);
+      if (r > x && l < x + w && b > y && t < y + h) return true;
+    }
+    return false;
   }
 
   private applyZoom(k: number): void {
@@ -392,56 +435,76 @@ export class HudScene extends Phaser.Scene {
       fy += 9;
     }
 
-    // ---- player panels: name + HP, active weapon + ammo, 5 inventory slots
+    // ---- player panels: name + hero ability, HP, active weapon + ammo, 5 inventory slots
     const humans = ms.players.map((p, i) => ({ p, i })).filter(({ p }) => isHumanInput(p.input));
     humans.forEach(({ p, i }, n) => {
       const f = w.fighters[i];
-      const [nameT, weapT, ammoT, powT] = this.panelTexts[n];
+      const [nameT, weapT, ammoT, powT, abilT] = this.panelTexts[n];
       const right = n % 2 === 1;
       const inner = n >= 2; // players 3/4 sit next to players 1/2
-      const PW = 104;
+      const PW = PANEL_W;
       const px = right ? VIEW_W - PW - 6 - (inner ? PW + 6 : 0) : 8 + (inner ? PW + 6 : 0);
-      const py = VIEW_H - 40;
-      g.fillStyle(hexToNum(P.ink), 0.75).fillRect(px - 3, py - 3, PW, 38);
-      g.lineStyle(1, p.color, 1).strokeRect(px - 3.5, py - 3.5, PW + 1, 39);
+      const py = VIEW_H - 45;
+      // a fighter behind the panel (camera at the map's bottom edge): fade it so nobody is hidden
+      const a = this.panelBlocked(px - 3, py - 3 - (f.alive && f.power ? 12 : 0), PW, 44) ? 0.3 : 1;
+      this.panelAlpha[n] = a;
+      g.fillStyle(hexToNum(P.ink), 0.78 * a).fillRect(px - 3, py - 3, PW, 44);
+      g.lineStyle(1, p.color, a).strokeRect(px - 3.5, py - 3.5, PW + 1, 45);
+      for (const t of this.panelTexts[n]) t.setAlpha(a);
+      for (const t of this.panelCounts[n]) t.setAlpha(a);
       nameT.setText(p.label).setTint(p.color).setPosition(px, py);
+      // hero base ability (D51): ready / cooldown, or Goku's ki meter
+      const base = f.alive ? baseAbility(f) : null;
+      const sp = f.powerFull ? POWERS[f.power]?.ability.special : undefined;
+      const abX = px + PW - 7;
+      if (base && !sp) {
+        if (base.fly) {
+          const k = Math.max(0, Math.min(1, f.flyMeter / base.fly.meter));
+          abilT.setText(f.flying ? 'FLYING' : 'KI').setPosition(abX - 34, py + 1).setTint(f.flying ? 0xa8e0ff : 0x8d95b0).setVisible(true);
+          g.fillStyle(0x2a3550, a).fillRect(abX - 30, py + 2, 30, 3);
+          g.fillStyle(k < 0.25 ? hexToNum(P.red2) : 0x8ad8ff, a).fillRect(abX - 30, py + 2, Math.round(30 * k), 3);
+        } else {
+          const ready = f.baseCd <= 0;
+          abilT.setText(ready ? base.name : `${base.name} ${Math.ceil(f.baseCd)}`).setPosition(abX, py + 1).setTint(ready ? hexToNum(P.orange) : 0x5a5668).setVisible(true);
+        }
+      } else abilT.setVisible(false);
+      // HP (full width) with boost timers underneath
       const hpFrac = Math.max(0, f.hp) / f.maxHp;
-      g.fillStyle(0x3a3448, 1).fillRect(px + 22, py + 2, 74, 5);
+      const barW = PW - 7;
+      g.fillStyle(0x3a3448, a).fillRect(px, py + 10, barW, 4);
       const hpCol = hpFrac > 0.6 ? P.green2 : hpFrac > 0.3 ? P.yellow : P.red2;
-      g.fillStyle(hexToNum(f.burn > 0 && Math.floor(this.time.now / 120) % 2 ? P.orange : hpCol), 1).fillRect(px + 22, py + 2, Math.round(74 * hpFrac), 5);
-      // boost timers under the HP bar
-      if (f.alive && f.speedBoost > 0) g.fillStyle(hexToNum(P.yellow), 1).fillRect(px + 22, py + 7, Math.round(74 * Math.min(1, f.speedBoost / 10)), 1);
-      if (f.alive && f.strengthBoost > 0) g.fillStyle(hexToNum(P.red2), 1).fillRect(px + 22, py + 8, Math.round(74 * Math.min(1, f.strengthBoost / 12)), 1);
+      g.fillStyle(hexToNum(f.burn > 0 && Math.floor(this.time.now / 120) % 2 ? P.orange : hpCol), a).fillRect(px, py + 10, Math.round(barW * hpFrac), 4);
+      if (f.alive && f.speedBoost > 0) g.fillStyle(hexToNum(P.yellow), a).fillRect(px, py + 14, Math.round(barW * Math.min(1, f.speedBoost / 10)), 1);
+      if (f.alive && f.strengthBoost > 0) g.fillStyle(hexToNum(P.red2), a).fillRect(px, py + 15, Math.round(barW * Math.min(1, f.strengthBoost / 12)), 1);
       const def = activeWeapon(f);
       const item = f.inv[f.active];
       const ghostText = f.ghost ? (f.ghostCd <= 0 ? 'GHOST: ATTACK = BOO!' : `GHOST: BOO IN ${Math.ceil(f.ghostCd)}`) : 'DEAD';
-      weapT.setText(f.alive ? def.name : ghostText).setPosition(px, py + 11).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
+      weapT.setText(f.alive ? def.name : ghostText).setPosition(px, py + 17).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
       const ammo = item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
-      ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 11).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
+      ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 17).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
       // hero power: name, time left, special cooldown (above the panel)
       if (f.alive && f.power) {
         const pd = POWERS[f.power];
         const col = hexToNum(POWER_COLORS[f.power]?.[0] ?? P.white);
-        const sp = f.powerFull ? pd?.ability.special : undefined;
         const ready = sp && f.specialCd <= 0;
         const label = (f.powerFull ? pd?.name : 'POWERED UP') ?? '';
         powT.setText(sp ? `${label}  ${ready ? 'ABILITY READY' : 'ABILITY ' + Math.ceil(f.specialCd) + 'S'}` : label).setPosition(px, py - 13).setTint(col).setVisible(true);
-        g.fillStyle(hexToNum(P.ink), 0.75).fillRect(px - 3, py - 15, PW, 11);
-        g.fillStyle(col, 1).fillRect(px - 3, py - 5, Math.round(PW * Math.max(0, f.powerTime / f.powerMax)), 1);
+        g.fillStyle(hexToNum(P.ink), 0.75 * a).fillRect(px - 3, py - 15, PW, 11);
+        g.fillStyle(col, a).fillRect(px - 3, py - 5, Math.round(PW * Math.max(0, f.powerTime / f.powerMax)), 1);
       } else powT.setVisible(false);
       for (let s = 0; s < 5; s++) {
         const bx = px + s * 20;
-        const by = py + 20;
+        const by = py + 26;
         const inv = f.inv[s];
         const active = f.active === s && f.alive;
-        g.fillStyle(active ? 0x4a4060 : 0x241e32, 1).fillRect(bx, by, 18, 12);
-        if (active) g.lineStyle(1, 0xffffff, 1).strokeRect(bx - 0.5, by - 0.5, 19, 13);
+        g.fillStyle(active ? 0x4a4060 : 0x241e32, a).fillRect(bx, by, 18, 12);
+        if (active) g.lineStyle(1, 0xffffff, a).strokeRect(bx - 0.5, by - 0.5, 19, 13);
         const icon = this.panelIcons[n][s];
         const cnt = this.panelCounts[n][s];
         const wf = inv ? Art.weapon(inv.id) : undefined;
         if (wf && f.alive) {
           const k = Math.min(1, 17 / wf.w, 11 / wf.h);
-          icon.setVisible(true).setTexture(wf.key, wf.frame).setScale(k).setPosition(bx + 9, by + 6).setAlpha(active ? 1 : 0.7);
+          icon.setVisible(true).setTexture(wf.key, wf.frame).setScale(k).setPosition(bx + 9, by + 6).setAlpha((active ? 1 : 0.7) * a);
         } else icon.setVisible(false);
         const idef = inv ? weaponDef(inv.id) : null;
         cnt.setText(inv && f.alive && idef?.throw ? String(inv.ammo) : '').setPosition(bx + 18, by + 13);

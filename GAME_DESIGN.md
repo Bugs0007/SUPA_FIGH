@@ -19,13 +19,14 @@ fighter/team standing wins the round → slow-mo final kill + instant replay →
 | Action | P1 | P2 (numpad) | P2 (laptop fallback) | Gamepad |
 |---|---|---|---|---|
 | Move / aim | W A S D | Arrows | Arrows | Left stick / D-pad |
-| Jump | G / Space (or W) | Num5 (or Up) | K (or Up) | A |
+| Jump | W / G / Space | Up / Num5 | Up / K | A |
+| Drop through | S S (double tap) | Down Down | Down Down | Down Down |
 | Attack (hold = aim) | F | Num4 | L | X / RT |
 | Kick | H | Num6 | J | B |
 | Interact (pick up / grab / throw) | T | Num8 | O | Y |
 | Cycle weapon | R | Num7 | I | RB |
 | Use gadget (medkit) | V | Num9 | U | LB |
-| Ability (hero special) | B | Num1 | P | LT |
+| Hero ability | B | Num1 | P | LT |
 
 - **Guns:** hold Attack to aim (Up/Down sweeps the angle). Automatic weapons fire while held;
   semi-automatic weapons fire when you let go. Tap = instant hip shot.
@@ -33,7 +34,8 @@ fighter/team standing wins the round → slow-mo final kill + instant replay →
 - **Movement:** Down while running = roll (i-frames). Down in the air while moving = dive.
   Jump again in the air = double jump. Jump while touching a wall in the air = wall jump (not twice off
   the same wall before landing); holding into a wall while falling = wall slide. Double-tap a direction = sprint.
-  Down + Jump = drop through a platform. Up at a ladder = climb. Walk into a ledge while falling = grab.
+  Double-tap Down = drop through a platform. Up at a ladder = climb. Walk into a ledge while falling = grab.
+  Keyboard: Up is a full jump button unless it means something else (ladder, aim, ledge, flying).
 - **Interact:** pick up / swap a weapon, grab an enemy (then Attack to throw them), pick up props.
 
 ## Fighter
@@ -70,11 +72,15 @@ Pick **Naruto**, **Luffy** or **Goku** instead of a scrapyard fighter (creator H
 the same tiny pixel fighters (same hitbox, same moves, stats within ~5%) until they find their **power-up**,
 a rare pickup that can appear on any map (one at a time; the anime maps favor their own):
 
-| Hero | Power-up | Transformation | ABILITY special |
+Every hero also has a **base ability** on ABILITY from the start (D51): Goku = Levitation (free flight with a
+ki meter), Naruto = Rasengan (gravity-free dash strike), Luffy = Gum-Gum Pistol (angled stretch punch; a fist
+that hits a wall becomes a Gum-Gum Rocket).
+
+| Hero | Power-up | Transformation | ABILITY special while powered |
 |---|---|---|---|
 | Naruto | Chakra scroll | Kurama Mode: crimson aura, faster, harder hits; combo hit 3 brings two shadow clones | Chakra bomb: big explosive orb |
 | Luffy | Straw hat token | Gear Second: steam, pink skin, quick stretchy punches and kicks with extra reach | Rubber bullet: the arm stretches across the room |
-| Goku | Energy core | Super Saiyan: yellow hair, heavy hits with hit-stop, stronger kick | Ki blast: tap = small, hold = charged big blast |
+| Goku | Energy core | Super Saiyan: yellow hair, heavy hits with hit-stop, stronger kick, unlimited flight | Ki blast: tap = small, hold = charged big blast |
 
 Anyone can grab any power-up: the matching hero transforms fully (18–20 s); everyone else gets a short
 generic boost. Weapons keep working while powered. Maps: **Hidden Leaf Forest** (giant trees, village,

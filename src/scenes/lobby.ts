@@ -6,6 +6,8 @@ import { heroLook } from '../art/heroArt';
 import { hexToNum, TEAM_COLORS } from '../art/palette';
 import type { Difficulty } from '../ai/botData';
 import { load, save } from '../game/storage';
+import { profiles, saveProfiles } from '../game/profiles';
+import { settings } from '../game/settings';
 import type { GameMode } from '../sim/match';
 import type { MatchSceneData, PlayerSetup } from './MatchScene';
 import { PLAYER_COLORS } from './ui';
@@ -66,13 +68,34 @@ export function defaultLobby(): LobbyCfg {
   return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75, chaos: false, heroPowers: true };
 }
 
+/** Keyboard player index of a slot kind (kb0 -> 0, kb1 -> 1), else -1. */
+export function keyboardIndex(kind: SlotKind): number {
+  return kind === 'kb0' ? 0 : kind === 'kb1' ? 1 : -1;
+}
+
 export function loadLobby(): LobbyCfg {
   const d = defaultLobby();
   const s = load<Partial<LobbyCfg> | null>('lobby', null);
-  if (!s) return d;
-  const out = { ...d, ...s };
-  out.slots = d.slots.map((def, i) => ({ ...def, ...(s.slots?.[i] ?? {}) }));
+  const out = s ? { ...d, ...s } : d;
+  if (s) out.slots = d.slots.map((def, i) => ({ ...def, ...(s.slots?.[i] ?? {}) }));
+  // keyboard players' fighters come from their title-screen profile
+  for (const slot of out.slots) {
+    const k = keyboardIndex(slot.kind);
+    if (k >= 0) {
+      slot.hero = profiles[k].hero;
+      slot.look = { ...profiles[k].look };
+    }
+  }
   return out;
+}
+
+/** The creator changed a slot: keyboard slots write through to the player's profile. */
+export function syncSlotToProfile(slot: SlotCfg): void {
+  const k = keyboardIndex(slot.kind);
+  if (k < 0) return;
+  profiles[k].hero = slot.hero;
+  profiles[k].look = { ...slot.look };
+  saveProfiles();
 }
 
 export function saveLobby(c: LobbyCfg): void {
@@ -103,10 +126,12 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
   for (const s of c.slots) {
     if (s.kind === 'empty') continue;
     const isBot = s.kind === 'bot';
-    const label = isBot ? 'B' + ++bot : 'P' + ++human;
+    const kb = keyboardIndex(s.kind);
+    const label = isBot ? 'B' + ++bot : kb >= 0 ? profiles[kb].name : 'P' + ++human;
+    if (!isBot && kb >= 0) human++;
     const color = s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : isBot ? hexToNum(TEAM_COLORS[0]) : PLAYER_COLORS[(human - 1) % PLAYER_COLORS.length];
     players.push({
-      spawn: { name: label, team: s.team, isBot, upJumps: s.kind === 'kb0' || s.kind === 'kb1', hero: s.hero || undefined },
+      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0 && settings.upJump, hero: s.hero || undefined },
       look: heroLook(s.hero, s.look),
       color,
       label,

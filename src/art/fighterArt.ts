@@ -29,8 +29,17 @@ export const BF = {
   PUNCH: 22,
   DANGLE: 23,
   TUMBLE: 24,
+  // animation pass: more expressive in-between poses
+  APEX: 25,
+  HOVER: 26,
+  SKID: 27,
+  LAND: 28,
+  WINDUP: 29,
+  CROSS: 30,
+  UPPER: 31,
+  IDLE2: 32,
 } as const;
-export const BODY_FRAMES = 25;
+export const BODY_FRAMES = 33;
 export const HEAD = { NORMAL: 0, HURT: 1, DEAD: 2 } as const;
 export const ARM_ANGLES = 32;
 export const ARM_LENGTHS = [5, 7];
@@ -84,25 +93,47 @@ function stand(hipY: number, torsoH: number, lean: number, b: [number, number, n
   return { hipY, torsoH, lean, back: leg(14, hy, ...b), front: leg(16, hy, ...f) };
 }
 
+/**
+ * One leg through a run stride (knee dx/dy, foot dx/dy from the hip). The other leg plays the same
+ * cycle half a stride later. 0 contact (reaching foot lands) · 1 down (weight over it) · 2 push off ·
+ * 3 heel kicks up behind · 4 knee drives forward · 5 reach.
+ */
 const RUN_CYCLE: [number, number, number, number][] = [
-  [2, 3, 4, 6],
+  [3, 3, 5, 6],
   [1, 3, 1, 6],
-  [-1, 3, -2, 6],
-  [-2, 3, -4, 4],
-  [0, 2, -2, 4],
-  [2, 2, 2, 5],
+  [-1, 3, -3, 5],
+  [-3, 2, -5, 3],
+  [2, 1, 0, 4],
+  [3, 1, 4, 4],
 ];
+/** hip height per run frame: contact, down (lowest), up (feet leave the ground), twice per cycle */
+const RUN_HIP = [23, 24, 22, 23, 24, 22];
 
 function buildPoses(): Pose[] {
   const poses: Pose[] = [];
-  poses[BF.IDLE0] = stand(23, 8, 0, [0, 3, 0, 6], [0, 3, 0, 6]);
-  poses[BF.IDLE1] = stand(23, 7, 0, [0, 3, 0, 6], [0, 3, 0, 6]);
+  // idle breathing: chest rises (torso 8 -> 7) with a slight weight shift onto the back leg
+  poses[BF.IDLE0] = stand(23, 8, 0, [-1, 3, -1, 6], [1, 3, 1, 6]);
+  poses[BF.IDLE1] = stand(23, 7, 0, [-1, 3, -1, 6], [1, 3, 1, 6]);
+  poses[BF.IDLE2] = stand(24, 7, 0, [-1, 2, -1, 5], [1, 2, 1, 5]);
   for (let i = 0; i < 6; i++) {
-    const bob = i === 1 || i === 4 ? 1 : 0;
-    poses[BF.RUN0 + i] = stand(23 + bob, 8, 1, RUN_CYCLE[(i + 3) % 6], RUN_CYCLE[i]);
+    poses[BF.RUN0 + i] = stand(RUN_HIP[i], 8, 1, RUN_CYCLE[(i + 3) % 6], RUN_CYCLE[i]);
   }
-  poses[BF.JUMP] = stand(22, 8, 0, [-1, 3, -3, 5], [2, 2, 1, 5]);
-  poses[BF.FALL] = stand(23, 8, 0, [-1, 2, -2, 5], [1, 3, 2, 6]);
+  // rising: front knee tucked high, back leg trailing
+  poses[BF.JUMP] = stand(22, 8, 0, [-1, 3, -2, 6], [3, 1, 2, 4]);
+  // top of the arc: both knees up
+  poses[BF.APEX] = stand(22, 8, 0, [1, 2, -1, 4], [3, 1, 2, 3]);
+  // falling: legs reaching down for the floor, slightly apart
+  poses[BF.FALL] = stand(23, 8, 0, [-2, 3, -3, 6], [2, 3, 3, 6]);
+  // levitating: legs together, one knee softly bent (feet hang a little)
+  poses[BF.HOVER] = stand(22, 8, 0, [0, 3, 0, 6], [2, 2, 1, 5]);
+  // turning around at speed: lean back, front foot braced ahead
+  poses[BF.SKID] = stand(24, 8, -2, [-2, 2, -3, 5], [3, 3, 5, 6]);
+  // landing squash: knees bent, chest low
+  poses[BF.LAND] = stand(25, 7, 1, [-2, 2, -2, 5], [2, 2, 3, 5]);
+  // punches: anticipation (lean back), jab, cross (hips turn in), haymaker/uppercut lunge
+  poses[BF.WINDUP] = stand(24, 8, -1, [-2, 3, -3, 6], [2, 3, 2, 6]);
+  poses[BF.CROSS] = stand(24, 8, 3, [-3, 3, -5, 6], [2, 2, 3, 6]);
+  poses[BF.UPPER] = stand(23, 8, 2, [-3, 3, -5, 6], [4, 2, 5, 6]);
   poses[BF.CROUCH] = stand(28, 4, 2, [1, 1, -1, 1], [2, 0, 2, 1]);
   poses[BF.CRAWL0] = stand(28, 4, 2, [2, 1, 0, 1], [1, 0, 1, 1]);
   poses[BF.CRAWL1] = stand(28, 4, 2, [0, 1, -2, 1], [3, 0, 3, 1]);

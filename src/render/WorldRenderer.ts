@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Art } from '../art';
 import type { Appearance } from '../art/appearance';
 import { hexToNum, P } from '../art/palette';
-import { BACK_ROW, backMask, THEMES, tileMask } from '../art/tileArt';
+import { BACK_ROW, backMask, backVariant, THEMES, tileMask } from '../art/tileArt';
 import { GRAVITY, TILE } from '../sim/constants';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwPower, throwVelocity, type Fighter } from '../sim/fighter';
@@ -13,8 +13,10 @@ import { segmentAabb as segmentAabbT } from '../sim/physics';
 import { FighterView } from './FighterView';
 import { Fx } from './Fx';
 import { HeroFx } from './HeroFx';
+import { DecorLayer } from './Decor';
 import { POWER_COLORS } from '../art/heroArt';
 import { powerForItem } from '../sim/data/heroes';
+import { baseAbility } from '../sim/hero';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -39,6 +41,8 @@ export class WorldRenderer {
   readonly fx: Fx;
   readonly views: FighterView[] = [];
   readonly heroFx: HeroFx;
+  /** background decorations (map detailing) */
+  private decor: DecorLayer;
   private tilemap: Phaser.Tilemaps.Tilemap;
   private fg: Phaser.Tilemaps.TilemapLayer;
   private bg: Phaser.Tilemaps.TilemapLayer;
@@ -83,11 +87,12 @@ export class WorldRenderer {
     this.fg = this.tilemap.createBlankLayer('fg', ts)!.setDepth(20);
     for (let y = 0; y < map.h; y++) {
       for (let x = 0; x < map.w; x++) {
-        if (map.back[y * map.w + x]) this.bg.putTileAt(BACK_ROW * 16 + backMask(map, x, y), x, y);
+        if (map.back[y * map.w + x]) this.bg.putTileAt((BACK_ROW + backVariant(x, y)) * 16 + backMask(map, x, y), x, y);
         this.refreshTile(x, y);
       }
     }
 
+    this.decor = new DecorLayer(scene, map, world.def);
     this.decals = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0, 0).setDepth(25);
     this.fx = new Fx(scene, map, this.decals);
 
@@ -148,6 +153,7 @@ export class WorldRenderer {
 
     for (const v of this.views) v.update(alpha, dt, time, w.time);
     this.heroFx.sync(alpha, dt, time);
+    this.decor.update(time);
 
     // items
     const seen = new Set<number>();
@@ -269,7 +275,7 @@ export class WorldRenderer {
     const bf = this.bounty >= 0 ? w.fighters[this.bounty] : null;
     if (bf && bf.alive && !bf.gone) {
       const cx = Math.round(lerp(bf.px, bf.x, alpha));
-      const cy = Math.round(lerp(bf.py, bf.y, alpha)) - 44 + Math.round(Math.sin(time * 4) * 1);
+      const cy = Math.round(lerp(bf.py, bf.y, alpha)) - 49 + Math.round(Math.sin(time * 4) * 1);
       bars.fillStyle(hexToNum(P.ink), 1).fillRect(cx - 5, cy - 1, 11, 7);
       bars.fillStyle(hexToNum(P.yellow), 1).fillRect(cx - 4, cy + 2, 9, 3).fillRect(cx - 4, cy, 1, 2).fillRect(cx, cy - 1, 1, 3).fillRect(cx + 4, cy, 1, 2);
       bars.fillStyle(hexToNum(P.red2), 1).fillRect(cx, cy + 3, 1, 1);
@@ -278,13 +284,22 @@ export class WorldRenderer {
       const f = v.fighter;
       if (!f.alive || f.gone) continue;
       const x = Math.round(lerp(f.px, f.x, alpha)) - 7;
-      const y = Math.round(lerp(f.py, f.y, alpha)) - 28;
+      const y = Math.round(lerp(f.py, f.y, alpha)) - 33;
       const frac = Math.max(0, f.hp) / f.maxHp;
       const trail = Math.max(0, v.hpTrail) / f.maxHp;
       bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y - 1, 16, 4);
       bars.fillStyle(0xffffff, 1).fillRect(x, y, Math.round(14 * trail), 2);
       const col = frac > 0.6 ? P.green2 : frac > 0.3 ? P.yellow : P.red2;
       bars.fillStyle(hexToNum(col), 1).fillRect(x, y, Math.round(14 * frac), 2);
+      // levitation ki meter (Goku): a strip under the HP bar while it isn't full / while flying
+      const fly = baseAbility(f)?.fly;
+      if (fly && !(f.powerFull && f.power) && (f.flying || f.flyMeter < fly.meter)) {
+        const k = Math.max(0, Math.min(1, f.flyMeter / fly.meter));
+        const low = k < 0.25 && Math.floor(time * 8) % 2 === 0;
+        bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y + 3, 16, 2);
+        bars.fillStyle(0x2a3550, 1).fillRect(x, y + 3, 14, 1);
+        bars.fillStyle(low ? 0xff6a5a : 0x8ad8ff, 1).fillRect(x, y + 3, Math.round(14 * k), 1);
+      }
     }
 
     // floating texts
@@ -634,6 +649,7 @@ export class WorldRenderer {
   destroy(): void {
     for (const v of this.views) v.destroy();
     this.heroFx.destroy();
+    this.decor.destroy();
     for (const img of this.items.values()) img.destroy();
     for (const f of this.floats) f.obj.destroy();
     for (const v of this.props.values()) v.img.destroy();

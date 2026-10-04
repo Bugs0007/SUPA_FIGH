@@ -15,6 +15,11 @@ export interface Settings {
   quickBots: number;
   /** instant replay of every round-ending kill */
   replays: boolean;
+  /** keyboard players: Up (W / arrow up) is a full jump button (D50) */
+  upJump: boolean;
+  /** quick match from the title: map id or 'random', and 1 or 2 keyboard players */
+  quickMap: string;
+  quickPlayers: number;
 }
 
 const DEFAULTS: Settings = {
@@ -28,6 +33,9 @@ const DEFAULTS: Settings = {
   botDifficulty: 'normal',
   quickBots: 3,
   replays: true,
+  upJump: true,
+  quickMap: 'test',
+  quickPlayers: 2,
 };
 
 export const settings: Settings = load('settings', DEFAULTS);

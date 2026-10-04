@@ -62,13 +62,14 @@ describe('moveset on the test arena', () => {
     expect(f.x).toBeGreaterThan(44 * TILE);
   });
 
-  it('drops through a one-way platform with down + jump', () => {
+  it('drops through a one-way platform with a double-tap of Down', () => {
     const w = arena();
     const f = w.fighters[0];
     place(w, 27 * TILE, 14 * TILE); // on the metal catwalk
     expect(f.grounded).toBe(true);
     hold(w, 3, { moveY: 1 });
-    hold(w, 2, { moveY: 1, jump: true });
+    hold(w, 3, {});
+    hold(w, 3, { moveY: 1 });
     hold(w, 30, {});
     expect(f.y).toBeGreaterThan(14 * TILE + 20);
   });

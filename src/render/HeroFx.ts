@@ -4,7 +4,7 @@ import { POWER_COLORS } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { SHOULDER_Y_STAND } from '../sim/constants';
 import type { Fighter } from '../sim/fighter';
-import type { Clone } from '../sim/hero';
+import { baseAbility, rasenganPoint, type Clone } from '../sim/hero';
 import type { World } from '../sim/world';
 import type { FighterView } from './FighterView';
 import type { Fx } from './Fx';
@@ -73,14 +73,17 @@ export class HeroFx {
     const fr = this.front;
     b.clear();
     fr.clear();
+    this.orbs.clear();
     for (const v of this.views) {
       const f = v.fighter;
       if (!f.alive || f.gone) continue;
       const x = lerp(f.px, f.x, alpha);
       const y = lerp(f.py, f.y, alpha);
       if (f.power) this.aura(f, x, y, dt, time);
+      if (f.flying) this.flight(f, x, y, dt, time);
       if (f.stretchLen > 0) this.stretchLimb(v, x, y);
       if (f.charge >= 0) this.chargeGlow(f, x, y, time);
+      if (f.state === 'special' && f.specialKind === 'rasengan') this.rasengan(f, x, y, dt, time);
     }
     this.drawClones(time);
     this.drawOrbs(alpha, dt, time);
@@ -121,11 +124,88 @@ export class HeroFx {
     }
   }
 
+  /**
+   * Levitation (Goku): a soft ki shell and a downdraft while flying. (The ki meter is drawn with the
+   * overhead HP bars in WorldRenderer.)
+   */
+  private flight(f: Fighter, x: number, y: number, dt: number, time: number): void {
+    const fly = baseAbility(f)?.fly;
+    if (!fly) return;
+    const g = this.front;
+    if (f.flying) {
+      const cy = y - 11;
+      const sp = Math.hypot(f.vx, f.vy);
+      // shell: a ring of light pixels, brighter when moving fast
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        const a = time * 4 + (i * Math.PI * 2) / n;
+        if ((Math.floor(time * 20) + i) % 4 === 0) continue;
+        const px = Math.round(x + Math.cos(a) * 9);
+        const py = Math.round(cy + Math.sin(a) * 13);
+        (Math.sin(a) < 0 ? this.back : g).fillStyle(i % 2 ? 0xffffff : 0xa8e0ff, 0.55 + Math.min(0.35, sp / 400)).fillRect(px, py, 1, 1);
+      }
+      if (dt > 0) {
+        // downdraft under the feet and a light trail behind when moving
+        for (let i = emitCount(10 + sp * 0.08, dt); i > 0; i--) {
+          this.fx.spawn({ frame: 'p1', x: x + rnd(-3, 3), y: y + rnd(-1, 2), vx: -f.vx * 0.3 + rnd(-10, 10), vy: rnd(20, 50) - f.vy * 0.2, life: rnd(0.15, 0.3), a0: 0.9, a1: 0, tint: Math.random() < 0.5 ? 0xa8e0ff : 0xffffff, add: true, depth: 42 });
+        }
+      }
+    }
+  }
+
+  /** Rasengan: a spinning blue orb that forms in the palm, then rides the dash with a trail. */
+  private rasengan(f: Fighter, x: number, y: number, dt: number, time: number): void {
+    const d = baseAbility(f)?.dash;
+    if (!d) return;
+    const t = f.stateTime;
+    const forming = t < d.windup;
+    const k = forming ? Math.min(1, t / d.windup) : 1;
+    if (!forming && t > d.windup + d.time) return;
+    const { x: ox, y: oy } = rasenganPoint({ ...f, x } as Fighter);
+    const cy = oy - f.y + y;
+    const r = 1 + k * 3.2 + Math.sin(time * 50) * 0.4;
+    const g = this.orbs;
+    this.disc(g, ox, cy, r + 1.5, hexToNum('#2a6ad8'), 0.85);
+    this.disc(g, ox, cy, r, hexToNum('#7ac8ff'), 1);
+    this.disc(g, ox, cy, Math.max(0.8, r * 0.45), 0xffffff, 1);
+    // swirl: pixels orbiting the core
+    for (let i = 0; i < 4; i++) {
+      const a = time * 30 + (i * Math.PI) / 2;
+      g.fillStyle(i % 2 ? 0xffffff : hexToNum('#bfe8ff'), 1).fillRect(Math.round(ox + Math.cos(a) * (r + 1)), Math.round(cy + Math.sin(a) * (r + 1) * 0.6), 1, 1);
+    }
+    if (dt > 0) {
+      const rate = forming ? 30 : 70;
+      for (let i = emitCount(rate, dt); i > 0; i--) {
+        const a = Math.random() * Math.PI * 2;
+        const rr = forming ? 8 : 3;
+        // forming: motes are pulled in; dashing: they stream out behind
+        this.fx.spawn({
+          frame: 'p1',
+          x: ox + Math.cos(a) * rr,
+          y: cy + Math.sin(a) * rr,
+          vx: forming ? -Math.cos(a) * 40 : -f.facing * rnd(40, 90),
+          vy: forming ? -Math.sin(a) * 40 : rnd(-15, 15),
+          life: rnd(0.12, 0.25),
+          a0: 1,
+          a1: 0,
+          tint: Math.random() < 0.5 ? hexToNum('#7ac8ff') : 0xffffff,
+          add: true,
+          depth: 58,
+        });
+      }
+    }
+  }
+
   /** Rubber arm (or leg for a stretch kick) from the body out to the current reach. */
   private stretchLimb(v: FighterView, x: number, y: number): void {
     const f = v.fighter;
     const look = f.power && f.powerFull && v.powered ? v.powered : v.look;
     const kick = f.state === 'kick';
+    const angled = f.state === 'special' && (f.specialKind === 'pistol' || f.specialKind === 'rocket') && Math.abs(f.stretchAngle) > 0.01;
+    if (angled) {
+      this.angledArm(f, x, y, hexToNum(look.skin));
+      return;
+    }
     const ly = Math.round(kick ? y - 5 : y - SHOULDER_Y_STAND + 1);
     const x0 = Math.round(x + f.facing * 2);
     const len = Math.round(f.w / 2 + f.stretchLen);
@@ -145,6 +225,24 @@ export class HeroFx {
     g.fillStyle(kick ? hexToNum(look.shoesColor) : skin, 1).fillRect(fx0, ly - 2, 4, 4);
   }
 
+  /** Gum-Gum Pistol at an angle: an outlined 2 px rubber arm stepped pixel by pixel, fist at the end. */
+  private angledArm(f: Fighter, x: number, y: number, skin: number): void {
+    const g = this.front;
+    const dx = Math.cos(f.stretchAngle) * f.facing;
+    const dy = Math.sin(f.stretchAngle);
+    const x0 = x + f.facing * 2;
+    const y0 = y - SHOULDER_Y_STAND + 1;
+    const len = f.w / 2 + f.stretchLen;
+    g.fillStyle(INK, 1);
+    for (let d = 0; d <= len; d += 1) g.fillRect(Math.round(x0 + dx * d) - 2, Math.round(y0 + dy * d) - 2, 4, 4);
+    g.fillStyle(skin, 1);
+    for (let d = 0; d <= len; d += 1) g.fillRect(Math.round(x0 + dx * d) - 1, Math.round(y0 + dy * d) - 1, 2, 2);
+    const fx = Math.round(x0 + dx * len);
+    const fy = Math.round(y0 + dy * len);
+    g.fillStyle(INK, 1).fillRect(fx - 3, fy - 3, 6, 6);
+    g.fillStyle(skin, 1).fillRect(fx - 2, fy - 2, 4, 4);
+  }
+
   private chargeGlow(f: Fighter, x: number, y: number, time: number): void {
     const [c0, c1] = colorsOf(f.power);
     const k = Math.min(1, f.charge);
@@ -158,7 +256,6 @@ export class HeroFx {
 
   private drawOrbs(alpha: number, dt: number, time: number): void {
     const g = this.orbs;
-    g.clear();
     for (const bl of this.world.bullets) {
       if (!bl.active) continue;
       if (bl.kind === 'cannonball') {

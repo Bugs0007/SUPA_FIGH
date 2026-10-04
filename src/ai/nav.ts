@@ -83,11 +83,16 @@ export const MANEUVERS: Maneuver[] = [
   { kind: 'jump', directional: false, policy: (t, _f, _d, o) => ((o.jump = t < 20), (o.moveX = 0)) },
   // double straight up
   { kind: 'jump', directional: false, policy: (t, _f, _d, o) => ((o.jump = t < 16 || (t >= 19 && t < 38)), (o.moveX = 0)) },
-  // drop through a one-way platform
-  { kind: 'drop', oneWayOnly: true, directional: false, policy: (t, _f, _d, o) => ((o.moveY = t < 3 ? 1 : 0), (o.jump = t === 1)) },
+  // drop through a one-way platform (double-tap Down, like humans)
+  { kind: 'drop', oneWayOnly: true, directional: false, policy: (t, _f, _d, o) => ((o.moveY = doubleTapDown(t)), (o.moveX = 0)) },
   // drop through, then drift
-  { kind: 'drop', oneWayOnly: true, directional: true, policy: (t, f, d, o) => ((o.moveY = t < 3 ? 1 : 0), (o.jump = t === 1), hold(o, f, t >= 6 ? d : 0)) },
+  { kind: 'drop', oneWayOnly: true, directional: true, policy: (t, f, d, o) => ((o.moveY = doubleTapDown(t)), hold(o, f, t >= 8 ? d : 0)) },
 ];
+
+/** Down for 2 ticks, up for 2, down for 3: a double tap (drop-through). */
+function doubleTapDown(t: number): number {
+  return t < 2 || (t >= 4 && t < 7) ? 1 : 0;
+}
 
 const JUMP_PENALTY = 0.12;
 const MAX_TICKS = 150;

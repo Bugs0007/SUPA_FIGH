@@ -1,7 +1,8 @@
 # SCRAPYARD RIOT — developer guide
 
 2D pixel-art side-view arena brawler for the browser (up to 10 fighters: 4 local humans + bots).
-Includes an anime-hero expansion (M9): Naruto / Luffy / Goku as tiny fighters with rare power-up pickups.
+Includes an anime-hero expansion (M9): Naruto / Luffy / Goku as tiny fighters with a base ability each
+(levitation / rasengan / gum-gum pistol, D51) and rare power-up pickups.
 Phaser 3 + TypeScript + Vite. All art and audio are generated procedurally at startup.
 
 **Resuming work? Read `PROGRESS.md` first** (milestone checklist + "next steps"), then skim
@@ -37,6 +38,8 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
                   zones, supply drops, conveyors, ship waves, cannons (fired with Interact).
   hero.ts         Hero powers (M9): transform/expire, specials (projectile / stretch / ki charge), shadow
                   clones (effect entities, never fighters). Data: data/heroes.ts (HEROES, POWERS, GENERIC_BOOST).
+                  Base abilities (D51, HEROES[id].base): Goku levitation, Naruto rasengan, Luffy gum-gum pistol;
+                  their states live in fighter.ts (stFly / stRasengan / stPistol / stRocket), hit math in hero.ts.
   replay.ts       RoundRecording (intents per tick) + ReplayPlayer (deterministic re-simulation).
   awards.ts       Post-match awards from match stats. data/modifiers.ts = chaos cards.
   data/weapons.ts ALL weapon stats live here (guns, melee, throwables, gadgets, powerups, FIRE/CARRY
@@ -60,14 +63,16 @@ src/art/      Procedural pixel-art generators that bake Phaser textures at boot.
               externalSheets.ts = optional low-res PNG sheets per hero (format: docs/ASSETS.md).
 src/audio/    sfxr-style WebAudio synth + sound definitions + AudioManager (pitch randomized);
               music.ts = procedural chiptune sequencer (tracks as data).
-src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particles), CameraDirector,
+src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particles), CameraDirector (human players
+              are a hard constraint, D52), Decor (visual-only themed props + light pools, D54),
               HeroFx (auras, stretched limbs, clones, chakra/ki orbs, cannonballs), Juice (event → fx/sfx).
               Reads sim state each frame (interpolated with prevX/prevY) — never mutates it.
 src/scenes/   Boot (bake assets) -> Title menu -> [Lobby (+ Creator) | Controls | Settings] -> Match
               (+ Hud overlay above with the pause menu, Background parallax scene below).
               Settings/Controls also run as overlays over a paused match.
               lobby.ts = Phaser-free lobby model (slots/rules -> MatchSceneData), unit tested.
-src/game/     Display config (640x360 native, integer scale factor), settings/profile storage.
+src/game/     Display config (640x360 native, integer scale factor), settings, profiles (keyboard players' name /
+              hero / look, edited on the title screen and shared with the lobby, D53).
 ```
 
 ### Frame loop (MatchScene.update)
@@ -83,6 +88,8 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
   No `Math.random()` in sim — use `world.rng`. Keep sim entities plain data (snapshot-able).
 - Tunables: weapons in `sim/data/weapons.ts`, movement in `sim/constants.ts`, maps in `sim/map/maps/`.
 - Fighters are driven only through `Intent` (sim/intent.ts). Never poke fighter state from input code.
+- Controls (D50): keyboard players' Up is a full jump (derived in the sim from `upJumps`), drop-through is a
+  double tap of Down. Bots and pads have `upJumps = false`.
 - Visual-only randomness (particles) may use Math.random.
 - Keep files focused; prefer data tables over branching code for per-weapon/per-map behavior.
 
@@ -113,11 +120,19 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
   `?humans=0..2`, `?speed=4`, `?seed=123`, `?map=test`, `?timer=1` (setTimeout game loop — needed
   when the tab is hidden, e.g. the Claude browser pane, where requestAnimationFrame is paused).
 - Debug keys in match: F1 hitboxes/debug overlay, F2 cycle sim speed (1x/2x/4x), F3 frame step, Esc pause.
+- Title-screen state lives in localStorage (`scrapyard.profiles`, `scrapyard.settings`): fresh browser contexts
+  (Playwright) start from defaults (names P1/P2, scrapper fighters, Test Arena, 2 players).
+- `maps.test.ts` also asserts that standing still at any spawn is safe for 8 s (D55).
 - Synthetic `KeyboardEvent`s dispatched on `window` with a `code` drive the real input path (handy in tests).
 - `src/sim` modules import each other in a cycle (fighter → item → explosion → prop → explosion...). That's
   fine because they only call each other at runtime; never use another sim module's exports at load time.
 
 ## Gotchas
+- **Phaser reuses Scene instances** (restart, start again): anything a scene creates in `create()` (arrays
+  of texts/images, flags, timers) must be reset at the top of `create()`. Touching a destroyed BitmapText
+  crashes with "Cannot read properties of null (reading 'chars')" (D56, `tests/e2e/reentry.spec.ts`).
 - Don't name Scene members `renderer` or `time` (they shadow Phaser.Scene properties).
+- The Bash tool chokes on heredocs that contain an odd number of apostrophes: write long scripts or text
+  to a file first.
 - Use Write/Edit (or sed) for file edits — PowerShell `Set-Content` adds a UTF-8 BOM.
 - `keyboard.endFrame()` runs on Phaser POST_STEP (main.ts) so every scene sees `justPressed` edges.

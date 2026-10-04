@@ -275,3 +275,73 @@ left out: water tiles are deadly and a shallow-water tile wasn't worth a new til
 Hero names, power names, pickup names and palettes live only in `sim/data/heroes.ts`, `data/weapons.ts` and
 `art/heroArt.ts`. Before any public release they can be renamed/re-skinned into original archetypes without
 code changes. No anime artwork, music or sounds are used; everything is procedural or original.
+
+## M10 — Overhaul (crash fix, controls, base abilities, menu, camera, animation, map detail)
+
+### D50 — Up is the jump button; drop-through is a double tap of Down
+Players expect W / ArrowUp to jump, and the old "Up also jumps" only did the ground jump (double/wall jumps
+needed the separate key), which felt broken. For keyboard players (`upJumps`) the sim now derives the jump
+button from Up, except while Up means something else: climbing, aiming (Up sweeps the angle), grabbing (lob),
+ledge hang, charging a special, flying. Up used for something else stays *latched* until released, so letting
+go of a gun's trigger while holding Up never fires a jump. Pads don't get it (stick-up jumping fights aiming).
+Down + Jump used to drop through platforms; now crouch + jump just jumps, and dropping is a double tap of Down
+(first press must be a tap of at most 0.25 s, the second within 0.3 s of releasing it) so long crouches and
+dodges never drop you. Works on one-way tiles, props and movers, from normal/crouch/roll. Bot nav scripts drop
+the same way. Settings → UP / W JUMPS turns the Up-jump off.
+
+### D51 — Every hero has a base ability on ABILITY
+Heroes used to be plain fighters until a rare power-up appeared. Now ABILITY always does something:
+Goku = Levitation (8-direction flight, no gravity in any state while flying, a 4.5 s ki meter that refills on
+the ground, take off with ABILITY or with a jump when out of air jumps; hits, grabs, ladders and ledges end it;
+unlimited while Super Saiyan), Naruto = Rasengan (0.14 s orb wind-up, 0.2 s gravity-free dash, the first
+fighter touched is blasted, stops at walls), Luffy = Gum-Gum Pistol (stretch punch at 0 / up / down angles that
+hits everything along the arm; a fist that touches a wall while extending anchors and yanks him there = Gum-Gum
+Rocket, with a fresh air jump). While fully transformed ABILITY fires the power's special instead (the generic
+boost from another hero's pickup keeps the base ability). Separate cooldown (`baseCd`) from the special. Data in
+`HEROES[...].base`. Bots use Rasengan / Pistol in their range band (never on invulnerable targets); Goku bots
+don't fly (flight isn't in the nav graph). Balance survey: base abilities stay well under 3% of kills.
+
+### D52 — The camera treats human players as a hard constraint
+The old camera framed every fighter equally with a 0.55 zoom floor, but maps are 70–96 columns wide, so
+players at opposite ends fell off screen. Now humans must fit (zoom can go down to 0.3); bots and ghosts are
+included while the zoom stays at 0.62 or closer, otherwise the view leans toward them as far as possible
+without losing a human; after smoothing, a hard correction snaps zoom/position if a human would leave the safe
+area. Margins are in screen pixels and reserve room for the score bar and player panels; zooming out reacts
+faster than zooming in. When the camera is clamped at a map's bottom edge, HUD panels fade while a fighter is
+behind them.
+
+### D53 — Player profiles drive the main menu and the lobby's keyboard slots
+Name, hero and look per keyboard player live in `game/profiles.ts` (localStorage). The title cards edit them;
+the lobby loads its KEYBOARD 1/2 slots from them and the creator writes back, so the two screens never
+disagree. Names (8 characters from the pixel fonts' charset, typed via `keyboard.typed` so every keyboard
+layout works) become fighter labels everywhere. The URL `?heroes=` still overrides (tests, links). Quick-match
+map / players / bots / skill are settings (`quickMap` may be `random`, resolved from the match seed).
+
+### D54 — Map detail is a visual-only decoration layer, placed deterministically
+Indoor maps were flat colored walls. Each theme now has its own back-wall material with 3 detail variants
+chosen per cell by hash, plus ~60 procedural props (`art/decorArt.ts`) placed by `render/Decor.ts`: wall,
+floor, ceiling, building-face and outdoor rules against the tile grid, spacing, per-prop caps, kept clear of
+spawn markers and walkable surfaces, seeded by map id (same layout on every load and in replays). Props are
+muted and sit behind fighters; lamps add flickering additive light pools; a few animate (2 frames). The sim
+never sees them, so nav graphs, tests and balance are unaffected.
+
+### D55 — Maps must not kill a player standing still at spawn
+The factory spawned fighters on conveyors feeding crushers (dead in about 5 s) and the mine spawned two on the
+minecarts' start positions (dead in 1.2 s). Spawns moved in `scripts/mapgen.py`; movers got an optional
+first-departure `delay` (the carts wait 5–6.5 s). `maps.test.ts` now checks that every spawn on every map is
+safe for 8 s.
+
+### D56 — Phaser reuses Scene instances: reset per-run state in create()
+The "Cannot read properties of null (reading 'chars')" crash: HudScene and LobbyScene kept arrays of
+BitmapTexts as class fields; on the second run (restart, quit and play again, re-entering the lobby) they still
+held the previous run's destroyed texts, and setText() on a destroyed BitmapText reads its nulled font data.
+Every scene now resets its arrays and flags at the top of create() (MatchScene also resets pause/replay state,
+so a restart from the pause menu no longer starts paused). `tests/e2e/reentry.spec.ts` covers restarts and
+re-entries.
+
+### D57 — Animation pass on the existing rig
+More body poses instead of a new rig: a 6-frame run with contact / down / up hip bob, knee drive and heel kick;
+distinct jump / apex / fall; hover, skid, landing squash, punch anticipation, cross and haymaker frames; idle
+weight shift. The view eases arm swings between locomotion poses (attacks and aiming stay snappy), leans into
+runs, sprints and flight, squeezes on turn-arounds, and gives every fighter its own breathing phase. External
+sprite sheets (docs/ASSETS.md) are unaffected.

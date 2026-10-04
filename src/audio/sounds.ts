@@ -143,6 +143,25 @@ export const SOUNDS: Record<string, SfxDef> = {
   ],
   stretch: [{ wave: 'sine', freq: 300, slide: 3, decay: 0.14, volume: 0.35, vibDepth: 0.1, vibSpeed: 40 }],
   snap: [{ wave: 'sine', freq: 900, slide: -4, decay: 0.08, volume: 0.3 }],
+  // hero base abilities (D51)
+  flyUp: [
+    { wave: 'noise', freq: 900, slide: 1.2, attack: 0.04, sustain: 0.06, decay: 0.2, lowpass: 0.35, volume: 0.3 },
+    { wave: 'sine', freq: 220, slide: 1.5, attack: 0.03, decay: 0.22, volume: 0.22, vibDepth: 0.05, vibSpeed: 25 },
+  ],
+  flyDown: [{ wave: 'noise', freq: 1200, slide: -1.5, attack: 0.02, decay: 0.16, lowpass: 0.3, volume: 0.22 }],
+  rasengan: [
+    { wave: 'saw', freq: 160, slide: 1.2, attack: 0.05, sustain: 0.12, decay: 0.08, volume: 0.22, vibDepth: 0.25, vibSpeed: 45 },
+    { wave: 'noise', freq: 3000, attack: 0.05, sustain: 0.1, decay: 0.1, highpass: 0.4, volume: 0.12, tremolo: 40 },
+  ],
+  rasenganHit: [
+    { wave: 'saw', freq: 300, slide: -1.5, sustain: 0.08, decay: 0.3, volume: 0.35, vibDepth: 0.3, vibSpeed: 50 },
+    { wave: 'noise', freq: 1500, slide: -2, sustain: 0.05, decay: 0.35, lowpass: 0.5, volume: 0.45 },
+    { wave: 'sine', freq: 110, slide: -2, decay: 0.25, volume: 0.7, punch: 0.3 },
+  ],
+  rubberSnap: [
+    { wave: 'sine', freq: 500, slide: 4, decay: 0.07, volume: 0.3 },
+    { wave: 'square', freq: 200, slide: 2, decay: 0.1, duty: 0.3, volume: 0.12, delay: 0.04 },
+  ],
   steam: [{ wave: 'noise', freq: 5000, attack: 0.03, sustain: 0.1, decay: 0.2, highpass: 0.5, volume: 0.18 }],
   kiCharge: [{ wave: 'sine', freq: 300, slide: 2.5, attack: 0.1, sustain: 0.6, decay: 0.2, volume: 0.18, vibDepth: 0.08, vibSpeed: 30 }],
   kiBlast: [

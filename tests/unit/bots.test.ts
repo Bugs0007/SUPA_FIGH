@@ -98,6 +98,23 @@ describe('bots and hero powers (M9)', () => {
     expect(stretched).toBeGreaterThan(40);
   });
 
+  it.each([
+    ['naruto', 'rasengan'],
+    ['luffy', 'gumgum'],
+  ] as const)('a base-form %s bot uses its signature move (%s)', (hero, weapon) => {
+    const w = new World(FLAT, [heroSpec('bot', hero), spec('dummy')], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 4);
+    const [f, d] = w.fighters;
+    f.x = f.px = 100;
+    d.x = d.px = 160;
+    const bot = new BotController(() => w, 0, { difficulty: 'hard', seed: 3 });
+    let used = false;
+    for (let t = 0; t < 60 * 8 && !used; t++) {
+      w.step([bot.poll(), intent()]);
+      used = w.events.some((e) => e.t === 'hit' && e.weapon === weapon);
+    }
+    expect(used).toBe(true);
+  });
+
   it('a bot goes for a hero power-up (its own hero even across the map)', () => {
     const w = new World(getMap('test'), [heroSpec('bot', 'goku')], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 3);
     const f = w.fighters[0];

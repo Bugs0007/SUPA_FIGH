@@ -35,6 +35,8 @@ export type SimEvent =
   | { t: 'tileBreak'; tx: number; ty: number; kind: number }
   | { t: 'jump'; f: number; x: number; y: number; air?: boolean; wall?: number }
   | { t: 'sprint'; f: number }
+  /** dropped through a platform (double-tap Down) */
+  | { t: 'drop'; f: number; x: number; y: number }
   | { t: 'land'; f: number; x: number; y: number; speed: number }
   | { t: 'swing'; f: number; weapon: string; step: number }
   | { t: 'kick'; f: number; air: boolean }
@@ -85,4 +87,9 @@ export type SimEvent =
   | { t: 'stretch'; f: number }
   | { t: 'clone'; f: number; x: number; y: number; facing: number }
   | { t: 'cloneGone'; x: number; y: number }
-  | { t: 'heroFx'; fx: 'chakra' | 'steam' | 'ki'; heavy: boolean; x: number; y: number };
+  | { t: 'heroFx'; fx: 'chakra' | 'steam' | 'ki' | 'rasengan'; heavy: boolean; x: number; y: number }
+  // hero base abilities (D51)
+  | { t: 'flyStart'; f: number; x: number; y: number }
+  | { t: 'flyEnd'; f: number; x: number; y: number; empty: boolean }
+  | { t: 'rasengan'; f: number; phase: 'form' | 'dash' }
+  | { t: 'rocket'; f: number; x: number; y: number };

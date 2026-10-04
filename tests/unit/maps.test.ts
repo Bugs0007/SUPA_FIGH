@@ -3,6 +3,7 @@ import { NavGraph } from '../../src/ai/nav';
 import { runBotSim } from '../../src/ai/botsim';
 import { MAP_LIST } from '../../src/sim/map/maps';
 import { parseMap } from '../../src/sim/map/mapData';
+import { World } from '../../src/sim/world';
 
 describe.each(MAP_LIST.map((m) => [m.id, m] as const))('map %s', (_id, def) => {
   const parsed = parseMap(def);
@@ -12,6 +13,18 @@ describe.each(MAP_LIST.map((m) => [m.id, m] as const))('map %s', (_id, def) => {
     expect(parsed.weaponSpawns.length).toBeGreaterThanOrEqual(4);
     const w = def.rows[0].length;
     for (const r of def.rows) expect(r.length).toBe(w);
+  });
+
+  it('standing still at any spawn is safe for the first 8 seconds (no spawn kills by the map)', () => {
+    const specs = Array.from({ length: 10 }, (_, i) => ({ name: 'F' + i, team: 1, isBot: false, upJumps: false }));
+    const w = new World(def, specs, { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 1);
+    const deaths: string[] = [];
+    for (let t = 0; t < 60 * 8; t++) {
+      w.step([]);
+      for (const e of w.events) if (e.t === 'kill') deaths.push(`fighter ${e.victim} at ${(t / 60).toFixed(1)}s by ${e.weapon}`);
+      w.events.length = 0;
+    }
+    expect(deaths).toEqual([]);
   });
 
   it('every spawn can reach every other spawn (bot navigation)', () => {

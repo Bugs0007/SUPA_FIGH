@@ -1,6 +1,8 @@
 import {
   AIR_JUMP_VEL,
   AIR_JUMPS,
+  DROP_TAP_HOLD,
+  DROP_TAP_WINDOW,
   SPRINT_COOLDOWN,
   SPRINT_MUL,
   SPRINT_RAMP,
@@ -73,7 +75,21 @@ import {
   type WeaponDef,
 } from './data/weapons';
 import { heroDef } from './data/heroes';
-import { ability, chargeScale, endPower, fireSpecial, special, spawnClones, stretchDuration, stretchHitbox, stretchReach, updatePower } from './hero';
+import {
+  ability,
+  baseAbility,
+  chargeScale,
+  endPower,
+  fireSpecial,
+  pistolHits,
+  rasenganHit,
+  special,
+  spawnClones,
+  stretchDuration,
+  stretchHitbox,
+  stretchReach,
+  updatePower,
+} from './hero';
 import { detonate } from './item';
 import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
 import { conveyorPush, useCannon } from './gimmicks';
@@ -111,8 +127,13 @@ export interface Fighter extends Body {
   name: string;
   team: number;
   isBot: boolean;
-  /** pressing Up (when not on a ladder / not aiming) also jumps */
+  /** Up is a full jump button (keyboard players) unless Up means something else right now (D50) */
   upJumps: boolean;
+  /** Up is held but was used for climbing/aiming/etc.: it doesn't count as jump until released */
+  upLatch: boolean;
+  /** double-tap Down to drop through platforms: when Down was last pressed / last tapped (released quickly) */
+  downPressTime: number;
+  downTapTime: number;
   px: number;
   py: number;
   facing: 1 | -1;
@@ -228,10 +249,21 @@ export interface Fighter extends Body {
   specialCd: number;
   /** seconds the special has been charged (-1 = not charging) */
   charge: number;
-  /** 'special' state sub-kind */
-  specialKind: '' | 'charge' | 'cast' | 'stretch';
+  /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
+  specialKind: '' | 'charge' | 'cast' | 'stretch' | 'rasengan' | 'pistol' | 'rocket';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
+  /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
+  stretchAngle: number;
+  /** base ability cooldown (separate from the powered special's) */
+  baseCd: number;
+  /** levitation (Goku): flying now, meter (seconds of flight left), seconds since take-off */
+  flying: boolean;
+  flyMeter: number;
+  flyTime: number;
+  /** Gum-Gum Rocket anchor point (where the fist hit the wall) */
+  anchorX: number;
+  anchorY: number;
   prev: Intent;
 }
 
@@ -253,6 +285,9 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     team: spec.team,
     isBot: spec.isBot,
     upJumps: spec.upJumps,
+    upLatch: false,
+    downPressTime: -10,
+    downTapTime: -10,
     x,
     y,
     px: x,
@@ -348,6 +383,13 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     charge: -1,
     specialKind: '',
     stretchLen: 0,
+    stretchAngle: 0,
+    baseCd: 0,
+    flying: false,
+    flyMeter: hero?.base.fly?.meter ?? 0,
+    flyTime: 0,
+    anchorX: 0,
+    anchorY: 0,
     prev: emptyIntent(),
   };
 }
@@ -469,12 +511,14 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.gone && !w.settings.ghosts) return;
   if (!f.alive) {
     if (f.power) endPower(w, f);
+    f.flying = false;
     if (!f.gone) updateCorpse(w, f);
     else f.stateTime += DT;
     if (w.settings.ghosts) updateGhost(w, f, inp);
     copyIntent(f.prev, inp);
     return;
   }
+  inp = withUpJump(f, inp);
   const e = edges(inp, f.prev);
   const dt = DT;
 
@@ -491,12 +535,14 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.sprintCooldown > 0) f.sprintCooldown -= dt;
   f.wallSlide = 0;
   updateSprint(w, f, inp, e, dt);
+  doubleTapDrop(w, f, inp, e);
   if (e.jumpP) f.jumpBuffer = JUMP_BUFFER;
   if (f.speedBoost > 0) f.speedBoost -= dt;
   if (f.strengthBoost > 0) f.strengthBoost -= dt;
   f.jetting = false;
   f.stretchLen = 0;
   updatePower(w, f, dt);
+  updateBaseAbility(w, f, dt);
   const ab = ability(f);
   f.speedMul = (activeWeapon(f).moveSpeedMul ?? 1) * (f.speedBoost > 0 ? (weaponDef('speed').powerup?.mult ?? 1) : 1);
   f.speedMul *= (ab?.speedMul ?? 1) * (heroDef(f.hero)?.stats.speed ?? 1);
@@ -579,7 +625,9 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
 
 /** Gravity + collision + landing/fall-off bookkeeping. */
 function integrate(w: World, f: Fighter, dt: number, gravity = true): MoveResult {
-  if (gravity) f.vy = Math.min(f.vy + GRAVITY * w.gravityAt(f.x, f.y - f.h / 2) * dt, MAX_FALL);
+  // levitating: no gravity in any state (punching, aiming, kicking mid-air just hovers)
+  if (gravity && !f.flying) f.vy = Math.min(f.vy + GRAVITY * w.gravityAt(f.x, f.y - f.h / 2) * dt, MAX_FALL);
+  else if (f.flying && f.state !== 'normal') f.vy = approach(f.vy, 0, 700 * dt);
   const wasGrounded = f.grounded;
   const prevY = f.y;
   const thrown = f.state === 'knockdown' && f.thrownBy >= 0;
@@ -687,6 +735,8 @@ function startClimb(w: World, f: Fighter, down: boolean): void {
   f.vx = 0;
   f.vy = 0;
   f.jumping = false;
+  // the Up press that started the climb must not fire a buffered jump at the ladder top
+  f.jumpBuffer = 0;
   f.h = FIGHTER_H;
   if (down) f.y += 3;
 }
@@ -719,6 +769,51 @@ function updateSprint(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): 
       f.sprintCooldown = SPRINT_COOLDOWN;
     } else f.sprintTime += dt;
   }
+}
+
+const upScratch = emptyIntent();
+
+/**
+ * Keyboard players: Up IS the jump button (ground jump, double jump, wall jump, variable height),
+ * except while Up means something else: climbing a ladder, aiming (sweeps the angle), grabbing (lob),
+ * hanging on a ledge, charging a special. Once Up was used for something else it stays "latched"
+ * until released, so letting go of a gun's trigger while holding Up never fires off a jump.
+ */
+function withUpJump(f: Fighter, inp: Intent): Intent {
+  if (!f.upJumps) return inp;
+  if (inp.moveY >= -0.5) {
+    f.upLatch = false;
+    return inp;
+  }
+  const s = f.state;
+  // (flying: Up flies up)
+  if (s === 'climb' || s === 'aim' || s === 'grabbing' || s === 'grabbed' || s === 'ledge' || s === 'ledgeClimb' || s === 'special' || f.flying) f.upLatch = true;
+  if (f.upLatch || inp.jump) return inp;
+  copyIntent(upScratch, inp).jump = true;
+  return upScratch;
+}
+
+/** Can the fighter fall through what it's standing on (one-way tiles, props, mover platforms)? */
+function canDropThrough(w: World, f: Fighter): boolean {
+  if (!f.grounded) return false;
+  if (onOneWayOnly(w.map, f)) return true;
+  return onProp(w, f) && !w.map.rectSolid(f.x - f.w / 2, f.y, f.x + f.w / 2, f.y + 1);
+}
+
+/** Double-tap Down: drop through the platform you're standing on (normal, crouching or rolling). */
+function doubleTapDrop(w: World, f: Fighter, inp: Intent, e: Edges): void {
+  const down = inp.moveY > 0.5;
+  if (!down && f.prev.moveY > 0.5 && w.time - f.downPressTime <= DROP_TAP_HOLD) f.downTapTime = w.time;
+  if (!e.downP) return;
+  const double = w.time - f.downTapTime <= DROP_TAP_WINDOW;
+  f.downPressTime = w.time;
+  if (!double || (f.state !== 'normal' && f.state !== 'crouch' && f.state !== 'roll') || !canDropThrough(w, f)) return;
+  f.downTapTime = -10;
+  if (f.state !== 'normal') setState(f, 'normal');
+  dropThrough(f);
+  // the press is spent: no dive / crouch from it this tick
+  e.downP = false;
+  w.emit({ t: 'drop', f: f.id, x: f.x, y: f.y });
 }
 
 /** Current sprint multiplier on run speed (ramps up over SPRINT_RAMP). */
@@ -772,6 +867,10 @@ function airJump(w: World, f: Fighter, mx: number): boolean {
 function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
   if (f.h !== FIGHTER_H) restoreHeight(w, f);
   if (f.state !== 'normal') return;
+  if (f.flying) {
+    stFly(w, f, inp, e, dt);
+    return;
+  }
   const mx = axis(inp.moveX);
   const speed = RUN_SPEED * f.speedMul * sprintMul(f);
   if (f.wallLock > 0 && !f.grounded) f.vx = approach(f.vx, mx * speed, AIR_DECEL * dt);
@@ -788,15 +887,13 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
     return;
   }
 
-  if (f.upJumps && e.upP && !inp.attack) f.jumpBuffer = JUMP_BUFFER;
   if (f.jumpBuffer > 0 && (f.grounded || f.coyote > 0)) {
-    if (inp.moveY > 0.5 && f.grounded && onOneWayOnly(w.map, f)) dropThrough(f);
-    else doJump(w, f);
+    doJump(w, f);
   } else if (e.jumpP && !f.grounded && f.coyote <= 0 && f.dropTimer <= 0) {
-    airJump(w, f, mx);
+    // out of air jumps: levitating heroes take off instead
+    if (!airJump(w, f, mx) && startFlight(w, f)) return;
   }
-  const jumpHeld = inp.jump || (f.upJumps && inp.moveY < -0.5);
-  if (f.jumping && f.vy < 0 && !jumpHeld) {
+  if (f.jumping && f.vy < 0 && !inp.jump) {
     f.vy *= JUMP_CUT;
     f.jumping = false;
   }
@@ -848,14 +945,8 @@ function stCrouch(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
   if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
   f.vx = approach(f.vx, mx * CRAWL_SPEED, GROUND_DECEL * dt);
 
+  // jumping from a crouch is a normal jump (dropping through is double-tap Down, D50)
   if (f.jumpBuffer > 0 && f.grounded) {
-    if (onOneWayOnly(w.map, f)) {
-      dropThrough(f);
-      setState(f, 'normal');
-      f.h = FIGHTER_H;
-      integrate(w, f, dt);
-      return;
-    }
     if (hasHeadroom(w.map, f, FIGHTER_H)) {
       f.h = FIGHTER_H;
       setState(f, 'normal');
@@ -1356,7 +1447,11 @@ function startKick(w: World, f: Fighter): void {
 
 function startSpecial(w: World, f: Fighter, inp: Intent): void {
   const sp = special(f);
-  if (!sp || f.specialCd > 0) return;
+  if (!sp) {
+    startBase(w, f, inp);
+    return;
+  }
+  if (f.specialCd > 0) return;
   if (f.h !== FIGHTER_H) {
     if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
     f.h = FIGHTER_H;
@@ -1381,6 +1476,9 @@ function startSpecial(w: World, f: Fighter, inp: Intent): void {
 }
 
 function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
+  if (f.specialKind === 'rasengan') return stRasengan(w, f, dt);
+  if (f.specialKind === 'pistol') return stPistol(w, f, dt);
+  if (f.specialKind === 'rocket') return stRocket(w, f, dt);
   const sp = special(f);
   f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
   if (!sp) {
@@ -1435,6 +1533,230 @@ function stKick(w: World, f: Fighter, dt: number): void {
     setState(f, 'flinch');
     f.flinchTime = k.recover;
   }
+}
+
+// ------------------------------------------------------------------ hero base abilities (D51)
+
+/** Fully transformed (Super Saiyan): flight never runs out. */
+function superFlight(f: Fighter): boolean {
+  return f.powerFull && !!f.power;
+}
+
+/** Per tick: base cooldown, flight meter (drains while flying, refills on the ground), forced landings. */
+function updateBaseAbility(w: World, f: Fighter, dt: number): void {
+  if (f.baseCd > 0) f.baseCd -= dt;
+  const fly = baseAbility(f)?.fly;
+  if (!fly) {
+    f.flying = false;
+    return;
+  }
+  if (f.flying) {
+    const s = f.state;
+    // knocked out of the sky (hits, grabs) or switched to ladder/ledge/ground moves
+    if (s === 'flinch' || s === 'knockdown' || s === 'grabbed' || s === 'grabbing' || s === 'climb' || s === 'ledge' || s === 'ledgeClimb' || s === 'roll' || s === 'dive' || s === 'crouch') {
+      endFlight(w, f, false);
+      return;
+    }
+    f.flyTime += dt;
+    if (!superFlight(f)) {
+      f.flyMeter -= dt;
+      if (f.flyMeter <= 0) {
+        f.flyMeter = 0;
+        endFlight(w, f, true);
+      }
+    }
+  } else if (f.grounded) {
+    f.flyMeter = Math.min(fly.meter, f.flyMeter + fly.regen * dt);
+  }
+}
+
+/** Take off (from the ground: a little lift; mid-air: catch yourself). False if not possible. */
+function startFlight(w: World, f: Fighter): boolean {
+  const b = baseAbility(f);
+  const fly = b?.fly;
+  if (!fly || f.flying || f.baseCd > 0) return false;
+  if (!superFlight(f) && f.flyMeter < fly.minMeter) return false;
+  if (f.state !== 'normal' && f.state !== 'crouch') return false;
+  if (f.h !== FIGHTER_H) {
+    if (!hasHeadroom(w.map, f, FIGHTER_H)) return false;
+    f.h = FIGHTER_H;
+  }
+  if (f.state !== 'normal') setState(f, 'normal');
+  f.flying = true;
+  f.flyTime = 0;
+  f.jumping = false;
+  f.jumpBuffer = 0;
+  if (f.grounded) {
+    f.vy = -fly.liftoff;
+    f.grounded = false;
+    f.coyote = 0;
+  } else f.vy = Math.min(f.vy, 0) * 0.3;
+  w.emit({ t: 'flyStart', f: f.id, x: f.x, y: f.y });
+  return true;
+}
+
+function endFlight(w: World, f: Fighter, empty: boolean): void {
+  if (!f.flying) return;
+  f.flying = false;
+  f.baseCd = Math.max(f.baseCd, baseAbility(f)?.cooldown ?? 0);
+  w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty });
+}
+
+/** Levitation: free 8-direction movement, no gravity. Attacks/guns/grabs all work in the air. */
+function stFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
+  const fly = baseAbility(f)?.fly;
+  if (!fly) {
+    f.flying = false;
+    integrate(w, f, dt);
+    return;
+  }
+  const mx = axis(inp.moveX);
+  const my = axis(inp.moveY);
+  const diag = mx !== 0 && my !== 0 ? Math.SQRT1_2 : 1;
+  const sp = fly.speed * f.speedMul * (superFlight(f) ? 1.25 : 1);
+  f.vx = approach(f.vx, mx * sp * diag, fly.accel * dt);
+  // the take-off kick eases into a hover instead of stopping dead
+  f.vy = approach(f.vy, my * sp * diag, fly.accel * (f.flyTime < 0.25 && my === 0 ? 0.5 : 1) * dt);
+  if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
+  if (commonActions(w, f, inp, e)) return;
+  integrate(w, f, dt, false);
+  // never above the top of the map (the camera can't follow there)
+  if (f.y - f.h < 2) {
+    f.y = 2 + f.h;
+    f.vy = Math.max(0, f.vy);
+  }
+  // touching down ends the flight (not right after taking off from the ground)
+  if (f.grounded && f.flyTime > 0.15) endFlight(w, f, false);
+}
+
+/** ABILITY in base form (or with another hero's generic boost). */
+function startBase(w: World, f: Fighter, inp: Intent): void {
+  const b = baseAbility(f);
+  if (!b) return;
+  if (b.kind === 'fly') {
+    if (f.flying) endFlight(w, f, false);
+    else startFlight(w, f);
+    return;
+  }
+  if (f.baseCd > 0) return;
+  if (f.h !== FIGHTER_H) {
+    if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
+    f.h = FIGHTER_H;
+  }
+  setState(f, 'special');
+  f.swingHit.length = 0;
+  f.swingProps.length = 0;
+  if (inp.moveX > 0.5) f.facing = 1;
+  else if (inp.moveX < -0.5) f.facing = -1;
+  f.baseCd = b.cooldown;
+  if (b.kind === 'rasengan') {
+    f.specialKind = 'rasengan';
+    w.emit({ t: 'rasengan', f: f.id, phase: 'form' });
+  } else {
+    const s = b.stretch!;
+    f.specialKind = 'pistol';
+    f.stretchAngle = inp.moveY < -0.5 ? s.upAngle : inp.moveY > 0.5 && !f.grounded ? s.downAngle : 0;
+    w.emit({ t: 'stretch', f: f.id });
+  }
+}
+
+function endSpecial(w: World, f: Fighter): void {
+  f.specialKind = '';
+  f.stretchLen = 0;
+  setState(f, 'normal');
+  restoreHeight(w, f);
+}
+
+/** Rasengan: the orb forms (hang in place), a gravity-free dash, then a short recovery. */
+function stRasengan(w: World, f: Fighter, dt: number): void {
+  const d = baseAbility(f)?.dash;
+  if (!d) {
+    endSpecial(w, f);
+    integrate(w, f, dt);
+    return;
+  }
+  const t = f.stateTime;
+  if (t < d.windup) {
+    f.vx = approach(f.vx, 0, GROUND_DECEL * dt);
+    if (!f.grounded) f.vy = Math.min(f.vy, 30);
+    integrate(w, f, dt);
+    return;
+  }
+  if (t < d.windup + d.time) {
+    if (t - dt < d.windup) w.emit({ t: 'rasengan', f: f.id, phase: 'dash' });
+    f.vx = f.facing * d.speed;
+    f.vy = 0;
+    const res = integrate(w, f, dt, false);
+    const hit = rasenganHit(w, f, d);
+    if (hit || res.wallX !== 0) {
+      // straight into the recovery
+      f.stateTime = d.windup + d.time;
+      f.vx *= hit ? -0.3 : 0;
+      if (!hit) w.emit({ t: 'heroFx', fx: 'rasengan', heavy: false, x: f.x + f.facing * (f.w / 2 + 3), y: f.y - SHOULDER_Y_STAND + 1 });
+    }
+    return;
+  }
+  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
+  integrate(w, f, dt);
+  if (t >= d.windup + d.time + d.recover) endSpecial(w, f);
+}
+
+/** Gum-Gum Pistol: the arm shoots out along stretchAngle; touching a wall turns it into a rocket. */
+function stPistol(w: World, f: Fighter, dt: number): void {
+  const s = baseAbility(f)?.stretch;
+  if (!s) {
+    endSpecial(w, f);
+    integrate(w, f, dt);
+    return;
+  }
+  const t = f.stateTime;
+  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
+  if (!f.grounded) f.vy = Math.min(f.vy, 80);
+  const reach = t < s.out ? s.range * (t / s.out) : t < s.out + s.hold ? s.range : Math.max(0, s.range * (1 - (t - s.out - s.hold) / s.back));
+  if (reach > 0) {
+    const r = pistolHits(w, f, s, f.stretchAngle, reach);
+    f.stretchLen = Math.max(0, r.len - f.w / 2);
+    if (r.wall && t <= s.out + s.hold && r.len >= 18) {
+      // the fist grabbed a wall: Gum-Gum Rocket
+      f.anchorX = f.x + f.facing * 2 + Math.cos(f.stretchAngle) * f.facing * r.len;
+      f.anchorY = f.y - SHOULDER_Y_STAND + 1 + Math.sin(f.stretchAngle) * r.len;
+      setState(f, 'special');
+      f.specialKind = 'rocket';
+      w.emit({ t: 'rocket', f: f.id, x: f.anchorX, y: f.anchorY });
+      integrate(w, f, dt);
+      return;
+    }
+  }
+  integrate(w, f, dt);
+  if (t >= s.out + s.hold + s.back) endSpecial(w, f);
+}
+
+/** Gum-Gum Rocket: yanked toward the anchor, then let go with the momentum (and a fresh air jump). */
+function stRocket(w: World, f: Fighter, dt: number): void {
+  const s = baseAbility(f)?.stretch;
+  const sx = f.x + f.facing * 2;
+  const sy = f.y - SHOULDER_Y_STAND + 1;
+  const dx = f.anchorX - sx;
+  const dy = f.anchorY - sy;
+  const dist = Math.hypot(dx, dy);
+  if (!s || dist < 12 || f.stateTime > s.rocketTime) {
+    f.airJumps = AIR_JUMPS;
+    f.jumping = false;
+    if (s && dist >= 12) {
+      // timed out (blocked): keep some momentum
+      f.vx *= 0.5;
+      f.vy *= 0.5;
+    }
+    endSpecial(w, f);
+    integrate(w, f, dt);
+    return;
+  }
+  f.vx = (dx / dist) * s.rocketSpeed;
+  f.vy = (dy / dist) * s.rocketSpeed;
+  f.stretchLen = Math.max(0, dist - f.w / 2);
+  f.stretchAngle = Math.atan2(dy, dx * f.facing);
+  const res = integrate(w, f, dt, false);
+  if (res.ceil || (res.landed && dy > 0)) f.stateTime = s.rocketTime + 1;
 }
 
 function enterAim(w: World, f: Fighter, crouched: boolean): void {

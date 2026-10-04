@@ -29,8 +29,8 @@ export const mine: MapDef = {
     'DD:::::H::::::::::::::H::::::::::::::::::::::----------------:::::H:::::::DD', // 18
     'DD:::::H::::::-------------:::::::::::::::::::::::::H:::::::::::::H:::::::DD', // 19
     'DD:::::H::::::::::::::H:::::::::::::::::::::::::::::H:::::::::::::H:::::::DD', // 20
-    'DD:::::H::::::::::::::H:::::::::::::w::::::::w::::::H:::::::S:::::H:::t:::DD', // 21
-    'DD:::::H:::::::S::::::H:c:w:::-----H-----DDDDDDDDDDDDDDDDDDDDDDDDDHDDDDDDDDD', // 22
+    'DD:::::H::::::::::::::H:::::::::::::w::::::::w::::::H:::S:::S:::::H:::t:::DD', // 21
+    'DD::S::H:::::::S::::::H:c:w:::-----H-----DDDDDDDDDDDDDDDDDDDDDDDDDHDDDDDDDDD', // 22
     'DDDDDDDHDDDDDDDDDDDDDDDDDDDDDD:::::H:::::DDDDDDDDDDDDDDDDDDDDDDDDDHDDDDDDDDD', // 23
     'DDDDDDDHDDDDDDDDDDDDDDDDDDDDDD:::::H:::::DDDDDDDDDDDDDDDDDDDDDDDDDHDDDDDDDDD', // 24
     'DDDDDDDHDDDDDDDDDDDDDDDDDDDDDD:::::H:::::DDDDDDDDDDDDDDDDDDDDDDDDDHDDDDDDDDD', // 25
@@ -39,7 +39,7 @@ export const mine: MapDef = {
     'DD:::::H:::::::::::::::::::::::::::H::::::::::::::::::::::::::::::H:::::::DD', // 28
     'DD:::::H:::::::::::::::::::::::::::H::::::::::::::::::::::::::::::H:::::::DD', // 29
     'DD:::::H::::W:::::::::::::::W::::::H:::::::::::W::::::::::W:::::::H:::::::DD', // 30
-    'DD::S::Hw:t:W::::S::t::::S::W:::::---::::::::::W::S::::t::W:::S:::Ht:::S::DD', // 31
+    'DD:::::Hw:t:W::::S::t::::S::W:::::---::::::::::W::S::::t::W:::S:::Ht::::::DD', // 31
     'DDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX~~~~~~~~~XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXDD', // 32
     'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD~~~~~~~~~DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD', // 33
     'DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD', // 34
@@ -61,6 +61,7 @@ export const mine: MapDef = {
       ],
       'speed': 150,
       'pause': 2.5,
+      'delay': 5,
       'hits': {
         'damage': 30,
         'knock': 320
@@ -81,6 +82,7 @@ export const mine: MapDef = {
       ],
       'speed': 150,
       'pause': 3.5,
+      'delay': 6.5,
       'hits': {
         'damage': 30,
         'knock': 320
