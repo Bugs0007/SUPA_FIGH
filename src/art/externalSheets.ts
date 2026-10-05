@@ -110,7 +110,7 @@ export function animFor(f: Fighter, simTime: number): { anim: SheetAnim; t: numb
     case 'aim':
       return { anim: f.cook >= 0 || f.throwHold > 0 ? 'throw' : 'fire', t };
     case 'special':
-      return { anim: f.specialKind === 'stretch' ? 'punch3' : 'fire', t };
+      return { anim: f.specialKind === 'pistol' ? 'punch3' : 'fire', t };
     case 'climb':
     case 'ledge':
     case 'ledgeClimb':
@@ -126,7 +126,7 @@ export function animFor(f: Fighter, simTime: number): { anim: SheetAnim; t: numb
   const speed = Math.abs(f.vx);
   if (speed > 100) return { anim: 'run', t: simTime };
   if (speed > 15) return { anim: 'walk', t: simTime };
-  return { anim: f.power && f.powerFull ? 'poweredIdle' : 'idle', t: simTime };
+  return { anim: f.power === 'hero' ? 'poweredIdle' : 'idle', t: simTime };
 }
 
 /** Frame index in the sheet texture for an animation at time t. */

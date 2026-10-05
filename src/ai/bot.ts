@@ -12,8 +12,8 @@ import { AIM_LIMIT, DT, GRAVITY, TILE } from '../sim/constants';
 import { SLOT, THROW_AIM, weaponDef, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { powerForItem } from '../sim/data/heroes';
-import { baseAbility, special } from '../sim/hero';
+import { heroDef, POWER_ORB } from '../sim/data/heroes';
+import { baseAbility, transformed } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
@@ -86,6 +86,7 @@ export class BotController implements Controller {
   private ignoreItems = new Map<number, number>();
   /** ticks left to hold ABILITY (charging a ki blast) */
   private chargeTicks = 0;
+  private hold: 'ability' | 'kick' | 'both' = 'ability';
 
   constructor(
     private getWorld: () => World,
@@ -279,9 +280,8 @@ export class BotController implements Controller {
       const cur = f.inv[def.slot];
       let gain = ai.value - (cur ? weaponAi(cur.id).value : 0);
       if (def.powerup) gain = ai.value;
-      const hp = powerForItem(it.weaponId);
-      // hero power-ups: huge for the matching hero, still good for anyone (and denies them)
-      if (hp) gain = f.power ? 8 : ai.value + (hp.hero === f.hero ? 45 : 0);
+      // power orbs: heroes want every one (each is another form level); anyone else still takes them (and denies them)
+      if (it.weaponId === POWER_ORB) gain = f.hero ? ai.value + 30 : ai.value;
       if (def.gadget?.kind === 'medkit') gain += (100 - f.hp) * 0.4;
       if (ai.kind === 'melee') gain += this.persona.meleeLove;
       if (gain <= 3) continue;
@@ -544,7 +544,7 @@ export class BotController implements Controller {
         if (this.now >= this.meleeNext && f.state === 'normal') {
           this.meleeNext = this.now + this.rng.range(0.08, 0.22) + this.diff.reaction * 0.3;
           const r = this.rng.next();
-          if (r < 0.12 && f.kickCooldown <= 0) this.tap('kick');
+          if (r < 0.12 && f.kickCooldown <= 0 && !f.hero) this.tap('kick'); // (a hero's kick button is ability 2)
           else if (r < 0.2 && def.id === 'fists' && e.state === 'normal') this.tap('interact');
           else this.tap('attack');
         }
@@ -562,36 +562,51 @@ export class BotController implements Controller {
   }
 
   /**
-   * Fire the hero special when it's ready and the shot is good: straight line, in its range band,
-   * clear line of sight. Holds ABILITY to charge ki blasts at long range. Returns true while busy.
+   * Hero moves (D51, D58): super (both buttons) when transformed and ready, then ability 2 (kick button:
+   * Kamehameha charge / clone rush / gatling), then ability 1 - each only when the target is level with
+   * the bot, in the move's range band and in line of sight. Returns true while busy.
    */
   private useSpecial(w: World, f: Fighter, e: Fighter, seen: boolean): boolean {
     if (this.chargeTicks > 0) {
       this.chargeTicks--;
-      this.out.ability = this.chargeTicks > 0;
+      const on = this.chargeTicks > 0;
+      this.out.ability = on && this.hold !== 'kick';
+      this.out.kick = on && this.hold !== 'ability';
       if (f.state === 'special' && f.facing !== (e.x >= f.x ? 1 : -1)) this.out.moveX = e.x >= f.x ? 1 : -1;
       return true;
     }
     if (f.state === 'special') return true;
-    const sp = special(f);
-    if (!sp) return this.useBase(w, f, e, seen);
-    if (f.specialCd > 0 || !seen || f.state !== 'normal' || !f.grounded) return false;
+    const h = heroDef(f.hero);
+    if (!h || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0 || e.state === 'roll' || e.invuln > 0.15) return false;
     const dx = e.x - f.x;
-    const dy = Math.abs(e.y - f.y);
     const dist = Math.abs(dx);
-    let band: [number, number] = [50, 240];
-    if (sp.kind === 'stretch') band = [24, (sp.stretch?.range ?? 100) + 6];
-    else if (sp.charge) band = [40, 300];
-    if (dist < band[0] || dist > band[1] || dy > (sp.kind === 'stretch' ? 8 : 18)) return false;
-    if (!w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12)) return false;
-    // decide a little randomly so it isn't fired the very first frame every time
-    if (!this.rng.chance(0.15 + this.diff.throwChance * 0.2)) return false;
+    const dy = Math.abs(e.y - f.y);
+    const clear = () => w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     const face = dx >= 0 ? 1 : -1;
-    this.out.moveX = face;
-    if (sp.charge && dist > 120) this.chargeTicks = Math.round(this.rng.range(0.4, 1) * (sp.charge.time * 60));
-    else this.chargeTicks = 1;
-    this.out.ability = true;
-    return true;
+    const go = (hold: 'ability' | 'kick' | 'both', ticks: number) => {
+      this.out.moveX = face;
+      this.hold = hold;
+      this.chargeTicks = ticks;
+      this.out.ability = hold !== 'kick';
+      this.out.kick = hold !== 'ability';
+      return true;
+    };
+    const roll = (k: number) => this.rng.chance(k + this.diff.throwChance * 0.2);
+    // super
+    if (transformed(f) && f.specialCd <= 0) {
+      const reach = h.super.kind === 'fist' ? (h.super.fist?.range ?? 150) : h.super.kind === 'beam' ? 300 : 230;
+      if (dist >= 40 && dist <= reach && dy <= (h.super.kind === 'beam' ? 20 : 12) && clear() && roll(0.2)) return go('both', 4);
+    }
+    // ability 2
+    const s2 = h.second;
+    if (f.secondCd <= 0) {
+      if (s2.kind === 'beam' && dist >= 50 && dist <= (s2.beam?.range ?? 200) && dy <= 20 && clear() && roll(0.12)) {
+        return go('kick', Math.round(this.rng.range(0.3, 1.2) * 60));
+      }
+      if (s2.kind === 'clones' && dist >= 30 && dist <= 170 && dy <= 14 && clear() && roll(0.12)) return go('kick', 2);
+      if (s2.kind === 'gatling' && dist >= 14 && dist <= (s2.gatling?.range ?? 60) && dy <= 14 && clear() && roll(0.15)) return go('kick', 2);
+    }
+    return this.useBase(w, f, e, seen);
   }
 
   /**
@@ -610,6 +625,7 @@ export class BotController implements Controller {
     if (!this.rng.chance(0.12 + this.diff.throwChance * 0.2)) return false;
     this.out.moveX = dx >= 0 ? 1 : -1;
     this.chargeTicks = 1;
+    this.hold = 'ability';
     this.out.ability = true;
     return true;
   }

@@ -2,12 +2,13 @@ import Phaser from 'phaser';
 import type { Appearance } from '../art/appearance';
 import { Art } from '../art';
 import { ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD, type FighterTextures } from '../art/fighterArt';
-import { poweredLook } from '../art/heroArt';
+import { formCount, formLook } from '../art/heroArt';
 import { animFor, EXTERNAL_SHEETS, sheetFrame, type ExternalSheetDef } from '../art/externalSheets';
 import { ARM_LONG, ARM_SHORT, ROLL_TIME } from '../sim/constants';
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
-import { ability, baseAbility } from '../sim/hero';
+import { baseAbility } from '../sim/hero';
+import { heroDef } from '../sim/data/heroes';
 
 /** Rig pivot: body center, this many px above the feet. */
 const RIG_Y = 11;
@@ -56,10 +57,10 @@ export class FighterView {
   readonly color: number;
   /** normal + fully transformed textures (heroes) */
   readonly tex: FighterTextures;
-  readonly poweredTex: FighterTextures | null;
+  /** textures per transformation form level (index 0 = level 1); empty for non-heroes */
+  readonly formTex: FighterTextures[];
   private curTex: FighterTextures;
   readonly look: Appearance;
-  readonly powered: Appearance | null;
   /** external PNG sheet replacing the modular rig (heroes only, when it loaded) */
   private sheet: { def: ExternalSheetDef; img: Phaser.GameObjects.Image } | null = null;
 
@@ -74,8 +75,8 @@ export class FighterView {
     this.tex = tex;
     this.curTex = tex;
     this.look = look;
-    this.powered = fighter.hero ? poweredLook(fighter.hero) : null;
-    this.poweredTex = this.powered ? Art.fighter(scene, this.powered) : null;
+    this.formTex = [];
+    for (let l = 1; l <= formCount(fighter.hero); l++) this.formTex.push(Art.fighter(scene, formLook(fighter.hero, l)!));
     this.color = color;
     this.root = scene.add.container(fighter.x, fighter.y);
     this.rig = scene.add.container(0, -RIG_Y);
@@ -112,7 +113,7 @@ export class FighterView {
     const f = this.fighter;
     const { def, img } = this.sheet!;
     const { anim, t } = animFor(f, simTime);
-    img.setFrame(sheetFrame(def, anim, t, !!f.power && f.powerFull));
+    img.setFrame(sheetFrame(def, anim, t, f.power === 'hero'));
     this.root.setPosition(x, y).setScale(f.facing, 1).setRotation(f.state === 'dead' && !f.grounded ? f.rot * f.facing : 0);
     if (this.flash > 0) {
       this.flash -= dt;
@@ -125,7 +126,17 @@ export class FighterView {
 
   /** the transformed (powered) textures are on screen (tests / debug) */
   get showsPowered(): boolean {
-    return this.poweredTex !== null && this.curTex === this.poweredTex;
+    return this.curTex !== this.tex;
+  }
+
+  /** textures for a form level (0 / out of range = the base look) */
+  texFor(level: number): FighterTextures {
+    return level > 0 ? (this.formTex[Math.min(level, this.formTex.length) - 1] ?? this.tex) : this.tex;
+  }
+
+  /** look of a form level (0 = base) */
+  lookFor(level: number): Appearance {
+    return level > 0 ? (formLook(this.fighter.hero, level) ?? this.look) : this.look;
   }
 
   onLand(speed: number): void {
@@ -334,7 +345,7 @@ export class FighterView {
         showWeapon = false;
         break;
       case 'melee': {
-        const heroCombo = def.hold === 'fist' ? ability(f)?.combo : undefined;
+        const heroCombo = def.hold === 'fist' ? heroDef(f.hero)?.combo : undefined;
         const m = heroCombo ? { combo: heroCombo } : (def.melee ?? weaponDef('fists').melee)!;
         const hit = m.combo[Math.min(f.combo, m.combo.length - 1)];
         const t = f.stateTime;
@@ -342,7 +353,7 @@ export class FighterView {
         const inActive = t >= hit.windup && t < hit.windup + hit.active;
         const striking = t < hit.windup + hit.active + hit.recover * 0.5;
         // anticipation -> strike pose per combo step (jab / cross / haymaker) -> settle
-        const strikeFrame = f.combo === 0 ? BF.PUNCH : f.combo === 1 ? BF.CROSS : BF.UPPER;
+        const strikeFrame = hit.kick ? BF.KICK : f.combo === 0 ? BF.PUNCH : f.combo === 1 ? BF.CROSS : BF.UPPER;
         frame = inWind && hit.windup >= 0.05 ? BF.WINDUP : striking ? strikeFrame : BF.IDLE0;
         if (inActive) leanTarget = f.combo === 2 ? 0.12 : 0.05;
         if (def.hold === 'fist') {
@@ -354,6 +365,11 @@ export class FighterView {
             back = inWind ? 0.5 : inActive ? 0 : 0.4;
             backLen = inActive ? 1 : 0;
             front = 1.2;
+          } else if (hit.kick) {
+            // the combo's finishing kick: fists up in a guard, leg out
+            front = 2.3;
+            back = 2.0;
+            leanTarget = inActive ? -0.1 : 0;
           } else {
             const p = Math.min(1, t / (hit.windup + hit.active));
             front = lerp(1.3, -1.1, p);
@@ -369,26 +385,27 @@ export class FighterView {
         }
         break;
       }
-      case 'special':
-        // charging / casting: both hands pushed forward; stretch: the arm itself is drawn by HeroFx
+      case 'special': {
+        // hero moves (D51, D58). Stretch arms, beams, orbs and auras are drawn by HeroFx.
+        const kind = f.specialKind;
         frame = f.flying ? BF.HOVER : BF.AIM;
-        front = f.specialKind === 'charge' ? 0.15 + Math.sin(time * 40) * 0.05 : 0;
-        back = f.specialKind === 'charge' ? 0.3 : 0.1;
+        front = 0;
+        back = 0.1;
         frontLen = 1;
         backLen = 1;
         showWeapon = false;
-        if (f.specialKind === 'stretch' || f.specialKind === 'pistol') {
+        if (kind === 'pistol' || kind === 'superFist') {
           frame = BF.CROSS;
           back = 1.9;
           backLen = 0;
           leanTarget = 0.06 + f.stretchAngle * 0.1;
-        } else if (f.specialKind === 'rocket') {
+        } else if (kind === 'rocket') {
           // yanked toward the fist: stretched out in the direction of travel
           frame = BF.APEX;
           rigRot = Math.max(-0.9, Math.min(0.9, f.stretchAngle * 0.8));
           back = 2.8;
           backLen = 1;
-        } else if (f.specialKind === 'rasengan') {
+        } else if (kind === 'rasengan') {
           const dash = baseAbility(f)?.dash;
           const forming = !!dash && f.stateTime < dash.windup;
           // the orb forms between cupped hands, then the palm drives it forward
@@ -397,8 +414,40 @@ export class FighterView {
           back = forming ? 0.75 : 2.6;
           backLen = forming ? 1 : 0;
           leanTarget = forming ? -0.05 : 0.22;
+        } else if (kind === 'beamCharge' || kind === 'superCharge') {
+          // Kamehameha: hands cupped at the hip, trembling; then thrust forward
+          frame = BF.WINDUP;
+          front = 0.9 + Math.sin(time * 50) * 0.05;
+          back = 1.2;
+          leanTarget = -0.1;
+        } else if (kind === 'beam' || kind === 'superBeam') {
+          frame = BF.CROSS;
+          front = f.stretchAngle;
+          back = f.stretchAngle + 0.15;
+          leanTarget = 0.12;
+        } else if (kind === 'gatling') {
+          // alternating fast punches
+          const left = Math.floor(f.stateTime / 0.06) % 2 === 0;
+          frame = left ? BF.PUNCH : BF.CROSS;
+          front = left ? 0 : 1.1;
+          back = left ? 1.1 : 0;
+          frontLen = left ? 1 : 0;
+          backLen = left ? 0 : 1;
+          leanTarget = 0.1;
+        } else if (kind === 'bomb') {
+          // arms raised, holding the orb overhead
+          frame = BF.AIM;
+          front = -1.7;
+          back = -1.4;
+          leanTarget = -0.08;
+        } else {
+          // clones: a two-handed seal
+          frame = BF.WINDUP;
+          front = 0.4;
+          back = 0.6;
         }
         break;
+      }
       case 'kick':
         frame = f.airKick ? BF.AIRKICK : BF.KICK;
         front = f.airKick ? -0.4 : 2.3;
@@ -506,7 +555,7 @@ export class FighterView {
     }
 
     // ---- apply
-    const want = f.power && f.powerFull && this.poweredTex ? this.poweredTex : this.tex;
+    const want = f.power === 'hero' ? this.texFor(f.powerLevel) : this.tex;
     if (want !== this.curTex) {
       this.curTex = want;
       this.body.setTexture(want.body);

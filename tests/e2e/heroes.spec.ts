@@ -1,16 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// M9: each hero through the real input path: pick up its power-up → transformed look + aura →
-// powered melee combo (Naruto: shadow clones) → ABILITY special → the power expires and normal
-// weapons work again. No console errors.
+// M11: each hero through the real input path: eat power orbs one by one (each is the next form: look +
+// aura change) -> ability 2 on the kick key -> the super with both ability keys -> the form expires and
+// normal weapons work again. No console errors.
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const G = 'window.__GAME__';
 
 const HEROES = [
-  { hero: 'naruto', power: 'kurama', item: 'chakrascroll', holdTicks: 3 },
-  { hero: 'luffy', power: 'gear2', item: 'strawtoken', holdTicks: 3 },
-  { hero: 'goku', power: 'ssj', item: 'energycore', holdTicks: 45 },
+  { hero: 'naruto', second: 'clone' },
+  { hero: 'luffy', second: 'gatling' },
+  { hero: 'goku', second: 'beam' },
 ];
 
 const tick = (page: Page) => page.evaluate(`${G}.match()?.world.tick ?? -1`) as Promise<number>;
@@ -20,15 +20,15 @@ async function waitTicks(page: Page, n: number): Promise<void> {
   await page.waitForFunction((t) => ((window as any).__GAME__.match()?.world.tick ?? 0) >= t, t0 + n, { timeout: 30_000 });
 }
 
-/** Hold a key for a number of sim ticks (wall-clock independent). */
-async function press(page: Page, code: string, ticks = 3): Promise<void> {
-  await page.keyboard.down(code);
+/** Hold keys for a number of sim ticks (wall-clock independent). */
+async function press(page: Page, codes: string[], ticks = 3): Promise<void> {
+  for (const c of codes) await page.keyboard.down(c);
   await waitTicks(page, ticks);
-  await page.keyboard.up(code);
+  for (const c of codes) await page.keyboard.up(c);
 }
 
 for (const h of HEROES) {
-  test(`hero ${h.hero}: power-up, combo, special, expiry`, async ({ page }) => {
+  test(`hero ${h.hero}: orbs raise the form, ability 2, super, expiry`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
     page.on('console', (m) => {
@@ -37,76 +37,67 @@ for (const h of HEROES) {
     await page.goto(`/?scene=match&timer=1&humans=1&bots=1&diff=easy&seed=7&powers=0&map=test&heroes=${h.hero}`);
     await page.waitForFunction(() => ((window as any).__GAME__?.match()?.world.tick ?? 0) > 40, null, { timeout: 60_000 });
 
-    // record what happens between frames (clones, specials, combo steps)
+    // record what the sim does between frames
     await page.evaluate(() => {
-      const rec = { clones: 0, chakra: 0, ki: 0, stretch: 0, combo: 0 };
+      const rec = { clones: 0, beam: 0, second: 0, sup: 0 };
       (window as any).__REC__ = rec;
       setInterval(() => {
         const w = (window as any).__GAME__.match()?.world;
         if (!w) return;
         const f = w.fighters[0];
         rec.clones = Math.max(rec.clones, w.clones.filter((c: any) => c.active).length);
-        rec.chakra += w.bullets.some((b: any) => b.active && b.kind === 'chakra') ? 1 : 0;
-        rec.ki += w.bullets.some((b: any) => b.active && b.kind === 'ki') ? 1 : 0;
-        rec.stretch = Math.max(rec.stretch, f.stretchLen);
-        if (f.state === 'melee') rec.combo = Math.max(rec.combo, f.combo + 1);
+        rec.beam = Math.max(rec.beam, f.beamWidth);
+        rec.second = Math.max(rec.second, f.secondCd);
+        rec.sup = Math.max(rec.sup, f.specialCd);
       }, 5);
     });
-
-    // keep the sparring bot out of the way, give P1 a pistol, drop the power-up on P1
-    await page.evaluate(
-      ({ item }) => {
-        const w = (window as any).__GAME__.match().world;
-        const [f, b] = w.fighters;
-        b.x = b.px = f.x + (f.x < 300 ? 200 : -200);
-        b.y = b.py = f.y;
-        f.inv[1] = { id: 'pistol', ammo: 6, dur: 1 };
-        f.active = 0;
-        w.spawnWeapon(item, f.x, f.y - 2);
-      },
-      { item: h.item },
-    );
-    await page.waitForFunction((p) => (window as any).__GAME__.match().world.fighters[0].power === p, h.power, { timeout: 20_000 });
-    expect(await page.evaluate(`${G}.match().world.fighters[0].powerFull`)).toBe(true);
-    await waitTicks(page, 2);
-    expect(await page.evaluate(`${G}.game.scene.getScene('match').wr.views[0].showsPowered`)).toBe(true);
-    await page.screenshot({ path: `tests/e2e/screenshots/hero-${h.hero}-powered.png` });
-
-    // powered fist combo through the keyboard
-    for (let i = 0; i < 3; i++) {
-      await press(page, 'KeyF', 3);
-      await waitTicks(page, 7);
-    }
-    await waitTicks(page, 30);
-    const rec1 = (await page.evaluate('window.__REC__')) as Record<string, number>;
-    expect(rec1.combo).toBeGreaterThanOrEqual(2);
-    if (h.hero === 'naruto') expect(rec1.clones).toBeGreaterThan(0);
-
-    // special on the ABILITY key (Goku holds to charge a ki blast)
+    // keep the sparring bot far away; P1 has a pistol for later
     await page.evaluate(() => {
-      const f = (window as any).__GAME__.match().world.fighters[0];
-      f.state = 'normal';
-      f.specialCd = 0;
+      const w = (window as any).__GAME__.match().world;
+      const [f, b] = w.fighters;
+      b.x = b.px = f.x + (f.x < 300 ? 300 : -300);
+      b.y = b.py = f.y;
+      b.invuln = 999;
+      f.inv[1] = { id: 'pistol', ammo: 6, dur: 1 };
+      f.active = 0;
     });
-    await press(page, 'KeyB', h.holdTicks);
-    await waitTicks(page, 20);
-    const rec2 = (await page.evaluate('window.__REC__')) as Record<string, number>;
-    if (h.hero === 'naruto') expect(rec2.chakra).toBeGreaterThan(0);
-    if (h.hero === 'luffy') expect(rec2.stretch).toBeGreaterThan(40);
-    if (h.hero === 'goku') expect(rec2.ki).toBeGreaterThan(0);
-    await page.screenshot({ path: `tests/e2e/screenshots/hero-${h.hero}-special.png` });
+    // three orbs, one at a time: the form level goes 1, 2, 3 and the look changes
+    for (let level = 1; level <= 3; level++) {
+      await page.evaluate(() => {
+        const w = (window as any).__GAME__.match().world;
+        const f = w.fighters[0];
+        w.spawnWeapon('powerorb', f.x, f.y - 2);
+      });
+      await page.waitForFunction((l) => (window as any).__GAME__.match().world.fighters[0].powerLevel === l, level, { timeout: 20_000 });
+      await waitTicks(page, 4);
+      expect(await page.evaluate(`${G}.game.scene.getScene('match').wr.views[0].showsPowered`)).toBe(true);
+    }
+    await page.screenshot({ path: `tests/e2e/screenshots/hero-${h.hero}-form3.png` });
 
-    // expiry: back to normal attacks; the pistol still works
+    // face the empty side, then ability 2 on the kick key (H) and the super on both keys (B + H)
+    await page.evaluate(() => ((window as any).__GAME__.match().world.fighters[0].facing = 1));
+    await press(page, ['KeyH'], h.hero === 'goku' ? 40 : 3);
+    await waitTicks(page, 100);
+    const rec = await page.evaluate(() => (window as any).__REC__);
+    expect(rec.second, 'ability 2 went on cooldown').toBeGreaterThan(1);
+    if (h.second === 'clone') expect(rec.clones).toBeGreaterThanOrEqual(2);
+    else if (h.second === 'beam') expect(rec.beam).toBeGreaterThan(2);
+    await press(page, ['KeyB', 'KeyH'], 4);
+    await waitTicks(page, 30);
+    expect(await page.evaluate(() => (window as any).__REC__.sup), 'the super went on cooldown').toBeGreaterThan(4);
+    await page.screenshot({ path: `tests/e2e/screenshots/hero-${h.hero}-super.png` });
+
+    // the form runs out; guns work again
     await page.evaluate(() => ((window as any).__GAME__.match().world.fighters[0].powerTime = 0.05));
     await page.waitForFunction(() => (window as any).__GAME__.match().world.fighters[0].power === '', null, { timeout: 20_000 });
-    await waitTicks(page, 2);
+    await waitTicks(page, 60);
     expect(await page.evaluate(`${G}.game.scene.getScene('match').wr.views[0].showsPowered`)).toBe(false);
     await page.evaluate(() => {
       const f = (window as any).__GAME__.match().world.fighters[0];
       f.state = 'normal';
       f.active = 1;
     });
-    await press(page, 'KeyF', 3);
+    await press(page, ['KeyF'], 3);
     await waitTicks(page, 20);
     expect(await page.evaluate(`${G}.match().world.fighters[0].inv[1]?.ammo ?? 0`)).toBeLessThan(6);
     expect(errors).toEqual([]);

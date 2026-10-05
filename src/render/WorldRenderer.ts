@@ -14,8 +14,7 @@ import { FighterView } from './FighterView';
 import { Fx } from './Fx';
 import { HeroFx } from './HeroFx';
 import { DecorLayer } from './Decor';
-import { POWER_COLORS } from '../art/heroArt';
-import { powerForItem } from '../sim/data/heroes';
+import { POWER_ORB } from '../sim/data/heroes';
 import { baseAbility } from '../sim/hero';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -171,10 +170,9 @@ export class WorldRenderer {
       const def = weaponDef(it.weaponId);
       if (def.powerup) {
         y -= 3 + Math.sin(time * 4 + it.id) * 2;
-        const hero = powerForItem(it.weaponId);
-        if (hero) {
-          // rare hero power-up: bigger bob, glow and a steady sparkle so it reads from across the map
-          const col = hexToNum(POWER_COLORS[hero.id]?.[0] ?? P.white);
+        if (it.weaponId === POWER_ORB) {
+          // rare power orb: bigger bob, glow and a steady sparkle so it reads from across the map
+          const col = hexToNum(Math.floor(time * 2) % 2 === 0 ? '#ffd84a' : '#4ab8ff');
           y -= 2;
           this.fx.glowDot(x, y, col, 1.2 + Math.sin(time * 6) * 0.2);
           if (Math.random() < dt * 20) this.fx.motes(x, y + 4, 1, col);
@@ -293,7 +291,7 @@ export class WorldRenderer {
       bars.fillStyle(hexToNum(col), 1).fillRect(x, y, Math.round(14 * frac), 2);
       // levitation ki meter (Goku): a strip under the HP bar while it isn't full / while flying
       const fly = baseAbility(f)?.fly;
-      if (fly && !(f.powerFull && f.power) && (f.flying || f.flyMeter < fly.meter)) {
+      if (fly && !(f.power === 'hero') && (f.flying || f.flyMeter < fly.meter)) {
         const k = Math.max(0, Math.min(1, f.flyMeter / fly.meter));
         const low = k < 0.25 && Math.floor(time * 8) % 2 === 0;
         bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y + 3, 16, 2);

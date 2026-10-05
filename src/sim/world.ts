@@ -9,7 +9,7 @@ import { createItem, updateItems, type Item } from './item';
 import { createProp, updateProps, type Prop } from './prop';
 import type { PropType } from './data/props';
 import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
-import { POWERS } from './data/heroes';
+import { POWER_ORB } from './data/heroes';
 import { transform, updateClones, type Clone } from './hero';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
@@ -46,8 +46,10 @@ const INITIAL_WEAPON_FRACTION = 0.8;
 const WEAPON_RESPAWN: [number, number] = [5, 9];
 const MAX_WEAPON_ITEMS = 22;
 /** seconds until the first hero power-up, then between power-ups (only one on the ground at a time) */
-const POWER_FIRST: [number, number] = [12, 20];
-const POWER_EVERY: [number, number] = [26, 38];
+const POWER_FIRST: [number, number] = [9, 15];
+const POWER_EVERY: [number, number] = [13, 19];
+/** orbs lying around at once */
+const POWER_MAX_ON_GROUND = 2;
 const NO_INTENT = emptyIntent();
 
 /** One round of play. Pure simulation: no rendering, no audio, no DOM. */
@@ -299,23 +301,20 @@ export class World {
     this.emit({ t: 'weaponSpawn', x: p.x, y: p.y, weapon: id });
   }
 
-  /** Hero power-ups: rare, one on the ground at a time, at the map's 'P' spots (else weapon/fighter spawns). */
+  /** Power orbs (M11): a couple on the ground at a time, at the map's 'P' spots (else weapon/fighter spawns). */
   private updatePowerSpawner(): void {
     this.powerTimer -= DT;
     if (this.powerTimer > 0) return;
     this.powerTimer = this.rng.range(POWER_EVERY[0], POWER_EVERY[1]);
     if (this.settings.noPickups) return;
-    const items = new Set(Object.values(POWERS).map((p) => p.item));
-    if (this.items.some((it) => it.active && items.has(it.weaponId))) return;
+    if (this.items.filter((it) => it.active && it.weaponId === POWER_ORB).length >= POWER_MAX_ON_GROUND) return;
     const { powerSpawns, weaponSpawns, spawns } = this.parsed;
     const pts = powerSpawns.length > 0 ? powerSpawns : weaponSpawns.length > 0 ? weaponSpawns : spawns;
     if (pts.length === 0) return;
     const p = this.rng.pick(pts);
-    const bias = this.def.powerBias;
-    const power = this.rng.weighted(Object.values(POWERS), (q) => q.weight * (q.id === bias ? 3 : 1));
-    const it = this.spawnWeapon(power.item, p.x, p.y - 36);
+    const it = this.spawnWeapon(POWER_ORB, p.x, p.y - 36);
     it.vy = 40;
-    this.emit({ t: 'powerSpawn', x: p.x, y: p.y, power: power.id });
+    this.emit({ t: 'powerSpawn', x: p.x, y: p.y });
   }
 
   // ------------------------------------------------------------ items
@@ -354,7 +353,7 @@ export class World {
     const def = weaponDef(it.weaponId);
     if (def.powerup) {
       const pu = def.powerup;
-      if (pu.kind === 'hero') transform(this, f, pu.power ?? '');
+      if (pu.kind === 'orb') transform(this, f);
       else if (pu.kind === 'speed') f.speedBoost = pu.duration;
       else if (pu.kind === 'strength') f.strengthBoost = pu.duration;
       else {

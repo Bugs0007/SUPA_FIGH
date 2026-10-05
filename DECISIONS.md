@@ -345,3 +345,26 @@ distinct jump / apex / fall; hover, skid, landing squash, punch anticipation, cr
 weight shift. The view eases arm swings between locomotion poses (attacks and aiming stay snappy), leans into
 runs, sprints and flight, squeezes on turn-arounds, and gives every fighter its own breathing phase. External
 sprite sheets (docs/ASSETS.md) are unaffected.
+
+## M11 — One power orb, form ladders, three moves per hero
+
+### D58 — One pickup (the power orb); every orb is the next form
+The three per-hero pickups (scroll / straw token / core) and their single transformation became one **power orb**.
+A hero that eats an orb goes up one form level (Naruto: one-tail, four-tail, six-tail black, gold Kurama mode; Luffy:
+Gear 2/3/4/5; Goku: SSJ/SSJ2/SSJ3/Blue) and the 24 s timer refills, so levelling takes a streak of orbs; when the
+timer ends the hero is back to base. Everyone else gets a 12 s generic boost. Orbs are rarer than weapons but
+frequent enough to climb: first at 9-15 s, then every 13-19 s, at most two on the ground. Bots value orbs (more
+for heroes). Fighter fields: `power` ('' | 'hero' | 'boost'), `powerLevel`. Form stats (speed / damage / knockback /
+reach) are data in `HEROES[id].forms`; looks are one Appearance override + one FormFx (aura, tails, extras) per form
+in `art/heroArt.ts` (tails and auras are drawn by `render/HeroFx.ts`).
+
+### D59 — Heroes: ability 1 on ABILITY, ability 2 on KICK, super on both
+The kick key is ability 2 for heroes (Kamehameha charge, rushing shadow clones, gatling), and every fighter's fists
+combo is now punch, punch, punch, **kick** (the kick key still kicks for scrapyard fighters). While transformed a
+single press waits `SUPER_WINDOW` (0.1 s) for the other button; both within that = the super, which has its own
+cooldown (8 s), a name per form and scales with the form (bomb size, fist size, beam width and damage). Moves can
+start from standing, crouching or the recovery of a combo hit.
+
+### D60 — Holding Attack with a gun or throwable latches Up
+Pressing Up while aiming used to jump when Attack went down in the same tick or for melee-style aims. Up is now
+latched (never a jump) whenever Attack is held with a gun or throwable, until Up is released.

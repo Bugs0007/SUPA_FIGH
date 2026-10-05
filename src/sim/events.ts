@@ -79,10 +79,13 @@ export type SimEvent =
   | { t: 'wave'; dir: number }
   | { t: 'cannon'; x: number; y: number; dir: number }
   // hero powers (M9)
-  | { t: 'transform'; f: number; power: string; full: boolean; x: number; y: number }
-  | { t: 'powerEnd'; f: number; power: string }
-  | { t: 'powerSpawn'; x: number; y: number; power: string }
+  | { t: 'transform'; f: number; hero: string; level: number; full: boolean; x: number; y: number }
+  | { t: 'powerEnd'; f: number; hero: string }
+  | { t: 'powerSpawn'; x: number; y: number }
   | { t: 'special'; f: number; power: string; x: number; y: number; scale: number }
+  // ability 2 / super (M11)
+  | { t: 'superStart'; f: number; name: string; level: number }
+  | { t: 'beam'; f: number; power: number; super: boolean }
   | { t: 'chargeStart'; f: number }
   | { t: 'stretch'; f: number }
   | { t: 'clone'; f: number; x: number; y: number; facing: number }

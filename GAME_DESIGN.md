@@ -67,23 +67,17 @@ Casino (chandeliers, elevator) · Harbor Docks (containers, deadly water) · Off
 (shatterable windows, server-room fire) · Secret Lab (laser grids, low-grav switch) · Abandoned
 Mine (minecarts, TNT).
 
-## Anime heroes (M9 expansion)
-Pick **Naruto**, **Luffy** or **Goku** instead of a scrapyard fighter (creator HERO row / lobby). They are
-the same tiny pixel fighters (same hitbox, same moves, stats within ~5%) until they find their **power-up**,
-a rare pickup that can appear on any map (one at a time; the anime maps favor their own):
+## Anime heroes (M9, reworked in M11)
+Pick **Naruto**, **Luffy** or **Goku** instead of a scrapyard fighter. They are the same tiny pixel fighters (same
+hitbox, stats within ~5%) with a combo of punch, punch, punch, kick, **ability 1** (ABILITY key), **ability 2** (the kick
+key) and, once transformed, a **super** (both keys, within 0.1 s of each other).
 
-Every hero also has a **base ability** on ABILITY from the start (D51): Goku = Levitation (free flight with a
-ki meter), Naruto = Rasengan (gravity-free dash strike), Luffy = Gum-Gum Pistol (angled stretch punch; a fist
-that hits a wall becomes a Gum-Gum Rocket).
+| Hero | Ability 1 | Ability 2 | Super (per form) | Forms |
+|---|---|---|---|---|
+| Goku | Levitation | Kamehameha (charge) | Super / Dragon Fist / God Kamehameha | SSJ, SSJ2, SSJ3, SSBlue |
+| Naruto | Rasengan | Shadow clone rush | Rasenshuriken / Tailed Beast Bomb / Kurama Bijudama | 1 tail, 4 tails, 6 tails (black), Kurama (gold, 9 tails) |
+| Luffy | Gum-Gum Pistol (+ rocket) | Gum-Gum Gatling | Jet Pistol / Elephant / King Kong / Bajrang Gun | Gear 2, 3, 4, 5 |
 
-| Hero | Power-up | Transformation | ABILITY special while powered |
-|---|---|---|---|
-| Naruto | Chakra scroll | Kurama Mode: crimson aura, faster, harder hits; combo hit 3 brings two shadow clones | Chakra bomb: big explosive orb |
-| Luffy | Straw hat token | Gear Second: steam, pink skin, quick stretchy punches and kicks with extra reach | Rubber bullet: the arm stretches across the room |
-| Goku | Energy core | Super Saiyan: yellow hair, heavy hits with hit-stop, stronger kick, unlimited flight | Ki blast: tap = small, hold = charged big blast |
-
-Anyone can grab any power-up: the matching hero transforms fully (18–20 s); everyone else gets a short
-generic boost. Weapons keep working while powered. Maps: **Hidden Leaf Forest** (giant trees, village,
-canopy), **Grand Line Ship** (decks, hold, mast, cannons, waves), **Alien Energy Planet** (low-gravity
-fields, floating rocks, energy fissures).
+The only pickup is the **power orb** (rare, a couple at a time): each orb eaten raises a hero one form (timer refills to
+24 s), scrapyard fighters get a 12 s boost. See DECISIONS D58.
 

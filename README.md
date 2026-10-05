@@ -28,11 +28,11 @@ On a gamepad, press START in the lobby to join.
 | Jump | **W** / G / Space | **Up** / Num5 | **Up** / K | A |
 | Drop through a platform | **S S** (double tap) | **Down Down** | **Down Down** | Down Down |
 | Attack (hold = aim) | F | Num4 | L | X / RT |
-| Kick | H | Num6 | J | B |
+| Kick (heroes: ability 2) | H | Num6 | J | B |
 | Interact (pick up / grab / throw) | T | Num8 | O | Y |
 | Cycle weapon | R | Num7 | I | RB |
 | Use gadget | V | Num9 | U | LB |
-| Hero ability | B | Num1 | P | LT |
+| Hero ability 1 (both = super) | B | Num1 | P | LT |
 
 Pause with Esc or Start (P too, if nobody has it bound).
 
@@ -40,7 +40,9 @@ Pause with Esc or Start (P too, if nobody has it bound).
 climbs ladders, climbs ledges and sweeps your aim while you hold Attack (it never jumps then). You can turn
 this off in Settings (then only the Jump key jumps).
 
-**Guns:** hold Attack to aim (Up and Down sweep the angle), or tap it for a hip shot.
+**Guns:** hold Attack to aim (Up and Down sweep the angle and never jump), or tap it for a hip shot.
+
+**Combo:** Attack three times for punch, punch, punch, then a kicking finisher.
 
 **Movement:**
 - Run, then press Down to roll.
@@ -52,17 +54,19 @@ this off in Settings (then only the Jump key jumps).
 **Interact:** grab an enemy, then press Attack to throw them.
 
 ### Anime heroes
-Pick **Goku**, **Naruto** or **Luffy** on the main menu (or in the lobby's fighter creator). Every hero has a
-signature move on the **Ability** button from the start:
+Pick **Goku**, **Naruto** or **Luffy** on the main menu. Heroes have three moves and a ladder of forms:
 
-| Hero | Base ability | Rare power-up | Transformation + powered ability |
+| | Goku | Naruto | Luffy |
 |---|---|---|---|
-| Goku | **Levitation:** take off with Ability (or jump again when you're out of air jumps) and fly freely in all 4 directions; a ki meter drains while flying and refills on the ground; getting hit knocks you out of the sky | Energy core | Super Saiyan: heavy hits, unlimited flight, Ability = ki blast (tap = small, hold = charged) |
-| Naruto | **Rasengan:** a spinning orb forms in his palm, then a gravity-free dash; the first fighter touched is blasted away (works in the air, crosses gaps) | Chakra scroll | Kurama Mode: shadow-clone combo, Ability = chakra bomb |
-| Luffy | **Gum-Gum Pistol:** a stretch punch (hold Up/Down to angle it); if the fist hits a wall, he rockets to it (Gum-Gum Rocket) | Straw hat token | Gear Second: stretchy combo, Ability = rubber bullet |
+| Combo | punch, punch, punch, **kick** | same | same (stretchy) |
+| **Ability** key | Levitation (fly in 4 directions, ki meter) | Rasengan (dash strike) | Gum-Gum Pistol (stretch punch, rockets off walls) |
+| **Kick** key = ability 2 | Kamehameha (hold to charge) | Shadow clones rush ahead (+1 per form) | Gum-Gum Gatling |
+| **Both** keys = super (transformed only) | Super Kamehameha | Tailed Beast Bomb | Giant fist |
+| Forms (one **power orb** each) | Super Saiyan, SSJ2, SSJ3, Super Saiyan Blue | One-tail cloak, four-tail cloak, six-tail (black), Kurama mode (gold, nine tails) | Gear 2, 3, 4, 5 |
 
-Anyone can grab any power-up for a smaller boost. Three maps fit them: Hidden Leaf Forest, Grand Line Ship, and
-Alien Energy Planet. Quick match link: `?heroes=naruto,luffy,goku`.
+Power orbs are the only pickup: a couple appear on the map every ~15 s. Every orb a hero eats takes them up one form
+(stronger, faster, bigger aura, a stronger super with a new name); each orb refills the 24 s timer, and when it runs out
+they drop back to base. Scrapyard fighters just get a short boost. Quick match link: `?heroes=naruto,luffy,goku`.
 
 ### Modes
 - **Brawl:** rounds, last fighter standing. The dead come back as ghosts who can shove things around.

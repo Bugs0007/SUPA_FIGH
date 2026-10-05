@@ -1,16 +1,28 @@
-// Hero power-ups (M9): transformation state, specials and shadow-clone effect entities.
-// Data in data/heroes.ts. The fighter state machine calls into this module (sim/fighter.ts 'special').
+// Heroes (M9, reworked M11): power-orb transformations with form levels, abilities 1 / 2, supers and
+// shadow-clone effect entities. Data in data/heroes.ts. The state machine lives in sim/fighter.ts.
 
 import { applyHit } from './combat';
-import { DT, SHOULDER_Y_STAND } from './constants';
-import { CLONE, GENERIC_BOOST, GENERIC_DURATION, heroDef, POWERS, powerDef, type AbilityDefinition, type AbilitySpecial, type BaseAbility } from './data/heroes';
+import { DT, SHOULDER_Y_STAND, TILE } from './constants';
+import {
+  CLONE,
+  FORM_DURATION,
+  GENERIC_BOOST,
+  GENERIC_DURATION,
+  heroDef,
+  maxLevel,
+  type AbilityDefinition,
+  type BaseAbility,
+  type BeamStats,
+  type SecondAbility,
+  type StretchStats,
+} from './data/heroes';
 import { weaponDef, type MeleeHit } from './data/weapons';
-import { segmentAabb } from './physics';
 import type { Fighter } from './fighter';
+import { segmentAabb } from './physics';
 import { damageProp, pushProp } from './prop';
 import type { World } from './world';
 
-/** Shadow clone: a short-lived effect that strikes once and vanishes. Never a fighter, never thinks. */
+/** Shadow clone: a short-lived effect that strikes and vanishes. Never a fighter, never thinks. */
 export interface Clone {
   owner: number;
   x: number;
@@ -21,183 +33,97 @@ export interface Clone {
   active: boolean;
   damageMul: number;
   knockMul: number;
+  /** rushing clones (Naruto's ability 2) run forward and hit everyone they touch once */
+  vx: number;
+  life: number;
+  damage: number;
+  knockX: number;
+  knockY: number;
 }
 
-/** The ability currently shaping this fighter (full transformation or the generic boost). */
+// ------------------------------------------------------------------ transformation state
+
+/** Stat changes shaping this fighter now (hero form at its level, or the generic boost). */
 export function ability(f: Fighter): AbilityDefinition | null {
-  if (!f.power) return null;
-  const p = POWERS[f.power];
-  if (!p) return null;
-  return f.powerFull ? p.ability : GENERIC_BOOST;
+  if (f.power === 'boost') return GENERIC_BOOST;
+  if (f.power !== 'hero') return null;
+  return heroDef(f.hero)?.forms[f.powerLevel - 1] ?? null;
 }
 
-export function special(f: Fighter): AbilitySpecial | null {
-  return ability(f)?.special ?? null;
+/** Fully transformed hero (super available, form looks). */
+export function transformed(f: Fighter): boolean {
+  return f.power === 'hero' && f.powerLevel > 0;
 }
 
-/** Grab a hero power-up. Re-grabbing refreshes the timer. */
-export function transform(w: World, f: Fighter, powerId: string): void {
-  const p = powerDef(powerId);
-  if (!p) return;
-  const full = f.hero === p.hero;
-  f.power = p.id;
-  f.powerFull = full;
-  f.powerMax = full ? p.duration : GENERIC_DURATION;
-  f.powerTime = f.powerMax;
-  f.specialCd = 0;
-  f.charge = -1;
-  w.emit({ t: 'transform', f: f.id, power: p.id, full, x: f.x, y: f.y });
+/** Name of the current form ('' when not powered). */
+export function formName(f: Fighter): string {
+  if (f.power === 'boost') return 'POWERED UP';
+  return ability(f) ? (heroDef(f.hero)?.forms[f.powerLevel - 1]?.name ?? '') : '';
 }
 
-/** Power runs out (or the fighter dies): back to normal attacks, no modifiers, no aura. */
+/**
+ * Power orb picked up (D58). Heroes go up one form level (capped) and the timer refills; anyone else
+ * gets the generic boost. Returns the new level (0 for the boost).
+ */
+export function transform(w: World, f: Fighter): number {
+  const hero = heroDef(f.hero);
+  if (hero) {
+    const prev = f.power === 'hero' ? f.powerLevel : 0;
+    f.power = 'hero';
+    f.powerLevel = Math.min(maxLevel(f.hero), prev + 1);
+    f.powerFull = true;
+    f.powerMax = FORM_DURATION;
+    f.powerTime = FORM_DURATION;
+    if (prev === 0) f.specialCd = 0;
+    w.emit({ t: 'transform', f: f.id, hero: f.hero, level: f.powerLevel, full: true, x: f.x, y: f.y });
+    return f.powerLevel;
+  }
+  f.power = 'boost';
+  f.powerLevel = 0;
+  f.powerFull = false;
+  f.powerMax = GENERIC_DURATION;
+  f.powerTime = GENERIC_DURATION;
+  w.emit({ t: 'transform', f: f.id, hero: '', level: 0, full: false, x: f.x, y: f.y });
+  return 0;
+}
+
+/** Power runs out (or the fighter dies): back to base form. */
 export function endPower(w: World, f: Fighter): void {
   if (!f.power) return;
-  const id = f.power;
   f.power = '';
+  f.powerLevel = 0;
   f.powerFull = false;
   f.powerTime = 0;
   f.powerMax = 0;
-  f.specialCd = 0;
   f.charge = -1;
   f.stretchLen = 0;
-  w.emit({ t: 'powerEnd', f: f.id, power: id });
+  w.emit({ t: 'powerEnd', f: f.id, hero: f.hero });
 }
 
 export function updatePower(w: World, f: Fighter, dt: number): void {
-  if (!f.power) return;
   if (f.specialCd > 0) f.specialCd -= dt;
+  if (f.secondCd > 0) f.secondCd -= dt;
+  if (!f.power) return;
   f.powerTime -= dt;
   if (f.powerTime <= 0) endPower(w, f);
 }
 
-/** Fire a projectile special. scale = ki charge multiplier (1 = tap). Returns the cooldown to apply. */
-export function fireSpecial(w: World, f: Fighter, sp: AbilitySpecial, scale: number, aimUp: boolean): void {
-  const pr = sp.projectile;
-  if (!pr) return;
-  const angle = aimUp ? -0.5 : 0;
-  const dx = Math.cos(angle) * f.facing;
-  const dy = Math.sin(angle);
-  const sx = f.x + f.facing * 4;
-  const sy = f.y - SHOULDER_Y_STAND;
-  const ex = pr.explosion;
-  const big = scale > 1.5;
-  w.spawnBullet({
-    x: sx,
-    y: sy,
-    vx: dx * pr.speed,
-    vy: dy * pr.speed,
-    ox: sx,
-    oy: sy,
-    owner: f.id,
-    weapon: f.power + ':special',
-    damage: pr.damage * scale,
-    range: pr.range,
-    falloff: 1,
-    knock: pr.knock * (1 + (scale - 1) * 0.6),
-    ricochet: false,
-    pierce: 0,
-    kind: pr.kind,
-    gravity: pr.gravity ?? 0,
-    size: pr.size * (1 + (scale - 1) * 0.7),
-    explosion: ex
-      ? ex
-      : big
-        ? { radius: 14 + 8 * scale, damage: 4 * scale, knock: 120 * scale, breakRadius: scale > 2.5 ? 10 : 0, shake: 0.15 * scale }
-        : null,
-  });
-  // a little kickback sells the weight
-  f.vx -= dx * 40 * scale;
-  if (sp.charge) {
-    const c = sp.charge;
-    const k = (scale - 1) / (c.maxScale - 1);
-    f.specialCd = c.minCooldown + (sp.cooldown - c.minCooldown) * k;
-  } else f.specialCd = sp.cooldown;
-  w.emit({ t: 'special', f: f.id, power: f.power, x: sx + dx * 6, y: sy, scale });
-}
-
-/** Ki charge (0..1) → stat multiplier. */
-export function chargeScale(sp: AbilitySpecial, held: number): number {
-  const c = sp.charge;
-  if (!c) return 1;
-  return 1 + (c.maxScale - 1) * Math.min(1, Math.max(0, held) / c.time);
-}
-
-/** Current reach of a stretch special at time t (px past the body edge, 0 when done). */
-export function stretchReach(sp: AbilitySpecial, t: number): number {
-  const s = sp.stretch;
-  if (!s) return 0;
-  if (t < s.out) return s.range * (t / s.out);
-  if (t < s.out + s.hold) return s.range;
-  const b = t - s.out - s.hold;
-  return b < s.back ? s.range * (1 - b / s.back) : 0;
-}
-
-export function stretchDuration(sp: AbilitySpecial): number {
-  const s = sp.stretch!;
-  return s.out + s.hold + s.back;
-}
-
-/** Hitbox along a stretched arm: from the body edge to the fist, at shoulder height. Stops at walls. */
-export function stretchHitbox(w: World, f: Fighter, sp: AbilitySpecial, reach: number): number {
-  const s = sp.stretch!;
-  const y = f.y - SHOULDER_Y_STAND;
-  // the fist stops at the first solid tile
-  const x0 = f.x + f.facing * (f.w / 2);
-  let len = reach;
-  for (let d = 0; d <= reach; d += 4) {
-    if (w.map.solidAtPx(x0 + f.facing * d, y)) {
-      len = Math.max(0, d - 2);
-      break;
-    }
-  }
-  const x1 = x0 + f.facing * len;
-  const l = Math.min(x0, x1) - 2;
-  const r = Math.max(x0, x1) + 3;
-  const t = y - 4;
-  const b = y + 4;
-  const ab = ability(f);
-  const knockMul = ab?.knockMul ?? 1;
-  for (const p of w.props) {
-    if (!p.active || f.swingProps.includes(p.id)) continue;
-    if (p.x + p.w / 2 < l || p.x - p.w / 2 > r || p.y - p.h > b || p.y < t) continue;
-    f.swingProps.push(p.id);
-    pushProp(p, f.facing * s.knockX * 0.8, -80);
-    damageProp(w, p, s.damage, f.id);
-  }
-  for (const o of w.fighters) {
-    if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
-    if (o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) continue;
-    f.swingHit.push(o.id);
-    const connected = applyHit(w, o, {
-      damage: s.damage,
-      kbX: f.facing * s.knockX * knockMul,
-      kbY: s.knockY * knockMul,
-      attacker: f.id,
-      weapon: f.power + ':special',
-      kind: 'melee',
-      stun: 0.3,
-      knockdown: true,
-      x: o.x - f.facing * (o.w / 2),
-      y,
-    });
-    if (connected) w.emit({ t: 'heroFx', fx: 'steam', heavy: true, x: o.x - f.facing * (o.w / 2), y });
-  }
-  return len;
-}
-
-// ------------------------------------------------------------------ base abilities (D51)
-
-/** The hero's always-available signature move (null for scrapyard fighters). */
 export function baseAbility(f: Fighter): BaseAbility | null {
   return heroDef(f.hero)?.base ?? null;
 }
 
-/** Melee-style damage/knockback multipliers (strength pickup, generic hero boost). */
-function meleeMuls(f: Fighter): { dmg: number; knock: number } {
+export function secondAbility(f: Fighter): SecondAbility | null {
+  return heroDef(f.hero)?.second ?? null;
+}
+
+/** Melee-style damage/knockback multipliers (strength pickup, hero form / generic boost). */
+export function meleeMuls(f: Fighter): { dmg: number; knock: number } {
   const strength = f.strengthBoost > 0 ? (weaponDef('strength').powerup?.mult ?? 1) : 1;
   const ab = ability(f);
   return { dmg: strength * (ab?.damageMul ?? 1), knock: (1 + (strength - 1) * 0.5) * (ab?.knockMul ?? 1) };
 }
+
+// ------------------------------------------------------------------ rasengan (Naruto, ability 1)
 
 /** Where the Rasengan orb sits (in front of the palm). */
 export function rasenganPoint(f: Fighter): { x: number; y: number } {
@@ -207,7 +133,7 @@ export function rasenganPoint(f: Fighter): { x: number; y: number } {
 /** Rasengan contact: the first fighter the orb touches is blasted away. Props get shoved. True on a hit. */
 export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['dash']>): boolean {
   const { x: hx, y: hy } = rasenganPoint(f);
-  const r = d.radius;
+  const r = d.radius + (f.power === 'hero' ? f.powerLevel : 0);
   const m = meleeMuls(f);
   const touches = (l: number, t: number, rr: number, b: number) => {
     const nx = Math.max(l, Math.min(hx, rr));
@@ -245,6 +171,8 @@ export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['da
   return false;
 }
 
+// ------------------------------------------------------------------ stretch punches (Luffy)
+
 /** Fist position of an angled stretch punch at a given reach (from the shoulder). */
 export function stretchFist(f: Fighter, angle: number, reach: number): { x0: number; y0: number; x1: number; y1: number } {
   const x0 = f.x + f.facing * 2;
@@ -253,10 +181,18 @@ export function stretchFist(f: Fighter, angle: number, reach: number): { x0: num
 }
 
 /**
- * Gum-Gum Pistol: the arm reaches `reach` px along `angle`. Hits every fighter/prop on the segment once.
- * Returns the actual arm length (stops at the first solid tile) and whether the fist touched a wall.
+ * A stretched arm reaching `reach` px along `angle`: hits every fighter/prop on the segment once
+ * (the fist has radius `fist`). Returns the actual arm length (stops at the first solid tile) and
+ * whether the fist touched a wall.
  */
-export function pistolHits(w: World, f: Fighter, s: NonNullable<BaseAbility['stretch']>, angle: number, reach: number): { len: number; wall: boolean } {
+export function pistolHits(
+  w: World,
+  f: Fighter,
+  s: StretchStats,
+  angle: number,
+  reach: number,
+  opts: { weapon?: string; damage?: number; fist?: number } = {},
+): { len: number; wall: boolean } {
   const dx = Math.cos(angle) * f.facing;
   const dy = Math.sin(angle);
   const { x0, y0 } = stretchFist(f, angle, 0);
@@ -273,52 +209,242 @@ export function pistolHits(w: World, f: Fighter, s: NonNullable<BaseAbility['str
   const x1 = x0 + dx * len;
   const y1 = y0 + dy * len;
   const m = meleeMuls(f);
+  const pad = 2 + (opts.fist ?? 0);
+  const damage = (opts.damage ?? s.damage) * m.dmg;
   for (const p of w.props) {
     if (!p.active || f.swingProps.includes(p.id)) continue;
-    if (segmentAabb(x0, y0, x1, y1, p.x - p.w / 2 - 2, p.y - p.h - 2, p.x + p.w / 2 + 2, p.y + 2) < 0) continue;
+    if (segmentAabb(x0, y0, x1, y1, p.x - p.w / 2 - pad, p.y - p.h - pad, p.x + p.w / 2 + pad, p.y + pad) < 0) continue;
     f.swingProps.push(p.id);
     pushProp(p, dx * s.knockX * 0.8 * m.knock, -80);
-    damageProp(w, p, s.damage * m.dmg, f.id);
+    damageProp(w, p, damage, f.id);
   }
   for (const o of w.fighters) {
     if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
-    // a little fist radius so grazing hits count
-    if (segmentAabb(x0, y0, x1, y1, o.x - o.w / 2 - 2, o.y - o.h - 2, o.x + o.w / 2 + 2, o.y + 2) < 0) continue;
+    if (segmentAabb(x0, y0, x1, y1, o.x - o.w / 2 - pad, o.y - o.h - pad, o.x + o.w / 2 + pad, o.y + pad) < 0) continue;
     f.swingHit.push(o.id);
     const hx = Math.max(o.x - o.w / 2, Math.min(x1, o.x + o.w / 2));
     const connected = applyHit(w, o, {
-      damage: s.damage * m.dmg,
+      damage,
       kbX: f.facing * s.knockX * m.knock,
       kbY: s.knockY * m.knock + dy * 120,
       attacker: f.id,
-      weapon: 'gumgum',
+      weapon: opts.weapon ?? 'gumgum',
       kind: 'melee',
       stun: 0.3,
       knockdown: true,
       x: hx,
       y: o.y - o.h / 2,
     });
-    if (connected) w.emit({ t: 'heroFx', fx: 'steam', heavy: false, x: hx, y: o.y - o.h / 2 });
+    if (connected) w.emit({ t: 'heroFx', fx: 'steam', heavy: !!opts.fist, x: hx, y: o.y - o.h / 2 });
   }
   return { len, wall };
 }
 
+/** Reach of a stretch move (out / hold / back) at time t. */
+export function stretchAt(s: StretchStats, t: number): number {
+  if (t < s.out) return s.range * (t / s.out);
+  if (t < s.out + s.hold) return s.range;
+  return Math.max(0, s.range * (1 - (t - s.out - s.hold) / s.back));
+}
+
+/**
+ * Gum-Gum Gatling: one round of punches in front (every `every` seconds). Targets can be hit again
+ * after `rehit`. `final` = the last punch of the flurry (big knockback).
+ */
+export function gatlingHit(w: World, f: Fighter, g: NonNullable<SecondAbility['gatling']>, final: boolean): void {
+  const near = f.x + f.facing * (f.w / 2 - 2);
+  const far = f.x + f.facing * (f.w / 2 + g.range + (ability(f)?.reach ?? 0) * 2);
+  const l = Math.min(near, far);
+  const r = Math.max(near, far);
+  const t = f.y - 21;
+  const b = f.y - 5;
+  const m = meleeMuls(f);
+  for (const p of w.props) {
+    if (!p.active || f.swingProps.includes(p.id)) continue;
+    if (p.x + p.w / 2 < l || p.x - p.w / 2 > r || p.y - p.h > b || p.y < t) continue;
+    f.swingProps.push(p.id);
+    pushProp(p, f.facing * g.knockX * m.knock, -40);
+    damageProp(w, p, g.damage * m.dmg, f.id);
+  }
+  for (const o of w.fighters) {
+    if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
+    if (o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) continue;
+    // stop at walls: no punching through them
+    if (!w.map.clearShot(f.x, f.y - 14, o.x, o.y - 12)) continue;
+    f.swingHit.push(o.id);
+    const connected = applyHit(w, o, {
+      damage: g.damage * m.dmg * (final ? 2 : 1),
+      kbX: f.facing * (final ? g.finalKnock : g.knockX) * m.knock,
+      kbY: final ? -160 : -20,
+      attacker: f.id,
+      weapon: f.hero + ':second',
+      kind: 'melee',
+      stun: final ? 0.3 : 0.18,
+      knockdown: final,
+      x: o.x - f.facing * (o.w / 2),
+      y: o.y - 14,
+    });
+    if (connected) w.emit({ t: 'heroFx', fx: 'steam', heavy: final, x: o.x - f.facing * (o.w / 2), y: o.y - 14 });
+  }
+}
+
+// ------------------------------------------------------------------ beams (Goku)
+
+/** Charge (seconds held) -> 0..1 */
+export function beamPower(b: BeamStats, charge: number): number {
+  if (b.maxCharge <= b.minCharge) return 1;
+  return Math.max(0, Math.min(1, (charge - b.minCharge) / (b.maxCharge - b.minCharge)));
+}
+
+/** Origin of a beam (between Goku's palms). */
+export function beamOrigin(f: Fighter): { x: number; y: number } {
+  return { x: f.x + f.facing * (f.w / 2 + 2), y: f.y - SHOULDER_Y_STAND + 2 };
+}
+
+/**
+ * An energy beam out to `len` px along `angle`, `half` px thick. Hits every fighter/prop on it once.
+ * Stops at solid tiles; with `breakTiles` glass and wood in the way shatter and it keeps going.
+ * Returns the actual length.
+ */
+export function beamHits(
+  w: World,
+  f: Fighter,
+  angle: number,
+  len: number,
+  half: number,
+  damage: number,
+  knock: number,
+  weapon: string,
+  breakTiles = false,
+): number {
+  const { x: x0, y: y0 } = beamOrigin(f);
+  const dx = Math.cos(angle) * f.facing;
+  const dy = Math.sin(angle);
+  let actual = len;
+  for (let d = 0; d <= len; d += 3) {
+    const px = x0 + dx * d;
+    const py = y0 + dy * d;
+    if (!w.map.solidAtPx(px, py)) continue;
+    const tx = Math.floor(px / TILE);
+    const ty = Math.floor(py / TILE);
+    if (breakTiles && w.map.def(tx, ty).breakable) {
+      w.breakTile(tx, ty);
+      continue;
+    }
+    actual = d;
+    break;
+  }
+  const x1 = x0 + dx * actual;
+  const y1 = y0 + dy * actual;
+  const m = meleeMuls(f);
+  for (const p of w.props) {
+    if (!p.active || f.swingProps.includes(p.id)) continue;
+    if (segmentAabb(x0, y0, x1, y1, p.x - p.w / 2 - half, p.y - p.h - half, p.x + p.w / 2 + half, p.y + half) < 0) continue;
+    f.swingProps.push(p.id);
+    pushProp(p, dx * knock * m.knock, dy * knock - 60);
+    damageProp(w, p, damage * m.dmg, f.id);
+  }
+  for (const o of w.fighters) {
+    if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
+    if (segmentAabb(x0, y0, x1, y1, o.x - o.w / 2 - half, o.y - o.h - half, o.x + o.w / 2 + half, o.y + half) < 0) continue;
+    f.swingHit.push(o.id);
+    const hx = Math.max(o.x - o.w / 2, Math.min(o.x + o.w / 2, x1));
+    const connected = applyHit(w, o, {
+      damage: damage * m.dmg,
+      kbX: dx * knock * m.knock,
+      kbY: dy * knock * m.knock - knock * 0.35,
+      attacker: f.id,
+      weapon,
+      kind: 'melee',
+      stun: 0.3,
+      knockdown: true,
+      x: hx,
+      y: o.y - o.h / 2,
+    });
+    if (connected) w.emit({ t: 'heroFx', fx: 'ki', heavy: true, x: hx, y: o.y - o.h / 2 });
+  }
+  return actual;
+}
+
+// ------------------------------------------------------------------ chakra bomb (Naruto super)
+
+export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/heroes').SuperAbility['bomb']>, level: number): void {
+  const l = Math.max(1, level) - 1;
+  const sx = f.x + f.facing * 8;
+  const sy = f.y - SHOULDER_Y_STAND - 2;
+  const m = meleeMuls(f);
+  w.spawnBullet({
+    x: sx,
+    y: sy,
+    vx: f.facing * b.speed,
+    vy: 0,
+    ox: sx,
+    oy: sy,
+    owner: f.id,
+    weapon: f.hero + ':super',
+    damage: (b.damage + b.damagePerLevel * l) * m.dmg,
+    range: 320,
+    falloff: 1,
+    knock: 300 * m.knock,
+    ricochet: false,
+    pierce: 0,
+    kind: 'chakra',
+    gravity: 0,
+    size: b.size + b.sizePerLevel * l,
+    explosion: { radius: b.radius + b.radiusPerLevel * l, damage: (b.damage * 0.8 + b.damagePerLevel * l) * m.dmg, knock: 420 + 40 * l, breakRadius: 12 + 4 * l, shake: 0.5 + 0.1 * l },
+  });
+  f.vx -= f.facing * 60;
+  w.emit({ t: 'special', f: f.id, power: f.hero, x: sx, y: sy, scale: 1 + l * 0.5 });
+}
+
 // ------------------------------------------------------------------ shadow clones
 
-/** Clones flash in beside the owner: one ahead, one behind facing the other way. */
+function newClone(f: Fighter, x: number, facing: 1 | -1, extra: Partial<Clone>): Clone {
+  const ab = ability(f);
+  return {
+    owner: f.id,
+    x,
+    y: f.y,
+    facing,
+    t: 0,
+    struck: [],
+    active: true,
+    damageMul: ab?.damageMul ?? 1,
+    knockMul: ab?.knockMul ?? 1,
+    vx: 0,
+    life: CLONE.life,
+    damage: CLONE.damage,
+    knockX: CLONE.knockX,
+    knockY: CLONE.knockY,
+    ...extra,
+  };
+}
+
+/** Combo clones (a combo hit with `clones`): flash in beside the owner, strike once. */
 export function spawnClones(w: World, f: Fighter, hit: MeleeHit): void {
   const n = hit.clones ?? 0;
-  const ab = ability(f);
   for (let i = 0; i < n; i++) {
     const side = i % 2 === 0 ? 1 : -1;
     const facing = (side === 1 ? f.facing : -f.facing) as 1 | -1;
     const x = f.x + f.facing * side * CLONE.offset * (1 + Math.floor(i / 2));
-    // never inside a wall
     if (w.map.rectSolid(x - f.w / 2, f.y - f.h, x + f.w / 2, f.y - 1)) continue;
-    const c: Clone = { owner: f.id, x, y: f.y, facing, t: 0, struck: [], active: true, damageMul: ab?.damageMul ?? 1, knockMul: ab?.knockMul ?? 1 };
-    w.clones.push(c);
+    w.clones.push(newClone(f, x, facing, {}));
     w.emit({ t: 'clone', f: f.id, x, y: f.y, facing });
   }
+}
+
+/** Naruto's ability 2: clones pop out beside him and rush ahead, hitting everyone they touch. */
+export function spawnRushClones(w: World, f: Fighter, c: NonNullable<SecondAbility['clones']>): number {
+  const n = Math.min(c.max, c.count + (f.power === 'hero' ? f.powerLevel : 0));
+  let made = 0;
+  for (let i = 0; i < n; i++) {
+    const x = f.x + f.facing * (6 + (i % 3) * 5) - f.facing * Math.floor(i / 3) * 8;
+    if (w.map.rectSolid(x - f.w / 2, f.y - f.h, x + f.w / 2, f.y - 1)) continue;
+    w.clones.push(newClone(f, x, f.facing, { vx: f.facing * c.speed * (1 - i * 0.07), life: c.life + i * 0.04, damage: c.damage, knockX: c.knockX, knockY: c.knockY, t: -i * 0.04 }));
+    w.emit({ t: 'clone', f: f.id, x, y: f.y, facing: f.facing });
+    made++;
+  }
+  return made;
 }
 
 export function updateClones(w: World): void {
@@ -327,26 +453,37 @@ export function updateClones(w: World): void {
     if (!c.active) continue;
     c.t += DT;
     const owner = w.fighters[c.owner];
-    if (c.t >= CLONE.life || !owner || !owner.alive) {
+    if (c.t >= c.life || !owner || !owner.alive) {
       c.active = false;
       w.emit({ t: 'cloneGone', x: c.x, y: c.y });
       continue;
     }
-    if (c.t < CLONE.delay || c.t > CLONE.delay + CLONE.active) continue;
-    const near = c.x + c.facing * 4;
-    const far = c.x + c.facing * (6 + CLONE.range);
+    if (c.t < 0) continue;
+    const rush = c.vx !== 0;
+    if (rush) {
+      const nx = c.x + c.vx * DT;
+      // a rushing clone poofs when it runs into a wall
+      if (w.map.rectSolid(nx - 5, c.y - 20, nx + 5, c.y - 2)) {
+        c.active = false;
+        w.emit({ t: 'cloneGone', x: c.x, y: c.y });
+        continue;
+      }
+      c.x = nx;
+    } else if (c.t < CLONE.delay || c.t > CLONE.delay + CLONE.active) continue;
+    const near = c.x + c.facing * (rush ? -2 : 4);
+    const far = c.x + c.facing * (rush ? 9 : 6 + CLONE.range);
     const l = Math.min(near, far);
     const r = Math.max(near, far);
-    const t = c.y - 18;
-    const b = c.y - 4;
+    const t = c.y - 20;
+    const b = c.y - 3;
     for (const o of w.fighters) {
       if (o.id === c.owner || o.gone || !o.alive || c.struck.includes(o.id)) continue;
       if (o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) continue;
       c.struck.push(o.id);
       const connected = applyHit(w, o, {
-        damage: CLONE.damage * c.damageMul,
-        kbX: c.facing * CLONE.knockX * c.knockMul,
-        kbY: CLONE.knockY * c.knockMul,
+        damage: c.damage * c.damageMul,
+        kbX: c.facing * c.knockX * c.knockMul,
+        kbY: c.knockY * c.knockMul,
         attacker: c.owner,
         weapon: 'clone',
         kind: 'melee',

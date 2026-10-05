@@ -33,8 +33,8 @@ describe('external sprite sheets', () => {
     f.combo = 2;
     expect(animFor(f, w.time).anim).toBe('punch3');
     f.state = 'normal';
-    f.power = 'kurama';
-    f.powerFull = true;
+    f.power = 'hero';
+    f.powerLevel = 1;
     expect(animFor(f, w.time).anim).toBe('poweredIdle');
     f.grounded = false;
     f.airJumpTime = w.time - 0.1;
@@ -53,7 +53,8 @@ describe('hero looks', () => {
       expect(a, id).toBeDefined();
       // parts drawn by the same modular baker as everyone else (no special sprite sizes)
       expect(typeof a.look.hair).toBe('string');
-      expect(Object.keys(a.powered).length, id).toBeGreaterThan(0);
+      expect(a.forms.length, id).toBe(4);
+      expect(a.fx.length, id).toBe(a.forms.length);
     }
   });
 });

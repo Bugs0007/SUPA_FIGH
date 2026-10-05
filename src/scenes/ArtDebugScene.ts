@@ -3,7 +3,7 @@ import { Art } from '../art';
 import { PLAYER_PRESETS, randomAppearance } from '../art/appearance';
 import { armFrame, BF, BODY_FRAMES, FRAME_META } from '../art/fighterArt';
 import { WEAPON_ART } from '../art/weaponArt';
-import { HERO_ART, poweredLook } from '../art/heroArt';
+import { formCount, formLook, HERO_ART } from '../art/heroArt';
 import { HEROES } from '../sim/data/heroes';
 import { VIEW_H, VIEW_W } from '../game/display';
 
@@ -44,29 +44,35 @@ export class ArtDebugScene extends Phaser.Scene {
     this.add.bitmapText(12, 345, 'sm', 'WEAPONS & PROPS: ?scene=art&page=weapons');
   }
 
-  /** Each hero normal + powered at 1x (true game size) and 4x, in a few poses, next to a scrapyard fighter. */
+  /** Every hero: base look + each transformation form (idle, 3x) and the last form punching and kicking. */
   private heroesPage(): void {
-    const poses = [BF.IDLE0, BF.RUN0 + 1, BF.JUMP, BF.PUNCH, BF.KICK, BF.CROUCH];
-    const rows = [{ name: 'SCRAPYARD', look: PLAYER_PRESETS[0] }];
+    let row = 0;
     for (const id of Object.keys(HERO_ART)) {
-      rows.push({ name: HEROES[id]?.name ?? id, look: HERO_ART[id].look });
-      rows.push({ name: (HEROES[id]?.name ?? id) + ' POWERED', look: poweredLook(id)! });
-    }
-    rows.forEach((r, row) => {
-      const tex = Art.fighter(this, r.look);
-      const y = 40 + row * 46;
-      this.add.bitmapText(4, y - 30, 'sm', r.name);
-      poses.forEach((frame, i) => {
-        const m = FRAME_META[frame];
-        const scale = i === 0 ? 1 : 1.5;
-        const x = i === 0 ? 70 : 110 + i * 70;
-        const c = this.add.container(x, y).setScale(scale);
+      const y = 100 + row * 112;
+      this.add.bitmapText(4, y - 96, 'sm', HEROES[id]?.name ?? id);
+      const looks = [HERO_ART[id].look, ...Array.from({ length: formCount(id) }, (_, i) => formLook(id, i + 1)!)];
+      looks.forEach((look, i) => {
+        const tex = Art.fighter(this, look);
+        const m = FRAME_META[BF.IDLE0];
+        const x = 40 + i * 62;
+        const c = this.add.container(x, y).setScale(3);
         c.add(this.add.image(m.bshX - 16, m.bshY - 32, tex.arm, armFrame(1.8, 0)).setTint(0xb0a8c0));
-        c.add(this.add.image(0, 0, tex.body, frame).setOrigin(0.5, 1));
+        c.add(this.add.image(0, 0, tex.body, BF.IDLE0).setOrigin(0.5, 1));
         c.add(this.add.image(m.neckX - 16, m.neckY - 32, tex.head, 0).setOrigin(8 / 16, 13 / 16));
-        c.add(this.add.image(m.shX - 16, m.shY - 32, tex.arm, armFrame(frame === BF.PUNCH ? 0 : 1.3, frame === BF.PUNCH ? 1 : 0)));
+        c.add(this.add.image(m.shX - 16, m.shY - 32, tex.arm, armFrame(1.4, 0)));
+        this.add.bitmapText(x, y + 4, 'sm', i === 0 ? 'BASE' : HEROES[id].forms[i - 1].name.replace('SUPER SAIYAN', 'SSJ').replace(' CLOAK', '').replace(' FORM', '')).setOrigin(0.5, 0);
       });
-    });
+      const last = Art.fighter(this, looks[looks.length - 1]);
+      [BF.PUNCH, BF.KICK].forEach((frame, i) => {
+        const m = FRAME_META[frame];
+        const c = this.add.container(380 + i * 70, y).setScale(3);
+        c.add(this.add.image(m.bshX - 16, m.bshY - 32, last.arm, armFrame(1.8, 0)).setTint(0xb0a8c0));
+        c.add(this.add.image(0, 0, last.body, frame).setOrigin(0.5, 1));
+        c.add(this.add.image(m.neckX - 16, m.neckY - 32, last.head, 0).setOrigin(8 / 16, 13 / 16));
+        c.add(this.add.image(m.shX - 16, m.shY - 32, last.arm, armFrame(frame === BF.PUNCH ? 0 : 1.3, frame === BF.PUNCH ? 1 : 0)));
+      });
+      row++;
+    }
   }
 
   /** Every weapon/prop/projectile sprite at 2x with its id and grip marker. */

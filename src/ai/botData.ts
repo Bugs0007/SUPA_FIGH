@@ -95,9 +95,7 @@ export const WEAPON_AI: Record<string, WeaponAi> = {
   strength: { value: 32, range: [0, 0], kind: 'powerup' },
   bullettime: { value: 45, range: [0, 0], kind: 'powerup' },
   // hero power-ups (M9): anyone wants them; the matching hero even more (bot.ts)
-  chakrascroll: { value: 50, range: [0, 0], kind: 'powerup' },
-  strawtoken: { value: 50, range: [0, 0], kind: 'powerup' },
-  energycore: { value: 50, range: [0, 0], kind: 'powerup' },
+  powerorb: { value: 60, range: [0, 0], kind: 'powerup' },
 };
 
 export function weaponAi(id: string): WeaponAi {

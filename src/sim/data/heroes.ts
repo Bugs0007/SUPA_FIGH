@@ -1,87 +1,21 @@
-// Heroes and hero power-ups (M9). ALL hero/power numbers live here; looks/palettes live in
-// art/heroArt.ts. Names are data, so the heroes can be renamed/re-skinned without code changes.
+// Heroes (M9, reworked in M11). ALL hero numbers live here; looks/palettes live in art/heroArt.ts.
+// Names are data, so the heroes can be renamed/re-skinned without code changes (D49).
 //
-//   HeroDefinition     a selectable fighter (base stats + which power-up is "theirs")
-//   PowerUpDefinition  a rare world pickup (item id, duration, the ability it grants)
-//   AbilityDefinition  what a transformation changes: stat multipliers, a replacement fist combo /
-//                      kick, and a special attack on the ABILITY button
-// Any fighter can grab any power-up. The matching hero gets the full transformation; everyone else
-// gets GENERIC_BOOST for a shorter time (D43). Runtime state ("TransformationState") lives on the
-// Fighter: power, powerTime, powerMax, powerFull, specialCd, charge (see sim/hero.ts).
+//   HeroDefinition   a selectable fighter: base stats, three moves and a ladder of transformation forms
+//     base           ABILITY 1 (ABILITY button): always available
+//     second         ABILITY 2 (the KICK button; heroes kick as the 4th hit of their combo instead)
+//     super          both ability buttons together, only while transformed; scales with the form level
+//     forms          level 1..N: every POWER ORB picked up raises the level (D58)
+// Anyone can grab a power orb: heroes climb their form ladder, scrapyard fighters get GENERIC_BOOST.
+// Runtime state lives on the Fighter: power ('' | 'hero' | 'boost'), powerLevel, powerTime... (sim/hero.ts).
 
-import type { ExplosionStats, MeleeHit } from './weapons';
+import type { MeleeHit } from './weapons';
 
-export type SpecialProjectile = 'chakra' | 'ki';
-
-export interface AbilitySpecial {
-  /** sim behavior: a projectile, or a stretching punch (hitbox grows out from the shoulder) */
-  kind: 'projectile' | 'stretch';
-  /** kill-feed / HUD label */
-  name: string;
-  /** seconds before the special can be used again */
-  cooldown: number;
-  /** projectile specials */
-  projectile?: {
-    kind: SpecialProjectile;
-    speed: number;
-    damage: number;
-    knock: number;
-    range: number;
-    /** hit radius (px) added around fighters/props */
-    size: number;
-    gravity?: number;
-    explosion?: ExplosionStats;
-  };
-  /** hold the button to charge (ki blast): stats scale from 1x to maxScale over `time` seconds */
-  charge?: { time: number; maxScale: number; minCooldown: number };
-  /** stretch specials: reach (px past the body), extend/hold/retract times */
-  stretch?: { range: number; out: number; hold: number; back: number; damage: number; knockX: number; knockY: number };
-  /** seconds the fighter is locked after firing a projectile special */
-  recover: number;
-}
-
-export interface AbilityDefinition {
-  speedMul: number;
-  /** melee + kick damage multiplier (fists, weapons, kicks) */
-  damageMul: number;
-  /** melee + kick knockback multiplier */
-  knockMul: number;
-  /** extra melee reach in px (all melee weapons) */
-  reach: number;
-  /** replaces the 3-hit fist combo while transformed (weapons keep their own combos) */
-  combo?: MeleeHit[];
-  kick?: MeleeHit;
-  special?: AbilitySpecial;
-}
-
-export interface PowerUpDefinition {
-  id: string;
-  /** shown when transforming / in the HUD */
-  name: string;
-  /** WEAPONS item id of the pickup (data/weapons.ts, powerup kind 'hero') */
-  item: string;
-  /** hero that gets the full transformation */
-  hero: string;
-  /** full transformation seconds */
-  duration: number;
-  /** relative chance when the world spawns a hero power-up */
-  weight: number;
-  ability: AbilityDefinition;
-  /** kill-feed label for the transformed fist combo */
-  comboName: string;
-}
-
-/**
- * A hero's signature move in base form (D51), on the ABILITY button. While fully transformed the
- * button fires the power's special instead (the generic boost from another hero's pickup keeps it).
- *   fly       free 8-direction levitation with a meter that refills on the ground (Goku)
- *   rasengan  wind up, then a gravity-free dash; the first fighter touched gets blasted away (Naruto)
- *   pistol    a stretch punch at 0 / up / down angles; if the fist hits a wall Luffy rockets to it
- */
+/** ABILITY 1 (see BaseAbility in earlier versions): Goku levitation, Naruto rasengan, Luffy gum-gum pistol. */
 export interface BaseAbility {
   kind: 'fly' | 'rasengan' | 'pistol';
   name: string;
-  /** short menu description (two lines max at the select screen) */
+  /** short menu description */
   desc: string;
   /** seconds between uses (flight: between take-offs) */
   cooldown: number;
@@ -89,19 +23,83 @@ export interface BaseAbility {
   fly?: { meter: number; regen: number; speed: number; accel: number; liftoff: number; minMeter: number };
   dash?: { windup: number; time: number; speed: number; recover: number; damage: number; knockX: number; knockY: number; stun: number; radius: number };
   /** angles in radians (0 = forward, negative = up); the fist stops at walls and then pulls Luffy in */
-  stretch?: {
-    range: number;
-    out: number;
-    hold: number;
-    back: number;
-    damage: number;
-    knockX: number;
-    knockY: number;
-    upAngle: number;
-    downAngle: number;
-    rocketSpeed: number;
-    rocketTime: number;
-  };
+  stretch?: StretchStats;
+}
+
+export interface StretchStats {
+  range: number;
+  out: number;
+  hold: number;
+  back: number;
+  damage: number;
+  knockX: number;
+  knockY: number;
+  upAngle: number;
+  downAngle: number;
+  rocketSpeed: number;
+  rocketTime: number;
+  /** fist radius (px) — the super's giant fist */
+  fist?: number;
+}
+
+/** A charged energy beam (Kamehameha): grows out to `range`, holds, hits each fighter once. */
+export interface BeamStats {
+  /** min / max charge seconds (hold the button; released early = the min) */
+  minCharge: number;
+  maxCharge: number;
+  range: number;
+  grow: number;
+  hold: number;
+  /** half thickness px at no charge / full charge */
+  width: [number, number];
+  damage: [number, number];
+  knock: [number, number];
+  breakTiles?: boolean;
+}
+
+/** ABILITY 2 (KICK button for heroes). */
+export interface SecondAbility {
+  kind: 'beam' | 'clones' | 'gatling';
+  name: string;
+  desc: string;
+  cooldown: number;
+  beam?: BeamStats;
+  /** shadow clones rushing forward: count at base form (+1 per form level, capped), speed px/s, life s */
+  clones?: { count: number; max: number; speed: number; life: number; damage: number; knockX: number; knockY: number };
+  /** flurry of stretched punches: duration, seconds between punches, reach, per-hit damage, re-hit delay */
+  gatling?: { time: number; every: number; range: number; damage: number; knockX: number; rehit: number; finalKnock: number };
+}
+
+/** The super move (both abilities at once, transformed only). */
+export interface SuperAbility {
+  kind: 'bomb' | 'fist' | 'beam';
+  /** name per form level (index = level - 1) */
+  names: string[];
+  desc: string;
+  cooldown: number;
+  /** tailed beast bomb: wind-up, projectile speed, size and blast per level */
+  bomb?: { windup: number; speed: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number };
+  fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number };
+  beam?: BeamStats & { widthPerLevel: number; damagePerLevel: number };
+}
+
+/** One rung of a hero's transformation ladder. */
+export interface HeroForm {
+  name: string;
+  speedMul: number;
+  /** melee, kick and ability damage multiplier */
+  damageMul: number;
+  knockMul: number;
+  /** extra melee reach (px) */
+  reach: number;
+}
+
+/** Stat changes while powered (a hero form, or the generic boost). */
+export interface AbilityDefinition {
+  speedMul: number;
+  damageMul: number;
+  knockMul: number;
+  reach: number;
 }
 
 export interface HeroDefinition {
@@ -109,20 +107,30 @@ export interface HeroDefinition {
   name: string;
   /** one line for the select screen */
   blurb: string;
-  /** power-up id that fully transforms this hero */
-  power: string;
   /** base stat multipliers (kept within a few % of the scrapyard fighter) */
   stats: { speed: number; hp: number };
-  /** always-available signature move (D51) */
   base: BaseAbility;
+  second: SecondAbility;
+  super: SuperAbility;
+  forms: HeroForm[];
+  /** fist combo (punch, punch, punch, kick); the kick hit has `kick: true` */
+  combo: MeleeHit[];
+  /** kill-feed label of the combo */
+  comboName: string;
 }
 
-/** Shadow clone strikes (Kurama combo hit 3): timings in seconds, offsets/range in px. */
-export const CLONE = { offset: 13, delay: 0.08, active: 0.1, life: 0.38, range: 10, damage: 5, knockX: 200, knockY: -110 };
-
-/** Everyone who grabs someone else's power-up gets this (aura in the power's color). */
+/** Everyone who isn't a hero gets this from a power orb. */
 export const GENERIC_BOOST: AbilityDefinition = { speedMul: 1.12, damageMul: 1.2, knockMul: 1.15, reach: 0 };
 export const GENERIC_DURATION = 12;
+/** a transformation lasts this long; every orb (level up) refills it */
+export const FORM_DURATION = 24;
+/** seconds both ability buttons may be apart and still count as "together" (super) */
+export const SUPER_WINDOW = 0.1;
+/** pickup item of the power orb (data/weapons.ts) */
+export const POWER_ORB = 'powerorb';
+
+/** Shadow clones: strike timings for the combo clones (kept from M9 for Kurama's finisher) */
+export const CLONE = { offset: 13, delay: 0.08, active: 0.1, life: 0.38, range: 10, damage: 5, knockX: 200, knockY: -110 };
 
 /** Fist combo hit helper (fists timings by default). */
 const hit = (p: Partial<MeleeHit> & Pick<MeleeHit, 'damage'>): MeleeHit => ({
@@ -137,110 +145,22 @@ const hit = (p: Partial<MeleeHit> & Pick<MeleeHit, 'damage'>): MeleeHit => ({
   ...p,
 });
 
-export const POWERS: Record<string, PowerUpDefinition> = {
-  kurama: {
-    id: 'kurama',
-    name: 'KURAMA MODE',
-    item: 'chakrascroll',
-    hero: 'naruto',
-    duration: 20,
-    weight: 1,
-    comboName: 'CHAKRA FIST',
-    ability: {
-      speedMul: 1.2,
-      damageMul: 1.3,
-      knockMul: 1.3,
-      reach: 1,
-      combo: [
-        hit({ damage: 5 }),
-        hit({ damage: 5 }),
-        // third hit: shadow clones flash in beside him and strike too
-        hit({ damage: 8, windup: 0.08, active: 0.08, recover: 0.26, range: 11, knockX: 240, knockY: -150, stun: 0.3, knockdown: true, lunge: 70, clones: 2, fx: 'chakra' }),
-      ],
-      special: {
-        kind: 'projectile',
-        name: 'CHAKRA BOMB',
-        cooldown: 5,
-        recover: 0.3,
-        projectile: {
-          kind: 'chakra',
-          speed: 230,
-          damage: 14,
-          knock: 260,
-          range: 280,
-          size: 5,
-          explosion: { radius: 34, damage: 22, knock: 380, breakRadius: 14, shake: 0.6 },
-        },
-      },
-    },
-  },
-  gear2: {
-    id: 'gear2',
-    name: 'GEAR SECOND',
-    item: 'strawtoken',
-    hero: 'luffy',
-    duration: 18,
-    weight: 1,
-    comboName: 'RUBBER FIST',
-    ability: {
-      speedMul: 1.3,
-      damageMul: 1.15,
-      knockMul: 1.25,
-      reach: 4,
-      // stretchy arms: longer reach, quicker recovery
-      combo: [
-        hit({ damage: 5, windup: 0.04, recover: 0.1, range: 22, stretch: true, fx: 'steam' }),
-        hit({ damage: 5, windup: 0.04, recover: 0.1, range: 22, stretch: true, fx: 'steam' }),
-        hit({ damage: 10, windup: 0.07, active: 0.08, recover: 0.22, range: 28, knockX: 260, knockY: -150, stun: 0.3, knockdown: true, lunge: 60, stretch: true, fx: 'steam' }),
-      ],
-      kick: { damage: 9, windup: 0.07, active: 0.1, recover: 0.22, range: 22, knockX: 290, knockY: -160, stun: 0.3, knockdown: true, lunge: 30, stretch: true },
-      special: {
-        kind: 'stretch',
-        name: 'RUBBER BULLET',
-        cooldown: 1.8,
-        recover: 0.1,
-        stretch: { range: 120, out: 0.13, hold: 0.05, back: 0.14, damage: 16, knockX: 360, knockY: -150 },
-      },
-    },
-  },
-  ssj: {
-    id: 'ssj',
-    name: 'SUPER SAIYAN',
-    item: 'energycore',
-    hero: 'goku',
-    duration: 20,
-    weight: 1,
-    comboName: 'SAIYAN FIST',
-    ability: {
-      speedMul: 1.2,
-      damageMul: 1.3,
-      knockMul: 1.35,
-      reach: 1,
-      combo: [
-        hit({ damage: 7, windup: 0.06, knockX: 90 }),
-        hit({ damage: 4, windup: 0.03, active: 0.05, recover: 0.08 }),
-        hit({ damage: 10, windup: 0.08, active: 0.08, recover: 0.24, range: 11, knockX: 260, knockY: -160, stun: 0.3, knockdown: true, lunge: 75, fx: 'ki', heavy: true }),
-      ],
-      kick: { damage: 12, windup: 0.08, active: 0.09, recover: 0.24, range: 14, knockX: 320, knockY: -170, stun: 0.3, knockdown: true, lunge: 40, fx: 'ki', heavy: true },
-      special: {
-        kind: 'projectile',
-        name: 'KI BLAST',
-        cooldown: 2.6,
-        recover: 0.2,
-        charge: { time: 1, maxScale: 3, minCooldown: 0.6 },
-        projectile: { kind: 'ki', speed: 340, damage: 7, knock: 150, range: 300, size: 2 },
-      },
-    },
-  },
-};
+/** punch, punch, punch, KICK (knockdown finisher) */
+const heroCombo = (fx: 'chakra' | 'steam' | 'ki', stretch = false): MeleeHit[] => [
+  hit({ damage: 4, range: stretch ? 14 : 9, stretch, fx }),
+  hit({ damage: 4, range: stretch ? 14 : 9, stretch, fx }),
+  hit({ damage: 5, windup: 0.06, range: stretch ? 16 : 10, stretch, fx }),
+  hit({ damage: 9, windup: 0.08, active: 0.09, recover: 0.24, range: stretch ? 18 : 13, knockX: 280, knockY: -150, stun: 0.3, knockdown: true, lunge: 40, kick: true, fx, heavy: true }),
+];
 
 export const HEROES: Record<string, HeroDefinition> = {
   naruto: {
     id: 'naruto',
     name: 'NARUTO',
-    blurb: 'KURAMA MODE: SHADOW CLONE STRIKES + CHAKRA BOMB',
-    power: 'kurama',
+    blurb: 'NINE-TAILS FORMS: 1 TAIL > 4 TAILS > 6 TAILS (DARK) > KURAMA MODE (GOLD)',
     stats: { speed: 1.03, hp: 100 },
+    comboName: 'NINJA COMBO',
+    combo: heroCombo('chakra'),
     base: {
       kind: 'rasengan',
       name: 'RASENGAN',
@@ -248,13 +168,34 @@ export const HEROES: Record<string, HeroDefinition> = {
       cooldown: 3.2,
       dash: { windup: 0.14, time: 0.2, speed: 330, recover: 0.16, damage: 13, knockX: 330, knockY: -190, stun: 0.35, radius: 7 },
     },
+    second: {
+      kind: 'clones',
+      name: 'SHADOW CLONES',
+      desc: 'CLONES RUSH AHEAD AND STRIKE. MORE CLONES IN EVERY FORM.',
+      cooldown: 4,
+      clones: { count: 2, max: 5, speed: 240, life: 0.42, damage: 6, knockX: 230, knockY: -130 },
+    },
+    super: {
+      kind: 'bomb',
+      names: ['RASENSHURIKEN', 'TAILED BEAST BOMB', 'TAILED BEAST BOMB', 'KURAMA BIJUDAMA'],
+      desc: 'A GIANT CHAKRA BOMB. BIGGER IN EVERY FORM.',
+      cooldown: 8,
+      bomb: { windup: 0.45, speed: 190, size: 5, sizePerLevel: 1.5, damage: 16, damagePerLevel: 7, radius: 30, radiusPerLevel: 9 },
+    },
+    forms: [
+      { name: 'ONE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.15, knockMul: 1.1, reach: 0 },
+      { name: 'FOUR-TAIL CLOAK', speedMul: 1.15, damageMul: 1.3, knockMul: 1.2, reach: 1 },
+      { name: 'SIX-TAIL FORM', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 1 },
+      { name: 'KURAMA MODE', speedMul: 1.28, damageMul: 1.6, knockMul: 1.4, reach: 2 },
+    ],
   },
   luffy: {
     id: 'luffy',
     name: 'LUFFY',
-    blurb: 'GEAR SECOND: STRETCHY REACH + RUBBER BULLET',
-    power: 'gear2',
+    blurb: 'GEAR SECOND > GEAR THIRD > GEAR FOURTH > GEAR FIFTH',
     stats: { speed: 1.0, hp: 105 },
+    comboName: 'RUBBER COMBO',
+    combo: heroCombo('steam', true),
     base: {
       kind: 'pistol',
       name: 'GUM-GUM PISTOL',
@@ -262,20 +203,61 @@ export const HEROES: Record<string, HeroDefinition> = {
       cooldown: 1.2,
       stretch: { range: 100, out: 0.12, hold: 0.05, back: 0.12, damage: 9, knockX: 260, knockY: -130, upAngle: -0.8, downAngle: 0.8, rocketSpeed: 420, rocketTime: 0.3 },
     },
+    second: {
+      kind: 'gatling',
+      name: 'GUM-GUM GATLING',
+      desc: 'A FLURRY OF STRETCHY PUNCHES IN FRONT OF HIM.',
+      cooldown: 4,
+      gatling: { time: 0.7, every: 0.06, range: 64, damage: 2, knockX: 50, rehit: 0.12, finalKnock: 280 },
+    },
+    super: {
+      kind: 'fist',
+      names: ['JET PISTOL', 'ELEPHANT GUN', 'KING KONG GUN', 'BAJRANG GUN'],
+      desc: 'A GIANT FIST THAT FLATTENS EVERYTHING IN ITS PATH.',
+      cooldown: 8,
+      fist: { range: 150, out: 0.16, hold: 0.12, back: 0.14, damage: 18, knockX: 420, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 3, damagePerLevel: 8 },
+    },
+    forms: [
+      { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 3 },
+      { name: 'GEAR THIRD', speedMul: 1.15, damageMul: 1.4, knockMul: 1.35, reach: 6 },
+      { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.55, knockMul: 1.45, reach: 6 },
+      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.7, knockMul: 1.6, reach: 8 },
+    ],
   },
   goku: {
     id: 'goku',
     name: 'GOKU',
-    blurb: 'SUPER SAIYAN: HEAVY HITS + CHARGED KI BLAST',
-    power: 'ssj',
+    blurb: 'SUPER SAIYAN > SUPER SAIYAN 2 > SUPER SAIYAN 3 > SUPER SAIYAN BLUE',
     stats: { speed: 1.0, hp: 100 },
+    comboName: 'SAIYAN COMBO',
+    combo: heroCombo('ki'),
     base: {
       kind: 'fly',
       name: 'LEVITATION',
-      desc: 'FLY IN ALL 4 DIRECTIONS. ABILITY = TAKE OFF / LAND. AIR JUMP WHEN OUT OF JUMPS TOO.',
+      desc: 'FLY IN ALL 4 DIRECTIONS. ABILITY = TAKE OFF / LAND.',
       cooldown: 0.25,
       fly: { meter: 4.5, regen: 1.1, speed: 135, accel: 1100, liftoff: 150, minMeter: 0.4 },
     },
+    second: {
+      kind: 'beam',
+      name: 'KAMEHAMEHA',
+      desc: 'HOLD TO CHARGE, LET GO TO FIRE AN ENERGY BEAM.',
+      cooldown: 3.5,
+      beam: { minCharge: 0.25, maxCharge: 1.2, range: 230, grow: 0.12, hold: 0.28, width: [3, 6], damage: [8, 20], knock: [180, 360] },
+    },
+    super: {
+      kind: 'beam',
+      names: ['SUPER KAMEHAMEHA', 'SUPER KAMEHAMEHA', 'DRAGON FIST BEAM', 'GOD KAMEHAMEHA'],
+      desc: 'A HUGE BEAM THAT BREAKS GLASS AND WOOD. BIGGER IN EVERY FORM.',
+      cooldown: 8,
+      beam: { minCharge: 0.5, maxCharge: 0.5, range: 360, grow: 0.15, hold: 0.45, width: [8, 8], damage: [24, 24], knock: [460, 460], breakTiles: true, widthPerLevel: 2, damagePerLevel: 9 },
+    },
+    forms: [
+      { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.25, knockMul: 1.25, reach: 1 },
+      { name: 'SUPER SAIYAN 2', speedMul: 1.2, damageMul: 1.4, knockMul: 1.35, reach: 1 },
+      { name: 'SUPER SAIYAN 3', speedMul: 1.2, damageMul: 1.55, knockMul: 1.45, reach: 2 },
+      { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.7, knockMul: 1.55, reach: 2 },
+    ],
   },
 };
 
@@ -286,24 +268,20 @@ export function heroDef(id: string | undefined): HeroDefinition | null {
   return id ? (HEROES[id] ?? null) : null;
 }
 
-export function powerDef(id: string): PowerUpDefinition | null {
-  return POWERS[id] ?? null;
+/** Highest form level of a hero. */
+export function maxLevel(hero: string): number {
+  return HEROES[hero]?.forms.length ?? 0;
 }
 
-/** Power-up whose pickup item is `itemId`. */
-export function powerForItem(itemId: string): PowerUpDefinition | null {
-  for (const p of Object.values(POWERS)) if (p.item === itemId) return p;
-  return null;
-}
-
-/** Labels for hero attacks in the kill feed (weapon ids used by sim/hero.ts). */
+/** Kill-feed weapon ids of hero moves: '<hero>:combo', 'rasengan', 'gumgum', 'clone', '<hero>:second', '<hero>:super'. */
 export function heroAttackLabel(id: string): string | null {
-  for (const p of Object.values(POWERS)) {
-    if (id === p.id) return p.comboName;
-    if (id === p.id + ':special') return p.ability.special?.name ?? null;
-  }
   if (id === 'clone') return 'SHADOW CLONE';
-  for (const h of Object.values(HEROES)) if (id === baseWeaponId(h.base)) return h.base.name;
+  for (const h of Object.values(HEROES)) {
+    if (id === baseWeaponId(h.base)) return h.base.name;
+    if (id === h.id + ':combo') return h.comboName;
+    if (id === h.id + ':second') return h.second.name;
+    if (id === h.id + ':super') return h.super.names[h.super.names.length - 1];
+  }
   return null;
 }
 
