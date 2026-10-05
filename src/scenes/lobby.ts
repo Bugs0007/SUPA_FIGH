@@ -7,7 +7,6 @@ import { hexToNum, TEAM_COLORS } from '../art/palette';
 import type { Difficulty } from '../ai/botData';
 import { load, save } from '../game/storage';
 import { profiles, saveProfiles } from '../game/profiles';
-import { settings } from '../game/settings';
 import type { GameMode } from '../sim/match';
 import type { MatchSceneData, PlayerSetup } from './MatchScene';
 import { PLAYER_COLORS } from './ui';
@@ -131,7 +130,7 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
     if (!isBot && kb >= 0) human++;
     const color = s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : isBot ? hexToNum(TEAM_COLORS[0]) : PLAYER_COLORS[(human - 1) % PLAYER_COLORS.length];
     players.push({
-      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0 && settings.upJump, hero: s.hero || undefined },
+      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined },
       look: heroLook(s.hero, s.look),
       color,
       label,

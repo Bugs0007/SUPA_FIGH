@@ -396,6 +396,9 @@ export class Juice {
       // ------------------------------------------------ hero powers (M9)
       case 'transform': {
         const [c0, c1] = levelColors(e.hero, e.level);
+        this.r.heroFx.startTransform(e.f, e.level, c0, c1);
+        this.r.views[e.f]?.onTransform(c1);
+        this.cam.flash(120, (c0 >> 16) & 255, (c0 >> 8) & 255, c0 & 255);
         const big = e.level >= 3;
         fx.spawn({ frame: 'glowBig', x: e.x, y: e.y - 12, life: 0.25, s0: 2, s1: 4 + e.level, a0: 0.8, a1: 0, tint: c0, add: true, depth: 64 });
         fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.35, s0: 0.3, s1: 3.5 + e.level * 0.6, a0: 1, a1: 0, tint: c1, depth: 64 });

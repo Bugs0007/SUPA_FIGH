@@ -74,7 +74,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { heroDef, SUPER_WINDOW } from './data/heroes';
+import { heroDef, HOLD_FLY, SUPER_WINDOW } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -83,6 +83,7 @@ import {
   endPower,
   fireBomb,
   gatlingHit,
+  holdFlies,
   pistolHits,
   rasenganHit,
   secondAbility,
@@ -245,6 +246,10 @@ export interface Fighter extends Body {
   power: string;
   /** hero form level 1..N while power === 'hero' (D58) */
   powerLevel: number;
+  /** form health: stacked on top of hp, FORM_HP per level; the form ends at 0 (D61) */
+  formHp: number;
+  /** flying by holding Up (final forms): ends when Up is released */
+  flyHold: boolean;
   powerTime: number;
   powerMax: number;
   /** the power matches the hero (full transformation) vs. the generic boost */
@@ -389,6 +394,8 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     hero: hero ? hero.id : '',
     power: '',
     powerLevel: 0,
+    formHp: 0,
+    flyHold: false,
     powerTime: 0,
     powerMax: 0,
     powerFull: false,
@@ -891,6 +898,18 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
   if (f.h !== FIGHTER_H) restoreHeight(w, f);
   if (f.state !== 'normal') return;
   if (f.flying) {
+    stFly(w, f, inp, e, dt);
+    return;
+  }
+  // final forms (Naruto, Luffy): hold Up in the air, past the top of a jump, to fly (D61)
+  if (!f.grounded && inp.moveY < -0.5 && f.vy >= -40 && holdFlies(f) && !onLadder(w, f) && f.dropTimer <= 0) {
+    f.flying = true;
+    f.flyHold = true;
+    f.flyTime = 0;
+    f.jumping = false;
+    f.jumpBuffer = 0;
+    f.vy = Math.min(f.vy, 0) * 0.3;
+    w.emit({ t: 'flyStart', f: f.id, x: f.x, y: f.y });
     stFly(w, f, inp, e, dt);
     return;
   }
@@ -1757,7 +1776,18 @@ function updateBaseAbility(w: World, f: Fighter, dt: number): void {
   if (f.baseCd > 0) f.baseCd -= dt;
   const fly = baseAbility(f)?.fly;
   if (!fly) {
-    f.flying = false;
+    // hold-to-fly (final forms) keeps flying while Up is held; anything else lands
+    if (f.flyHold && f.flying && holdFlies(f)) {
+      const s = f.state;
+      if (s !== 'normal') {
+        f.flying = false;
+        f.flyHold = false;
+        w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: false });
+      } else f.flyTime += dt;
+    } else {
+      f.flying = false;
+      f.flyHold = false;
+    }
     return;
   }
   if (f.flying) {
@@ -1814,6 +1844,10 @@ function endFlight(w: World, f: Fighter, empty: boolean): void {
 
 /** Levitation: free 8-direction movement, no gravity. Attacks/guns/grabs all work in the air. */
 function stFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
+  if (f.flyHold) {
+    stHoldFly(w, f, inp, e, dt);
+    return;
+  }
   const fly = baseAbility(f)?.fly;
   if (!fly) {
     f.flying = false;
@@ -1837,6 +1871,32 @@ function stFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
   }
   // touching down ends the flight (not right after taking off from the ground)
   if (f.grounded && f.flyTime > 0.15) endFlight(w, f, false);
+}
+
+/** Hold-Up flight of the final forms: ascend and steer while Up is held, fall as soon as it is released. */
+function stHoldFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
+  const mx = axis(inp.moveX);
+  const end = () => {
+    f.flying = false;
+    f.flyHold = false;
+    w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: false });
+  };
+  if (inp.moveY >= -0.5 || (f.grounded && f.flyTime > 0.15)) {
+    end();
+    integrate(w, f, dt);
+    return;
+  }
+  const sp = HOLD_FLY.speed * f.speedMul;
+  f.vx = approach(f.vx, mx * sp, HOLD_FLY.accel * dt);
+  // ease up into a steady climb
+  f.vy = approach(f.vy, -sp * 0.75, HOLD_FLY.accel * dt);
+  if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
+  if (commonActions(w, f, inp, e)) return;
+  integrate(w, f, dt, false);
+  if (f.y - f.h < 2) {
+    f.y = 2 + f.h;
+    f.vy = Math.max(0, f.vy);
+  }
 }
 
 /** ABILITY in base form (or with another hero's generic boost). */

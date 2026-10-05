@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BotController } from '../../src/ai/bot';
-import { findConflicts, DEFAULT_KEYBOARD, cloneBinds, setBinding } from '../../src/input/bindings';
+import { ACTIONS, findConflicts, DEFAULT_KEYBOARD, cloneBinds, setBinding } from '../../src/input/bindings';
 import { DT } from '../../src/sim/constants';
 import { SLOT } from '../../src/sim/data/weapons';
 import { emptyIntent, packIntent, unpackIntent } from '../../src/sim/intent';
@@ -94,13 +94,15 @@ describe('input plumbing', () => {
 
   it('default bindings have no conflicts; duplicates are detected', () => {
     expect(findConflicts(DEFAULT_KEYBOARD)).toEqual([]);
+    // there is no keyboard jump key: Up is the jump button (D50)
+    expect(ACTIONS as readonly string[]).not.toContain('jump');
     const binds = DEFAULT_KEYBOARD.map(cloneBinds);
-    setBinding(binds[1], 'jump', 0, 'KeyF'); // P2 jump on P1's attack key
+    setBinding(binds[1], 'kick', 0, 'KeyF'); // P2 kick on P1's attack key
     const c = findConflicts(binds);
     expect(c.length).toBe(1);
     expect(c[0].code).toBe('KeyF');
     expect(c[0].a).toEqual({ player: 0, action: 'attack' });
-    expect(c[0].b).toEqual({ player: 1, action: 'jump' });
+    expect(c[0].b).toEqual({ player: 1, action: 'kick' });
   });
 
   it('setBinding keeps at most two unique keys per action', () => {

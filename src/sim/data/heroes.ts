@@ -7,7 +7,7 @@
 //     super          both ability buttons together, only while transformed; scales with the form level
 //     forms          level 1..N: every POWER ORB picked up raises the level (D58)
 // Anyone can grab a power orb: heroes climb their form ladder, scrapyard fighters get GENERIC_BOOST.
-// Runtime state lives on the Fighter: power ('' | 'hero' | 'boost'), powerLevel, powerTime... (sim/hero.ts).
+// Runtime state lives on the Fighter: power ('' | 'hero' | 'boost'), powerLevel, formHp... (sim/hero.ts).
 
 import type { MeleeHit } from './weapons';
 
@@ -92,6 +92,8 @@ export interface HeroForm {
   knockMul: number;
   /** extra melee reach (px) */
   reach: number;
+  /** holding Up in the air flies (final forms of Naruto and Luffy) */
+  flies?: boolean;
 }
 
 /** Stat changes while powered (a hero form, or the generic boost). */
@@ -122,8 +124,16 @@ export interface HeroDefinition {
 /** Everyone who isn't a hero gets this from a power orb. */
 export const GENERIC_BOOST: AbilityDefinition = { speedMul: 1.12, damageMul: 1.2, knockMul: 1.15, reach: 0 };
 export const GENERIC_DURATION = 12;
-/** a transformation lasts this long; every orb (level up) refills it */
-export const FORM_DURATION = 24;
+/**
+ * Transformations never time out: each form level adds a stacked "form health" layer of this many HP on
+ * top of the normal health bar (level 3 = three layers). Damage hits the form layers first; when they are
+ * gone the transformation wears off. Eating another orb adds a fresh layer (D61).
+ */
+export const FORM_HP = 30;
+/** damage kinds that go straight through the form layers (the world, not a fight) */
+export const FORM_BYPASS = ['fall', 'water', 'drain'] as const;
+/** hold-to-fly (final forms of heroes whose `flies` is set): speed / acceleration */
+export const HOLD_FLY = { speed: 120, accel: 1000, liftoff: 70 };
 /** seconds both ability buttons may be apart and still count as "together" (super) */
 export const SUPER_WINDOW = 0.1;
 /** pickup item of the power orb (data/weapons.ts) */
@@ -186,7 +196,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       { name: 'ONE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.15, knockMul: 1.1, reach: 0 },
       { name: 'FOUR-TAIL CLOAK', speedMul: 1.15, damageMul: 1.3, knockMul: 1.2, reach: 1 },
       { name: 'SIX-TAIL FORM', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 1 },
-      { name: 'KURAMA MODE', speedMul: 1.28, damageMul: 1.6, knockMul: 1.4, reach: 2 },
+      { name: 'KURAMA MODE', speedMul: 1.28, damageMul: 1.6, knockMul: 1.4, reach: 2, flies: true },
     ],
   },
   luffy: {
@@ -221,7 +231,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 3 },
       { name: 'GEAR THIRD', speedMul: 1.15, damageMul: 1.4, knockMul: 1.35, reach: 6 },
       { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.55, knockMul: 1.45, reach: 6 },
-      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.7, knockMul: 1.6, reach: 8 },
+      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.7, knockMul: 1.6, reach: 8, flies: true },
     ],
   },
   goku: {

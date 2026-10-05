@@ -134,17 +134,26 @@ export class CreatorScene extends Phaser.Scene {
       front = 0;
       len = 1;
     }
+    // Naruto's forms 1-3 run on all fours like a fox
+    const fox = this.hero === 'naruto' && level >= 1 && level <= 3 && frame !== BF.PUNCH;
+    if (fox) {
+      const running = frame >= BF.RUN0 && frame <= BF.RUN0 + 5;
+      frame = running ? BF.FOX_RUN0 + (Math.floor(this.t * 10) % 4) : Math.floor(this.t * 1.6) % 2 === 0 ? BF.FOX_IDLE0 : BF.FOX_IDLE1;
+      front = running ? 1.15 + Math.sin(this.t * 14) * 0.5 : 1.2;
+      back = running ? 1.15 - Math.sin(this.t * 14) * 0.5 : 1.05;
+      len = 1;
+    }
     const m = FRAME_META[frame];
     p.body.setTexture(tex.body, frame);
     p.head.setTexture(tex.head, 0).setPosition(m.neckX - 16, m.neckY - 32);
     p.front.setTexture(tex.arm, armFrame(front, len)).setPosition(m.shX - 16, m.shY - 32);
-    p.back.setTexture(tex.arm, armFrame(back, 0)).setPosition(m.bshX - 16, m.bshY - 32);
+    p.back.setTexture(tex.arm, armFrame(back, fox ? 1 : 0)).setPosition(m.bshX - 16, m.bshY - 32);
     p.root.y = 280 + Math.round(Math.sin(this.t * 3) * 2);
     // aura + tails while transformed (chunky orbiting pixels, like in a match)
     const g = this.aura.clear();
     if (powered) {
       const fxd = formFx(this.hero, level);
-      drawTails(g, fxd, 140, p.root.y, 1, this.t, 6);
+      drawTails(g, fxd, 140, p.root.y, 1, this.t, 6, this.hero === 'naruto' && level <= 3);
       const n = 6 + fxd.power * 3;
       for (let i = 0; i < n; i++) {
         const a = this.t * (3 + fxd.power) + (i * Math.PI * 2) / n;

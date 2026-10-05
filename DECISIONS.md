@@ -368,3 +368,19 @@ start from standing, crouching or the recovery of a combo hit.
 ### D60 — Holding Attack with a gun or throwable latches Up
 Pressing Up while aiming used to jump when Attack went down in the same tick or for melee-style aims. Up is now
 latched (never a jump) whenever Attack is held with a gun or throwable, until Up is released.
+
+## M12 — Form health, universal transformation animation, final-form flight
+
+### D61 — Forms are health bars, not timers
+Heroes' transformations no longer expire. Each form level adds a layer of `FORM_HP` (30) form health stacked on
+top of the normal bar (`Fighter.formHp`, up to level x 30; a new orb adds one fresh layer on top of what is left).
+`applyHit` sends damage into the form health first and only the overflow reaches `hp`; at zero the transformation
+ends (back to base). Falls, water and sudden-death drain bypass it (`FORM_BYPASS`). The generic boost from an orb
+for non-heroes keeps its 12 s timer. The HUD panel and the overhead bars draw one thin bar per layer above the HP
+bar (name tags move up with the layers). One universal transformation animation (`HeroFx.startTransform`): 0.35 s
+of flicker + converging energy + a contracting ground ring, then a burst of two shockwave rings, a pillar of light,
+sparks and a coloured screen flash; it scales with the form level and is the same for every hero.
+Also in this change: the keyboard jump key is gone (Up is the jump; the UP / W JUMPS setting was removed),
+hold-Up flight for the final forms of Naruto and Luffy (`HeroForm.flies`, `stHoldFly`: climbs while Up is held, falls
+on release or when the form ends), Naruto's fox stance (forms 1-3 use four new low body frames and move on all
+fours), form 1's tail is made of translucent crimson aura (`FormFx.ghostTails`) and Kurama mode has no tails.

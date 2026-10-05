@@ -1,6 +1,7 @@
 import { LAST_HIT_CREDIT } from './constants';
 import type { HitKind } from './events';
 import type { Fighter } from './fighter';
+import { absorbForm } from './hero';
 import type { World } from './world';
 
 export interface Hit {
@@ -89,8 +90,10 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
 
   let dmg = Math.max(0, hit.damage);
   if (w.mods.has('glassJaw') && hit.kind !== 'drain') dmg *= 3;
+  const dealt = dmg;
+  dmg = absorbForm(w, v, dmg, hit.kind);
   v.hp -= dmg;
-  if (attacker && attacker !== v && attacker.alive && w.mods.has('vampires')) attacker.hp = Math.min(attacker.maxHp, attacker.hp + dmg * 0.5);
+  if (attacker && attacker !== v && attacker.alive && w.mods.has('vampires')) attacker.hp = Math.min(attacker.maxHp, attacker.hp + dealt * 0.5);
   if (attacker && attacker !== v) {
     v.lastAttacker = attacker.id;
     v.lastWeapon = hit.weapon;
@@ -100,7 +103,7 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
     t: 'hit',
     victim: v.id,
     attacker: hit.attacker,
-    damage: dmg,
+    damage: dealt,
     x: hx,
     y: hy,
     dirX: hit.kbX / len,

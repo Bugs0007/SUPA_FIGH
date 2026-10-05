@@ -7,7 +7,7 @@ import { animFor, EXTERNAL_SHEETS, sheetFrame, type ExternalSheetDef } from '../
 import { ARM_LONG, ARM_SHORT, ROLL_TIME } from '../sim/constants';
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
-import { baseAbility } from '../sim/hero';
+import { baseAbility, formLayers } from '../sim/hero';
 import { heroDef } from '../sim/data/heroes';
 
 /** Rig pivot: body center, this many px above the feet. */
@@ -51,6 +51,9 @@ export class FighterView {
   private lastFacing: number;
   /** smoothed lean (rig rotation) */
   private lean = 0;
+  /** transformation flash: seconds left + colour (D61) */
+  private xform = 0;
+  private xformColor = 0xffffff;
   private lastHp: number;
   /** smoothed hp for the damage trail on the health bar */
   hpTrail: number;
@@ -121,7 +124,7 @@ export class FighterView {
     } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) img.setTint(0xffa060);
     else img.clearTint();
     this.root.setAlpha(f.alive && f.invuln > 0 && f.state !== 'roll' && Math.floor(time * 20) % 2 === 0 ? 0.45 : 1);
-    this.tag.setVisible(f.alive).setPosition(Math.round(x), Math.round(y - 35));
+    this.tag.setVisible(f.alive).setPosition(Math.round(x), Math.round(y - 35 - formLayers(f) * 3));
   }
 
   /** the transformed (powered) textures are on screen (tests / debug) */
@@ -146,6 +149,19 @@ export class FighterView {
 
   onJump(): void {
     this.squash = -0.2;
+  }
+
+  /** universal transformation animation: the body flickers white/form-colour and pops (see HeroFx) */
+  onTransform(color: number): void {
+    this.xform = 0.55;
+    this.xformColor = color;
+    this.squash = -0.3;
+  }
+
+  /** Naruto's fox stance: forms 1-3 run on four legs (not the base and not the final form) */
+  private get fox(): boolean {
+    const f = this.fighter;
+    return f.hero === 'naruto' && f.power === 'hero' && f.powerLevel >= 1 && f.powerLevel <= 3;
   }
 
   onHit(): void {
@@ -230,7 +246,27 @@ export class FighterView {
     switch (f.state) {
       case 'normal': {
         smoothArms = true;
-        if (f.flying) {
+        if (this.fox && !isGun && !f.flying) {
+          if (f.grounded) {
+            if (speed > 15) {
+              this.runPhase += (speed * dt) / 6;
+              frame = BF.FOX_RUN0 + (Math.floor(this.runPhase) % 4);
+              const sw = Math.sin((this.runPhase / 4) * Math.PI * 2);
+              front = 1.15 - sw * 0.55;
+              back = 1.15 + sw * 0.55;
+            } else {
+              frame = Math.floor(time * 1.6 + f.id) % 2 === 0 ? BF.FOX_IDLE0 : BF.FOX_IDLE1;
+              front = 1.2;
+              back = 1.05;
+            }
+          } else {
+            frame = BF.FOX_JUMP;
+            front = 0.5;
+            back = 0.3;
+          }
+          frontLen = 1;
+          backLen = 1;
+        } else if (f.flying) {
           // levitating: calm hover, lean into the direction of travel, arms trail behind
           frame = BF.HOVER;
           const nvx = f.vx / 135;
@@ -300,6 +336,14 @@ export class FighterView {
         break;
       }
       case 'crouch':
+        if (this.fox && !isGun) {
+          frame = BF.FOX_IDLE1;
+          front = 1.25;
+          back = 1.1;
+          frontLen = 1;
+          backLen = 1;
+          break;
+        }
         if (speed > 5) this.runPhase += (speed * dt) / 4;
         frame = speed > 5 ? (Math.floor(this.runPhase) % 2 === 0 ? BF.CRAWL0 : BF.CRAWL1) : BF.CROUCH;
         front = 0.9;
@@ -629,7 +673,11 @@ export class FighterView {
     }
 
     // hit flash / spawn blink
-    if (this.flash > 0) {
+    if (this.xform > 0) {
+      this.xform -= dt;
+      const c = Math.floor(this.xform * 28) % 2 === 0 ? this.xformColor : 0xffffff;
+      for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTintFill(c);
+    } else if (this.flash > 0) {
       this.flash -= dt;
       for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTintFill(0xffffff);
     } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) {
@@ -647,6 +695,6 @@ export class FighterView {
     this.root.setAlpha(blink ? 0.45 : 1);
 
     this.tag.setVisible(f.alive);
-    this.tag.setPosition(Math.round(x), Math.round(y - 35));
+    this.tag.setPosition(Math.round(x), Math.round(y - 35 - formLayers(f) * 3));
   }
 }

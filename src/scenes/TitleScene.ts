@@ -158,7 +158,7 @@ export class TitleScene extends Phaser.Scene {
     const b = keyboardBinds[i];
     const keys = (a: Action, n = 2) => b[a].slice(0, n).map(keyLabel).join('/');
     const lines = [
-      `MOVE ${keys('left', 1)} ${keys('right', 1)}  JUMP ${keys('up', 1)}/${keys('jump')}  DROP ${keys('down', 1)} ${keys('down', 1)}`,
+      `MOVE ${keys('left', 1)} ${keys('right', 1)}  JUMP ${keys('up', 1)}  DROP ${keys('down', 1)} ${keys('down', 1)}`,
       `ATTACK ${keys('attack', 1)}  KICK ${keys('kick', 1)}  GRAB ${keys('interact', 1)}  SWAP ${keys('cycle', 1)}`,
       `ABILITY ${keys('ability', 1)}  MEDKIT ${keys('gadget', 1)}  HOLD ATTACK = AIM`,
     ];

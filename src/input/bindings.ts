@@ -1,15 +1,14 @@
 import { load, save } from '../game/storage';
 
-export const ACTIONS = ['left', 'right', 'up', 'down', 'jump', 'attack', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
+export const ACTIONS = ['left', 'right', 'up', 'down', 'attack', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
 export type Action = (typeof ACTIONS)[number];
 export type KeyBinds = Record<Action, string[]>;
 
 export const ACTION_LABELS: Record<Action, string> = {
   left: 'LEFT',
   right: 'RIGHT',
-  up: 'UP = JUMP / AIM UP',
+  up: 'UP = JUMP / FLY / AIM',
   down: 'DOWN (2X = DROP)',
-  jump: 'JUMP',
   attack: 'ATTACK (HOLD=AIM)',
   kick: 'KICK (HERO: ABILITY 2)',
   interact: 'PICK UP / GRAB',
@@ -25,7 +24,6 @@ export const DEFAULT_KEYBOARD: KeyBinds[] = [
     right: ['KeyD'],
     up: ['KeyW'],
     down: ['KeyS'],
-    jump: ['KeyG', 'Space'],
     attack: ['KeyF'],
     kick: ['KeyH'],
     interact: ['KeyT'],
@@ -38,7 +36,6 @@ export const DEFAULT_KEYBOARD: KeyBinds[] = [
     right: ['ArrowRight'],
     up: ['ArrowUp'],
     down: ['ArrowDown'],
-    jump: ['Numpad5', 'KeyK'],
     attack: ['Numpad4', 'KeyL'],
     kick: ['Numpad6', 'KeyJ'],
     interact: ['Numpad8', 'KeyO'],

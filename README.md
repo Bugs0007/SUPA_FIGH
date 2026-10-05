@@ -17,7 +17,7 @@ Open the game. The main menu has a card for each keyboard player and a quick-mat
 - **Quick Match** starts with those settings (0–8 and Tab still work as shortcuts).
 - **Match Setup** opens the lobby. There you set the players, teams, map, mode, rounds and chaos cards.
 - **Controls** lets you rebind every action for both keyboard layouts and up to 4 gamepads.
-- **Settings** covers volumes, screen shake, gore, damage numbers, replays, fullscreen and UP / W JUMPS.
+- **Settings** covers volumes, screen shake, gore, damage numbers, replays and fullscreen.
 
 On a gamepad, press START in the lobby to join.
 
@@ -25,7 +25,7 @@ On a gamepad, press START in the lobby to join.
 | Action | P1 | P2 (numpad) | P2 (laptop) | Gamepad |
 |---|---|---|---|---|
 | Move / aim | W A S D | Arrows | Arrows | Left stick / D-pad |
-| Jump | **W** / G / Space | **Up** / Num5 | **Up** / K | A |
+| Jump (there is no jump key: Up jumps) | **W** | **Up** | **Up** | A |
 | Drop through a platform | **S S** (double tap) | **Down Down** | **Down Down** | Down Down |
 | Attack (hold = aim) | F | Num4 | L | X / RT |
 | Kick (heroes: ability 2) | H | Num6 | J | B |
@@ -36,9 +36,9 @@ On a gamepad, press START in the lobby to join.
 
 Pause with Esc or Start (P too, if nobody has it bound).
 
-**W / Up is a full jump button:** ground jump, double jump, wall jump, and a short tap is a short hop. Up still
-climbs ladders, climbs ledges and sweeps your aim while you hold Attack (it never jumps then). You can turn
-this off in Settings (then only the Jump key jumps).
+**W / Up is the jump button** (the keyboard has no separate jump key): ground jump, double jump, wall jump, and a
+short tap is a short hop. Up still climbs ladders, climbs ledges and sweeps your aim while you hold Attack (it
+never jumps then).
 
 **Guns:** hold Attack to aim (Up and Down sweep the angle and never jump), or tap it for a hip shot.
 
@@ -62,11 +62,15 @@ Pick **Goku**, **Naruto** or **Luffy** on the main menu. Heroes have three moves
 | **Ability** key | Levitation (fly in 4 directions, ki meter) | Rasengan (dash strike) | Gum-Gum Pistol (stretch punch, rockets off walls) |
 | **Kick** key = ability 2 | Kamehameha (hold to charge) | Shadow clones rush ahead (+1 per form) | Gum-Gum Gatling |
 | **Both** keys = super (transformed only) | Super Kamehameha | Tailed Beast Bomb | Giant fist |
-| Forms (one **power orb** each) | Super Saiyan, SSJ2, SSJ3, Super Saiyan Blue | One-tail cloak, four-tail cloak, six-tail (black), Kurama mode (gold, nine tails) | Gear 2, 3, 4, 5 |
+| Forms (one **power orb** each) | Super Saiyan, SSJ2, SSJ3, Super Saiyan Blue | Crimson aura (one tail), four-tail cloak, six-tail (black), Kurama mode (gold, no tails) | Gear 2, 3, 4, 5 |
 
 Power orbs are the only pickup: a couple appear on the map every ~15 s. Every orb a hero eats takes them up one form
-(stronger, faster, bigger aura, a stronger super with a new name); each orb refills the 24 s timer, and when it runs out
-they drop back to base. Scrapyard fighters just get a short boost. Quick match link: `?heroes=naruto,luffy,goku`.
+(stronger, faster, bigger aura, a stronger super with a new name) and adds a stacked **form health** bar above their
+normal health (one layer of 30 per form). Forms never time out: hits drain the form layers first and the form wears off
+when they are gone. Transforming plays one shared animation (flicker, converging energy, shockwave, pillar of light).
+Naruto runs on all fours in forms 1-3 (form 1's tail is made of crimson aura) and is upright without tails as Kurama.
+Holding Up in the air flies in the **final forms of Naruto and Luffy** (Goku flies with his ability). Scrapyard fighters
+just get a short timed boost. Quick match link: `?heroes=naruto,luffy,goku`.
 
 ### Modes
 - **Brawl:** rounds, last fighter standing. The dead come back as ghosts who can shove things around.

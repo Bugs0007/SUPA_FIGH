@@ -27,13 +27,14 @@ export function powerColors(f: Fighter): [number, number] {
  * A fan of wavy chakra tails behind a fighter standing at (x, y = feet), tipped with a brighter colour.
  * `scale` lets menus draw them at preview size.
  */
-export function drawTails(g: Phaser.GameObjects.Graphics, fxd: FormFx, x: number, y: number, facing: number, time: number, scale: number): void {
+export function drawTails(g: Phaser.GameObjects.Graphics, fxd: FormFx, x: number, y: number, facing: number, time: number, scale: number, fox = false): void {
   const n = fxd.tails;
   if (n <= 0) return;
   const body = hexToNum(fxd.tailColors[0]);
   const tip = hexToNum(fxd.tailColors[1]);
-  const bx = x - facing * 3 * scale;
-  const by = y - 8 * scale;
+  const bx = x - facing * (fox ? 6 : 3) * scale;
+  const by = y - (fox ? 6 : 8) * scale;
+  const ghost = !!fxd.ghostTails;
   const len = (9 + Math.min(n, 6) * 1.2) * scale;
   for (let k = 0; k < n; k++) {
     // fan: theta 0 = straight back, pi/2 = straight up; nine tails also spread over the head
@@ -49,7 +50,10 @@ export function drawTails(g: Phaser.GameObjects.Graphics, fxd: FormFx, x: number
         const py = by + uy * d + ux * wave;
         const thick = (s < 3 ? 3 : s < 7 ? 2 : 1) * scale;
         const o = scale;
-        if (pass === 0) g.fillStyle(INK, 1).fillRect(Math.round(px) - o, Math.round(py) - o, thick + 2 * o, thick + 2 * o);
+        // ghost tails (form 1) are pure crimson aura: no solid body, no outline
+        if (ghost) {
+          if (pass === 1) g.fillStyle(s >= 6 ? tip : body, 0.5 - s * 0.03).fillRect(Math.round(px) - o, Math.round(py) - o, thick + 2 * o, thick + 2 * o);
+        } else if (pass === 0) g.fillStyle(INK, 1).fillRect(Math.round(px) - o, Math.round(py) - o, thick + 2 * o, thick + 2 * o);
         else g.fillStyle(s >= 7 ? tip : body, 1).fillRect(Math.round(px), Math.round(py), thick, thick);
       }
     }
@@ -104,6 +108,73 @@ export class HeroFx {
     }
   }
 
+  private xforms: { fid: number; t: number; c0: number; c1: number; level: number; burst: boolean }[] = [];
+
+  /**
+   * The one universal transformation animation (D61): energy streams in while the body flickers (0.35 s),
+   * then a burst: two shockwave rings, a pillar of light and a spray of sparks. Bigger with the form level.
+   */
+  startTransform(fid: number, level: number, c0: number, c1: number): void {
+    this.xforms.push({ fid, t: 0, c0, c1, level: Math.max(1, level), burst: false });
+  }
+
+  private ring(g: Phaser.GameObjects.Graphics, cx: number, cy: number, r: number, color: number, alpha: number, ry = 1): void {
+    const n = Math.max(12, Math.round(r * 2.4));
+    g.fillStyle(color, alpha);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * ry), 2, 2);
+    }
+  }
+
+  private drawTransforms(alpha: number, dt: number): void {
+    const g = this.orbs;
+    for (let i = this.xforms.length - 1; i >= 0; i--) {
+      const x = this.xforms[i];
+      x.t += dt;
+      const f = this.world.fighters[x.fid];
+      if (!f || x.t > 1.1) {
+        this.xforms.splice(i, 1);
+        continue;
+      }
+      const px = lerp(f.px, f.x, alpha);
+      const py = lerp(f.py, f.y, alpha);
+      const cy = py - 11;
+      const big = 0.8 + x.level * 0.25;
+      if (x.t < 0.35) {
+        // charge: a contracting ring on the ground, energy streaming into the body
+        const k = x.t / 0.35;
+        this.ring(g, px, py - 1, (1 - k) * 26 * big + 4, x.c1, 0.9, 0.22);
+        this.disc(g, px, cy, 2 + k * 6, x.c0, 0.35 + k * 0.4);
+        if (dt > 0) {
+          for (let n = emitCount(70, dt); n > 0; n--) {
+            const a = rnd(0, Math.PI * 2);
+            const r = rnd(16, 30) * big;
+            this.fx.spawn({ frame: 'p1', x: px + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.9, vx: -Math.cos(a) * r * 3.2, vy: -Math.sin(a) * r * 3, life: 0.3, a0: 0.2, a1: 1, tint: Math.random() < 0.5 ? x.c0 : x.c1, add: true, depth: 58 });
+          }
+        }
+      } else {
+        if (!x.burst) {
+          x.burst = true;
+          if (dt > 0) this.fx.sparks(px, cy, 0, -1, 14 + x.level * 6, x.c1, 260 + x.level * 40);
+        }
+        const k = (x.t - 0.35) / 0.75;
+        const fade = Math.max(0, 1 - k);
+        // two shockwave rings, the second a little later
+        this.ring(g, px, py - 1, 4 + k * 46 * big, x.c1, fade, 0.22);
+        if (k > 0.15) this.ring(g, px, py - 1, 4 + (k - 0.15) * 40 * big, 0xffffff, fade * 0.8, 0.22);
+        // pillar of light
+        const w = Math.max(0, (10 + x.level * 3) * (1 - k) * (k < 0.1 ? k * 10 : 1));
+        const h = 150;
+        g.fillStyle(x.c0, 0.5 * fade).fillRect(Math.round(px - w / 2 - 2), Math.round(py - h), Math.round(w + 4), h);
+        g.fillStyle(x.c1, 0.8 * fade).fillRect(Math.round(px - w / 2), Math.round(py - h), Math.round(w), h);
+        g.fillStyle(0xffffff, fade).fillRect(Math.round(px - w / 4), Math.round(py - h), Math.max(1, Math.round(w / 2)), h);
+        // ground flash
+        g.fillStyle(0xffffff, 0.6 * fade).fillRect(Math.round(px - 20 * big * (1 - k * 0.5)), Math.round(py - 1), Math.round(40 * big * (1 - k * 0.5)), 2);
+      }
+    }
+  }
+
   sync(alpha: number, dt: number, time: number): void {
     this.back.clear();
     this.front.clear();
@@ -128,13 +199,14 @@ export class HeroFx {
     }
     this.drawClones(time);
     this.drawOrbs(alpha, dt, time);
+    this.drawTransforms(alpha, dt);
   }
 
   // ------------------------------------------------------------------ auras and tails
 
   private aura(f: Fighter, x: number, y: number, dt: number, time: number): void {
     const [c0, c1] = powerColors(f);
-    const expiring = f.powerTime < 3 && Math.floor(time * 10) % 2 === 0;
+    const expiring = f.power === 'boost' && f.powerTime < 3 && Math.floor(time * 10) % 2 === 0;
     if (expiring) return;
     const fxd = f.power === 'hero' ? formFx(f.hero, f.powerLevel) : null;
     const pw = fxd?.power ?? 0;
@@ -212,7 +284,12 @@ export class HeroFx {
 
   /** Chakra tails (Naruto's forms) behind the body. */
   private tails(f: Fighter, x: number, y: number, time: number): void {
-    drawTails(this.back, formFx(f.hero, f.powerLevel), x, y, f.facing, time, 1);
+    const fox = f.hero === 'naruto' && f.powerLevel >= 1 && f.powerLevel <= 3 && f.state !== 'melee' && f.state !== 'special';
+    drawTails(this.back, formFx(f.hero, f.powerLevel), x, y, f.facing, time, 1, fox);
+    if (formFx(f.hero, f.powerLevel).ghostTails && Math.random() < 0.5) {
+      // the aura tail sheds crimson sparks
+      this.fx.spawn({ frame: 'p1', x: x - f.facing * rnd(5, 18), y: y - rnd(8, 22), vy: rnd(-30, -10), life: rnd(0.2, 0.4), a0: 1, a1: 0, tint: 0xff4a3a, add: true, depth: 42 });
+    }
   }
 
   // ------------------------------------------------------------------ flight, rasengan

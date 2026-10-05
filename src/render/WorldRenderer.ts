@@ -15,7 +15,9 @@ import { Fx } from './Fx';
 import { HeroFx } from './HeroFx';
 import { DecorLayer } from './Decor';
 import { POWER_ORB } from '../sim/data/heroes';
-import { baseAbility } from '../sim/hero';
+import { baseAbility, formLayers } from '../sim/hero';
+import { FORM_HP } from '../sim/data/heroes';
+import { formFx } from '../art/heroArt';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -289,6 +291,18 @@ export class WorldRenderer {
       bars.fillStyle(0xffffff, 1).fillRect(x, y, Math.round(14 * trail), 2);
       const col = frac > 0.6 ? P.green2 : frac > 0.3 ? P.yellow : P.red2;
       bars.fillStyle(hexToNum(col), 1).fillRect(x, y, Math.round(14 * frac), 2);
+      // form health layers stacked above the HP bar (D61)
+      if (f.power === 'hero') {
+        const col = hexToNum(formFx(f.hero, f.powerLevel).aura[0]);
+        const layers = formLayers(f);
+        for (let k = 0; k < layers; k++) {
+          const frac = Math.max(0, Math.min(1, (f.formHp - k * FORM_HP) / FORM_HP));
+          const ly = y - 3 * (k + 1);
+          bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, ly - 1, 16, 4);
+          bars.fillStyle(0x3a3448, 1).fillRect(x, ly, 14, 2);
+          bars.fillStyle(col, 1).fillRect(x, ly, Math.round(14 * frac), 2);
+        }
+      }
       // levitation ki meter (Goku): a strip under the HP bar while it isn't full / while flying
       const fly = baseAbility(f)?.fly;
       if (fly && !(f.power === 'hero') && (f.flying || f.flyMeter < fly.meter)) {

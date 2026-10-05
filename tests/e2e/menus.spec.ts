@@ -56,13 +56,13 @@ test('rebind P1 jump, see it saved, restore defaults', async ({ page }) => {
   await press(page, 'KeyC');
   await onScene(page, 'controls');
   await page.waitForTimeout(200);
-  await press(page, 'ArrowDown', 5); // jump row
+  await press(page, 'ArrowDown', 5); // attack row
   await press(page, 'Enter');
   await press(page, 'KeyQ');
   const saved = await page.evaluate(() => localStorage.getItem('scrapyard-riot:keybinds') ?? Object.entries(localStorage).find(([k]) => k.includes('keybinds'))?.[1] ?? '');
   expect(saved).toContain('KeyQ');
   // bind P1 kick to P2's attack key to trigger a conflict warning
-  await press(page, 'ArrowDown', 2); // kick row
+  await press(page, 'ArrowDown', 1); // kick row
   await press(page, 'Enter');
   await press(page, 'KeyL');
   await page.screenshot({ path: 'tests/e2e/screenshots/controls.png' });

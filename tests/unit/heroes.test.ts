@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../../src/sim/constants';
-import { FORM_DURATION, GENERIC_DURATION, HEROES, POWER_ORB, heroAttackLabel, maxLevel } from '../../src/sim/data/heroes';
+import { FORM_HP, GENERIC_DURATION, HEROES, POWER_ORB, heroAttackLabel, maxLevel } from '../../src/sim/data/heroes';
 import { SLOT, WEAPONS, weaponDef } from '../../src/sim/data/weapons';
 import type { Fighter, FighterSpawn } from '../../src/sim/fighter';
-import { ability, transform, transformed } from '../../src/sim/hero';
-import { killFighter } from '../../src/sim/combat';
+import { ability, formLayers, holdFlies, transform, transformed } from '../../src/sim/hero';
+import { applyHit, killFighter } from '../../src/sim/combat';
 import type { SimEvent } from '../../src/sim/events';
 import { packIntent, type Intent } from '../../src/sim/intent';
 import { Match } from '../../src/sim/match';
@@ -103,7 +103,7 @@ describe('hero data', () => {
 });
 
 describe('transformations (power orbs)', () => {
-  it('each orb raises a hero one form level; the timer refills; the top level caps', () => {
+  it('each orb raises a hero one form level and adds a layer of form health; the top level caps', () => {
     const w = heroWorld('naruto');
     const f = w.fighters[0];
     expect(f.power).toBe('');
@@ -113,7 +113,8 @@ describe('transformations (power orbs)', () => {
       transform(w, f);
       expect(f.power).toBe('hero');
       expect(f.powerLevel).toBe(lvl);
-      expect(f.powerTime).toBe(FORM_DURATION);
+      expect(f.formHp).toBe(lvl * FORM_HP);
+      expect(formLayers(f)).toBe(lvl);
       expect(ability(f)).toBe(HEROES.naruto.forms[lvl - 1]);
     }
     transform(w, f);
@@ -129,16 +130,59 @@ describe('transformations (power orbs)', () => {
     expect(w.items.some((it) => it.active && it.weaponId === POWER_ORB)).toBe(false);
   });
 
-  it('forms expire back to the base form; death ends them too', () => {
+  it('forms never time out: they last until the form health is gone', () => {
     const w = heroWorld('luffy');
     const f = w.fighters[0];
     levelUp(w, f, 2);
-    expect(f.speedMul).toBeDefined();
-    run(w, Math.ceil(FORM_DURATION * 60) + 10);
+    run(w, 60 * 120);
+    expect(f.power).toBe('hero');
+    expect(f.powerLevel).toBe(2);
+    expect(f.formHp).toBe(2 * FORM_HP);
+  });
+
+  it('damage goes into the form health first; the form wears off at zero, extra damage reaches hp', () => {
+    const w = heroWorld('goku');
+    const f = w.fighters[0];
+    levelUp(w, f, 2); // 60 form hp
+    const hit = (dmg: number) => applyHit(w, f, { damage: dmg, kbX: 0, kbY: 0, attacker: 1, weapon: 'fists', kind: 'melee' });
+    hit(20);
+    expect(f.formHp).toBe(40);
+    expect(f.hp).toBe(f.maxHp);
+    expect(formLayers(f)).toBe(2);
+    f.invuln = 0;
+    hit(25);
+    expect(f.formHp).toBe(15);
+    expect(formLayers(f)).toBe(1);
+    f.invuln = 0;
+    hit(30); // 15 absorbed, 15 left over
     expect(f.power).toBe('');
     expect(f.powerLevel).toBe(0);
+    expect(f.hp).toBe(f.maxHp - 15);
+  });
+
+  it('falls, water and sudden-death drain bypass the form health', () => {
+    const w = heroWorld('goku');
+    const f = w.fighters[0];
+    levelUp(w, f, 1);
+    applyHit(w, f, { damage: 5, kbX: 0, kbY: 0, attacker: -1, weapon: 'drain', kind: 'drain' });
+    expect(f.formHp).toBe(FORM_HP);
+    expect(f.hp).toBe(f.maxHp - 5);
+  });
+
+  it('a new orb adds a fresh layer on top of whatever is left', () => {
+    const w = heroWorld('luffy');
+    const f = w.fighters[0];
+    levelUp(w, f, 1);
+    f.formHp = 10;
+    transform(w, f);
+    expect(f.powerLevel).toBe(2);
+    expect(f.formHp).toBe(10 + FORM_HP);
+  });
+
+  it('death ends the form', () => {
+    const w = heroWorld('luffy');
+    const f = w.fighters[0];
     levelUp(w, f, 3);
-    expect(f.power).toBe('hero');
     killFighter(w, f, { damage: 999, kbX: 0, kbY: 0, attacker: 1, weapon: 'fists', kind: 'melee' });
     run(w, 3);
     expect(f.power).toBe('');
@@ -164,6 +208,53 @@ describe('transformations (power orbs)', () => {
     expect(f.powerMax).toBe(GENERIC_DURATION);
     expect(transformed(f)).toBe(false);
     expect(ability(f)?.damageMul).toBeGreaterThan(1);
+  });
+});
+
+describe('hold Up to fly (final forms of Naruto and Luffy)', () => {
+  const flyWorld = (hero: string, level: number) => {
+    const w = new World(FLAT, [{ name: 'A', team: 0, isBot: false, upJumps: true, hero }, { name: 'B', team: 0, isBot: false, upJumps: false }], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 3);
+    run(w, 2);
+    place(w.fighters[0], 100);
+    place(w.fighters[1], 400);
+    levelUp(w, w.fighters[0], level);
+    run(w, 4);
+    return w;
+  };
+  const heightAfter = (w: World, ticks: number, i: Partial<Intent>) => {
+    let top = Infinity;
+    for (let t = 0; t < ticks; t++) {
+      w.step([intent(i), intent()]);
+      top = Math.min(top, w.fighters[0].y);
+    }
+    return top;
+  };
+
+  it.each(['naruto', 'luffy'])('%s: only the final form flies', (hero) => {
+    for (const lvl of [1, 3]) expect(holdFlies(flyWorld(hero, lvl).fighters[0])).toBe(false);
+    expect(holdFlies(flyWorld(hero, 4).fighters[0])).toBe(true);
+  });
+
+  it.each(['naruto', 'luffy'])('%s: holding Up climbs far above a normal jump; letting go falls', (hero) => {
+    const norm = heightAfter(flyWorld(hero, 3), 120, { moveY: -1 });
+    const w = flyWorld(hero, 4);
+    const flown = heightAfter(w, 120, { moveY: -1 });
+    expect(FLOOR_Y - flown).toBeGreaterThan(FLOOR_Y - norm + 40);
+    expect(w.fighters[0].flying).toBe(true);
+    heightAfter(w, 3, {});
+    expect(w.fighters[0].flying).toBe(false);
+    const y = w.fighters[0].y;
+    run(w, 20);
+    expect(w.fighters[0].y).toBeGreaterThan(y);
+  });
+
+  it('the form ends -> flight ends', () => {
+    const w = flyWorld('luffy', 4);
+    heightAfter(w, 60, { moveY: -1 });
+    expect(w.fighters[0].flying).toBe(true);
+    w.fighters[0].formHp = 0;
+    heightAfter(w, 3, { moveY: -1 });
+    expect(w.fighters[0].flying).toBe(false);
   });
 });
 
