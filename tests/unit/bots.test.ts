@@ -66,36 +66,36 @@ describe('bots and hero powers (M9)', () => {
   const heroSpec = (name: string, hero: string) => ({ ...spec(name), isBot: true, hero });
 
   it.each([
-    ['naruto', 'kurama', 'chakra'],
-    ['goku', 'ssj', 'ki'],
-  ] as const)('a transformed %s bot uses its special at mid range', (hero, power, kind) => {
+    ['naruto', 'clone'],
+    ['luffy', 'luffy:second'],
+    ['goku', 'goku:second'],
+  ] as const)('a base-form %s bot uses ability 2 (%s) at mid range', (hero, weapon) => {
     const w = new World(FLAT, [heroSpec('bot', hero), spec('dummy')], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 4);
     const [f, d] = w.fighters;
     f.x = f.px = 80;
-    d.x = d.px = 220;
-    transform(w, f, power);
+    d.x = d.px = hero === 'luffy' ? 120 : 180;
     const bot = new BotController(() => w, 0, { difficulty: 'hard', seed: 3 });
-    let fired = false;
-    for (let t = 0; t < 60 * 6 && !fired; t++) {
+    let used = false;
+    for (let t = 0; t < 60 * 8 && !used; t++) {
       w.step([bot.poll(), intent()]);
-      fired = w.bullets.some((b) => b.active && b.kind === kind);
+      used = w.events.some((e) => e.t === 'hit' && e.weapon === weapon);
     }
-    expect(fired).toBe(true);
+    expect(used).toBe(true);
   });
 
-  it('a transformed luffy bot throws the rubber bullet', () => {
+  it('a transformed bot fires its super when the target is in range', () => {
     const w = new World(FLAT, [heroSpec('bot', 'luffy'), spec('dummy')], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 4);
     const [f, d] = w.fighters;
     f.x = f.px = 100;
-    d.x = d.px = 180;
-    transform(w, f, 'gear2');
+    d.x = d.px = 200;
+    transform(w, f);
     const bot = new BotController(() => w, 0, { difficulty: 'hard', seed: 3 });
-    let stretched = 0;
-    for (let t = 0; t < 60 * 6 && stretched < 60; t++) {
+    let supered = false;
+    for (let t = 0; t < 60 * 10 && !supered; t++) {
       w.step([bot.poll(), intent()]);
-      stretched = Math.max(stretched, f.stretchLen);
+      supered = w.events.some((e) => e.t === 'superStart');
     }
-    expect(stretched).toBeGreaterThan(40);
+    expect(supered).toBe(true);
   });
 
   it.each([
@@ -115,16 +115,16 @@ describe('bots and hero powers (M9)', () => {
     expect(used).toBe(true);
   });
 
-  it('a bot goes for a hero power-up (its own hero even across the map)', () => {
+  it('a hero bot goes for a power orb across the map and transforms', () => {
     const w = new World(getMap('test'), [heroSpec('bot', 'goku')], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 3);
     const f = w.fighters[0];
     f.x = f.px = 4 * TILE;
     f.y = f.py = 27 * TILE;
-    w.spawnWeapon('energycore', 45 * TILE, 20 * TILE);
+    w.spawnWeapon('powerorb', 45 * TILE, 20 * TILE);
     const bot = new BotController(() => w, 0, { difficulty: 'normal', seed: 1 });
     for (let t = 0; t < 60 * 25 && !f.power; t++) w.step([bot.poll()]);
-    expect(f.power).toBe('ssj');
-    expect(f.powerFull).toBe(true);
+    expect(f.power).toBe('hero');
+    expect(f.powerLevel).toBe(1);
   });
 
   it('bots with heroes and power-ups finish matches without getting stuck', () => {

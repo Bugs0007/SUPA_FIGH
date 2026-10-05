@@ -293,6 +293,22 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
     pc.rect(X(3), Y(6), 2, 3, a.hairColor);
     for (const [x, y] of [[3, 2], [5, 1], [5, 2], [8, 0], [8, 1], [8, 2], [11, 1], [11, 2], [13, 3], [1, 5], [2, 8], [3, 9]]) pc.set(X(x), Y(y), a.hairColor);
   }
+  if (a.hair === 'saiyan3') {
+    // Super Saiyan 3: a huge golden mane down the back
+    pc.rect(X(3), Y(2), 10, 6, a.hairColor);
+    pc.rect(X(2), Y(5), 4, 10, a.hairColor);
+    pc.rect(X(1), Y(10), 3, 5, a.hairColor);
+    pc.rect(X(3), Y(3), 1, 11, hairDark);
+    for (const [x, y] of [[4, 1], [6, 0], [8, 0], [10, 1], [12, 2], [13, 4], [1, 6], [0, 9]]) pc.set(X(x), Y(y), a.hairColor);
+    for (const [x, y] of [[5, 0], [7, 1], [9, 1], [11, 2]]) pc.set(X(x), Y(y), shade(a.hairColor, 0.3));
+  }
+  if (a.hair === 'wild') {
+    // Gear 5: wild, cloud-like white hair
+    pc.rect(X(3), Y(3), 10, 5, a.hairColor);
+    for (const [x, y] of [[2, 4], [2, 7], [3, 9], [4, 2], [6, 1], [8, 1], [10, 2], [12, 2], [13, 4], [13, 6]]) pc.circle(X(x), Y(y), 1, a.hairColor);
+    pc.set(X(5), Y(3), shade(a.hairColor, -0.12));
+    pc.set(X(9), Y(2), shade(a.hairColor, -0.12));
+  }
   if (a.hair === 'long') pc.rect(X(4), Y(7), 3, 8, hairDark);
   if (a.hair === 'ponytail') pc.rect(X(3), Y(8), 2, 4, hairDark);
 
@@ -354,6 +370,18 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
       pc.set(X(9), Y(7), hc);
       pc.rect(X(5), Y(7), 2, 2, hc);
       break;
+    case 'saiyan3':
+      pc.rect(X(5), Y(6), 7, 1, hc);
+      pc.set(X(11), Y(7), hc);
+      pc.set(X(12), Y(8), hc);
+      pc.rect(X(5), Y(7), 2, 6, hc);
+      break;
+    case 'wild':
+      pc.rect(X(5), Y(5), 7, 2, hc);
+      pc.set(X(12), Y(6), hc);
+      pc.set(X(10), Y(7), hc);
+      pc.rect(X(5), Y(7), 2, 3, hc);
+      break;
     case 'saiyan':
       pc.rect(X(5), Y(6), 7, 1, hc);
       pc.set(X(12), Y(6), hc);
@@ -364,7 +392,7 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
   }
 
   // eyes
-  const eye = a.face === 'foxeyes' && mode === HEAD.NORMAL ? P.red2 : P.ink;
+  const eye = mode !== HEAD.NORMAL ? P.ink : (a.eyes ?? (a.face === 'foxeyes' ? P.red2 : P.ink));
   if (mode === HEAD.DEAD) {
     pc.set(X(9), Y(7), P.ink);
     pc.set(X(11), Y(7), P.ink);
@@ -515,7 +543,8 @@ function drawArm(pc: PixelCanvas, ox: number, oy: number, angle: number, len: nu
   for (let i = 0; i <= len; i++) {
     const x = Math.round(ox + 8 + c * i - 0.5);
     const y = Math.round(oy + 8 + s * i - 0.5);
-    const col = i < sl ? sleeve : i === sl && a.top === 'suit' ? P.white : a.skin;
+    let col = i < sl ? sleeve : i === sl && a.top === 'suit' ? P.white : a.skin;
+    if (a.trim && i === len - 2) col = a.trim; // wrist band
     pc.rect(x, y, 2, 2, col);
   }
   pc.outline(ox, oy, 17, 17);

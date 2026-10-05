@@ -102,6 +102,22 @@ describe('Up is the jump button (keyboard players)', () => {
     expect(peak(w, 20, { moveY: -1 })).toBeLessThan(14 * TILE - 20);
   });
 
+  it('Up already held when Attack goes down (gun or throwable) does not jump either', () => {
+    for (const id of ['pistol', 'grenade']) {
+      const w = world(true);
+      const f = w.fighters[0];
+      place(w, OPEN_FLOOR.x, OPEN_FLOOR.y);
+      f.inv[id === 'pistol' ? 1 : 3] = { id, ammo: 10, dur: 1 };
+      f.active = id === 'pistol' ? 1 : 3;
+      hold(w, 5, { moveY: -1 });
+      // (that first Up tap may jump: land again, then hold Up and press Attack)
+      hold(w, 90, {});
+      expect(f.grounded).toBe(true);
+      expect(peak(w, 40, { moveY: -1, attack: true })).toBe(OPEN_FLOOR.y);
+      expect(peak(w, 40, { moveY: -1 })).toBe(OPEN_FLOOR.y);
+    }
+  });
+
   it('Up while aiming a gun sweeps the aim and never jumps, even after letting go of attack', () => {
     const w = world(true);
     const f = w.fighters[0];

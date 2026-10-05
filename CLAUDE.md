@@ -2,7 +2,8 @@
 
 2D pixel-art side-view arena brawler for the browser (up to 10 fighters: 4 local humans + bots).
 Includes an anime-hero expansion (M9): Naruto / Luffy / Goku as tiny fighters with a base ability each
-(levitation / rasengan / gum-gum pistol, D51) and rare power-up pickups.
+(levitation / rasengan / gum-gum pistol, D51), a second ability on the kick key, a super (both keys) and four
+transformation forms each, raised by eating power orbs (D58).
 Phaser 3 + TypeScript + Vite. All art and audio are generated procedurally at startup.
 
 **Resuming work? Read `PROGRESS.md` first** (milestone checklist + "next steps"), then skim
@@ -36,10 +37,11 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
   item.ts         Weapons lying around + live throwables (fuses, sticky C4, mines, molotov impact).
   gimmicks.ts     Map gimmicks from MapDef.gimmicks: movers, hazards (crusher/laser/tunnel/fissure), gravity
                   zones, supply drops, conveyors, ship waves, cannons (fired with Interact).
-  hero.ts         Hero powers (M9): transform/expire, specials (projectile / stretch / ki charge), shadow
-                  clones (effect entities, never fighters). Data: data/heroes.ts (HEROES, POWERS, GENERIC_BOOST).
-                  Base abilities (D51, HEROES[id].base): Goku levitation, Naruto rasengan, Luffy gum-gum pistol;
-                  their states live in fighter.ts (stFly / stRasengan / stPistol / stRocket), hit math in hero.ts.
+  hero.ts         Heroes: power-orb transformation levels (D58), hit math for rasengan / stretch punches /
+                  gatling / beams / chakra bomb, shadow clones (effect entities, never fighters).
+                  Data: data/heroes.ts (HEROES: base = ability 1, second = ability 2 on the kick key, super = both
+                  keys, forms[], combo). Move states live in fighter.ts (heroButtons, stFly, stRasengan, stPistol,
+                  stBeam, stGatling, stBomb, stSuperFist...).
   replay.ts       RoundRecording (intents per tick) + ReplayPlayer (deterministic re-simulation).
   awards.ts       Post-match awards from match stats. data/modifiers.ts = chaos cards.
   data/weapons.ts ALL weapon stats live here (guns, melee, throwables, gadgets, powerups, FIRE/CARRY
@@ -59,7 +61,7 @@ src/ai/       Bots (pure TS, no Phaser — run headless too). Same Controller/In
 src/art/      Procedural pixel-art generators that bake Phaser textures at boot.
               ArtProvider (art/index.ts) is the asset-loader abstraction: swap in real sprite
               sheets later by implementing the same interface.
-              heroArt.ts = hero looks (modular fighter parts + powered variant, aura colors);
+              heroArt.ts = hero looks (base + one Appearance override and one FormFx per form: aura, tails, extras);
               externalSheets.ts = optional low-res PNG sheets per hero (format: docs/ASSETS.md).
 src/audio/    sfxr-style WebAudio synth + sound definitions + AudioManager (pitch randomized);
               music.ts = procedural chiptune sequencer (tracks as data).
@@ -103,12 +105,11 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
   theme (`art/tileArt.ts` THEMES + `art/backgroundArt.ts`). Register it in `sim/map/maps/index.ts`.
   `tests/unit/maps.test.ts` checks spawns, bot connectivity and a stuck-free bot match automatically.
 - Sound: add an sfxr param set in `audio/sounds.ts`, trigger from an event handler in `render/Juice.ts`.
-- Hero (M9): `HEROES` + `POWERS` entries in `sim/data/heroes.ts` (stats, combo/kick overrides, special),
-  a pickup item in `WEAPONS` (`powerup: { kind: 'hero', power }`, spawnWeight 0) + its sprite in
-  `art/weaponArt.ts`, a look in `art/heroArt.ts` (reuse/extend the parts in `art/fighterArt.ts` — same
-  pixel density as everyone), `POWER_COLORS`, bot value in `ai/botData.ts`. Check it at `/?scene=art&page=heroes`.
-  Names live only in data, so heroes can be renamed/re-skinned without code changes.
-- Map markers: `P` = hero power-up spawn (maps without one use weapon spawns); `powerBias` makes one power 3x likelier.
+- Hero: a `HEROES` entry in `sim/data/heroes.ts` (stats, 4-hit combo with a `kick: true` finisher, base / second /
+  super abilities, `forms`), a look + per-form overrides and `FormFx` in `art/heroArt.ts` (reuse/extend the parts in
+  `art/fighterArt.ts`; same pixel density as everyone), then wire the move states you need in `sim/fighter.ts` and
+  drawing in `render/HeroFx.ts`. Check it at `/?scene=art&page=heroes`. Names live only in data.
+- Map markers: `P` = power orb spawn (maps without one use weapon spawns). (`powerBias` in map data is unused.)
 
 ## Testing
 - `tests/unit/*.test.ts` — Vitest, Node. Pure sim logic only (no Phaser).
@@ -116,7 +117,7 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
   in cloud containers: `/opt/pw-browsers/chromium`). Screenshots go to `tests/e2e/screenshots/` (ignored).
   The game exposes `window.__GAME__` (`match()`, `scene()`, `game`).
   URL params: `?scene=match` skip title, `?scene=art` sprite inspector (`&page=weapons|heroes`), `?bots=N`, `?diff=easy|normal|hard|expert`, `?mode=deathmatch&time=120`, `?scene=lobby|controls|creator`,
-  `?heroes=naruto,luffy,goku` (heroes in player order, humans first), `?powers=0` (no hero power-ups),
+  `?heroes=naruto,luffy,goku` (heroes in player order, humans first), `?powers=0` (no power orbs),
   `?humans=0..2`, `?speed=4`, `?seed=123`, `?map=test`, `?timer=1` (setTimeout game loop — needed
   when the tab is hidden, e.g. the Claude browser pane, where requestAnimationFrame is paused).
 - Debug keys in match: F1 hitboxes/debug overlay, F2 cycle sim speed (1x/2x/4x), F3 frame step, Esc pause.

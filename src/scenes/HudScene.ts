@@ -8,11 +8,11 @@ import { teamKey } from '../sim/combat';
 import { computeAwards } from '../sim/awards';
 import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/match';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
-import { POWERS } from '../sim/data/heroes';
-import { POWER_COLORS } from '../art/heroArt';
+import { heroDef } from '../sim/data/heroes';
+import { BOOST_COLORS, formFx } from '../art/heroArt';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
-import { baseAbility } from '../sim/hero';
+import { formName, transformed } from '../sim/hero';
 import { audio } from '../audio/AudioManager';
 import { menu } from '../input/menu';
 import { isHumanInput, type MatchScene } from './MatchScene';
@@ -162,6 +162,10 @@ export class HudScene extends Phaser.Scene {
         this.add.bitmapText(0, 0, 'smo', ''),
         this.add.bitmapText(0, 0, 'smo', ''),
         this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 0),
+        // ability chips: A (ability 1), K (ability 2), S (super)
+        this.add.bitmapText(0, 0, 'smo', 'A').setOrigin(0.5, 0),
+        this.add.bitmapText(0, 0, 'smo', 'K').setOrigin(0.5, 0),
+        this.add.bitmapText(0, 0, 'smo', 'S').setOrigin(0.5, 0),
       ]);
       this.panelIcons.push(Array.from({ length: 5 }, () => this.add.image(0, 0, 'weapons').setVisible(false)));
       this.panelCounts.push(Array.from({ length: 5 }, () => this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 1).setDepth(2)));
@@ -453,21 +457,29 @@ export class HudScene extends Phaser.Scene {
       for (const t of this.panelTexts[n]) t.setAlpha(a);
       for (const t of this.panelCounts[n]) t.setAlpha(a);
       nameT.setText(p.label).setTint(p.color).setPosition(px, py);
-      // hero base ability (D51): ready / cooldown, or Goku's ki meter
-      const base = f.alive ? baseAbility(f) : null;
-      const sp = f.powerFull ? POWERS[f.power]?.ability.special : undefined;
-      const abX = px + PW - 7;
-      if (base && !sp) {
-        if (base.fly) {
-          const k = Math.max(0, Math.min(1, f.flyMeter / base.fly.meter));
-          abilT.setText(f.flying ? 'FLYING' : 'KI').setPosition(abX - 34, py + 1).setTint(f.flying ? 0xa8e0ff : 0x8d95b0).setVisible(true);
-          g.fillStyle(0x2a3550, a).fillRect(abX - 30, py + 2, 30, 3);
-          g.fillStyle(k < 0.25 ? hexToNum(P.red2) : 0x8ad8ff, a).fillRect(abX - 30, py + 2, Math.round(30 * k), 3);
-        } else {
-          const ready = f.baseCd <= 0;
-          abilT.setText(ready ? base.name : `${base.name} ${Math.ceil(f.baseCd)}`).setPosition(abX, py + 1).setTint(ready ? hexToNum(P.orange) : 0x5a5668).setVisible(true);
-        }
-      } else abilT.setVisible(false);
+      // hero abilities: three chips A / K / S (ability 1, ability 2 on the kick key, super = both).
+      // Each fills as its cooldown recovers; Goku's A chip is his ki meter.
+      const hero = f.alive ? heroDef(f.hero) : null;
+      const chipTexts = [this.panelTexts[n][5], this.panelTexts[n][6], this.panelTexts[n][7]];
+      abilT.setVisible(false);
+      if (hero) {
+        const sup = transformed(f);
+        const chips: { frac: number; on: boolean; col: number }[] = [
+          hero.base.fly
+            ? { frac: Math.max(0, Math.min(1, f.flyMeter / hero.base.fly.meter)), on: f.flying || f.flyMeter >= hero.base.fly.minMeter, col: f.flying ? 0xa8e0ff : 0x8ad8ff }
+            : { frac: 1 - Math.max(0, f.baseCd) / hero.base.cooldown, on: f.baseCd <= 0, col: hexToNum(P.orange) },
+          { frac: 1 - Math.max(0, f.secondCd) / hero.second.cooldown, on: f.secondCd <= 0, col: hexToNum(P.yellow) },
+          { frac: sup ? 1 - Math.max(0, f.specialCd) / hero.super.cooldown : 0, on: sup && f.specialCd <= 0, col: hexToNum(P.red2) },
+        ];
+        chips.forEach((c, k) => {
+          const cx = px + PW - 12 - (2 - k) * 13;
+          g.fillStyle(hexToNum(P.ink), a).fillRect(cx - 5, py - 1, 11, 10);
+          g.fillStyle(0x2a2438, a).fillRect(cx - 4, py, 9, 8);
+          g.fillStyle(c.col, a * (c.on ? 1 : 0.55)).fillRect(cx - 4, py + 8 - Math.round(8 * Math.max(0, Math.min(1, c.frac))), 9, Math.round(8 * Math.max(0, Math.min(1, c.frac))));
+          if (c.on && Math.floor(this.time.now / 250) % 2 === 0 && k === 2) g.lineStyle(1, 0xffffff, a).strokeRect(cx - 4.5, py - 0.5, 10, 9);
+          chipTexts[k].setVisible(true).setPosition(cx, py + 1).setTint(c.on ? hexToNum(P.ink) : 0x8d95b0).setAlpha(a);
+        });
+      } else chipTexts.forEach((t) => t.setVisible(false));
       // HP (full width) with boost timers underneath
       const hpFrac = Math.max(0, f.hp) / f.maxHp;
       const barW = PW - 7;
@@ -482,14 +494,14 @@ export class HudScene extends Phaser.Scene {
       weapT.setText(f.alive ? def.name : ghostText).setPosition(px, py + 17).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
       const ammo = item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
       ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 17).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
-      // hero power: name, time left, special cooldown (above the panel)
+      // transformation: form name + level pips + time left (above the panel)
       if (f.alive && f.power) {
-        const pd = POWERS[f.power];
-        const col = hexToNum(POWER_COLORS[f.power]?.[0] ?? P.white);
-        const ready = sp && f.specialCd <= 0;
-        const label = (f.powerFull ? pd?.name : 'POWERED UP') ?? '';
-        powT.setText(sp ? `${label}  ${ready ? 'ABILITY READY' : 'ABILITY ' + Math.ceil(f.specialCd) + 'S'}` : label).setPosition(px, py - 13).setTint(col).setVisible(true);
+        const isHero = f.power === 'hero';
+        const col = hexToNum((isHero ? formFx(f.hero, f.powerLevel).aura : BOOST_COLORS)[0]);
+        const lvlMax = heroDef(f.hero)?.forms.length ?? 0;
+        powT.setText(formName(f)).setPosition(px, py - 13).setTint(col).setVisible(true);
         g.fillStyle(hexToNum(P.ink), 0.75 * a).fillRect(px - 3, py - 15, PW, 11);
+        if (isHero) for (let l = 0; l < lvlMax; l++) g.fillStyle(l < f.powerLevel ? col : 0x3a3448, a).fillRect(px + PW - 8 - (lvlMax - l) * 7, py - 12, 5, 5);
         g.fillStyle(col, a).fillRect(px - 3, py - 5, Math.round(PW * Math.max(0, f.powerTime / f.powerMax)), 1);
       } else powT.setVisible(false);
       for (let s = 0; s < 5; s++) {

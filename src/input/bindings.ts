@@ -11,11 +11,11 @@ export const ACTION_LABELS: Record<Action, string> = {
   down: 'DOWN (2X = DROP)',
   jump: 'JUMP',
   attack: 'ATTACK (HOLD=AIM)',
-  kick: 'KICK',
+  kick: 'KICK (HERO: ABILITY 2)',
   interact: 'PICK UP / GRAB',
   cycle: 'SWITCH WEAPON',
   gadget: 'USE GADGET',
-  ability: 'HERO ABILITY',
+  ability: 'HERO ABILITY 1',
 };
 
 // Ctrl/Alt are deliberately never bound: P2 holding Ctrl while P1 presses W would close the tab.

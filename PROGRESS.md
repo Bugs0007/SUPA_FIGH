@@ -3,7 +3,7 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1–M10 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
+- **M1–M11 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
   build, anime universe expansion, M10 overhaul: crash fix, controls, hero base abilities, main menu, camera,
   animation, map detail). Manual play-test lists under M9 and M10.
 - `npm run dev` → http://localhost:5173 · `npm test` (259 unit tests) · `npm run test:e2e` (45 Playwright tests;
@@ -245,3 +245,12 @@ Status legend: [x] done · [~] partial · [ ] todo
   fighters for KEYBOARD 1/2; the creator's changes show up back on the title.
 - Camera: run to opposite ends of Night Train / Docks — both players stay on screen.
 - Restart a match 3x from the pause menu, quit to title and play again: no crash.
+
+## M11 — Orb transformations, hero moves ✅
+- [x] One power orb pickup replaces the three hero items; every orb = next form (4 forms per hero), D58
+- [x] New hero designs: per-form looks (eye colour, new hair styles, wrist bands), Naruto tails (1/4/6/9), per-form
+      auras (fire, lightning, steam, clouds); creator and art page cycle through all forms
+- [x] Combo is punch, punch, punch, kick; kick key = ability 2 (Kamehameha / shadow clone rush / gatling) (D59)
+- [x] Super move on both ability keys while transformed (Tailed Beast Bomb / giant fist / Super Kamehameha)
+- [x] Holding aim + Up never jumps (D60); HUD chips A / K / S with cooldowns; bots use all three moves
+- [x] Tests: 272 unit (hero rewrite, aim + Up) and 45 e2e (per-hero orb ladder, ability 2, super)

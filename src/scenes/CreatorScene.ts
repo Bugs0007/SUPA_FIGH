@@ -3,9 +3,9 @@ import { FACE_STYLES, HAIR_STYLES, HAT_STYLES, randomAppearance, TOP_STYLES, typ
 import { CLOTH_COLORS, HAIR_COLORS, hexToNum, P, SKIN_TONES } from '../art/palette';
 import { Art } from '../art';
 import { armFrame, BF, FRAME_META, type FighterTextures } from '../art/fighterArt';
-import { HERO_ART, POWER_COLORS, poweredLook } from '../art/heroArt';
-import { HEROES, HERO_ORDER, POWERS } from '../sim/data/heroes';
-import { weaponDef } from '../sim/data/weapons';
+import { formCount, formFx, formLook, HERO_ART } from '../art/heroArt';
+import { drawTails } from '../render/HeroFx';
+import { HEROES, HERO_ORDER } from '../sim/data/heroes';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
@@ -55,7 +55,9 @@ export class CreatorScene extends Phaser.Scene {
   private aura!: Phaser.GameObjects.Graphics;
   private preview: { root: Phaser.GameObjects.Container; body: Phaser.GameObjects.Image; head: Phaser.GameObjects.Image; front: Phaser.GameObjects.Image; back: Phaser.GameObjects.Image } | null = null;
   private texNormal: FighterTextures | null = null;
-  private texPowered: FighterTextures | null = null;
+  /** textures of each transformation form (hero only), index 0 = form level 1 */
+  private texForms: FighterTextures[] = [];
+  private formIdx = 0;
   private t = 0;
 
   constructor() {
@@ -92,7 +94,8 @@ export class CreatorScene extends Phaser.Scene {
 
   private rebuildPreview(): void {
     this.texNormal = Art.fighter(this, this.shownLook);
-    this.texPowered = this.hero ? Art.fighter(this, poweredLook(this.hero)!) : null;
+    this.texForms = [];
+    for (let l = 1; l <= formCount(this.hero); l++) this.texForms.push(Art.fighter(this, formLook(this.hero, l)!));
     if (!this.preview) {
       const tex = this.texNormal;
       const root = this.add.container(140, 280).setScale(6).setDepth(1);
@@ -110,8 +113,12 @@ export class CreatorScene extends Phaser.Scene {
     const p = this.preview;
     if (!p || !this.texNormal) return;
     const cycleT = this.t % 4;
-    const powered = !!this.texPowered && Math.floor(this.t / 4) % 2 === 1;
-    const tex = powered ? this.texPowered! : this.texNormal;
+    // heroes step through their base look and every transformation form, 3.2 s each
+    const steps = this.texForms.length + 1;
+    this.formIdx = this.texForms.length ? Math.floor(this.t / 3.2) % steps : 0;
+    const level = this.formIdx;
+    const powered = level > 0;
+    const tex = powered ? this.texForms[level - 1] : this.texNormal;
     let frame: number = Math.floor(this.t * 1.6) % 2 === 0 ? BF.IDLE0 : BF.IDLE1;
     let front = 1.4;
     let back = 1.75;
@@ -133,16 +140,17 @@ export class CreatorScene extends Phaser.Scene {
     p.front.setTexture(tex.arm, armFrame(front, len)).setPosition(m.shX - 16, m.shY - 32);
     p.back.setTexture(tex.arm, armFrame(back, 0)).setPosition(m.bshX - 16, m.bshY - 32);
     p.root.y = 280 + Math.round(Math.sin(this.t * 3) * 2);
-    // aura while powered (chunky orbiting pixels, like in a match)
+    // aura + tails while transformed (chunky orbiting pixels, like in a match)
     const g = this.aura.clear();
     if (powered) {
-      const hero = HEROES[this.hero];
-      const cols = POWER_COLORS[hero?.power ?? ''] ?? [P.white, P.white];
-      for (let i = 0; i < 10; i++) {
-        const a = this.t * 5 + (i * Math.PI * 2) / 10;
-        const x = 140 + Math.round(Math.cos(a) * 10) * 6;
-        const y = p.root.y - 66 + Math.round(Math.sin(a) * 14) * 6;
-        g.fillStyle(hexToNum(cols[i % 2]), 0.9).fillRect(x - 6, y - 6, 12, 12);
+      const fxd = formFx(this.hero, level);
+      drawTails(g, fxd, 140, p.root.y, 1, this.t, 6);
+      const n = 6 + fxd.power * 3;
+      for (let i = 0; i < n; i++) {
+        const a = this.t * (3 + fxd.power) + (i * Math.PI * 2) / n;
+        const x = 140 + Math.round(Math.cos(a) * (9 + fxd.power)) * 6;
+        const y = p.root.y - 66 + Math.round(Math.sin(a) * (13 + fxd.power * 1.5)) * 6;
+        g.fillStyle(hexToNum(fxd.aura[i % 2]), 0.9).fillRect(x - 6, y - 6, 12, 12);
       }
     }
   }
@@ -212,21 +220,20 @@ export class CreatorScene extends Phaser.Scene {
       this.heroText.setText(`HERO:  < ${hero ? hero.name : 'SCRAPYARD FIGHTER'} >`).setTint(sel ? 0xffffff : hero ? hexToNum(P.orange) : 0xc3c9dc);
     }
     // hero info replaces the part editor
-    const pw = hero ? POWERS[hero.power] : null;
-    const lines = hero && pw
+    const lines = hero
       ? [
           hero.name,
-          `SPEED ${Math.round(hero.stats.speed * 100)}%   HP ${hero.stats.hp}`,
-          `ABILITY: ${hero.base.name}`,
-          hero.base.desc.length > 46 ? hero.base.desc.slice(0, hero.base.desc.lastIndexOf(' ', 46)) : hero.base.desc,
-          `POWER-UP: ${weaponDef(pw.item).name} -> ${pw.name} (${pw.duration}S)`,
-          `POWERED ABILITY: ${pw.ability.special?.name ?? '-'}`,
-          hero.blurb,
-          'POWER-UPS ARE RARE PICKUPS ON ANY MAP.',
-          'NORMAL WEAPONS ALWAYS WORK.',
+          `SPEED ${Math.round(hero.stats.speed * 100)}%   HP ${hero.stats.hp}   COMBO: PUNCH PUNCH PUNCH KICK`,
+          `ABILITY (B / NUM1 / P): ${hero.base.name}`,
+          hero.base.desc,
+          `KICK KEY = ABILITY 2: ${hero.second.name}`,
+          hero.second.desc,
+          `BOTH ABILITIES = SUPER (TRANSFORMED): ${hero.super.names[0]}...`,
+          `POWER ORBS: EACH ONE = NEXT FORM (${hero.forms.length} FORMS)`,
+          this.formIdx > 0 ? `NOW SHOWING: ${hero.forms[this.formIdx - 1].name}` : 'NOW SHOWING: BASE FORM',
         ]
       : [];
-    this.info.forEach((t, i) => t.setText(lines[i] ?? '').setTint(i === 0 ? hexToNum(P.yellow) : i === 2 ? hexToNum(P.orange) : 0xc3c9dc));
+    this.info.forEach((t, i) => t.setText(lines[i] ?? '').setTint(i === 0 ? hexToNum(P.yellow) : i === 2 || i === 4 ? hexToNum(P.orange) : i === 8 ? hexToNum(P.yellow) : 0xc3c9dc));
     FIELDS.forEach((f, i) => {
       const r = R_FIRST + i;
       const sel = this.row === r;

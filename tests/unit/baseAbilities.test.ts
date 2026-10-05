@@ -160,17 +160,13 @@ describe('Goku: levitation', () => {
     expect(f.flying).toBe(false);
   });
 
-  it('Super Saiyan: ABILITY is the ki blast, and flight never runs out', () => {
+  it('once transformed, flight never runs out', () => {
     const w = world('goku');
     put(w, 0, 10 * TILE);
     put(w, 1, 34 * TILE);
     settle(w);
     const f = w.fighters[0];
-    transform(w, f, 'ssj');
-    hold(w, 1, { ability: true });
-    expect(f.state).toBe('special');
-    expect(f.specialKind).toBe('charge');
-    hold(w, 30, {});
+    transform(w, f);
     // jump, double jump, third press = flight; the meter does not drain
     hold(w, 10, { jump: true });
     hold(w, 2, {});

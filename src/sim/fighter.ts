@@ -74,20 +74,22 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { heroDef } from './data/heroes';
+import { heroDef, SUPER_WINDOW } from './data/heroes';
 import {
   ability,
   baseAbility,
-  chargeScale,
+  beamHits,
+  beamPower,
   endPower,
-  fireSpecial,
+  fireBomb,
+  gatlingHit,
   pistolHits,
   rasenganHit,
-  special,
+  secondAbility,
   spawnClones,
-  stretchDuration,
-  stretchHitbox,
-  stretchReach,
+  spawnRushClones,
+  stretchAt,
+  transformed,
   updatePower,
 } from './hero';
 import { detonate } from './item';
@@ -239,8 +241,10 @@ export interface Fighter extends Body {
   ghostCd: number;
   // hero (M9): '' = scrapyard fighter. Transformation state: see sim/hero.ts
   hero: string;
-  /** active hero power-up id ('' = none) */
+  /** power state: '' | 'hero' (transformed, see powerLevel) | 'boost' (generic boost from a power orb) */
   power: string;
+  /** hero form level 1..N while power === 'hero' (D58) */
+  powerLevel: number;
   powerTime: number;
   powerMax: number;
   /** the power matches the hero (full transformation) vs. the generic boost */
@@ -250,13 +254,21 @@ export interface Fighter extends Body {
   /** seconds the special has been charged (-1 = not charging) */
   charge: number;
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
-  specialKind: '' | 'charge' | 'cast' | 'stretch' | 'rasengan' | 'pistol' | 'rocket';
+  specialKind: '' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
   /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
   stretchAngle: number;
-  /** base ability cooldown (separate from the powered special's) */
+  /** base ability (ability 1) cooldown; secondCd = ability 2; specialCd = the super */
   baseCd: number;
+  secondCd: number;
+  /** seconds inside the current hero move (gatling pacing) */
+  abilT: number;
+  /** render: beam half-thickness / giant fist radius while firing (0 = none) */
+  beamWidth: number;
+  /** super input buffers: seconds left to press the other ability button */
+  btnBuf1: number;
+  btnBuf2: number;
   /** levitation (Goku): flying now, meter (seconds of flight left), seconds since take-off */
   flying: boolean;
   flyMeter: number;
@@ -376,6 +388,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     ghostCd: 0,
     hero: hero ? hero.id : '',
     power: '',
+    powerLevel: 0,
     powerTime: 0,
     powerMax: 0,
     powerFull: false,
@@ -385,6 +398,11 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     stretchLen: 0,
     stretchAngle: 0,
     baseCd: 0,
+    secondCd: 0,
+    abilT: 0,
+    beamWidth: 0,
+    btnBuf1: 0,
+    btnBuf2: 0,
     flying: false,
     flyMeter: hero?.base.fly?.meter ?? 0,
     flyTime: 0,
@@ -547,7 +565,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   f.speedMul = (activeWeapon(f).moveSpeedMul ?? 1) * (f.speedBoost > 0 ? (weaponDef('speed').powerup?.mult ?? 1) : 1);
   f.speedMul *= (ab?.speedMul ?? 1) * (heroDef(f.hero)?.stats.speed ?? 1);
   if (f.state !== 'special') f.charge = -1;
-  if (e.abilityP && f.carry < 0 && (f.state === 'normal' || f.state === 'crouch')) startSpecial(w, f, inp);
+  heroButtons(w, f, inp, e);
   if (f.carry >= 0) {
     f.speedMul *= CARRY.speedMul;
     // carrying: every action button throws the prop instead
@@ -788,6 +806,11 @@ function withUpJump(f: Fighter, inp: Intent): Intent {
   const s = f.state;
   // (flying: Up flies up)
   if (s === 'climb' || s === 'aim' || s === 'grabbing' || s === 'grabbed' || s === 'ledge' || s === 'ledgeClimb' || s === 'special' || f.flying) f.upLatch = true;
+  // holding Attack with a gun / throwable = aiming: Up sweeps the aim, even on the tick the aim starts
+  if (inp.attack) {
+    const d = activeWeapon(f);
+    if (d.gun || d.throw) f.upLatch = true;
+  }
   if (f.upLatch || inp.jump) return inp;
   copyIntent(upScratch, inp).jump = true;
   return upScratch;
@@ -1310,7 +1333,7 @@ export function dropCooked(w: World, f: Fighter): void {
 /** Transformed heroes replace the fist combo (weapons keep their own). */
 function heroCombo(f: Fighter): MeleeHit[] | null {
   if (activeWeapon(f) !== FISTS) return null;
-  return ability(f)?.combo ?? null;
+  return heroDef(f.hero)?.combo ?? null;
 }
 
 function meleeStats(f: Fighter) {
@@ -1321,7 +1344,7 @@ function meleeStats(f: Fighter) {
 
 /** Weapon id credited for a melee hit (hero combos have their own kill-feed label). */
 function meleeWeaponId(f: Fighter): string {
-  return heroCombo(f) ? f.power : activeWeapon(f).id;
+  return heroCombo(f) ? f.hero + ':combo' : activeWeapon(f).id;
 }
 
 function startMelee(w: World, f: Fighter): void {
@@ -1350,7 +1373,8 @@ function stMelee(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void 
   else f.vx = approach(f.vx, axis(inp.moveX) * RUN_SPEED * 0.6, AIR_ACCEL * 0.4 * dt);
 
   if (t >= hit.windup && t < activeEnd) {
-    meleeHitbox(w, f, hit, meleeWeaponId(f), 'melee', FIGHTER_H - 3, 6);
+    if (hit.kick) meleeHitbox(w, f, hit, meleeWeaponId(f), 'kick', 15, 3);
+    else meleeHitbox(w, f, hit, meleeWeaponId(f), 'melee', FIGHTER_H - 3, 6);
     if (hit.stretch) f.stretchLen = hit.range;
   }
 
@@ -1438,83 +1462,269 @@ function startKick(w: World, f: Fighter): void {
     f.vx = f.facing * Math.max(Math.abs(f.vx), 170);
     f.vy = Math.max(f.vy, -40);
   } else {
-    f.vx = f.facing * ((ability(f)?.kick ?? KICK).lunge ?? 30);
+    f.vx = f.facing * (KICK.lunge ?? 30);
   }
   w.emit({ t: 'kick', f: f.id, air: f.airKick });
 }
 
 // ------------------------------------------------------------------ hero specials (sim/hero.ts)
 
-function startSpecial(w: World, f: Fighter, inp: Intent): void {
-  const sp = special(f);
-  if (!sp) {
-    startBase(w, f, inp);
+// ------------------------------------------------------------------ hero buttons (D51, D58)
+
+/** Can a hero start an ability now? Standing, crouching, or in the recovery of a combo hit. */
+function canAct(f: Fighter): boolean {
+  if (f.carry >= 0) return false;
+  if (f.state === 'normal' || f.state === 'crouch') return true;
+  if (f.state === 'melee') {
+    const m = meleeStats(f);
+    const hit = m.combo[Math.min(f.combo, m.combo.length - 1)];
+    return f.stateTime >= hit.windup + hit.active;
+  }
+  return false;
+}
+
+/**
+ * Heroes: ABILITY = ability 1, KICK = ability 2 (their kick lives in the combo), both together while
+ * transformed = the super. While transformed a press waits SUPER_WINDOW for the other button before it
+ * fires on its own, so "both at once" doesn't have to be frame-perfect.
+ */
+function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
+  if (!f.hero || f.carry >= 0) return;
+  const a1 = e.abilityP;
+  const a2 = e.kickP;
+  e.abilityP = false;
+  e.kickP = false;
+  if (!transformed(f)) {
+    f.btnBuf1 = f.btnBuf2 = 0;
+    if (a1) startBase(w, f, inp);
+    if (a2) startSecond(w, f, inp);
     return;
   }
-  if (f.specialCd > 0) return;
+  if (a1) f.btnBuf1 = SUPER_WINDOW;
+  if (a2) f.btnBuf2 = SUPER_WINDOW;
+  if (f.btnBuf1 > 0 && f.btnBuf2 > 0) {
+    f.btnBuf1 = f.btnBuf2 = 0;
+    startSuper(w, f, inp);
+    return;
+  }
+  if (f.btnBuf1 > 0 && (f.btnBuf1 -= DT) <= 0) startBase(w, f, inp);
+  if (f.btnBuf2 > 0 && (f.btnBuf2 -= DT) <= 0) startSecond(w, f, inp);
+}
+
+/** Enter the 'special' state for a hero move (stand up first). False if there's no room. */
+function beginMove(w: World, f: Fighter, inp: Intent, kind: Fighter['specialKind']): boolean {
   if (f.h !== FIGHTER_H) {
-    if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
+    if (!hasHeadroom(w.map, f, FIGHTER_H)) return false;
     f.h = FIGHTER_H;
   }
   setState(f, 'special');
+  f.specialKind = kind;
   f.swingHit.length = 0;
   f.swingProps.length = 0;
+  f.abilT = 0;
+  f.stretchLen = 0;
   if (inp.moveX > 0.5) f.facing = 1;
   else if (inp.moveX < -0.5) f.facing = -1;
-  if (sp.kind === 'stretch') {
-    f.specialKind = 'stretch';
-    f.specialCd = sp.cooldown;
-    w.emit({ t: 'stretch', f: f.id });
-  } else if (sp.charge) {
-    f.specialKind = 'charge';
+  return true;
+}
+
+/** ABILITY 2 (kick button): Kamehameha (hold to charge), shadow clone rush, gum-gum gatling. */
+function startSecond(w: World, f: Fighter, inp: Intent): void {
+  const s = secondAbility(f);
+  if (!s || f.secondCd > 0 || !canAct(f)) return;
+  if (s.kind === 'beam') {
+    if (!beginMove(w, f, inp, 'beamCharge')) return;
     f.charge = 0;
     w.emit({ t: 'chargeStart', f: f.id });
+  } else if (s.kind === 'clones') {
+    if (!beginMove(w, f, inp, 'cast')) return;
+    spawnRushClones(w, f, s.clones!);
+    f.secondCd = s.cooldown;
   } else {
-    fireSpecial(w, f, sp, 1, inp.moveY < -0.5);
-    f.specialKind = 'cast';
+    if (!beginMove(w, f, inp, 'gatling')) return;
+    f.secondCd = s.cooldown;
+    w.emit({ t: 'stretch', f: f.id });
   }
+}
+
+/** Both abilities while transformed: Tailed Beast Bomb, giant fist, super Kamehameha. */
+function startSuper(w: World, f: Fighter, inp: Intent): void {
+  const h = heroDef(f.hero);
+  if (!h) return;
+  if (f.specialCd > 0 || !canAct(f)) {
+    // super still recharging: just do ability 1
+    startBase(w, f, inp);
+    return;
+  }
+  const sp = h.super;
+  const kind = sp.kind === 'bomb' ? 'bomb' : sp.kind === 'fist' ? 'superFist' : 'superCharge';
+  if (!beginMove(w, f, inp, kind)) return;
+  f.specialCd = sp.cooldown;
+  if (sp.kind === 'fist') f.stretchAngle = inp.moveY < -0.5 ? (sp.fist?.upAngle ?? -0.5) : inp.moveY > 0.5 && !f.grounded ? (sp.fist?.downAngle ?? 0.5) : 0;
+  w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });
 }
 
 function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
-  if (f.specialKind === 'rasengan') return stRasengan(w, f, dt);
-  if (f.specialKind === 'pistol') return stPistol(w, f, dt);
-  if (f.specialKind === 'rocket') return stRocket(w, f, dt);
-  const sp = special(f);
-  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
-  if (!sp) {
-    // the power ran out mid-move
-    f.specialKind = '';
-    setState(f, 'normal');
-    integrate(w, f, dt);
-    return;
+  f.abilT += dt;
+  switch (f.specialKind) {
+    case 'rasengan':
+      return stRasengan(w, f, dt);
+    case 'pistol':
+      return stPistol(w, f, dt);
+    case 'rocket':
+      return stRocket(w, f, dt);
+    case 'beamCharge':
+      return stBeamCharge(w, f, inp, dt);
+    case 'beam':
+      return stBeam(w, f, dt, false);
+    case 'superCharge':
+      return stSuperCharge(w, f, dt);
+    case 'superBeam':
+      return stBeam(w, f, dt, true);
+    case 'gatling':
+      return stGatling(w, f, dt);
+    case 'bomb':
+      return stBomb(w, f, dt);
+    case 'superFist':
+      return stSuperFist(w, f, dt);
+    default:
+      // 'cast' (shadow clones) and anything left over: a short recovery
+      f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
+      integrate(w, f, dt);
+      if (f.stateTime >= 0.22) endSpecial(w, f);
   }
-  if (f.specialKind === 'charge') {
-    f.charge += dt;
-    // release (or hold too long) to fire; slow fall while charging looks great and is harmless
-    if (!f.grounded) f.vy = Math.min(f.vy, 60);
-    if (!inp.ability || f.charge >= (sp.charge?.time ?? 0) + 1.5) {
-      fireSpecial(w, f, sp, chargeScale(sp, f.charge), inp.moveY < -0.5);
-      f.charge = -1;
-      f.specialKind = 'cast';
-      f.stateTime = 0;
-    }
-  } else if (f.specialKind === 'stretch') {
-    const reach = stretchReach(sp, f.stateTime);
-    f.stretchLen = reach > 0 ? stretchHitbox(w, f, sp, reach) : 0;
-    if (f.stateTime >= stretchDuration(sp)) {
-      f.specialKind = '';
-      f.stretchLen = 0;
-      setState(f, 'normal');
-    }
-  } else if (f.stateTime >= sp.recover) {
-    f.specialKind = '';
-    setState(f, 'normal');
-  }
+}
+
+/** Hang in the air while a move plays (and slow down on the ground). */
+function holdStill(f: Fighter, dt: number): void {
+  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL * 3) * dt);
+  if (!f.grounded) f.vy = Math.min(f.vy, 30);
+}
+
+/** Beam angle from the stick: up / down (in the air) / straight. */
+function aimAngle(f: Fighter, inp: Intent): number {
+  return inp.moveY < -0.5 ? -0.45 : inp.moveY > 0.5 && !f.grounded ? 0.45 : 0;
+}
+
+function stBeamCharge(w: World, f: Fighter, inp: Intent, dt: number): void {
+  const b = secondAbility(f)?.beam;
+  if (!b) return endSpecial(w, f);
+  f.charge += dt;
+  holdStill(f, dt);
   integrate(w, f, dt);
+  const release = !inp.kick && f.charge >= b.minCharge;
+  if (release || f.charge >= b.maxCharge + 0.6) {
+    f.stretchAngle = aimAngle(f, inp);
+    f.specialKind = 'beam';
+    f.stateTime = 0;
+    f.abilT = 0;
+    f.secondCd = secondAbility(f)!.cooldown;
+    w.emit({ t: 'beam', f: f.id, power: beamPower(b, f.charge), super: false });
+  }
+}
+
+function stSuperCharge(w: World, f: Fighter, dt: number): void {
+  const b = heroDef(f.hero)?.super.beam;
+  if (!b) return endSpecial(w, f);
+  f.charge = Math.max(0, f.charge) + dt;
+  holdStill(f, dt);
+  integrate(w, f, dt);
+  if (f.stateTime >= b.minCharge) {
+    f.specialKind = 'superBeam';
+    f.stateTime = 0;
+    f.abilT = 0;
+    w.emit({ t: 'beam', f: f.id, power: 1, super: true });
+  }
+}
+
+/** A beam grows out, holds (hitting everything on it once) and fades. */
+function stBeam(w: World, f: Fighter, dt: number, isSuper: boolean): void {
+  const h = heroDef(f.hero);
+  const b = isSuper ? h?.super.beam : h?.second.beam;
+  if (!b) return endSpecial(w, f);
+  const t = f.stateTime;
+  const lvl = Math.max(0, f.powerLevel - 1);
+  const pw = isSuper ? 1 : beamPower(b, f.charge);
+  const sb = isSuper ? h?.super.beam : undefined;
+  const half = sb ? sb.width[0] + sb.widthPerLevel * lvl : b.width[0] + (b.width[1] - b.width[0]) * pw;
+  const dmg = sb ? sb.damage[0] + sb.damagePerLevel * lvl : b.damage[0] + (b.damage[1] - b.damage[0]) * pw;
+  const knock = b.knock[0] + (b.knock[1] - b.knock[0]) * pw;
+  // the beam pins its user in place (no gravity) and pushes back a little
+  f.vx = approach(f.vx, -f.facing * 20, GROUND_DECEL * dt);
+  f.vy = 0;
+  integrate(w, f, dt, false);
+  const fade = 0.12;
+  const len = t < b.grow ? b.range * (t / b.grow) : b.range;
+  if (t < b.grow + b.hold) {
+    f.stretchLen = beamHits(w, f, f.stretchAngle, len, half, dmg, knock, f.hero + (isSuper ? ':super' : ':second'), !!b.breakTiles);
+    f.beamWidth = half;
+  } else {
+    f.beamWidth = half * Math.max(0, 1 - (t - b.grow - b.hold) / fade);
+    f.stretchLen = f.beamWidth > 0.3 ? f.stretchLen || len : 0;
+  }
+  if (t >= b.grow + b.hold + fade) {
+    f.beamWidth = 0;
+    f.charge = -1;
+    endSpecial(w, f);
+  }
+}
+
+function stGatling(w: World, f: Fighter, dt: number): void {
+  const g = secondAbility(f)?.gatling;
+  if (!g) return endSpecial(w, f);
+  const t = f.stateTime;
+  holdStill(f, dt);
+  integrate(w, f, dt);
+  // targets can be punched again every `rehit` seconds
+  if (Math.floor(t / g.rehit) !== Math.floor((t - dt) / g.rehit)) {
+    f.swingHit.length = 0;
+    f.swingProps.length = 0;
+  }
+  if (t < g.time && f.abilT >= g.every) {
+    f.abilT = 0;
+    gatlingHit(w, f, g, t >= g.time - g.every);
+  }
+  if (t >= g.time + 0.15) endSpecial(w, f);
+}
+
+function stBomb(w: World, f: Fighter, dt: number): void {
+  const b = heroDef(f.hero)?.super.bomb;
+  if (!b) return endSpecial(w, f);
+  holdStill(f, dt);
+  integrate(w, f, dt);
+  // f.charge = orb size 0..1 (render) until it flies
+  if (f.charge >= -0.5) f.charge = Math.min(1, f.stateTime / b.windup);
+  if (f.stateTime >= b.windup && f.charge !== -2) {
+    fireBomb(w, f, b, f.powerLevel);
+    f.charge = -2;
+  }
+  if (f.stateTime >= b.windup + 0.3) {
+    f.charge = -1;
+    endSpecial(w, f);
+  }
+}
+
+function stSuperFist(w: World, f: Fighter, dt: number): void {
+  const s = heroDef(f.hero)?.super.fist;
+  if (!s) return endSpecial(w, f);
+  const lvl = Math.max(0, f.powerLevel - 1);
+  holdStill(f, dt);
+  integrate(w, f, dt);
+  const reach = stretchAt(s, f.stateTime);
+  const fist = (s.fist ?? 4) + s.fistPerLevel * lvl;
+  if (reach > 0) {
+    const r = pistolHits(w, f, s, f.stretchAngle, reach, { weapon: f.hero + ':super', damage: s.damage + s.damagePerLevel * lvl, fist });
+    f.stretchLen = Math.max(0, r.len - f.w / 2);
+  }
+  f.beamWidth = fist;
+  if (f.stateTime >= s.out + s.hold + s.back) {
+    f.beamWidth = 0;
+    endSpecial(w, f);
+  }
 }
 
 function stKick(w: World, f: Fighter, dt: number): void {
-  const k = f.airKick ? AIR_KICK : (ability(f)?.kick ?? KICK);
+  const k = f.airKick ? AIR_KICK : KICK;
   const t = f.stateTime;
   if (!f.airKick) {
     f.vx = approach(f.vx, 0, GROUND_DECEL * 0.7 * dt);
@@ -1539,7 +1749,7 @@ function stKick(w: World, f: Fighter, dt: number): void {
 
 /** Fully transformed (Super Saiyan): flight never runs out. */
 function superFlight(f: Fighter): boolean {
-  return f.powerFull && !!f.power;
+  return transformed(f);
 }
 
 /** Per tick: base cooldown, flight meter (drains while flying, refills on the ground), forced landings. */

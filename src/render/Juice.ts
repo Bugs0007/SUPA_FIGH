@@ -1,10 +1,10 @@
-import { POWER_COLORS } from '../art/heroArt';
+import { BOOST_COLORS, formFx } from '../art/heroArt';
+import { HEROES, heroAttackLabel } from '../sim/data/heroes';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_W } from '../game/display';
 import { settings } from '../game/settings';
 import { TILE } from '../sim/constants';
-import { heroAttackLabel, POWERS } from '../sim/data/heroes';
 import { weaponDef } from '../sim/data/weapons';
 import type { SimEvent } from '../sim/events';
 import { activeWeapon, gunGeometry } from '../sim/fighter';
@@ -41,8 +41,8 @@ const POWERUP_TEXT: Record<string, [string, string]> = {
   bulletTime: ['BULLET TIME!', P.glass1],
 };
 
-const heroColors = (power: string): [number, number] => {
-  const c = POWER_COLORS[power] ?? [P.white, P.white];
+const levelColors = (hero: string, level: number): [number, number] => {
+  const c = level > 0 ? formFx(hero, level).aura : BOOST_COLORS;
   return [hexToNum(c[0]), hexToNum(c[1])];
 };
 
@@ -395,18 +395,19 @@ export class Juice {
         break;
       // ------------------------------------------------ hero powers (M9)
       case 'transform': {
-        const p = POWERS[e.power];
-        const [c0, c1] = heroColors(e.power);
-        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y - 12, life: 0.25, s0: 2, s1: 4, a0: 0.8, a1: 0, tint: c0, add: true, depth: 64 });
-        fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.35, s0: 0.3, s1: 3.5, a0: 1, a1: 0, tint: c1, depth: 64 });
-        fx.motes(e.x, e.y - 8, 24, c0);
-        fx.sparks(e.x, e.y - 12, 0, -1, 16, c1, 220);
-        this.sfx('transform', e.x);
-        this.cam.addTrauma(0.35);
-        this.hitstop = Math.max(this.hitstop, 0.08);
-        const name = e.full ? p?.name ?? 'POWER!' : 'POWERED UP!';
-        this.r.floatText(e.x, e.y - 34, name, c0, true);
-        if (e.full) this.ui.push({ t: 'announce', text: `${name}!`, color: c0 });
+        const [c0, c1] = levelColors(e.hero, e.level);
+        const big = e.level >= 3;
+        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y - 12, life: 0.25, s0: 2, s1: 4 + e.level, a0: 0.8, a1: 0, tint: c0, add: true, depth: 64 });
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.35, s0: 0.3, s1: 3.5 + e.level * 0.6, a0: 1, a1: 0, tint: c1, depth: 64 });
+        if (big) fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.55, s0: 0.2, s1: 7, a0: 0.7, a1: 0, tint: 0xffffff, depth: 64 });
+        fx.motes(e.x, e.y - 8, 18 + e.level * 8, c0);
+        fx.sparks(e.x, e.y - 12, 0, -1, 12 + e.level * 5, c1, 220 + e.level * 30);
+        this.sfx('transform', e.x, 1, 1 - e.level * 0.06);
+        this.cam.addTrauma(0.2 + e.level * 0.1);
+        this.hitstop = Math.max(this.hitstop, 0.06 + e.level * 0.025);
+        const form = e.level > 0 ? (HEROES[e.hero]?.forms[e.level - 1]?.name ?? 'POWER!') : 'POWERED UP!';
+        this.r.floatText(e.x, e.y - 34, form, c0, true);
+        if (e.level > 0) this.ui.push({ t: 'announce', text: `${form}!`, color: c0 });
         break;
       }
       case 'powerEnd': {
@@ -416,19 +417,40 @@ export class Juice {
         break;
       }
       case 'powerSpawn': {
-        const [c0] = heroColors(e.power);
+        const c0 = hexToNum('#ffd84a');
         fx.sparks(e.x, e.y - 30, 0, 1, 14, c0, 160);
         fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.4, s0: 0.3, s1: 3, a0: 1, a1: 0, tint: c0, depth: 64 });
         this.sfx('powerSpawn', e.x);
-        this.ui.push({ t: 'announce', text: (POWERS[e.power]?.name ?? 'POWER') + ' POWER-UP!', color: c0 });
+        this.ui.push({ t: 'announce', text: 'A POWER ORB APPEARS!', color: c0 });
         break;
       }
       case 'special': {
-        const [c0, c1] = heroColors(e.power);
+        const f = w.fighters[e.f];
+        const [c0, c1] = f.power === 'hero' ? levelColors(f.hero, f.powerLevel) : levelColors('', 0);
         fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.12, s0: 1 * e.scale, s1: 2 * e.scale, a0: 0.8, a1: 0, tint: c1, add: true, depth: 64 });
-        fx.sparks(e.x, e.y, w.fighters[e.f].facing, 0, 8, c0, 180);
-        this.sfx(e.power === 'kurama' ? 'chakraBlast' : 'kiBlast', e.x, 1, e.power === 'ssj' ? 1.4 - Math.min(0.6, e.scale * 0.2) : 1);
-        this.cam.addTrauma(0.15 + e.scale * 0.08);
+        fx.sparks(e.x, e.y, f.facing, 0, 8, c0, 180);
+        this.sfx('chakraBlast', e.x, 1, 0.9);
+        this.cam.addTrauma(0.2 + e.scale * 0.1);
+        break;
+      }
+      case 'superStart': {
+        const f = w.fighters[e.f];
+        const [c0, c1] = levelColors(f.hero, f.powerLevel);
+        fx.spawn({ frame: 'ring', x: f.x, y: f.y - 12, life: 0.4, s0: 0.3, s1: 5, a0: 1, a1: 0, tint: c1, depth: 64 });
+        fx.motes(f.x, f.y - 8, 14, c0);
+        this.sfx('transform', f.x, 0.9, 1.3);
+        this.cam.addTrauma(0.3);
+        this.hitstop = Math.max(this.hitstop, 0.1);
+        this.r.floatText(f.x, f.y - 36, e.name, c0, true);
+        this.ui.push({ t: 'announce', text: `${e.name}!`, color: c0 });
+        break;
+      }
+      case 'beam': {
+        const f = w.fighters[e.f];
+        this.sfx('kiBlast', f.x, 1, e.super ? 0.7 : 1 - e.power * 0.3);
+        this.sfx('chakraBlast', f.x, e.super ? 1 : 0.6, 1.4);
+        this.cam.addTrauma(e.super ? 0.7 : 0.25 + e.power * 0.25);
+        this.hitstop = Math.max(this.hitstop, e.super ? 0.1 : 0.04);
         break;
       }
       case 'chargeStart':

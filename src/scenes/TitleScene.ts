@@ -153,7 +153,7 @@ export class TitleScene extends Phaser.Scene {
     this.add.bitmapText(x + 8, CARD_Y + 39, 'sm', 'FIGHTER').setTint(0x8d95b0).setDepth(5);
     const hero = this.add.bitmapText(x + 50, CARD_Y + 37, 'pxo', '').setDepth(5);
     const ability = this.add.bitmapText(x + CARD_W / 2, CARD_Y + 152, 'pxo', '').setOrigin(0.5, 0).setTint(hexToNum(P.orange)).setDepth(5);
-    const desc = [0, 1, 2].map((l) => this.add.bitmapText(x + CARD_W / 2, CARD_Y + 166 + l * 8, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc).setDepth(5));
+    const desc = [0, 1, 2, 3].map((l) => this.add.bitmapText(x + CARD_W / 2, CARD_Y + 166 + l * 8, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc).setDepth(5));
     // controls (the actual bindings, so rebinding shows up here)
     const b = keyboardBinds[i];
     const keys = (a: Action, n = 2) => b[a].slice(0, n).map(keyLabel).join('/');
@@ -217,7 +217,7 @@ export class TitleScene extends Phaser.Scene {
     const h = HEROES[p.hero];
     const c = this.cardTexts[i];
     c.ability.setText(h ? h.base.name : 'SCRAPYARD FIGHTER');
-    const desc = wrap(h ? h.base.desc : SCRAPPER_DESC, 46);
+    const desc = wrap(h ? `${h.base.desc} KICK KEY: ${h.second.name}. ORBS = NEXT FORM. BOTH ABILITIES = SUPER.` : SCRAPPER_DESC, 46);
     c.desc.forEach((t, n) => t.setText(desc[n] ?? ''));
   }
 

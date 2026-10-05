@@ -309,42 +309,21 @@ export const WEAPON_ART: Record<string, WeaponArt> = {
       'yyyyyyy',
     ],
   },
-  // hero power-ups (M9): original designs, readable at a glance
-  chakrascroll: {
-    grip: [6, 3],
+  // the power orb (M11): one pickup for every hero; a swirling gold-and-blue sphere
+  powerorb: {
+    grip: [5, 5],
     rows: [
-      '.W.........W.',
-      'WWxxxxxxxxxWW',
-      'WWxxxxRxxxxWW',
-      'WWxxxRoRxxxWW',
-      'WWxxxxRxxxxWW',
-      'WWxxxxxxxxxWW',
-      '.W.........W.',
-    ],
-  },
-  strawtoken: {
-    grip: [4, 4],
-    rows: [
-      '..yyyyy..',
-      '.ybbbbby.',
-      'ybbYYYbby',
-      'ybbRRRbby',
-      'ybYYYYYby',
-      'ybbbbbbby',
-      '.ybbbbby.',
-      '..yyyyy..',
-    ],
-  },
-  energycore: {
-    grip: [4, 3],
-    rows: [
-      '...ooo...',
-      '.ooYYYoo.',
-      '.oYYxYYo.',
-      'oYYxxxYYo',
-      '.oYYxYYo.',
-      '.ooYYYoo.',
-      '...ooo...',
+      '...ooooo...',
+      '.ooYYYYYoo.',
+      '.oYYxxYYYo.',
+      'oYYxxxYYYBo',
+      'oYxxxYYYBBo',
+      'oYYxYYYBBBo',
+      'oYYYYYBBBco',
+      'oYYYYBBBcco',
+      '.oYYBBBccco',
+      '.ooYBBccoo.',
+      '...ooooo...',
     ],
   },
   prop_crate: {

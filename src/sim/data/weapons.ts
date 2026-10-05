@@ -83,6 +83,8 @@ export interface MeleeHit {
   fx?: 'chakra' | 'steam' | 'ki';
   /** extra hit-stop + shake on contact */
   heavy?: boolean;
+  /** this combo hit is a kick (kick pose, low hitbox): fists combo = punch, punch, punch, kick */
+  kick?: boolean;
 }
 
 export interface MeleeStats {
@@ -124,9 +126,8 @@ export interface GadgetStats {
 
 /** Applied instantly on touch, never occupies a slot. */
 export interface PowerupStats {
-  kind: 'speed' | 'strength' | 'bulletTime' | 'hero';
-  /** hero power-up id (data/heroes.ts POWERS); duration comes from there */
-  power?: string;
+  /** 'orb' = the power orb: heroes go up one transformation level, others get a boost (D58) */
+  kind: 'speed' | 'strength' | 'bulletTime' | 'orb';
   duration: number;
   /** speed/strength multiplier */
   mult: number;
@@ -171,21 +172,12 @@ export const FISTS: WeaponDef = {
   spawnWeight: 0,
   melee: {
     durability: Infinity,
+    // punch, punch, punch, kick (the kick button kicks on its own too; for heroes it's ability 2)
     combo: [
-      { damage: 5, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
-      { damage: 5, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
-      {
-        damage: 10,
-        windup: 0.09,
-        active: 0.07,
-        recover: 0.26,
-        range: 10,
-        knockX: 230,
-        knockY: -140,
-        stun: 0.3,
-        knockdown: true,
-        lunge: 70,
-      },
+      { damage: 4, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
+      { damage: 4, windup: 0.05, active: 0.06, recover: 0.13, range: 9, knockX: 55, knockY: 0, stun: 0.2, lunge: 45 },
+      { damage: 5, windup: 0.06, active: 0.06, recover: 0.14, range: 10, knockX: 70, knockY: 0, stun: 0.22, lunge: 50 },
+      { damage: 9, windup: 0.08, active: 0.09, recover: 0.26, range: 13, knockX: 260, knockY: -150, stun: 0.3, knockdown: true, lunge: 40, kick: true },
     ],
   },
 };
@@ -781,30 +773,14 @@ export const WEAPONS: Record<string, WeaponDef> = {
     powerup: { kind: 'bulletTime', duration: 5, mult: 0.4 },
   },
 
-  // ---------------- hero power-ups (M9): never at weapon spawns; the world's power spawner drops them
-  chakrascroll: {
-    id: 'chakrascroll',
-    name: 'CHAKRA SCROLL',
+  // ---------------- the power orb (M11): never at weapon spawns; the world's power spawner drops it
+  powerorb: {
+    id: 'powerorb',
+    name: 'POWER ORB',
     slot: SLOT.GADGET,
     hold: 'gadget',
     spawnWeight: 0,
-    powerup: { kind: 'hero', power: 'kurama', duration: 20, mult: 1 },
-  },
-  strawtoken: {
-    id: 'strawtoken',
-    name: 'STRAW HAT TOKEN',
-    slot: SLOT.GADGET,
-    hold: 'gadget',
-    spawnWeight: 0,
-    powerup: { kind: 'hero', power: 'gear2', duration: 18, mult: 1 },
-  },
-  energycore: {
-    id: 'energycore',
-    name: 'ENERGY CORE',
-    slot: SLOT.GADGET,
-    hold: 'gadget',
-    spawnWeight: 0,
-    powerup: { kind: 'hero', power: 'ssj', duration: 20, mult: 1 },
+    powerup: { kind: 'orb', duration: 24, mult: 1 },
   },
 };
 
