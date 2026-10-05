@@ -73,6 +73,11 @@ export class CameraDirector {
     public baseZoom: number,
   ) {}
 
+  /** short colour flash over the whole view (transformations) */
+  flash(ms: number, r: number, g: number, b: number): void {
+    this.cam.flash(ms, r, g, b, true);
+  }
+
   addTrauma(v: number): void {
     this.trauma = Math.min(1, this.trauma + v * this.shakeScale);
   }

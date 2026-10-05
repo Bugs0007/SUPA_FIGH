@@ -72,7 +72,7 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
   for (let i = 0; i < humans; i++) {
     const name = profiles[i]?.name ?? 'P' + (i + 1);
     players.push({
-      spawn: { name, team: 0, isBot: false, upJumps: settings.upJump, hero: heroes[i] || undefined },
+      spawn: { name, team: 0, isBot: false, upJumps: true, hero: heroes[i] || undefined },
       look: heroLook(heroes[i] ?? '', profiles[i]?.look ?? PLAYER_PRESETS[i]),
       color: PLAYER_COLORS[i],
       label: name,

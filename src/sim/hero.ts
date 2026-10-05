@@ -5,7 +5,8 @@ import { applyHit } from './combat';
 import { DT, SHOULDER_Y_STAND, TILE } from './constants';
 import {
   CLONE,
-  FORM_DURATION,
+  FORM_BYPASS,
+  FORM_HP,
   GENERIC_BOOST,
   GENERIC_DURATION,
   heroDef,
@@ -72,8 +73,10 @@ export function transform(w: World, f: Fighter): number {
     f.power = 'hero';
     f.powerLevel = Math.min(maxLevel(f.hero), prev + 1);
     f.powerFull = true;
-    f.powerMax = FORM_DURATION;
-    f.powerTime = FORM_DURATION;
+    // no timer: a new orb adds a fresh layer of form health (the cap is one full layer per level)
+    f.powerMax = 0;
+    f.powerTime = 0;
+    f.formHp = Math.min(f.powerLevel * FORM_HP, (prev === 0 ? 0 : f.formHp) + FORM_HP);
     if (prev === 0) f.specialCd = 0;
     w.emit({ t: 'transform', f: f.id, hero: f.hero, level: f.powerLevel, full: true, x: f.x, y: f.y });
     return f.powerLevel;
@@ -95,8 +98,11 @@ export function endPower(w: World, f: Fighter): void {
   f.powerFull = false;
   f.powerTime = 0;
   f.powerMax = 0;
+  f.formHp = 0;
   f.charge = -1;
   f.stretchLen = 0;
+  if (f.flyHold) f.flying = false;
+  f.flyHold = false;
   w.emit({ t: 'powerEnd', f: f.id, hero: f.hero });
 }
 
@@ -104,8 +110,39 @@ export function updatePower(w: World, f: Fighter, dt: number): void {
   if (f.specialCd > 0) f.specialCd -= dt;
   if (f.secondCd > 0) f.secondCd -= dt;
   if (!f.power) return;
+  if (f.power === 'hero') {
+    // heroes: the form lasts until its form health is gone
+    if (f.formHp <= 0) endPower(w, f);
+    return;
+  }
   f.powerTime -= dt;
   if (f.powerTime <= 0) endPower(w, f);
+}
+
+/** Layers of form health currently shown (one per FORM_HP, the top one may be partial). */
+export function formLayers(f: Fighter): number {
+  return f.power === 'hero' ? Math.ceil(Math.max(0, f.formHp) / FORM_HP) : 0;
+}
+
+/**
+ * A hit's damage goes into the form health first. Returns the damage left over for the real health bar
+ * (0 while the form holds). The form wears off when its health reaches zero.
+ */
+export function absorbForm(w: World, v: Fighter, dmg: number, kind: string): number {
+  if (v.power !== 'hero' || v.formHp <= 0 || dmg <= 0) return dmg;
+  if ((FORM_BYPASS as readonly string[]).includes(kind) || dmg >= 500) return dmg;
+  const taken = Math.min(v.formHp, dmg);
+  v.formHp -= taken;
+  if (v.formHp <= 0.001) {
+    v.formHp = 0;
+    endPower(w, v);
+  }
+  return dmg - taken;
+}
+
+/** Can this fighter fly by holding Up (final forms of Naruto and Luffy)? */
+export function holdFlies(f: Fighter): boolean {
+  return f.power === 'hero' && !!heroDef(f.hero)?.forms[f.powerLevel - 1]?.flies;
 }
 
 export function baseAbility(f: Fighter): BaseAbility | null {

@@ -11,6 +11,8 @@ export interface FormFx {
   aura: [string, string];
   /** chakra tails behind the fighter (Naruto) */
   tails: number;
+  /** the tails are made of aura (translucent, no solid body): Naruto's first form */
+  ghostTails?: boolean;
   /** tail colours [body, tip] */
   tailColors: [string, string];
   /** how heavy the aura is: orbiting pixel count / rising motes */
@@ -46,20 +48,20 @@ export const HERO_ART: Record<string, HeroArt> = {
       trim: '#f4f1ea',
     },
     forms: [
-      // 1: red eyes, sharper whiskers, one tail of chakra
+      // 1: red eyes, sharper whiskers; a tail is shaped by the crimson aura (no physical tail)
       { face: 'foxeyes', eyes: '#ea3a2a', skin: '#f2b890' },
       // 4 tails: the red chakra cloak takes over (red-orange body, black trim)
       { face: 'foxeyes', eyes: '#ea3a2a', skin: '#f2a070', topColor: '#d8441e', accentColor: '#3a0e0a', pantsColor: '#c4361a', shoesColor: '#3a0e0a', hairColor: '#ffb030' },
       // 6 tails: the black, corrupted cloak
       { face: 'foxeyes', eyes: '#ff3030', skin: '#b8806a', topColor: '#2a2230', accentColor: '#120e16', pantsColor: '#221a28', shoesColor: '#120e16', hairColor: '#7a1a1a', trim: '#8a2a2a' },
-      // Kurama mode: all gold, black markings
+      // Kurama mode: all gold, black markings, no tails (the form is the cloak itself)
       { face: 'foxeyes', eyes: '#1a1020', skin: '#ffe4a0', topColor: '#f8c028', accentColor: '#1a1410', pantsColor: '#f8c028', shoesColor: '#1a1410', hairColor: '#fff2a0', hatColor: '#1a1410', trim: '#fff2a0' },
     ],
     fx: [
-      { aura: ['#ffb02a', '#ff7a1a'], tails: 1, tailColors: ['#f08a28', '#ffd060'], power: 1 },
+      { aura: ['#ff2a2a', '#c8101a'], tails: 1, ghostTails: true, tailColors: ['#ff3a2a', '#ff9a60'], power: 1 },
       { aura: ['#ff5a1a', '#c8201a'], tails: 4, tailColors: ['#d8441e', '#ff9a40'], power: 2 },
       { aura: ['#7a1a2a', '#e83a3a'], tails: 6, tailColors: ['#22181e', '#c82a2a'], power: 3, extra: 'fire' },
-      { aura: ['#ffd84a', '#fff8c0'], tails: 9, tailColors: ['#f8c028', '#fff8c0'], power: 4, extra: 'lightning' },
+      { aura: ['#ffd84a', '#fff8c0'], tails: 0, tailColors: ['#f8c028', '#fff8c0'], power: 4, extra: 'lightning' },
     ],
   },
   luffy: {

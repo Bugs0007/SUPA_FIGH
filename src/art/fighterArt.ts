@@ -38,8 +38,13 @@ export const BF = {
   CROSS: 30,
   UPPER: 31,
   IDLE2: 32,
+  // Naruto's fox stance (forms 1-3): four-legged, arms are the front legs
+  FOX_IDLE0: 33,
+  FOX_IDLE1: 34,
+  FOX_RUN0: 35, // 35..38
+  FOX_JUMP: 39,
 } as const;
-export const BODY_FRAMES = 33;
+export const BODY_FRAMES = 40;
 export const HEAD = { NORMAL: 0, HURT: 1, DEAD: 2 } as const;
 export const ARM_ANGLES = 32;
 export const ARM_LENGTHS = [5, 7];
@@ -134,6 +139,14 @@ function buildPoses(): Pose[] {
   poses[BF.WINDUP] = stand(24, 8, -1, [-2, 3, -3, 6], [2, 3, 2, 6]);
   poses[BF.CROSS] = stand(24, 8, 3, [-3, 3, -5, 6], [2, 2, 3, 6]);
   poses[BF.UPPER] = stand(23, 8, 2, [-3, 3, -5, 6], [4, 2, 5, 6]);
+  // fox stance: low, slanted torso with the head forward, hind legs bent; the arm sprites reach the ground
+  poses[BF.FOX_IDLE0] = stand(26, 5, 6, [-2, 2, -3, 3], [0, 2, 0, 3]);
+  poses[BF.FOX_IDLE1] = stand(27, 5, 6, [-2, 1, -3, 3], [0, 1, 0, 3]);
+  poses[BF.FOX_RUN0] = stand(25, 5, 6, [-3, 1, -6, 2], [2, 2, -1, 4]);
+  poses[BF.FOX_RUN0 + 1] = stand(26, 5, 6, [-1, 2, -3, 4], [0, 2, -2, 4]);
+  poses[BF.FOX_RUN0 + 2] = stand(25, 5, 6, [1, 1, 3, 3], [-3, 1, -6, 2]);
+  poses[BF.FOX_RUN0 + 3] = stand(26, 5, 6, [0, 2, -2, 4], [-1, 2, -3, 4]);
+  poses[BF.FOX_JUMP] = stand(24, 5, 7, [-3, 1, -6, 2], [-2, 2, -5, 4]);
   poses[BF.CROUCH] = stand(28, 4, 2, [1, 1, -1, 1], [2, 0, 2, 1]);
   poses[BF.CRAWL0] = stand(28, 4, 2, [2, 1, 0, 1], [1, 0, 1, 1]);
   poses[BF.CRAWL1] = stand(28, 4, 2, [0, 1, -2, 1], [3, 0, 3, 1]);

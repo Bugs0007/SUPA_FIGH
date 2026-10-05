@@ -3,7 +3,7 @@
 2D pixel-art side-view arena brawler for the browser (up to 10 fighters: 4 local humans + bots).
 Includes an anime-hero expansion (M9): Naruto / Luffy / Goku as tiny fighters with a base ability each
 (levitation / rasengan / gum-gum pistol, D51), a second ability on the kick key, a super (both keys) and four
-transformation forms each, raised by eating power orbs (D58).
+transformation forms each, raised by eating power orbs (D58); forms have no timer, a stacked form-health bar absorbs damage first (D61).
 Phaser 3 + TypeScript + Vite. All art and audio are generated procedurally at startup.
 
 **Resuming work? Read `PROGRESS.md` first** (milestone checklist + "next steps"), then skim
@@ -90,8 +90,8 @@ poll each controller -> Intent per fighter, step `match` in fixed 1/60 s ticks v
   No `Math.random()` in sim — use `world.rng`. Keep sim entities plain data (snapshot-able).
 - Tunables: weapons in `sim/data/weapons.ts`, movement in `sim/constants.ts`, maps in `sim/map/maps/`.
 - Fighters are driven only through `Intent` (sim/intent.ts). Never poke fighter state from input code.
-- Controls (D50): keyboard players' Up is a full jump (derived in the sim from `upJumps`), drop-through is a
-  double tap of Down. Bots and pads have `upJumps = false`.
+- Controls (D50, D61): the keyboard has no jump key: Up is the jump (derived in the sim from `upJumps`, always on
+  for keyboard players), drop-through is a double tap of Down. Bots and pads have `upJumps = false` (pads: A jumps).
 - Visual-only randomness (particles) may use Math.random.
 - Keep files focused; prefer data tables over branching code for per-weapon/per-map behavior.
 

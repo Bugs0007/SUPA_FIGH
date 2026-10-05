@@ -129,11 +129,20 @@ test('gadgets and powerups', async ({ page }) => {
   const healed = await page.evaluate(() => (window as unknown as { __GAME__: Handle }).__GAME__.match()!.world.fighters[0].hp);
   expect(healed).toBeGreaterThan(80);
 
+  // open floor away from ladders (W now jumps AND climbs)
+  await page.evaluate(() => {
+    const f = (window as unknown as { __GAME__: Handle }).__GAME__.match()!.world.fighters[0] as unknown as { x: number; px: number; y: number; py: number; vx: number; vy: number };
+    f.x = f.px = 6 * 16 + 8;
+    f.y = f.py = 27 * 16;
+    f.vx = f.vy = 0;
+  });
+  await waitTicks(page, 10);
   await arm(page, 'jetpack', 4, 3.5);
-  await page.keyboard.down('KeyG');
+  await page.keyboard.down('KeyW');
   await waitTicks(page, 50);
   await page.screenshot({ path: 'tests/e2e/screenshots/arsenal-jetpack.png' });
-  await page.keyboard.up('KeyG');
+  await page.keyboard.up('KeyW');
+  await waitTicks(page, 150); // (fall back down before the next pickup)
 
   await page.evaluate(() => {
     const w = (window as unknown as { __GAME__: Handle }).__GAME__.match()!.world;

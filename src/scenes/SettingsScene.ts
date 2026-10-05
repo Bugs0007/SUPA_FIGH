@@ -20,7 +20,6 @@ const ROWS: Row[] = [
   { label: 'DAMAGE NUMBERS', key: 'damageNumbers', kind: 'bool' },
   { label: 'INSTANT REPLAYS', key: 'replays', kind: 'bool' },
   { label: 'FULLSCREEN', key: 'fullscreen', kind: 'bool' },
-  { label: 'UP / W JUMPS', key: 'upJump', kind: 'bool' },
   { label: 'BACK', kind: 'back' },
 ];
 

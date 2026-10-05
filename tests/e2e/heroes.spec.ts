@@ -87,8 +87,8 @@ for (const h of HEROES) {
     expect(await page.evaluate(() => (window as any).__REC__.sup), 'the super went on cooldown').toBeGreaterThan(4);
     await page.screenshot({ path: `tests/e2e/screenshots/hero-${h.hero}-super.png` });
 
-    // the form runs out; guns work again
-    await page.evaluate(() => ((window as any).__GAME__.match().world.fighters[0].powerTime = 0.05));
+    // the form health runs out; guns work again
+    await page.evaluate(() => ((window as any).__GAME__.match().world.fighters[0].formHp = 0));
     await page.waitForFunction(() => (window as any).__GAME__.match().world.fighters[0].power === '', null, { timeout: 20_000 });
     await waitTicks(page, 60);
     expect(await page.evaluate(`${G}.game.scene.getScene('match').wr.views[0].showsPowered`)).toBe(false);

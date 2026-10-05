@@ -254,3 +254,10 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [x] Super move on both ability keys while transformed (Tailed Beast Bomb / giant fist / Super Kamehameha)
 - [x] Holding aim + Up never jumps (D60); HUD chips A / K / S with cooldowns; bots use all three moves
 - [x] Tests: 272 unit (hero rewrite, aim + Up) and 45 e2e (per-hero orb ladder, ability 2, super)
+
+## M12 — Form health, transformation animation, flight ✅
+- [x] Form health layers replace the form timer (D61); HUD panel + overhead bars show the stack
+- [x] One universal transformation animation for all heroes
+- [x] Keyboard jump key removed (Up jumps); setting removed
+- [x] Final forms of Naruto and Luffy fly while Up is held
+- [x] Naruto: fox stance in forms 1-3, aura-made tail in form 1, no tails in Kurama mode

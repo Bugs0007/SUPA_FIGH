@@ -8,11 +8,11 @@ import { teamKey } from '../sim/combat';
 import { computeAwards } from '../sim/awards';
 import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/match';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
-import { heroDef } from '../sim/data/heroes';
+import { FORM_HP, heroDef } from '../sim/data/heroes';
 import { BOOST_COLORS, formFx } from '../art/heroArt';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
-import { formName, transformed } from '../sim/hero';
+import { formLayers, formName, transformed } from '../sim/hero';
 import { audio } from '../audio/AudioManager';
 import { menu } from '../input/menu';
 import { isHumanInput, type MatchScene } from './MatchScene';
@@ -448,15 +448,16 @@ export class HudScene extends Phaser.Scene {
       const inner = n >= 2; // players 3/4 sit next to players 1/2
       const PW = PANEL_W;
       const px = right ? VIEW_W - PW - 6 - (inner ? PW + 6 : 0) : 8 + (inner ? PW + 6 : 0);
-      const py = VIEW_H - 45;
+      const py = VIEW_H - 57;
       // a fighter behind the panel (camera at the map's bottom edge): fade it so nobody is hidden
-      const a = this.panelBlocked(px - 3, py - 3 - (f.alive && f.power ? 12 : 0), PW, 44) ? 0.3 : 1;
+      const a = this.panelBlocked(px - 3, py - 3 - (f.alive && f.power ? 12 : 0), PW, 56) ? 0.3 : 1;
       this.panelAlpha[n] = a;
-      g.fillStyle(hexToNum(P.ink), 0.78 * a).fillRect(px - 3, py - 3, PW, 44);
-      g.lineStyle(1, p.color, a).strokeRect(px - 3.5, py - 3.5, PW + 1, 45);
+      g.fillStyle(hexToNum(P.ink), 0.78 * a).fillRect(px - 3, py - 3, PW, 56);
+      g.lineStyle(1, p.color, a).strokeRect(px - 3.5, py - 3.5, PW + 1, 57);
       for (const t of this.panelTexts[n]) t.setAlpha(a);
       for (const t of this.panelCounts[n]) t.setAlpha(a);
       nameT.setText(p.label).setTint(p.color).setPosition(px, py);
+      const barW0 = PW - 7;
       // hero abilities: three chips A / K / S (ability 1, ability 2 on the kick key, super = both).
       // Each fills as its cooldown recovers; Goku's A chip is his ki meter.
       const hero = f.alive ? heroDef(f.hero) : null;
@@ -480,20 +481,31 @@ export class HudScene extends Phaser.Scene {
           chipTexts[k].setVisible(true).setPosition(cx, py + 1).setTint(c.on ? hexToNum(P.ink) : 0x8d95b0).setAlpha(a);
         });
       } else chipTexts.forEach((t) => t.setVisible(false));
+      // form health: one thin bar per transformation level, stacked above the HP bar (D61)
+      if (f.alive && f.power === 'hero') {
+        const col = hexToNum(formFx(f.hero, f.powerLevel).aura[0]);
+        const layers = formLayers(f);
+        for (let k = 0; k < layers; k++) {
+          const frac = Math.max(0, Math.min(1, (f.formHp - k * FORM_HP) / FORM_HP));
+          const ly = py + 10 + (3 - k) * 3; // the first layer sits right above the HP bar
+          g.fillStyle(0x3a3448, a).fillRect(px, ly, barW0, 2);
+          g.fillStyle(col, a).fillRect(px, ly, Math.round(barW0 * frac), 2);
+        }
+      }
       // HP (full width) with boost timers underneath
       const hpFrac = Math.max(0, f.hp) / f.maxHp;
       const barW = PW - 7;
-      g.fillStyle(0x3a3448, a).fillRect(px, py + 10, barW, 4);
+      g.fillStyle(0x3a3448, a).fillRect(px, py + 22, barW, 4);
       const hpCol = hpFrac > 0.6 ? P.green2 : hpFrac > 0.3 ? P.yellow : P.red2;
-      g.fillStyle(hexToNum(f.burn > 0 && Math.floor(this.time.now / 120) % 2 ? P.orange : hpCol), a).fillRect(px, py + 10, Math.round(barW * hpFrac), 4);
-      if (f.alive && f.speedBoost > 0) g.fillStyle(hexToNum(P.yellow), a).fillRect(px, py + 14, Math.round(barW * Math.min(1, f.speedBoost / 10)), 1);
-      if (f.alive && f.strengthBoost > 0) g.fillStyle(hexToNum(P.red2), a).fillRect(px, py + 15, Math.round(barW * Math.min(1, f.strengthBoost / 12)), 1);
+      g.fillStyle(hexToNum(f.burn > 0 && Math.floor(this.time.now / 120) % 2 ? P.orange : hpCol), a).fillRect(px, py + 22, Math.round(barW * hpFrac), 4);
+      if (f.alive && f.speedBoost > 0) g.fillStyle(hexToNum(P.yellow), a).fillRect(px, py + 26, Math.round(barW * Math.min(1, f.speedBoost / 10)), 1);
+      if (f.alive && f.strengthBoost > 0) g.fillStyle(hexToNum(P.red2), a).fillRect(px, py + 27, Math.round(barW * Math.min(1, f.strengthBoost / 12)), 1);
       const def = activeWeapon(f);
       const item = f.inv[f.active];
       const ghostText = f.ghost ? (f.ghostCd <= 0 ? 'GHOST: ATTACK = BOO!' : `GHOST: BOO IN ${Math.ceil(f.ghostCd)}`) : 'DEAD';
-      weapT.setText(f.alive ? def.name : ghostText).setPosition(px, py + 17).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
+      weapT.setText(f.alive ? def.name : ghostText).setPosition(px, py + 29).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
       const ammo = item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
-      ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 17).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
+      ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 29).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
       // transformation: form name + level pips + time left (above the panel)
       if (f.alive && f.power) {
         const isHero = f.power === 'hero';
@@ -502,11 +514,11 @@ export class HudScene extends Phaser.Scene {
         powT.setText(formName(f)).setPosition(px, py - 13).setTint(col).setVisible(true);
         g.fillStyle(hexToNum(P.ink), 0.75 * a).fillRect(px - 3, py - 15, PW, 11);
         if (isHero) for (let l = 0; l < lvlMax; l++) g.fillStyle(l < f.powerLevel ? col : 0x3a3448, a).fillRect(px + PW - 8 - (lvlMax - l) * 7, py - 12, 5, 5);
-        g.fillStyle(col, a).fillRect(px - 3, py - 5, Math.round(PW * Math.max(0, f.powerTime / f.powerMax)), 1);
+        if (!isHero) g.fillStyle(col, a).fillRect(px - 3, py - 5, Math.round(PW * Math.max(0, f.powerTime / f.powerMax)), 1);
       } else powT.setVisible(false);
       for (let s = 0; s < 5; s++) {
         const bx = px + s * 20;
-        const by = py + 26;
+        const by = py + 38;
         const inv = f.inv[s];
         const active = f.active === s && f.alive;
         g.fillStyle(active ? 0x4a4060 : 0x241e32, a).fillRect(bx, by, 18, 12);

@@ -19,7 +19,7 @@ fighter/team standing wins the round → slow-mo final kill + instant replay →
 | Action | P1 | P2 (numpad) | P2 (laptop fallback) | Gamepad |
 |---|---|---|---|---|
 | Move / aim | W A S D | Arrows | Arrows | Left stick / D-pad |
-| Jump | W / G / Space | Up / Num5 | Up / K | A |
+| Jump (Up is the jump button) | W | Up | Up | A |
 | Drop through | S S (double tap) | Down Down | Down Down | Down Down |
 | Attack (hold = aim) | F | Num4 | L | X / RT |
 | Kick | H | Num6 | J | B |
@@ -75,9 +75,10 @@ key) and, once transformed, a **super** (both keys, within 0.1 s of each other).
 | Hero | Ability 1 | Ability 2 | Super (per form) | Forms |
 |---|---|---|---|---|
 | Goku | Levitation | Kamehameha (charge) | Super / Dragon Fist / God Kamehameha | SSJ, SSJ2, SSJ3, SSBlue |
-| Naruto | Rasengan | Shadow clone rush | Rasenshuriken / Tailed Beast Bomb / Kurama Bijudama | 1 tail, 4 tails, 6 tails (black), Kurama (gold, 9 tails) |
+| Naruto | Rasengan | Shadow clone rush | Rasenshuriken / Tailed Beast Bomb / Kurama Bijudama | crimson aura tail, 4 tails, 6 tails (black), Kurama (gold, no tails); fox stance in forms 1-3 |
 | Luffy | Gum-Gum Pistol (+ rocket) | Gum-Gum Gatling | Jet Pistol / Elephant / King Kong / Bajrang Gun | Gear 2, 3, 4, 5 |
 
-The only pickup is the **power orb** (rare, a couple at a time): each orb eaten raises a hero one form (timer refills to
-24 s), scrapyard fighters get a 12 s boost. See DECISIONS D58.
+The only pickup is the **power orb** (rare, a couple at a time): each orb eaten raises a hero one form and adds a layer
+of form health (30 HP) above the normal health bar. Forms have no timer: damage drains the form layers first and the form
+ends when they are gone (D61). Final forms of Naruto and Luffy fly while Up is held. Scrapyard fighters get a 12 s boost.
 

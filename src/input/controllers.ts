@@ -36,7 +36,8 @@ export class KeyboardController implements Controller {
     const o = this.out;
     o.moveX = (this.held('right') ? 1 : 0) - (this.held('left') ? 1 : 0);
     o.moveY = (this.held('down') ? 1 : 0) - (this.held('up') ? 1 : 0);
-    o.jump = this.held('jump');
+    // no jump key on the keyboard: Up is the jump button (the sim derives it, D50)
+    o.jump = false;
     o.attack = this.held('attack');
     o.kick = this.held('kick');
     o.interact = this.held('interact');
