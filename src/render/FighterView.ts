@@ -1,3 +1,4 @@
+import { formLevel } from './formLevel';
 import Phaser from 'phaser';
 import type { Appearance } from '../art/appearance';
 import { Art } from '../art';
@@ -116,7 +117,7 @@ export class FighterView {
     const f = this.fighter;
     const { def, img } = this.sheet!;
     const { anim, t } = animFor(f, simTime);
-    img.setFrame(sheetFrame(def, anim, t, f.power === 'hero'));
+    img.setFrame(sheetFrame(def, anim, t, formLevel(f) > 0));
     this.root.setPosition(x, y).setScale(f.facing, 1).setRotation(f.state === 'dead' && !f.grounded ? f.rot * f.facing : 0);
     if (this.flash > 0) {
       this.flash -= dt;
@@ -161,7 +162,8 @@ export class FighterView {
   /** Naruto's fox stance: forms 1-3 run on four legs (not the base and not the final form) */
   private get fox(): boolean {
     const f = this.fighter;
-    return f.hero === 'naruto' && f.power === 'hero' && f.powerLevel >= 1 && f.powerLevel <= 3;
+    const lv = formLevel(f);
+    return f.hero === 'naruto' && lv >= 1 && lv <= 3;
   }
 
   /** Sprinting with the arms trailing behind in the air (Naruto in his base and final form, data: HeroDefinition.sprintArmsBack) */
@@ -169,7 +171,8 @@ export class FighterView {
     const f = this.fighter;
     const a = heroDef(f.hero)?.sprintArmsBack;
     if (!a || f.sprintDir === 0) return false;
-    return f.power === 'hero' ? a.levels.includes(f.powerLevel) : a.base;
+    const lv = formLevel(f);
+    return lv > 0 ? a.levels.includes(lv) : a.base;
   }
 
   onHit(): void {
@@ -644,7 +647,7 @@ export class FighterView {
     }
 
     // ---- apply
-    const want = f.power === 'hero' ? this.texFor(f.powerLevel) : this.tex;
+    const want = this.texFor(formLevel(f));
     if (want !== this.curTex) {
       this.curTex = want;
       this.body.setTexture(want.body);

@@ -89,12 +89,12 @@ key) and, once transformed, a **super** (both keys, within 0.1 s of each other).
   clones have 20 % of his max health. They follow him, fight his enemies, count for his kills, vanish when he dies, and
   the ability only recharges once every clone is dead or recalled (press ability 2 again to call them back).
 - **Luffy, Gum-Gum Pistol:** the arm keeps stretching while the ability button is held (a tap is 100 px, holding goes
-  up to 340 px) and hits the first fighter it touches (4.5 damage: it is a traversal move). Aim with Up (straight up with
+  up to 340 px) and hits the first fighter it touches (no damage: it is a traversal move; 3 charges in the A chip, each refills 2 s after it was used). Aim with Up (straight up with
   nothing else held, or up-forward) or Down in the air. If it catches on a wall, platform or ladder and you are still
   holding, you are pulled there (a ladder: you start climbing; a platform: you land on top); if it catches a
   **ceiling** you swing from it instead: left/right pump, Up/Down reel the rope, release or Jump to let go.
 
 The only pickup is the **power orb** (rare, a couple at a time): each orb eaten raises a hero one form and adds a layer
 of form health (30 HP) above the normal health bar. Forms have no timer: damage drains the form layers first and the form
-ends when they are gone (D61). Final forms of all three heroes fly while Up is held. Scrapyard fighters get a 12 s boost.
+ends when they are gone (D61). Goku flies while Up is held in every form; Naruto and Luffy only in their final forms. Scrapyard fighters get a 12 s boost.
 

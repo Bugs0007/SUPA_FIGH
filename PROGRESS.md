@@ -266,14 +266,15 @@ Status legend: [x] done · [~] partial · [ ] todo
 
 ## M13 — Hero upgrades ✅
 - [x] **Goku**: Levitation removed; his ability 1 is **Instant Transmission** (teleport, lock-on, arrival strike, i-frames);
-      flight is now the final form's (Super Saiyan Blue holds Up to fly), like Naruto's and Luffy's final forms (D62)
+      he flies in every form (hold Up), like Naruto's and Luffy's final forms (D62)
 - [x] **Naruto** (priority): **Shadow Clones are real fighters** (2 base, +1 per form to 5, final form 2 full-health copies),
       Rasengan-only bots that follow him, recall on ability 2, cooldown only after all are gone (D63); **Rasengan holds**
       until it hits / a wall / release (D64); **wall walking** (D66); anime **arms-back sprint** in base + final form
 - [x] **Luffy**: Gum-Gum Pistol is a grapple (platforms, ladders, walls pull you in; ceilings swing you), hold extends the
-      arm up to 340 px until it hits something, damage halved to 4.5 (D65)
+      arm up to 340 px until it hits something, no damage, 3 charges refilling 2 s each (D65)
+- [x] Naruto's clones wear his current form (look, aura, tails: `Fighter.cloneForm`, render `formLevel`), still weak, Rasengan-only
 - [x] Replays record intents for the clone slots (`RoundRecording.count`); bots and the bot sim create clone brains
-- [x] Tests: 312 unit (new `heroUpgrades.test.ts`, rewritten ability tests), e2e abilities spec is now tick-based (the
+- [x] Tests: 316 unit (new `heroUpgrades.test.ts`, rewritten ability tests), e2e abilities spec is now tick-based (the
       wall-clock version failed on a clean main under software rendering) + wall walk and grapple e2e
 
 ### Manual play-test checklist (M13)
@@ -281,6 +282,6 @@ Status legend: [x] done · [~] partial · [ ] todo
   ability 2 again, check the K chip only refills once all are gone; hold Rasengan at a far enemy; double-tap + hold toward
   a wall then Up to run up it; sprint in base and Kurama form (arms trailing back).
 - Luffy: hold Up + ability under a platform / next to a ladder / at a wall (pulled there); under a ceiling (swing, pump,
-  reel, release); hold at an enemy far away (4.5 damage, arm retracts when it connects).
-- Goku: Instant Transmission toward an enemy, into a wall, up; in Super Saiyan Blue jump then hold Up to fly.
+  reel, release); hold at an enemy far away (no damage, a shove; arm retracts when it connects; 3 charges).
+- Goku: Instant Transmission toward an enemy, into a wall, up; jump then hold Up to fly (any form).
 

@@ -1,3 +1,4 @@
+import { formLevel } from './formLevel';
 import Phaser from 'phaser';
 import { BOOST_COLORS, formFx, type FormFx } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
@@ -18,7 +19,8 @@ const INK = hexToNum(P.ink);
 
 /** [main, highlight] colours of a fighter's current power (form, or the generic boost). */
 export function powerColors(f: Fighter): [number, number] {
-  const c = f.power === 'hero' ? formFx(f.hero, f.powerLevel).aura : BOOST_COLORS;
+  const lv = formLevel(f);
+  const c = lv > 0 ? formFx(f.hero, lv).aura : BOOST_COLORS;
   return [hexToNum(c[0]), hexToNum(c[1])];
 }
 
@@ -174,8 +176,8 @@ export class HeroFx {
       if (!f.alive || f.gone) continue;
       const x = lerp(f.px, f.x, alpha);
       const y = lerp(f.py, f.y, alpha);
-      if (f.power) this.aura(f, x, y, dt, time);
-      if (f.power === 'hero') this.tails(f, x, y, time);
+      if (f.power || formLevel(f) > 0) this.aura(f, x, y, dt, time);
+      if (formLevel(f) > 0) this.tails(f, x, y, time);
       if (f.flying) this.flight(f, x, y, dt, time);
       const sk = f.specialKind;
       if (f.state === 'special') {
@@ -197,7 +199,7 @@ export class HeroFx {
     const [c0, c1] = powerColors(f);
     const expiring = f.power === 'boost' && f.powerTime < 3 && Math.floor(time * 10) % 2 === 0;
     if (expiring) return;
-    const fxd = f.power === 'hero' ? formFx(f.hero, f.powerLevel) : null;
+    const fxd = formLevel(f) > 0 ? formFx(f.hero, formLevel(f)) : null;
     const pw = fxd?.power ?? 0;
     const cy = y - 11;
     const n = fxd ? 4 + pw * 3 : 6;
@@ -273,9 +275,9 @@ export class HeroFx {
 
   /** Chakra tails (Naruto's forms) behind the body. */
   private tails(f: Fighter, x: number, y: number, time: number): void {
-    const fox = f.hero === 'naruto' && f.powerLevel >= 1 && f.powerLevel <= 3 && f.state !== 'melee' && f.state !== 'special';
-    drawTails(this.back, formFx(f.hero, f.powerLevel), x, y, f.facing, time, 1, fox);
-    if (formFx(f.hero, f.powerLevel).ghostTails && Math.random() < 0.5) {
+    const fox = f.hero === 'naruto' && formLevel(f) >= 1 && formLevel(f) <= 3 && f.state !== 'melee' && f.state !== 'special';
+    drawTails(this.back, formFx(f.hero, formLevel(f)), x, y, f.facing, time, 1, fox);
+    if (formFx(f.hero, formLevel(f)).ghostTails && Math.random() < 0.5) {
       // the aura tail sheds crimson sparks
       this.fx.spawn({ frame: 'p1', x: x - f.facing * rnd(5, 18), y: y - rnd(8, 22), vy: rnd(-30, -10), life: rnd(0.2, 0.4), a0: 1, a1: 0, tint: 0xff4a3a, add: true, depth: 42 });
     }
@@ -348,7 +350,7 @@ export class HeroFx {
   /** Rubber arm (or leg for a stretch kick) from the body out to the current reach. */
   private stretchLimb(v: FighterView, x: number, y: number): void {
     const f = v.fighter;
-    const look = v.lookFor(f.power === 'hero' ? f.powerLevel : 0);
+    const look = v.lookFor(formLevel(f));
     const combo = heroDef(f.hero)?.combo;
     const kick = f.state === 'kick' || (f.state === 'melee' && !!combo?.[Math.min(f.combo, combo.length - 1)]?.kick);
     const angled = f.state === 'special' && (f.specialKind === 'pistol' || f.specialKind === 'rocket' || f.specialKind === 'swing' || f.specialKind === 'superFist') && Math.abs(f.stretchAngle) > 0.01;
@@ -406,7 +408,7 @@ export class HeroFx {
     const f = v.fighter;
     const g = heroDef(f.hero)?.second.gatling;
     if (!g) return;
-    const look = v.lookFor(f.power === 'hero' ? f.powerLevel : 0);
+    const look = v.lookFor(formLevel(f));
     const skin = hexToNum(look.skin);
     const fr = this.front;
     const step = Math.floor(time * 30);

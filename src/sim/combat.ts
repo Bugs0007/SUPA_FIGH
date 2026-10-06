@@ -61,7 +61,11 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   // a shadow clone's hits (and kills) count for its master
   if (hit.attacker >= 0) {
     const a = w.fighters[hit.attacker];
-    if (a && a.master >= 0) hit = { ...hit, attacker: a.master };
+    if (a && a.master >= 0) {
+      // clones never hurt their master or each other
+      if (v.id === a.master || v.master === a.master) return false;
+      hit = { ...hit, attacker: a.master };
+    }
   }
   const hx = hit.x ?? v.x;
   const hy = hit.y ?? v.y - v.h / 2;
