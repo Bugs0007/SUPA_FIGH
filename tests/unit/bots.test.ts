@@ -66,7 +66,6 @@ describe('bots and hero powers (M9)', () => {
   const heroSpec = (name: string, hero: string) => ({ ...spec(name), isBot: true, hero });
 
   it.each([
-    ['naruto', 'clone'],
     ['luffy', 'luffy:second'],
     ['goku', 'goku:second'],
   ] as const)('a base-form %s bot uses ability 2 (%s) at mid range', (hero, weapon) => {
@@ -81,6 +80,23 @@ describe('bots and hero powers (M9)', () => {
       used = w.events.some((e) => e.t === 'hit' && e.weapon === weapon);
     }
     expect(used).toBe(true);
+  });
+
+  it('a naruto bot summons shadow clones at mid range, and they fight with the Rasengan', () => {
+    const w = new World(FLAT, [heroSpec('bot', 'naruto'), spec('dummy')], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 4);
+    const [f, d] = w.fighters;
+    f.x = f.px = 80;
+    d.x = d.px = 200;
+    const bots = w.fighters.map((c, i) => new BotController(() => w, i, { difficulty: 'hard', seed: 3 + i, clone: c.master >= 0 }));
+    let summoned = false;
+    let rasengan = false;
+    for (let t = 0; t < 60 * 12 && !(summoned && rasengan); t++) {
+      w.step(bots.map((b) => b.poll()));
+      summoned ||= f.cloneCount >= 2;
+      rasengan ||= w.fighters.some((c) => c.master >= 0 && c.alive && c.specialKind === 'rasengan');
+    }
+    expect(summoned).toBe(true);
+    expect(rasengan).toBe(true);
   });
 
   it('a transformed bot fires its super when the target is in range', () => {

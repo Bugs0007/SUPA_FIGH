@@ -15,6 +15,8 @@ export class RoundRecording {
   readonly specs: FighterSpawn[];
   readonly settings: WorldSettings;
   readonly seed: number;
+  /** fighters in the world (players + Naruto's clone slots): every one's intents are recorded */
+  readonly count: number;
   ticks = 0;
   /** world tick of the round-ending kill (-1 = none) and where it happened */
   finalKillTick = -1;
@@ -22,20 +24,21 @@ export class RoundRecording {
   finalKillY = 0;
   private data: number[] = [];
 
-  constructor(def: MapDef, specs: FighterSpawn[], settings: WorldSettings, seed: number) {
+  constructor(def: MapDef, specs: FighterSpawn[], settings: WorldSettings, seed: number, count = specs.length) {
     this.def = def;
     this.specs = specs;
+    this.count = count;
     this.settings = { ...settings, modifiers: settings.modifiers ? [...settings.modifiers] : undefined };
     this.seed = seed;
   }
 
   get stride(): number {
-    return 1 + this.specs.length * PER_FIGHTER;
+    return 1 + this.count * PER_FIGHTER;
   }
 
   record(intents: readonly Intent[], suddenDeath: number): void {
     this.data.push(suddenDeath);
-    for (let i = 0; i < this.specs.length; i++) {
+    for (let i = 0; i < this.count; i++) {
       const it = intents[i];
       if (!it) {
         this.data.push(0, 0, 0);
@@ -57,7 +60,7 @@ export class RoundRecording {
   /** Read tick t into intents; returns the sudden death level. */
   read(t: number, out: Intent[]): number {
     const base = t * this.stride;
-    for (let i = 0; i < this.specs.length; i++) {
+    for (let i = 0; i < this.count; i++) {
       const o = out[i];
       const k = base + 1 + i * PER_FIGHTER;
       o.moveX = this.data[k];
@@ -84,7 +87,7 @@ export class ReplayPlayer {
 
   constructor(readonly rec: RoundRecording) {
     this.world = new World(rec.def, rec.specs, rec.settings, rec.seed);
-    this.intents = rec.specs.map(() => emptyIntent());
+    this.intents = this.world.fighters.map(() => emptyIntent());
   }
 
   get done(): boolean {

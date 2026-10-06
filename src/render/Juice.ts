@@ -466,11 +466,40 @@ export class Juice {
         break;
       }
       case 'clone':
-        fx.smoke(e.x, e.y - 10, 4, 0xe0e0e8);
+        fx.smoke(e.x, e.y - 10, 6, 0xe0e0e8);
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y - 10, life: 0.2, s0: 0.2, s1: 1.4, a0: 0.9, a1: 0, tint: 0xffffff, depth: 64 });
         this.sfx('clone', e.x, 0.8, 0.9 + Math.random() * 0.3);
         break;
       case 'cloneGone':
-        fx.smoke(e.x, e.y - 10, 3, 0xe0e0e8);
+        fx.smoke(e.x, e.y - 10, 5, 0xe0e0e8);
+        this.sfx('clone', e.x, 0.5, 1.5);
+        break;
+      case 'recall': {
+        const f = w.fighters[e.f];
+        if (e.n > 0) {
+          fx.spawn({ frame: 'ring', x: f.x, y: f.y - 12, life: 0.3, s0: 0.3, s1: 2.4, a0: 0.9, a1: 0, tint: 0xe0e0e8, depth: 64 });
+          this.r.floatText(f.x, f.y - 34, 'DISPEL!', 0xe0e0e8);
+        }
+        break;
+      }
+      case 'blink': {
+        // a streak of afterimage sparks along the jump, a pop at both ends
+        const n = 12;
+        for (let i = 0; i <= n; i++) {
+          const k = i / n;
+          fx.spawn({ frame: 'p2', x: e.fromX + (e.toX - e.fromX) * k, y: e.fromY + (e.toY - e.fromY) * k + (Math.random() - 0.5) * 6, life: 0.2 + 0.15 * k, a0: 0.9, a1: 0, tint: i % 2 ? 0xfff8c0 : 0x7ad8ff, add: true, depth: 63 });
+        }
+        for (const [x, y] of [[e.fromX, e.fromY], [e.toX, e.toY]]) {
+          fx.spawn({ frame: 'ring', x, y, life: 0.2, s0: 0.2, s1: 1.8, a0: 1, a1: 0, tint: 0xe8fbff, depth: 64 });
+          fx.sparks(x, y, 0, -1, 6, 0xfff8c0, 140);
+        }
+        this.sfx('blink', e.toX, 0.9);
+        break;
+      }
+      case 'wallwalk':
+        fx.dust(e.x, e.y, 3, 30);
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.18, s0: 0.2, s1: 1.2, a0: 1, a1: 0, tint: 0x7ac8ff, depth: 64 });
+        this.sfx('chakraStick', e.x, 0.6);
         break;
       case 'flyStart': {
         const f = w.fighters[e.f];

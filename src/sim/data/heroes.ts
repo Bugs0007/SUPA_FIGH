@@ -11,19 +11,38 @@
 
 import type { MeleeHit } from './weapons';
 
-/** ABILITY 1 (see BaseAbility in earlier versions): Goku levitation, Naruto rasengan, Luffy gum-gum pistol. */
+/** ABILITY 1: Goku instant transmission, Naruto rasengan, Luffy gum-gum pistol (grapple). */
 export interface BaseAbility {
-  kind: 'fly' | 'rasengan' | 'pistol';
+  kind: 'blink' | 'rasengan' | 'pistol';
   name: string;
   /** short menu description */
   desc: string;
-  /** seconds between uses (flight: between take-offs) */
+  /** seconds between uses */
   cooldown: number;
-  /** seconds of flight in the meter, refill per second on the ground, max speed, accel, take-off kick */
-  fly?: { meter: number; regen: number; speed: number; accel: number; liftoff: number; minMeter: number };
-  dash?: { windup: number; time: number; speed: number; recover: number; damage: number; knockX: number; knockY: number; stun: number; radius: number };
-  /** angles in radians (0 = forward, negative = up); the fist stops at walls and then pulls Luffy in */
+  /**
+   * Rasengan: a gravity-free dash. A tap dashes for `time`; HOLDING the ability button keeps the dash going
+   * (up to `maxTime`) until it hits someone, a wall, or the button is released.
+   */
+  dash?: { windup: number; time: number; maxTime: number; speed: number; recover: number; damage: number; knockX: number; knockY: number; stun: number; radius: number };
+  /** Gum-Gum Pistol: a stretching arm that hits, grabs (walls, ceilings, platforms, ladders) and pulls / swings */
   stretch?: StretchStats;
+  /** Instant transmission: teleport up to `range` px (8 directions); lands a short strike on arrival */
+  blink?: BlinkStats;
+}
+
+export interface BlinkStats {
+  range: number;
+  minRange: number;
+  /** locks onto the nearest enemy in the aimed direction within range + assist and appears behind them */
+  assist: number;
+  /** seconds of invulnerability around the jump */
+  iframes: number;
+  damage: number;
+  knockX: number;
+  knockY: number;
+  stun: number;
+  /** arrival strike box (px around the arrival point) */
+  radius: number;
 }
 
 export interface StretchStats {
@@ -40,6 +59,16 @@ export interface StretchStats {
   rocketTime: number;
   /** fist radius (px) — the super's giant fist */
   fist?: number;
+  /**
+   * Grapple (Gum-Gum Pistol): the arm keeps stretching at `extendSpeed` px/s while the ability button is
+   * held, up to `maxRange` (`range` is the length of a plain tap). Touching a wall / platform / ladder while
+   * held pulls Luffy to it; a ceiling makes him swing from it. `retractSpeed` brings the arm back.
+   */
+  extendSpeed?: number;
+  retractSpeed?: number;
+  maxRange?: number;
+  /** swing: sideways pump accel (px/s²), reel speed (px/s) and the longest swing (s) */
+  swing?: { pump: number; reel: number; maxTime: number };
 }
 
 /** A charged energy beam (Kamehameha): grows out to `range`, holds, hits each fighter once. */
@@ -64,8 +93,13 @@ export interface SecondAbility {
   desc: string;
   cooldown: number;
   beam?: BeamStats;
-  /** shadow clones rushing forward: count at base form (+1 per form level, capped), speed px/s, life s */
-  clones?: { count: number; max: number; speed: number; life: number; damage: number; knockX: number; knockY: number };
+  /**
+   * Shadow clones: real Naruto fighters that only know the Rasengan (they never make more clones).
+   * `count` in the base form, +`perLevel` per form level up to the form before the last; the final form makes
+   * `finalCount` clones that are exact copies of Naruto's CURRENT health, every other form makes clones with
+   * `hpFrac` of his max health. The cooldown only starts once all clones are dead or recalled (ability 2 again).
+   */
+  clones?: { count: number; perLevel: number; finalCount: number; hpFrac: number };
   /** flurry of stretched punches: duration, seconds between punches, reach, per-hit damage, re-hit delay */
   gatling?: { time: number; every: number; range: number; damage: number; knockX: number; rehit: number; finalKnock: number };
 }
@@ -92,7 +126,7 @@ export interface HeroForm {
   knockMul: number;
   /** extra melee reach (px) */
   reach: number;
-  /** holding Up in the air flies (final forms of Naruto and Luffy) */
+  /** holding Up in the air flies (the final form of every hero) */
   flies?: boolean;
 }
 
@@ -117,6 +151,10 @@ export interface HeroDefinition {
   forms: HeroForm[];
   /** fist combo (punch, punch, punch, kick); the kick hit has `kick: true` */
   combo: MeleeHit[];
+  /** can walk and run up walls (hold toward a wall + Up / Down) */
+  wallWalk?: boolean;
+  /** sprint pose with the arms trailing behind in the air: in the base form and at these form levels */
+  sprintArmsBack?: { base: boolean; levels: number[] };
   /** kill-feed label of the combo */
   comboName: string;
 }
@@ -171,19 +209,21 @@ export const HEROES: Record<string, HeroDefinition> = {
     stats: { speed: 1.03, hp: 100 },
     comboName: 'NINJA COMBO',
     combo: heroCombo('chakra'),
+    wallWalk: true,
+    sprintArmsBack: { base: true, levels: [4] },
     base: {
       kind: 'rasengan',
       name: 'RASENGAN',
-      desc: 'DASHING SPIRAL STRIKE. WORKS IN THE AIR TOO.',
+      desc: 'SPIRAL STRIKE. HOLD THE BUTTON TO KEEP CHARGING UNTIL YOU HIT SOMEONE.',
       cooldown: 3.2,
-      dash: { windup: 0.14, time: 0.2, speed: 330, recover: 0.16, damage: 13, knockX: 330, knockY: -190, stun: 0.35, radius: 7 },
+      dash: { windup: 0.14, time: 0.2, maxTime: 1.6, speed: 330, recover: 0.16, damage: 13, knockX: 330, knockY: -190, stun: 0.35, radius: 7 },
     },
     second: {
       kind: 'clones',
       name: 'SHADOW CLONES',
-      desc: 'CLONES RUSH AHEAD AND STRIKE. MORE CLONES IN EVERY FORM.',
-      cooldown: 4,
-      clones: { count: 2, max: 5, speed: 240, life: 0.42, damage: 6, knockX: 230, knockY: -130 },
+      desc: 'REAL CLONES THAT FIGHT WITH RASENGAN. MORE IN EVERY FORM; AGAIN TO RECALL.',
+      cooldown: 6,
+      clones: { count: 2, perLevel: 1, finalCount: 2, hpFrac: 0.2 },
     },
     super: {
       kind: 'bomb',
@@ -209,9 +249,25 @@ export const HEROES: Record<string, HeroDefinition> = {
     base: {
       kind: 'pistol',
       name: 'GUM-GUM PISTOL',
-      desc: 'STRETCH PUNCH (HOLD UP/DOWN TO ANGLE). HIT A WALL TO ROCKET TO IT.',
-      cooldown: 1.2,
-      stretch: { range: 100, out: 0.12, hold: 0.05, back: 0.12, damage: 9, knockX: 260, knockY: -130, upAngle: -0.8, downAngle: 0.8, rocketSpeed: 420, rocketTime: 0.3 },
+      desc: 'STRETCHING ARM (UP / DOWN TO AIM). HOLD TO KEEP REACHING; GRABS WALLS, PLATFORMS AND LADDERS AND PULLS YOU TO THEM; SWINGS FROM CEILINGS.',
+      cooldown: 1.0,
+      stretch: {
+        range: 100,
+        out: 0.12,
+        hold: 0.05,
+        back: 0.12,
+        damage: 4.5,
+        knockX: 220,
+        knockY: -120,
+        upAngle: -0.9,
+        downAngle: 0.8,
+        rocketSpeed: 460,
+        rocketTime: 1.2,
+        extendSpeed: 760,
+        retractSpeed: 1100,
+        maxRange: 340,
+        swing: { pump: 520, reel: 60, maxTime: 4 },
+      },
     },
     second: {
       kind: 'gatling',
@@ -237,16 +293,16 @@ export const HEROES: Record<string, HeroDefinition> = {
   goku: {
     id: 'goku',
     name: 'GOKU',
-    blurb: 'SUPER SAIYAN > SUPER SAIYAN 2 > SUPER SAIYAN 3 > SUPER SAIYAN BLUE',
+    blurb: 'SUPER SAIYAN > SUPER SAIYAN 2 > SUPER SAIYAN 3 > SUPER SAIYAN BLUE (FLIES)',
     stats: { speed: 1.0, hp: 100 },
     comboName: 'SAIYAN COMBO',
     combo: heroCombo('ki'),
     base: {
-      kind: 'fly',
-      name: 'LEVITATION',
-      desc: 'FLY IN ALL 4 DIRECTIONS. ABILITY = TAKE OFF / LAND.',
-      cooldown: 0.25,
-      fly: { meter: 4.5, regen: 1.1, speed: 135, accel: 1100, liftoff: 150, minMeter: 0.4 },
+      kind: 'blink',
+      name: 'INSTANT TRANSMISSION',
+      desc: 'TELEPORT IN THE DIRECTION YOU HOLD. LOCKS ONTO A FIGHTER IN THAT DIRECTION AND HITS ON ARRIVAL.',
+      cooldown: 2.2,
+      blink: { range: 120, minRange: 24, assist: 40, iframes: 0.18, damage: 7, knockX: 240, knockY: -150, stun: 0.3, radius: 14 },
     },
     second: {
       kind: 'beam',
@@ -266,7 +322,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.25, knockMul: 1.25, reach: 1 },
       { name: 'SUPER SAIYAN 2', speedMul: 1.2, damageMul: 1.4, knockMul: 1.35, reach: 1 },
       { name: 'SUPER SAIYAN 3', speedMul: 1.2, damageMul: 1.55, knockMul: 1.45, reach: 2 },
-      { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.7, knockMul: 1.55, reach: 2 },
+      { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.7, knockMul: 1.55, reach: 2, flies: true },
     ],
   },
 };
@@ -295,7 +351,26 @@ export function heroAttackLabel(id: string): string | null {
   return null;
 }
 
-/** Kill-credit weapon id of a base ability ('rasengan', 'gumgum'). */
+/** Kill-credit weapon id of a base ability ('rasengan', 'gumgum', 'blink'). */
 export function baseWeaponId(b: BaseAbility): string {
   return b.kind === 'pistol' ? 'gumgum' : b.kind;
+}
+
+/** Shadow clones a hero's ability 2 makes at a form level (0 = base form) and whether they copy full health. */
+export function cloneSpec(hero: string, level: number): { count: number; full: boolean } | null {
+  const h = HEROES[hero];
+  const c = h?.second.clones;
+  if (!h || !c) return null;
+  if (level >= h.forms.length) return { count: c.finalCount, full: true };
+  return { count: c.count + c.perLevel * level, full: false };
+}
+
+/** Most clones a hero can have out at once (the number of clone slots reserved in the world). */
+export function maxClones(hero: string): number {
+  const h = HEROES[hero];
+  const c = h?.second.clones;
+  if (!h || !c) return 0;
+  let m = c.finalCount;
+  for (let l = 0; l < h.forms.length; l++) m = Math.max(m, cloneSpec(hero, l)!.count);
+  return m;
 }

@@ -164,6 +164,14 @@ export class FighterView {
     return f.hero === 'naruto' && f.power === 'hero' && f.powerLevel >= 1 && f.powerLevel <= 3;
   }
 
+  /** Sprinting with the arms trailing behind in the air (Naruto in his base and final form, data: HeroDefinition.sprintArmsBack) */
+  private get armsBackSprint(): boolean {
+    const f = this.fighter;
+    const a = heroDef(f.hero)?.sprintArmsBack;
+    if (!a || f.sprintDir === 0) return false;
+    return f.power === 'hero' ? a.levels.includes(f.powerLevel) : a.base;
+  }
+
   onHit(): void {
     this.flash = 0.07;
   }
@@ -294,6 +302,14 @@ export class FighterView {
             front = Math.PI / 2 - s * 1.05 - 0.25;
             back = Math.PI / 2 + s * 1.05 - 0.25;
             leanTarget = f.sprintDir !== 0 ? 0.13 : (speed / 118) * 0.05;
+            if (this.armsBackSprint && !isGun) {
+              // the anime run: leaning far forward, both arms floating straight back behind the body
+              front = Math.PI + 0.3 + Math.sin(time * 14) * 0.04;
+              back = Math.PI + 0.12 + Math.sin(time * 14 + 1) * 0.04;
+              frontLen = 1;
+              backLen = 1;
+              leanTarget = 0.36;
+            }
           } else {
             // breathing (each fighter on its own phase), arms hang loose and sway a little
             const ph = time * 1.4 + f.id * 0.37;
@@ -333,6 +349,26 @@ export class FighterView {
         }
         if (isGun) smoothArms = false;
         gunIdle();
+        break;
+      }
+      case 'wallwalk': {
+        // chakra feet: lying along the wall, feet on it, running up / down (rig is turned 90 degrees below)
+        smoothArms = true;
+        showWeapon = false;
+        const moving = Math.abs(f.vy) > 8;
+        if (moving) this.runPhase += (Math.abs(f.vy) * dt) / 5.5;
+        frame = moving ? BF.RUN0 + (Math.floor(this.runPhase) % 6) : BF.IDLE0;
+        const sw = Math.sin((this.runPhase / 6) * Math.PI * 2);
+        front = moving ? Math.PI / 2 - sw * 1.05 - 0.25 : 1.4;
+        back = moving ? Math.PI / 2 + sw * 1.05 - 0.25 : 1.7;
+        if (moving && this.armsBackSprint) {
+          front = Math.PI + 0.3;
+          back = Math.PI + 0.12;
+          frontLen = 1;
+          backLen = 1;
+        }
+        rigRot = -Math.PI / 2;
+        leanTarget = 0;
         break;
       }
       case 'crouch':
@@ -443,6 +479,13 @@ export class FighterView {
           back = 1.9;
           backLen = 0;
           leanTarget = 0.06 + f.stretchAngle * 0.1;
+        } else if (kind === 'swing') {
+          // hanging from the rope: the roped arm reaches up, legs trail behind the swing
+          frame = BF.FALL;
+          front = f.stretchAngle;
+          back = 2.4;
+          backLen = 1;
+          rigRot = -Math.max(-0.6, Math.min(0.6, (f.vx * f.facing) / 500));
         } else if (kind === 'rocket') {
           // yanked toward the fist: stretched out in the direction of travel
           frame = BF.APEX;
@@ -618,7 +661,8 @@ export class FighterView {
     this.squash *= Math.pow(0.001, dt * 6);
     const sq = this.squash;
     this.root.setScale(f.facing * (1 + sq * 0.6) * (1 - this.turnT * 0.35), 1 - sq);
-    this.rig.setPosition(0, lerp(-RIG_Y, -4, this.lieAmount));
+    // on a wall the body lies along it: pull the rig off the wall so the feet touch it, not the middle
+    this.rig.setPosition(f.state === 'wallwalk' ? -6 : 0, lerp(-RIG_Y, -4, this.lieAmount));
     this.lean += (leanTarget - this.lean) * Math.min(1, dt * 14);
     this.rig.setRotation(rigRot + this.lean);
 

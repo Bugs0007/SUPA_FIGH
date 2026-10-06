@@ -46,11 +46,13 @@ export function runBotSim(opts: {
       seed: opts.seed + m * 101,
       heroPowers: opts.heroPowers,
     });
-    const bots = fighters.map((_, i) => new BotController(() => match.world, i, { difficulty: opts.difficulty, seed: opts.seed + m }));
+    const bots = match.world.fighters.map(
+      (f, i) => new BotController(() => match.world, i, { difficulty: opts.difficulty, seed: opts.seed + m, clone: f.master >= 0 }),
+    );
     const intents = bots.map((b) => b.poll());
     for (let r = 0; r < 3; r++) {
       const startRound = match.round;
-      const idle = fighters.map(() => ({ x: 0, y: 0, t: 0 }));
+      const idle = match.world.fighters.map(() => ({ x: 0, y: 0, t: 0 }));
       let t = 0;
       while (match.round === startRound && t < cap) {
         for (let i = 0; i < bots.length; i++) intents[i] = bots[i].poll();

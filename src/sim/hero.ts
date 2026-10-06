@@ -1,10 +1,11 @@
-// Heroes (M9, reworked M11): power-orb transformations with form levels, abilities 1 / 2, supers and
-// shadow-clone effect entities. Data in data/heroes.ts. The state machine lives in sim/fighter.ts.
+// Heroes (M9, reworked M11): power-orb transformations with form levels, abilities 1 / 2, supers,
+// Goku's instant transmission, Luffy's grapple probe and Naruto's shadow-clone fighters.
+// Data in data/heroes.ts. The state machine lives in sim/fighter.ts.
 
-import { applyHit } from './combat';
-import { DT, SHOULDER_Y_STAND, TILE } from './constants';
+import { applyHit, sameTeam } from './combat';
+import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from './constants';
 import {
-  CLONE,
+  cloneSpec,
   FORM_BYPASS,
   FORM_HP,
   GENERIC_BOOST,
@@ -14,33 +15,15 @@ import {
   type AbilityDefinition,
   type BaseAbility,
   type BeamStats,
+  type BlinkStats,
   type SecondAbility,
   type StretchStats,
 } from './data/heroes';
-import { weaponDef, type MeleeHit } from './data/weapons';
+import { weaponDef } from './data/weapons';
 import type { Fighter } from './fighter';
 import { segmentAabb } from './physics';
 import { damageProp, pushProp } from './prop';
 import type { World } from './world';
-
-/** Shadow clone: a short-lived effect that strikes and vanishes. Never a fighter, never thinks. */
-export interface Clone {
-  owner: number;
-  x: number;
-  y: number;
-  facing: 1 | -1;
-  t: number;
-  struck: number[];
-  active: boolean;
-  damageMul: number;
-  knockMul: number;
-  /** rushing clones (Naruto's ability 2) run forward and hit everyone they touch once */
-  vx: number;
-  life: number;
-  damage: number;
-  knockX: number;
-  knockY: number;
-}
 
 // ------------------------------------------------------------------ transformation state
 
@@ -68,6 +51,7 @@ export function formName(f: Fighter): string {
  */
 export function transform(w: World, f: Fighter): number {
   const hero = heroDef(f.hero);
+  if (f.master >= 0) return 0; // shadow clones never eat power orbs
   if (hero) {
     const prev = f.power === 'hero' ? f.powerLevel : 0;
     f.power = 'hero';
@@ -108,7 +92,8 @@ export function endPower(w: World, f: Fighter): void {
 
 export function updatePower(w: World, f: Fighter, dt: number): void {
   if (f.specialCd > 0) f.specialCd -= dt;
-  if (f.secondCd > 0) f.secondCd -= dt;
+  // Naruto's clone cooldown only runs once every clone is dead or recalled
+  if (f.secondCd > 0 && f.cloneCount === 0) f.secondCd -= dt;
   if (!f.power) return;
   if (f.power === 'hero') {
     // heroes: the form lasts until its form health is gone
@@ -434,102 +419,184 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/her
   w.emit({ t: 'special', f: f.id, power: f.hero, x: sx, y: sy, scale: 1 + l * 0.5 });
 }
 
-// ------------------------------------------------------------------ shadow clones
+// ------------------------------------------------------------------ instant transmission (Goku)
 
-function newClone(f: Fighter, x: number, facing: 1 | -1, extra: Partial<Clone>): Clone {
-  const ab = ability(f);
-  return {
-    owner: f.id,
-    x,
-    y: f.y,
-    facing,
-    t: 0,
-    struck: [],
-    active: true,
-    damageMul: ab?.damageMul ?? 1,
-    knockMul: ab?.knockMul ?? 1,
-    vx: 0,
-    life: CLONE.life,
-    damage: CLONE.damage,
-    knockX: CLONE.knockX,
-    knockY: CLONE.knockY,
-    ...extra,
-  };
+/**
+ * Where an instant transmission toward (dx, dy) lands: appears behind the nearest enemy in that direction
+ * when there is one within range + assist, otherwise as far along the line as there is room.
+ * null = nowhere to go (a wall right in front).
+ */
+export function blinkDestination(w: World, f: Fighter, b: BlinkStats, dx: number, dy: number): { x: number; y: number; target: number } | null {
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const fits = (x: number, y: number) =>
+    x - f.w / 2 > 2 && x + f.w / 2 < w.map.pxW - 2 && y - FIGHTER_H > 2 && y < w.map.pxH - 2 && !w.map.rectSolid(x - f.w / 2, y - FIGHTER_H, x + f.w / 2, y - 0.01);
+  const cy = f.y - FIGHTER_H / 2;
+  // lock-on
+  let best: Fighter | null = null;
+  let bestAlong = Infinity;
+  for (const o of w.fighters) {
+    if (o === f || !o.alive || o.gone || sameTeam(o, f)) continue;
+    const ox = o.x - f.x;
+    const oy = o.y - o.h / 2 - cy;
+    const along = ox * ux + oy * uy;
+    const across = Math.abs(ox * uy - oy * ux);
+    if (along < 6 || along > b.range + b.assist || across > 16) continue;
+    if (!w.map.clearShot(f.x, cy, o.x, o.y - o.h / 2)) continue;
+    if (along < bestAlong) {
+      bestAlong = along;
+      best = o;
+    }
+  }
+  if (best) {
+    // appear on the far side of them, in the line of the jump
+    for (const back of [14, 10, 18]) {
+      const tx = best.x + ux * back;
+      const ty = Math.abs(uy) > 0.5 ? best.y + uy * back : best.y;
+      if (fits(tx, ty)) return { x: tx, y: ty, target: best.id };
+    }
+  }
+  for (let d = b.range; d >= b.minRange; d -= 4) {
+    const x = f.x + ux * d;
+    const y = f.y + uy * d;
+    if (fits(x, y) && w.map.clearShot(f.x, cy, x, y - FIGHTER_H / 2)) return { x, y, target: -1 };
+  }
+  return null;
 }
 
-/** Combo clones (a combo hit with `clones`): flash in beside the owner, strike once. */
-export function spawnClones(w: World, f: Fighter, hit: MeleeHit): void {
-  const n = hit.clones ?? 0;
-  for (let i = 0; i < n; i++) {
-    const side = i % 2 === 0 ? 1 : -1;
-    const facing = (side === 1 ? f.facing : -f.facing) as 1 | -1;
-    const x = f.x + f.facing * side * CLONE.offset * (1 + Math.floor(i / 2));
-    if (w.map.rectSolid(x - f.w / 2, f.y - f.h, x + f.w / 2, f.y - 1)) continue;
-    w.clones.push(newClone(f, x, facing, {}));
-    w.emit({ t: 'clone', f: f.id, x, y: f.y, facing });
+/** The arrival strike: everyone within `radius` of the landing point is hit once. */
+export function blinkStrike(w: World, f: Fighter, b: BlinkStats): void {
+  const m = meleeMuls(f);
+  for (const o of w.fighters) {
+    if (o === f || o.gone || !o.alive) continue;
+    if (Math.abs(o.x - f.x) > b.radius + o.w / 2 || o.y - o.h > f.y || o.y < f.y - FIGHTER_H) continue;
+    const dir = o.x >= f.x ? 1 : -1;
+    const connected = applyHit(w, o, {
+      damage: b.damage * m.dmg,
+      kbX: dir * b.knockX * m.knock,
+      kbY: b.knockY * m.knock,
+      attacker: f.id,
+      weapon: 'blink',
+      kind: 'melee',
+      stun: b.stun,
+      knockdown: true,
+      x: o.x - dir * (o.w / 2),
+      y: o.y - o.h / 2,
+    });
+    if (connected) w.emit({ t: 'heroFx', fx: 'ki', heavy: true, x: o.x - dir * (o.w / 2), y: o.y - o.h / 2 });
   }
 }
 
-/** Naruto's ability 2: clones pop out beside him and rush ahead, hitting everyone they touch. */
-export function spawnRushClones(w: World, f: Fighter, c: NonNullable<SecondAbility['clones']>): number {
-  const n = Math.min(c.max, c.count + (f.power === 'hero' ? f.powerLevel : 0));
+// ------------------------------------------------------------------ grapple (Luffy's Gum-Gum Pistol)
+
+/** What a stretching arm grabbed: a wall, the underside of a ceiling, a floor, a platform or a ladder. */
+export type GripKind = 'wall' | 'ceiling' | 'floor' | 'platform' | 'ladder';
+
+export interface Grip {
+  kind: GripKind;
+  /** arm length (px from the shoulder) at the contact */
+  len: number;
+  /** contact point */
+  x: number;
+  y: number;
+  /** tile of the contact */
+  tx: number;
+  ty: number;
+}
+
+/**
+ * Marches along the arm from the shoulder (up to `reach` px past the body edge) and reports the first
+ * thing the fist can grab. Solid tiles are walls / ceilings (the arm came up under them) / floors,
+ * one-way platforms only count when the arm points up or down, ladders always (except the one you are on).
+ */
+export function grabProbe(w: World, f: Fighter, angle: number, reach: number): Grip | null {
+  const dx = Math.cos(angle) * f.facing;
+  const dy = Math.sin(angle);
+  const { x0, y0 } = stretchFist(f, angle, 0);
+  const total = f.w / 2 + reach;
+  const startTx = Math.floor(x0 / TILE);
+  const startTy = Math.floor(y0 / TILE);
+  let ptx = startTx;
+  let pty = startTy;
+  const steep = Math.abs(dy) > 0.3;
+  for (let d = 2; d <= total; d += 2) {
+    const px = x0 + dx * d;
+    const py = y0 + dy * d;
+    const tx = Math.floor(px / TILE);
+    const ty = Math.floor(py / TILE);
+    const def = w.map.def(tx, ty);
+    if (def.solid) {
+      const enteredVert = ty !== pty && tx === ptx;
+      const enteredHorz = tx !== ptx && ty === pty;
+      const vertical = enteredVert || (!enteredHorz && Math.abs(dy) > Math.abs(dx));
+      const kind: GripKind = vertical ? (dy < 0 ? 'ceiling' : 'floor') : 'wall';
+      return { kind, len: d, x: px, y: py, tx, ty };
+    }
+    if (def.ladder && !(tx === startTx && ty === startTy)) return { kind: 'ladder', len: d, x: px, y: py, tx, ty };
+    if (def.oneWay && steep && !(tx === startTx && ty === startTy)) return { kind: 'platform', len: d, x: px, y: py, tx, ty };
+    ptx = tx;
+    pty = ty;
+  }
+  return null;
+}
+
+/** Where the body is pulled to for a grip (shoulder-height target): beside a wall, on top of a platform, on a ladder. */
+export function gripTarget(g: Grip): { x: number; y: number } {
+  const cx = g.tx * TILE + TILE / 2;
+  // (a few px above the platform top: he gets there, stops, and drops onto it)
+  if (g.kind === 'platform') return { x: cx, y: g.ty * TILE - SHOULDER_Y_STAND + 1 - 10 };
+  if (g.kind === 'ladder') return { x: cx, y: g.y };
+  return { x: g.x, y: g.y };
+}
+
+// ------------------------------------------------------------------ shadow clones (Naruto, ability 2)
+
+/** Living clones of a fighter. */
+export function clonesOf(w: World, f: Fighter): Fighter[] {
+  return w.fighters.filter((c) => c.master === f.id && c.alive);
+}
+
+/** A clone vanishes in a puff of smoke (killed, recalled, or its master fell). */
+export function dismissClone(w: World, c: Fighter): void {
+  if (c.master < 0 || (!c.alive && c.gone)) return;
+  w.releaseGrab(c);
+  w.emit({ t: 'cloneGone', x: c.x, y: c.y });
+  c.alive = false;
+  c.gone = true;
+  c.hp = 0;
+  c.state = 'dead';
+  c.flying = false;
+  c.specialKind = '';
+  c.stretchLen = 0;
+}
+
+/**
+ * Naruto summons his clones: `cloneSpec` many (base 2, +1 per form up to the form before the last; the
+ * final form makes 2 exact copies of his CURRENT health). They are real fighters from the clone slots
+ * reserved in the world; they only know the Rasengan. Returns how many appeared.
+ */
+export function summonClones(w: World, f: Fighter): number {
+  const spec = cloneSpec(f.hero, f.power === 'hero' ? f.powerLevel : 0);
+  if (!spec) return 0;
+  const slots = w.fighters.filter((c) => c.master === f.id && !c.alive);
   let made = 0;
-  for (let i = 0; i < n; i++) {
-    const x = f.x + f.facing * (6 + (i % 3) * 5) - f.facing * Math.floor(i / 3) * 8;
-    if (w.map.rectSolid(x - f.w / 2, f.y - f.h, x + f.w / 2, f.y - 1)) continue;
-    w.clones.push(newClone(f, x, f.facing, { vx: f.facing * c.speed * (1 - i * 0.07), life: c.life + i * 0.04, damage: c.damage, knockX: c.knockX, knockY: c.knockY, t: -i * 0.04 }));
-    w.emit({ t: 'clone', f: f.id, x, y: f.y, facing: f.facing });
+  for (let i = 0; i < spec.count && made < slots.length; i++) {
+    const side = i % 2 === 0 ? 1 : -1;
+    const x = f.x + f.facing * side * (11 + Math.floor(i / 2) * 9);
+    if (w.map.rectSolid(x - f.w / 2, f.y - FIGHTER_H, x + f.w / 2, f.y - 1)) continue;
+    const frac = heroDef(f.hero)?.second.clones?.hpFrac ?? 0.2;
+    const maxHp = spec.full ? f.maxHp : Math.max(1, Math.round(f.maxHp * frac));
+    const hp = spec.full ? Math.max(1, f.hp) : maxHp;
+    w.spawnClone(slots[made], f, x, f.y, hp, maxHp, side === 1 ? f.facing : (-f.facing as 1 | -1));
     made++;
   }
   return made;
 }
 
-export function updateClones(w: World): void {
-  if (w.clones.length === 0) return;
-  for (const c of w.clones) {
-    if (!c.active) continue;
-    c.t += DT;
-    const owner = w.fighters[c.owner];
-    if (c.t >= c.life || !owner || !owner.alive) {
-      c.active = false;
-      w.emit({ t: 'cloneGone', x: c.x, y: c.y });
-      continue;
-    }
-    if (c.t < 0) continue;
-    const rush = c.vx !== 0;
-    if (rush) {
-      const nx = c.x + c.vx * DT;
-      // a rushing clone poofs when it runs into a wall
-      if (w.map.rectSolid(nx - 5, c.y - 20, nx + 5, c.y - 2)) {
-        c.active = false;
-        w.emit({ t: 'cloneGone', x: c.x, y: c.y });
-        continue;
-      }
-      c.x = nx;
-    } else if (c.t < CLONE.delay || c.t > CLONE.delay + CLONE.active) continue;
-    const near = c.x + c.facing * (rush ? -2 : 4);
-    const far = c.x + c.facing * (rush ? 9 : 6 + CLONE.range);
-    const l = Math.min(near, far);
-    const r = Math.max(near, far);
-    const t = c.y - 20;
-    const b = c.y - 3;
-    for (const o of w.fighters) {
-      if (o.id === c.owner || o.gone || !o.alive || c.struck.includes(o.id)) continue;
-      if (o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) continue;
-      c.struck.push(o.id);
-      const connected = applyHit(w, o, {
-        damage: c.damage * c.damageMul,
-        kbX: c.facing * c.knockX * c.knockMul,
-        kbY: c.knockY * c.knockMul,
-        attacker: c.owner,
-        weapon: 'clone',
-        kind: 'melee',
-        stun: 0.25,
-        x: c.x + c.facing * 8,
-        y: (t + b) / 2,
-      });
-      if (connected) w.emit({ t: 'heroFx', fx: 'chakra', heavy: false, x: c.x + c.facing * 8, y: (t + b) / 2 });
-    }
-  }
-  if (w.tick % 60 === 0) w.clones = w.clones.filter((c) => c.active);
+/** Called back with the ability button: every clone of `f` vanishes. Returns how many. */
+export function recallClones(w: World, f: Fighter): number {
+  const out = clonesOf(w, f);
+  for (const c of out) dismissClone(w, c);
+  return out.length;
 }

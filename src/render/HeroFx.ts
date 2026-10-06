@@ -1,11 +1,10 @@
 import Phaser from 'phaser';
-import { armFrame, BF, FRAME_META } from '../art/fighterArt';
 import { BOOST_COLORS, formFx, type FormFx } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { SHOULDER_Y_STAND } from '../sim/constants';
 import { heroDef } from '../sim/data/heroes';
 import type { Fighter } from '../sim/fighter';
-import { baseAbility, beamOrigin, rasenganPoint, type Clone } from '../sim/hero';
+import { baseAbility, beamOrigin, rasenganPoint } from '../sim/hero';
 import type { World } from '../sim/world';
 import type { FighterView } from './FighterView';
 import type { Fx } from './Fx';
@@ -60,26 +59,18 @@ export function drawTails(g: Phaser.GameObjects.Graphics, fxd: FormFx, x: number
   }
 }
 
-interface CloneSprite {
-  root: Phaser.GameObjects.Container;
-  body: Phaser.GameObjects.Image;
-  head: Phaser.GameObjects.Image;
-  arm: Phaser.GameObjects.Image;
-}
-
 /**
  * Hero visuals (M9, reworked M11): per-form auras (orbiting pixels, steam, fire, clouds, lightning),
- * chakra tails, stretched rubber limbs and giant fists, beams, charge orbs, shadow clones.
+ * chakra tails, stretched rubber limbs and giant fists, beams, charge orbs.
  * Pixel discs are drawn row by row so they keep hard edges at every zoom.
  */
 export class HeroFx {
   private back: Phaser.GameObjects.Graphics;
   private front: Phaser.GameObjects.Graphics;
   private orbs: Phaser.GameObjects.Graphics;
-  private clones: CloneSprite[] = [];
 
   constructor(
-    private scene: Phaser.Scene,
+    scene: Phaser.Scene,
     private world: World,
     private views: FighterView[],
     private fx: Fx,
@@ -93,7 +84,6 @@ export class HeroFx {
     this.back.destroy();
     this.front.destroy();
     this.orbs.destroy();
-    for (const c of this.clones) c.root.destroy();
   }
 
   /** Filled pixel disc (hard edges). */
@@ -197,7 +187,6 @@ export class HeroFx {
       }
       if (f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y);
     }
-    this.drawClones(time);
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
   }
@@ -294,10 +283,8 @@ export class HeroFx {
 
   // ------------------------------------------------------------------ flight, rasengan
 
-  /** Levitation (Goku): a soft ki shell and a downdraft while flying. */
+  /** Hold-Up flight (final forms): a soft ki shell and a downdraft while flying. */
   private flight(f: Fighter, x: number, y: number, dt: number, time: number): void {
-    const fly = baseAbility(f)?.fly;
-    if (!fly) return;
     const g = this.front;
     const cy = y - 11;
     const sp = Math.hypot(f.vx, f.vy);
@@ -364,7 +351,7 @@ export class HeroFx {
     const look = v.lookFor(f.power === 'hero' ? f.powerLevel : 0);
     const combo = heroDef(f.hero)?.combo;
     const kick = f.state === 'kick' || (f.state === 'melee' && !!combo?.[Math.min(f.combo, combo.length - 1)]?.kick);
-    const angled = f.state === 'special' && (f.specialKind === 'pistol' || f.specialKind === 'rocket' || f.specialKind === 'superFist') && Math.abs(f.stretchAngle) > 0.01;
+    const angled = f.state === 'special' && (f.specialKind === 'pistol' || f.specialKind === 'rocket' || f.specialKind === 'swing' || f.specialKind === 'superFist') && Math.abs(f.stretchAngle) > 0.01;
     const big = f.specialKind === 'superFist';
     if (angled) {
       this.angledArm(f, x, y, hexToNum(look.skin), big ? f.beamWidth : 2);
@@ -549,41 +536,5 @@ export class HeroFx {
         }
       }
     }
-  }
-
-  // ------------------------------------------------------------------ shadow clones
-
-  /** Shadow clones: copies of the owner's (form) sprite in a punch pose, fading in and out. */
-  private drawClones(time: number): void {
-    let n = 0;
-    const meta = FRAME_META[BF.PUNCH];
-    for (const c of this.world.clones as Clone[]) {
-      if (!c.active || c.t < 0) continue;
-      const v = this.views[c.owner];
-      if (!v) continue;
-      const owner = this.world.fighters[c.owner];
-      const tex = v.texFor(owner.power === 'hero' ? owner.powerLevel : 0);
-      let s = this.clones[n];
-      if (!s) {
-        const root = this.scene.add.container(0, 0).setDepth(39);
-        const body = this.scene.add.image(0, 0, tex.body, BF.PUNCH).setOrigin(0.5, 1);
-        const head = this.scene.add.image(0, 0, tex.head, 0).setOrigin(8 / 16, 13 / 16);
-        const arm = this.scene.add.image(0, 0, tex.arm, 0);
-        root.add([body, head, arm]);
-        s = this.clones[n] = { root, body, head, arm };
-      }
-      n++;
-      s.body.setTexture(tex.body, BF.PUNCH);
-      s.head.setTexture(tex.head, 0).setPosition(meta.neckX - 16, meta.neckY - 32);
-      const striking = c.vx !== 0 || c.t > 0.06;
-      s.arm.setTexture(tex.arm, armFrame(striking ? 0 : 0.6, striking ? 1 : 0)).setPosition(meta.shX - 16, meta.shY - 32);
-      const fade = Math.min(1, c.t / 0.05, (c.life - c.t) / 0.08);
-      s.root
-        .setVisible(true)
-        .setPosition(Math.round(c.x + c.facing * (striking ? 2 : 0)), Math.round(c.y))
-        .setScale(c.facing, 1)
-        .setAlpha(Math.max(0, fade) * (0.75 + Math.sin(time * 50) * 0.1));
-    }
-    for (let i = n; i < this.clones.length; i++) this.clones[i].root.setVisible(false);
   }
 }
