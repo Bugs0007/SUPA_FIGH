@@ -625,7 +625,7 @@ export class BotController implements Controller {
    */
   private useBase(w: World, f: Fighter, e: Fighter, seen: boolean): boolean {
     const b = baseAbility(f);
-    if (!b || f.baseCd > 0 || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0) return false;
+    if (!b || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max) || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0) return false;
     const dx = e.x - f.x;
     const dist = Math.abs(dx);
     const dy = Math.abs(e.y - f.y);

@@ -272,6 +272,11 @@ export interface Fighter extends Body {
   stretchAngle: number;
   /** base ability (ability 1) cooldown; secondCd = ability 2; specialCd = the super */
   baseCd: number;
+  /** charged base abilities (Luffy's arm): charges spent, and seconds until the next one refills */
+  baseUsed: number;
+  baseRecharge: number;
+  /** shadow clones: the master's form level, mirrored every tick for looks only (0 = base) */
+  cloneForm: number;
   secondCd: number;
   /** seconds inside the current hero move (gatling pacing) */
   abilT: number;
@@ -423,6 +428,9 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     stretchLen: 0,
     stretchAngle: 0,
     baseCd: 0,
+    baseUsed: 0,
+    baseRecharge: 0,
+    cloneForm: 0,
     secondCd: 0,
     abilT: 0,
     beamWidth: 0,
@@ -1880,6 +1888,14 @@ function stKick(w: World, f: Fighter, dt: number): void {
 /** Per tick: base cooldown, hold-Up flight bookkeeping (the final forms fly while Up is held). */
 function updateBaseAbility(w: World, f: Fighter, dt: number): void {
   if (f.baseCd > 0) f.baseCd -= dt;
+  const ch = baseAbility(f)?.charges;
+  if (ch && f.baseUsed > 0) {
+    f.baseRecharge -= dt;
+    if (f.baseRecharge <= 0) {
+      f.baseUsed--;
+      f.baseRecharge = f.baseUsed > 0 ? ch.recharge : 0;
+    }
+  }
   if (f.flyHold && f.flying && holdFlies(f)) {
     if (f.state !== 'normal') {
       f.flying = false;
@@ -1921,7 +1937,7 @@ function stHoldFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): voi
 /** ABILITY in base form (or with another hero's generic boost). */
 function startBase(w: World, f: Fighter, inp: Intent): void {
   const b = baseAbility(f);
-  if (!b || f.baseCd > 0) return;
+  if (!b || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max)) return;
   if (f.h !== FIGHTER_H) {
     if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
     f.h = FIGHTER_H;
@@ -1937,6 +1953,10 @@ function startBase(w: World, f: Fighter, inp: Intent): void {
   if (inp.moveX > 0.5) f.facing = 1;
   else if (inp.moveX < -0.5) f.facing = -1;
   f.baseCd = b.cooldown;
+  if (b.charges) {
+    if (f.baseUsed === 0) f.baseRecharge = b.charges.recharge;
+    f.baseUsed++;
+  }
   f.recoverAt = 0;
   if (b.kind === 'rasengan') {
     f.specialKind = 'rasengan';

@@ -74,7 +74,7 @@ test('W jumps (and double jumps), double-tap S drops through a platform', async 
   expect(errors).toEqual([]);
 });
 
-test('Goku teleports with B (instant transmission); flight is a final-form thing: hold W in the air', async ({ page }) => {
+test('Goku teleports with B (instant transmission); Goku flies in every form: hold W in the air', async ({ page }) => {
   const errors = collectErrors(page);
   await start(page, 'bots=0&humans=2&heroes=goku,naruto');
   await put(page, 0, 6 * 16 + 8, 27 * 16);
@@ -89,12 +89,15 @@ test('Goku teleports with B (instant transmission); flight is a final-form thing
   let f = await fighter(page, 0);
   expect(f.x - x0).toBeGreaterThan(80); // jumped ahead
   expect(f.flying).toBe(false);
-  // base form: holding W is just a jump
+  // base form: jump, then hold W past the top of the jump = flight (Goku flies in every form)
   await wait(page, 800);
-  await hold(page, 'KeyW', 500);
+  await page.keyboard.down('KeyW');
+  await wait(page, 700);
+  expect((await fighter(page, 0)).flying).toBe(true);
+  await page.keyboard.up('KeyW');
+  await wait(page, 1500);
   expect((await fighter(page, 0)).flying).toBe(false);
-  await wait(page, 800);
-  // final form (4 orbs): jump, then hold W past the top of the jump = flight
+  // final form (4 orbs) flies too
   await page.evaluate(() => {
     const f = (window as any).__GAME__.match().world.fighters[0];
     f.power = 'hero';

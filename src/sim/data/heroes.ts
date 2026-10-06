@@ -20,6 +20,11 @@ export interface BaseAbility {
   /** seconds between uses */
   cooldown: number;
   /**
+   * Charges instead of one cooldown: `max` uses in a row; each used charge refills `recharge` seconds after the
+   * previous one (the HUD bar is split into `max` segments). `cooldown` is then only the gap between presses.
+   */
+  charges?: { max: number; recharge: number };
+  /**
    * Rasengan: a gravity-free dash. A tap dashes for `time`; HOLDING the ability button keeps the dash going
    * (up to `maxTime`) until it hits someone, a wall, or the button is released.
    */
@@ -153,6 +158,8 @@ export interface HeroDefinition {
   combo: MeleeHit[];
   /** can walk and run up walls (hold toward a wall + Up / Down) */
   wallWalk?: boolean;
+  /** holding Up in the air flies in every form, base included (Goku) */
+  alwaysFlies?: boolean;
   /** sprint pose with the arms trailing behind in the air: in the base form and at these form levels */
   sprintArmsBack?: { base: boolean; levels: number[] };
   /** kill-feed label of the combo */
@@ -250,13 +257,15 @@ export const HEROES: Record<string, HeroDefinition> = {
       kind: 'pistol',
       name: 'GUM-GUM PISTOL',
       desc: 'STRETCHING ARM (UP / DOWN TO AIM). HOLD TO KEEP REACHING; GRABS WALLS, PLATFORMS AND LADDERS AND PULLS YOU TO THEM; SWINGS FROM CEILINGS.',
-      cooldown: 1.0,
+      cooldown: 0.25,
+      charges: { max: 3, recharge: 2 },
       stretch: {
         range: 100,
         out: 0.12,
         hold: 0.05,
         back: 0.12,
-        damage: 4.5,
+        // a traversal tool, not a weapon: it shoves but never hurts
+        damage: 0,
         knockX: 220,
         knockY: -120,
         upAngle: -0.9,
@@ -293,8 +302,9 @@ export const HEROES: Record<string, HeroDefinition> = {
   goku: {
     id: 'goku',
     name: 'GOKU',
-    blurb: 'SUPER SAIYAN > SUPER SAIYAN 2 > SUPER SAIYAN 3 > SUPER SAIYAN BLUE (FLIES)',
+    blurb: 'SUPER SAIYAN > SUPER SAIYAN 2 > SUPER SAIYAN 3 > SUPER SAIYAN BLUE (ALWAYS FLIES)',
     stats: { speed: 1.0, hp: 100 },
+    alwaysFlies: true,
     comboName: 'SAIYAN COMBO',
     combo: heroCombo('ki'),
     base: {

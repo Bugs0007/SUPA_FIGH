@@ -387,10 +387,10 @@ fours), form 1's tail is made of translucent crimson aura (`FormFx.ghostTails`) 
 
 ## M13 — Hero upgrades
 
-### D62 — Goku: Instant Transmission replaces Levitation; flight belongs to the final forms
-Dedicated flight (meter, take-off, landing) is gone from Goku's base ability; `HeroForm.flies` is set on Super Saiyan
-Blue like the final forms of Naruto and Luffy, so all three heroes fly the same way (hold Up past the top of a jump,
-fall on release). Goku's ability 1 is now `BlinkStats` (data/heroes.ts): teleport up to `range` along the held
+### D62 — Goku: Instant Transmission replaces Levitation; hold-Up flight in every form
+Dedicated flight (meter, take-off, landing) is gone from Goku's base ability. Goku has `HeroDefinition.alwaysFlies`, so he
+flies in the base form and every transformation, the same way as the final forms of Naruto and Luffy (`HeroForm.flies`):
+hold Up past the top of a jump, fall on release (`holdFlies`). Goku's ability 1 is now `BlinkStats` (data/heroes.ts): teleport up to `range` along the held
 direction (8-way, facing by default), `blinkDestination` (hero.ts) locks onto the nearest enemy in that line within
 range + assist and lands on their far side, otherwise the farthest spot that fits and has a clear line (never inside
 a wall); a small arrival strike (`blinkStrike`, kill credit 'blink'), 0.18 s of invulnerability, 2.2 s cooldown. A
@@ -413,6 +413,8 @@ clones have `hpFrac` (20 %) of his max health. The ability 2 cooldown is set at 
 `Fighter.cloneCount > 0`; pressing ability 2 with clones out recalls them (`recallClones`). Why real fighters: the
 alternative (an AI/damage model for effect entities) would have duplicated the whole hit pipeline.
 
+Clones look like their master's current form (`Fighter.cloneForm`, mirrored each tick; render `formLevel`): same look, aura and tails, but no form health or power of their own.
+
 ### D64 — Hold-to-extend: Rasengan and Gum-Gum Pistol
 Both moves read the ability button every tick of the move (`stSpecial` passes the intent on). Rasengan: a tap dashes
 `dash.time` (0.3 s); holding keeps the gravity-free dash going up to `dash.maxTime` (1.6 s) until `rasenganHit`
@@ -428,7 +430,7 @@ button is still held at contact: wall / floor / platform / ladder -> `stRocket` 
 `rocketSpeed` (a platform target is a few px above its top so he lands on it, a ladder arrival starts the climb),
 a ceiling -> `stSwing`, a pendulum with a rope you can pump (left/right) and reel (Up/Down), no stretching beyond
 `ropeLen`, released by letting go or Jump (momentum kept, air jump refreshed, 4 s max). Released before contact the arm just
-retracts. Damage is halved (4.5): it is a traversal move. Render: the roped arm is drawn behind the body when swinging.
+retracts. The arm deals no damage (it still shoves): it is a traversal move, limited by 3 charges (`BaseAbility.charges`; `Fighter.baseUsed` / `baseRecharge`): a spent charge refills 2 s after the previous one, the HUD A chip is split in 3 bars. Render: the roped arm is drawn behind the body when swinging.
 
 ### D66 — Naruto walks on walls
 `HeroDefinition.wallWalk` enables the `wallwalk` state: holding toward a wall + Up (also when Up is the jump key: the

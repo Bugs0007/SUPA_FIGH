@@ -144,8 +144,22 @@ describe('Goku: instant transmission', () => {
   });
 });
 
-describe('flight is a final-form thing (hold Up in the air)', () => {
-  it.each(['naruto', 'luffy', 'goku'])('%s flies only in the final form', (hero) => {
+describe('flight (hold Up in the air): Goku always, Naruto and Luffy in the final form', () => {
+  it('Goku flies in his base form and in every form', () => {
+    for (let lvl = 0; lvl <= 4; lvl++) {
+      const w = world('goku');
+      put(w, 0, 10 * TILE, 8 * TILE);
+      put(w, 1, 36 * TILE);
+      const f = w.fighters[0];
+      for (let i = 0; i < lvl; i++) transform(w, f);
+      f.vy = 0;
+      f.grounded = false;
+      hold(w, 30, { moveY: -1 });
+      expect(f.flying, 'form ' + lvl).toBe(true);
+    }
+  });
+
+  it.each(['naruto', 'luffy'])('%s flies only in the final form', (hero) => {
     const base = world(hero);
     put(base, 0, 10 * TILE, 8 * TILE);
     put(base, 1, 36 * TILE);
@@ -172,8 +186,7 @@ describe('flight is a final-form thing (hold Up in the air)', () => {
 
   it('Goku has no levitation ability any more: his ability 1 is the teleport', () => {
     expect(HEROES.goku.base.kind).toBe('blink');
-    expect(HEROES.goku.forms[3].flies).toBe(true);
-    expect(HEROES.goku.forms[2].flies).toBeFalsy();
+    expect(HEROES.goku.alwaysFlies).toBe(true);
   });
 });
 
@@ -228,7 +241,32 @@ describe('Naruto: rasengan', () => {
 });
 
 describe('Luffy: gum-gum pistol', () => {
-  it('stretch punch hits a fighter far away, for half the old damage', () => {
+  it('has three charges; a spent one refills 2 s later, one after another', () => {
+    const w = world('luffy');
+    put(w, 0, 10 * TILE);
+    put(w, 1, 36 * TILE);
+    settle(w);
+    const f = w.fighters[0];
+    for (let i = 0; i < 3; i++) {
+      tap(w, { ability: true });
+      hold(w, 30, {});
+    }
+    expect(f.baseUsed).toBe(3);
+    tap(w, { ability: true });
+    hold(w, 20, {});
+    expect(f.baseUsed, 'no fourth use').toBe(3);
+    hold(w, 60, {}); // ~2 s since the first use: one charge is back
+    expect(f.baseUsed).toBe(2);
+    tap(w, { ability: true });
+    hold(w, 20, {});
+    expect(f.baseUsed).toBe(3);
+    hold(w, 130, {});
+    expect(f.baseUsed).toBeLessThanOrEqual(2);
+    hold(w, 360, {});
+    expect(f.baseUsed).toBe(0);
+  });
+
+  it('stretch punch reaches a fighter far away but deals no damage', () => {
     const w = world('luffy');
     put(w, 0, 10 * TILE);
     put(w, 1, 10 * TILE + 90);
@@ -241,8 +279,7 @@ describe('Luffy: gum-gum pistol', () => {
       if (w.events.some((e) => e.t === 'hit' && e.weapon === 'gumgum')) hit = true;
     }
     expect(hit).toBe(true);
-    expect(o.hp).toBeLessThan(o.maxHp);
-    expect(o.maxHp - o.hp).toBeLessThanOrEqual(5); // traversal first: 4.5 damage
+    expect(o.hp).toBe(o.maxHp); // a traversal tool: it shoves, it never hurts
   });
 
   it('misses beyond its range', () => {

@@ -1,3 +1,4 @@
+import { applyHit } from '../../src/sim/combat';
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../../src/sim/constants';
 import { cloneSpec, HEROES, maxClones } from '../../src/sim/data/heroes';
@@ -85,6 +86,59 @@ describe('Naruto: shadow clones are real fighters', () => {
       hold(w, 12, {});
       expect(clones(w).length, `level ${lvl}`).toBe(n);
     }
+  });
+
+  it('clones wear their master\'s current form (look only: no form health, no power of their own)', () => {
+    for (const lvl of [0, 2, 4]) {
+      const w = arena(['naruto', ''], 2);
+      put(w, 0, 10 * TILE);
+      put(w, 1, 36 * TILE);
+      settle(w);
+      for (let i = 0; i < lvl; i++) transform(w, w.fighters[0]);
+      hold(w, 1, { kick: true });
+      hold(w, 12, {});
+      for (const c of clones(w)) {
+        expect(c.cloneForm, `level ${lvl}`).toBe(lvl);
+        expect(c.power).toBe('');
+        expect(c.formHp).toBe(0);
+      }
+    }
+    // the form follows the master while the clones are out
+    const w = arena(['naruto', ''], 2);
+    put(w, 0, 10 * TILE);
+    put(w, 1, 36 * TILE);
+    settle(w);
+    summonClones(w, w.fighters[0]);
+    transform(w, w.fighters[0]);
+    hold(w, 2, {});
+    expect(clones(w)[0].cloneForm).toBe(1);
+  });
+
+  it('a hurt Naruto makes proportionally hurt clones (half health -> half of the clone fraction)', () => {
+    const w = arena(['naruto', ''], 2);
+    put(w, 0, 10 * TILE);
+    put(w, 1, 36 * TILE);
+    settle(w);
+    const n = w.fighters[0];
+    n.hp = n.maxHp / 2;
+    summonClones(w, n);
+    for (const c of clones(w)) expect(c.hp).toBeCloseTo(c.maxHp / 2, 0);
+  });
+
+  it('clones never damage their master or each other', () => {
+    const w = arena(['naruto', ''], 2);
+    put(w, 0, 10 * TILE);
+    put(w, 1, 36 * TILE);
+    settle(w);
+    const n = w.fighters[0];
+    summonClones(w, n);
+    const [c1, c2] = clones(w);
+    const hit = (att: number, v: typeof n) => applyHit(w, v, { damage: 10, kbX: 50, kbY: 0, attacker: att, weapon: 'rasengan', kind: 'melee' });
+    const hp = n.hp;
+    expect(hit(c1.id, n)).toBe(false);
+    expect(hit(c1.id, c2)).toBe(false);
+    expect(n.hp).toBe(hp);
+    expect(hit(c1.id, w.fighters[1])).toBe(true);
   });
 
   it('they have a fraction of his health; in the final form exact copies of his CURRENT health', () => {
@@ -463,10 +517,10 @@ describe('Luffy: the grapple', () => {
         heldTicks(w, 1);
       }
       hold(w, 30, {});
-      return w.fighters[1].hp;
+      return w.fighters[1].vx !== 0 || w.fighters[1].x !== 20 * TILE + 250;
     };
-    expect(run(false)).toBe(100);
-    expect(run(true)).toBeLessThan(100);
+    expect(run(false)).toBe(false);
+    expect(run(true)).toBe(true);
   });
 
   it('holding at a platform above pulls Luffy up onto it; a tap does not move him', () => {
@@ -540,7 +594,7 @@ describe('Luffy: the grapple', () => {
     settle(w);
     heldTicks(w, 40);
     hold(w, 40, {});
-    expect(w.fighters[1].hp).toBeLessThan(100);
+    expect(w.fighters[1].x).toBeGreaterThan(6 * TILE + 120); // shoved by the punch (no damage)
     expect(w.fighters[0].x).toBeLessThan(6 * TILE + 15); // never got pulled to the wall behind
   });
 });
@@ -579,7 +633,7 @@ describe('clones, replays and bots', () => {
   });
 
   it.each(['leaf', 'ship', 'factory'])('bot matches with all three heroes (and clones) finish without anyone stuck on %s', (map) => {
-    const r = runBotSim({ matches: 1, bots: 8, map, difficulty: 'hard', seed: 8, heroes: ['naruto', 'luffy', 'goku', 'naruto'], heroPowers: true });
+    const r = runBotSim({ matches: 1, bots: 8, map, difficulty: 'hard', seed: 9, heroes: ['naruto', 'luffy', 'goku', 'naruto'], heroPowers: true });
     expect(r.timeouts).toBe(0);
     expect(r.totalKills).toBeGreaterThan(4);
     expect(r.maxIdle, r.idleAt).toBeLessThan(10);

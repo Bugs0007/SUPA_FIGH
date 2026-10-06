@@ -181,7 +181,10 @@ export class World {
       if (c.master < 0 || !c.alive) continue;
       const m = this.fighters[c.master];
       if (!m.alive || m.gone) dismissClone(this, c);
-      else m.cloneCount++;
+      else {
+        m.cloneCount++;
+        c.cloneForm = m.power === 'hero' ? m.powerLevel : 0;
+      }
     }
   }
 
@@ -193,6 +196,7 @@ export class World {
     slot.facing = facing;
     slot.invuln = 0.25;
     slot.vy = -50;
+    slot.cloneForm = master.power === 'hero' ? master.powerLevel : 0;
     master.cloneCount++;
     this.emit({ t: 'clone', f: master.id, x, y, facing, id: slot.id });
   }

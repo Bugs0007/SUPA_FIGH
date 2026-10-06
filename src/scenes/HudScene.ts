@@ -473,11 +473,25 @@ export class HudScene extends Phaser.Scene {
             : { frac: 1 - Math.max(0, f.secondCd) / hero.second.cooldown, on: f.secondCd <= 0, col: hexToNum(P.yellow) },
           { frac: sup ? 1 - Math.max(0, f.specialCd) / hero.super.cooldown : 0, on: sup && f.specialCd <= 0, col: hexToNum(P.red2) },
         ];
+        const ch = hero.base.charges;
+        if (ch) {
+          // charged ability (Luffy's arm): the chip is split into one bar per charge; a spent one refills on its own
+          const avail = ch.max - f.baseUsed;
+          chips[0] = { frac: 0, on: avail > 0 && f.baseCd <= 0, col: hexToNum(P.orange) };
+        }
         chips.forEach((c, k) => {
           const cx = px + PW - 12 - (2 - k) * 13;
           g.fillStyle(hexToNum(P.ink), a).fillRect(cx - 5, py - 1, 11, 10);
           g.fillStyle(0x2a2438, a).fillRect(cx - 4, py, 9, 8);
-          g.fillStyle(c.col, a * (c.on ? 1 : 0.55)).fillRect(cx - 4, py + 8 - Math.round(8 * Math.max(0, Math.min(1, c.frac))), 9, Math.round(8 * Math.max(0, Math.min(1, c.frac))));
+          if (k === 0 && ch) {
+            const avail = ch.max - f.baseUsed;
+            const segW = Math.floor(9 / ch.max);
+            for (let s = 0; s < ch.max; s++) {
+              const sf = s < avail ? 1 : s === avail ? 1 - Math.max(0, f.baseRecharge) / ch.recharge : 0;
+              const hgt = Math.round(8 * Math.max(0, Math.min(1, sf)));
+              g.fillStyle(c.col, a * (s < avail ? 1 : 0.55)).fillRect(cx - 4 + s * segW,py + 8 - hgt, segW - 1, hgt);
+            }
+          } else g.fillStyle(c.col, a * (c.on ? 1 : 0.55)).fillRect(cx - 4, py + 8 - Math.round(8 * Math.max(0, Math.min(1, c.frac))), 9, Math.round(8 * Math.max(0, Math.min(1, c.frac))));
           if (c.on && Math.floor(this.time.now / 250) % 2 === 0 && k === 2) g.lineStyle(1, 0xffffff, a).strokeRect(cx - 4.5, py - 0.5, 10, 9);
           chipTexts[k].setVisible(true).setPosition(cx, py + 1).setTint(c.on ? hexToNum(P.ink) : 0x8d95b0).setAlpha(a);
         });

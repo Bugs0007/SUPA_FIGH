@@ -125,9 +125,12 @@ export function absorbForm(w: World, v: Fighter, dmg: number, kind: string): num
   return dmg - taken;
 }
 
-/** Can this fighter fly by holding Up (final forms of Naruto and Luffy)? */
+/** Can this fighter fly by holding Up (Goku always, Naruto and Luffy in their final forms)? */
 export function holdFlies(f: Fighter): boolean {
-  return f.power === 'hero' && !!heroDef(f.hero)?.forms[f.powerLevel - 1]?.flies;
+  const def = heroDef(f.hero);
+  if (!def) return false;
+  if (def.alwaysFlies) return true;
+  return f.power === 'hero' && !!def.forms[f.powerLevel - 1]?.flies;
 }
 
 export function baseAbility(f: Fighter): BaseAbility | null {
@@ -587,7 +590,8 @@ export function summonClones(w: World, f: Fighter): number {
     if (w.map.rectSolid(x - f.w / 2, f.y - FIGHTER_H, x + f.w / 2, f.y - 1)) continue;
     const frac = heroDef(f.hero)?.second.clones?.hpFrac ?? 0.2;
     const maxHp = spec.full ? f.maxHp : Math.max(1, Math.round(f.maxHp * frac));
-    const hp = spec.full ? Math.max(1, f.hp) : maxHp;
+    // a hurt Naruto makes equally hurt clones: the same fraction of their (smaller) health
+    const hp = Math.max(1, spec.full ? f.hp : Math.round(maxHp * Math.min(1, Math.max(0, f.hp / f.maxHp))));
     w.spawnClone(slots[made], f, x, f.y, hp, maxHp, side === 1 ? f.facing : (-f.facing as 1 | -1));
     made++;
   }
