@@ -15,7 +15,7 @@ import { Fx } from './Fx';
 import { HeroFx } from './HeroFx';
 import { DecorLayer } from './Decor';
 import { POWER_ORB } from '../sim/data/heroes';
-import { baseAbility, formLayers } from '../sim/hero';
+import { formLayers } from '../sim/hero';
 import { FORM_HP } from '../sim/data/heroes';
 import { formFx } from '../art/heroArt';
 
@@ -302,15 +302,6 @@ export class WorldRenderer {
           bars.fillStyle(0x3a3448, 1).fillRect(x, ly, 14, 2);
           bars.fillStyle(col, 1).fillRect(x, ly, Math.round(14 * frac), 2);
         }
-      }
-      // levitation ki meter (Goku): a strip under the HP bar while it isn't full / while flying
-      const fly = baseAbility(f)?.fly;
-      if (fly && !(f.power === 'hero') && (f.flying || f.flyMeter < fly.meter)) {
-        const k = Math.max(0, Math.min(1, f.flyMeter / fly.meter));
-        const low = k < 0.25 && Math.floor(time * 8) % 2 === 0;
-        bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y + 3, 16, 2);
-        bars.fillStyle(0x2a3550, 1).fillRect(x, y + 3, 14, 1);
-        bars.fillStyle(low ? 0xff6a5a : 0x8ad8ff, 1).fillRect(x, y + 3, Math.round(14 * k), 1);
       }
     }
 

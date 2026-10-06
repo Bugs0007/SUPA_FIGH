@@ -74,11 +74,27 @@ key) and, once transformed, a **super** (both keys, within 0.1 s of each other).
 
 | Hero | Ability 1 | Ability 2 | Super (per form) | Forms |
 |---|---|---|---|---|
-| Goku | Levitation | Kamehameha (charge) | Super / Dragon Fist / God Kamehameha | SSJ, SSJ2, SSJ3, SSBlue |
-| Naruto | Rasengan | Shadow clone rush | Rasenshuriken / Tailed Beast Bomb / Kurama Bijudama | crimson aura tail, 4 tails, 6 tails (black), Kurama (gold, no tails); fox stance in forms 1-3 |
-| Luffy | Gum-Gum Pistol (+ rocket) | Gum-Gum Gatling | Jet Pistol / Elephant / King Kong / Bajrang Gun | Gear 2, 3, 4, 5 |
+| Goku | Instant Transmission (teleport) | Kamehameha (charge) | Super / Dragon Fist / God Kamehameha | SSJ, SSJ2, SSJ3, SSBlue (flies) |
+| Naruto | Rasengan (hold = keeps going) | Shadow Clones (real fighters) | Rasenshuriken / Tailed Beast Bomb / Kurama Bijudama | crimson aura tail, 4 tails, 6 tails (black), Kurama (gold, no tails, flies); fox stance in forms 1-3 |
+| Luffy | Gum-Gum Pistol (grapple / swing) | Gum-Gum Gatling | Jet Pistol / Elephant / King Kong / Bajrang Gun | Gear 2, 3, 4, 5 (flies) |
+
+- **Goku, Instant Transmission:** teleports up to 120 px in the direction you hold (facing if none), stops short of walls,
+  locks onto a fighter in that direction and appears behind them with a small strike, and is invulnerable for a moment.
+- **Naruto, Rasengan:** a tap is a short dash; **hold the button** and it keeps going until it hits somebody, a wall, or
+  you let go (at most 1.6 s). **Walks and runs up walls:** hold toward a wall + Up (Down walks back down, Jump kicks off,
+  the top of the wall hops you over; double-tap toward the wall first to run). In his base and final form his sprint is
+  the anime run: leaning forward, both arms floating back.
+- **Naruto, Shadow Clones:** real Naruto fighters that fight with the Rasengan only (no more clones, no super). 2 in the
+  base form, +1 per form up to 5 (six-tail); in the final form 2 clones with exactly his current health. Other forms'
+  clones have 20 % of his max health. They follow him, fight his enemies, count for his kills, vanish when he dies, and
+  the ability only recharges once every clone is dead or recalled (press ability 2 again to call them back).
+- **Luffy, Gum-Gum Pistol:** the arm keeps stretching while the ability button is held (a tap is 100 px, holding goes
+  up to 340 px) and hits the first fighter it touches (4.5 damage: it is a traversal move). Aim with Up (straight up with
+  nothing else held, or up-forward) or Down in the air. If it catches on a wall, platform or ladder and you are still
+  holding, you are pulled there (a ladder: you start climbing; a platform: you land on top); if it catches a
+  **ceiling** you swing from it instead: left/right pump, Up/Down reel the rope, release or Jump to let go.
 
 The only pickup is the **power orb** (rare, a couple at a time): each orb eaten raises a hero one form and adds a layer
 of form health (30 HP) above the normal health bar. Forms have no timer: damage drains the form layers first and the form
-ends when they are gone (D61). Final forms of Naruto and Luffy fly while Up is held. Scrapyard fighters get a 12 s boost.
+ends when they are gone (D61). Final forms of all three heroes fly while Up is held. Scrapyard fighters get a 12 s boost.
 

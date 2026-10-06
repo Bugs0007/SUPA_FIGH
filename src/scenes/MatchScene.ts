@@ -172,6 +172,14 @@ export class MatchScene extends Phaser.Scene {
       if (p.input.startsWith('pad')) return new GamepadController(Number(p.input.slice(3)));
       return new BotController(() => this.match.world, i, { difficulty: p.difficulty, seed: setup.config.seed });
     });
+    // Naruto's shadow clones: one reserved world slot per possible clone, each with a clone-brain bot and the master's look
+    const nPlayers = setup.players.length;
+    this.match.world.fighters.forEach((f, i) => {
+      if (i < nPlayers) return;
+      const m = setup.players[f.master];
+      this.looks.push({ look: m.look, color: m.color, label: '' });
+      this.controllers.push(new BotController(() => this.match.world, i, { difficulty: m.difficulty ?? 'normal', seed: setup.config.seed, clone: true }));
+    });
     this.intents = this.controllers.map((c) => c.poll());
 
     const k = (this.registry.get('scale') as number) ?? 1;

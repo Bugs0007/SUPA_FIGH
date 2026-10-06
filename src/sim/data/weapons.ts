@@ -75,8 +75,6 @@ export interface MeleeHit {
   /** render: arm swing arc (radians, local space) */
   arcFrom?: number;
   arcTo?: number;
-  /** hero powers (data/heroes.ts): shadow clones strike alongside this hit */
-  clones?: number;
   /** render: the arm (or leg) visibly stretches out to the full reach */
   stretch?: boolean;
   /** impact effect flavor */

@@ -1,7 +1,7 @@
 import { LAST_HIT_CREDIT } from './constants';
 import type { HitKind } from './events';
 import type { Fighter } from './fighter';
-import { absorbForm } from './hero';
+import { absorbForm, dismissClone } from './hero';
 import type { World } from './world';
 
 export interface Hit {
@@ -58,6 +58,11 @@ export function sameTeam(a: { id: number; team: number }, b: { id: number; team:
  */
 export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   if (v.gone) return false;
+  // a shadow clone's hits (and kills) count for its master
+  if (hit.attacker >= 0) {
+    const a = w.fighters[hit.attacker];
+    if (a && a.master >= 0) hit = { ...hit, attacker: a.master };
+  }
   const hx = hit.x ?? v.x;
   const hy = hit.y ?? v.y - v.h / 2;
   const len = Math.hypot(hit.kbX, hit.kbY) || 1;
@@ -139,6 +144,11 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
 
 export function killFighter(w: World, v: Fighter, hit: Hit): void {
   if (!v.alive) return;
+  if (v.master >= 0) {
+    // clones don't die, they poof: no corpse, no kill feed, no score
+    dismissClone(w, v);
+    return;
+  }
   w.releaseGrab(v);
   v.alive = false;
   v.hp = 0;

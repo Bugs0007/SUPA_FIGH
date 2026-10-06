@@ -88,8 +88,11 @@ export type SimEvent =
   | { t: 'beam'; f: number; power: number; super: boolean }
   | { t: 'chargeStart'; f: number }
   | { t: 'stretch'; f: number }
-  | { t: 'clone'; f: number; x: number; y: number; facing: number }
+  | { t: 'clone'; f: number; x: number; y: number; facing: number; id: number }
   | { t: 'cloneGone'; x: number; y: number }
+  | { t: 'blink'; f: number; fromX: number; fromY: number; toX: number; toY: number }
+  | { t: 'recall'; f: number; n: number }
+  | { t: 'wallwalk'; f: number; x: number; y: number; side: number }
   | { t: 'heroFx'; fx: 'chakra' | 'steam' | 'ki' | 'rasengan'; heavy: boolean; x: number; y: number }
   // hero base abilities (D51)
   | { t: 'flyStart'; f: number; x: number; y: number }

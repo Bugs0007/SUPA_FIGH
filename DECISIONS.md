@@ -246,7 +246,7 @@ Transformed combos replace only the bare-fist combo; held melee weapons keep the
 damage/knockback/reach multipliers; picked-up guns work exactly as normal while powered. Expiry restores
 everything (and so does death).
 
-### D45 — Shadow clones are sim effect entities
+### D45 — Shadow clones are sim effect entities (superseded by D63: clones are now real fighters)
 `World.clones` hold position/facing/timer; each strikes once in a short window and vanishes. They never
 think, never take damage and are not fighters (the fighter list stays fixed for replays/bots). Deterministic,
 so instant replays show them.
@@ -289,7 +289,7 @@ Down + Jump used to drop through platforms; now crouch + jump just jumps, and dr
 dodges never drop you. Works on one-way tiles, props and movers, from normal/crouch/roll. Bot nav scripts drop
 the same way. Settings → UP / W JUMPS turns the Up-jump off.
 
-### D51 — Every hero has a base ability on ABILITY
+### D51 — Every hero has a base ability on ABILITY (Goku's Levitation was replaced by Instant Transmission in D62)
 Heroes used to be plain fighters until a rare power-up appeared. Now ABILITY always does something:
 Goku = Levitation (8-direction flight, no gravity in any state while flying, a 4.5 s ki meter that refills on
 the ground, take off with ABILITY or with a jump when out of air jumps; hits, grabs, ladders and ledges end it;
@@ -384,3 +384,56 @@ Also in this change: the keyboard jump key is gone (Up is the jump; the UP / W J
 hold-Up flight for the final forms of Naruto and Luffy (`HeroForm.flies`, `stHoldFly`: climbs while Up is held, falls
 on release or when the form ends), Naruto's fox stance (forms 1-3 use four new low body frames and move on all
 fours), form 1's tail is made of translucent crimson aura (`FormFx.ghostTails`) and Kurama mode has no tails.
+
+## M13 — Hero upgrades
+
+### D62 — Goku: Instant Transmission replaces Levitation; flight belongs to the final forms
+Dedicated flight (meter, take-off, landing) is gone from Goku's base ability; `HeroForm.flies` is set on Super Saiyan
+Blue like the final forms of Naruto and Luffy, so all three heroes fly the same way (hold Up past the top of a jump,
+fall on release). Goku's ability 1 is now `BlinkStats` (data/heroes.ts): teleport up to `range` along the held
+direction (8-way, facing by default), `blinkDestination` (hero.ts) locks onto the nearest enemy in that line within
+range + assist and lands on their far side, otherwise the farthest spot that fits and has a clear line (never inside
+a wall); a small arrival strike (`blinkStrike`, kill credit 'blink'), 0.18 s of invulnerability, 2.2 s cooldown. A
+fizzle (no room) costs nothing. Bots use it as a gap-closer in a 56-130 px band.
+
+### D63 — Shadow clones are real fighters in reserved slots (replaces D45)
+The World appends `maxClones(hero)` fighter slots after the players for every fighter whose hero makes clones
+(`Fighter.master` = the owner's id, `FighterSpawn.master`); slots start out of the world (`gone`, not alive) and
+`World.spawnClone` steps one out beside its master. Everything that already handles fighters (hits, projectiles,
+explosions, hazards, replays) works unchanged. What was adapted: clone slots get the master's team key (`teamKey`
+is shared, so no friendly damage and rounds/teams are unaffected); `applyHit` credits a clone's hits and kills to its
+master; a dead clone `dismissClone`s (poof, no corpse, no kill event, no score, never respawns) and all clones vanish
+when their master dies; clones can't pick up items or orbs and `startSecond` / the super ignore them (they only
+have the Rasengan, so they can't make more clones). `Match` walks `roster()` (the first `cfg.fighters.length` fighters)
+for modes/scores; `RoundRecording.count` records intents for the clone slots so replays stay exact. MatchScene and
+the bot sim give every slot a `BotController({ clone: true })` (follow the master when no enemy is known, never loot or
+heal, Rasengan only) and the master's look (no name tag). Counts per form come from `cloneSpec` (base 2, +1 per form
+level up to the form before the last, the final form 2 full-health copies = Naruto's CURRENT hp/maxHp); other forms'
+clones have `hpFrac` (20 %) of his max health. The ability 2 cooldown is set at summon time but does not tick while
+`Fighter.cloneCount > 0`; pressing ability 2 with clones out recalls them (`recallClones`). Why real fighters: the
+alternative (an AI/damage model for effect entities) would have duplicated the whole hit pipeline.
+
+### D64 — Hold-to-extend: Rasengan and Gum-Gum Pistol
+Both moves read the ability button every tick of the move (`stSpecial` passes the intent on). Rasengan: a tap dashes
+`dash.time` (0.3 s); holding keeps the gravity-free dash going up to `dash.maxTime` (1.6 s) until `rasenganHit`
+connects, the body is blocked by a wall, or the button is released; then a recovery with 3x ground braking (a
+released dash stops instead of sliding for ages). `Fighter.recoverAt` marks when the dash ended. Pistol: the arm extends
+at `extendSpeed` px/s while held (a tap still reaches `range`) up to `maxRange`; punching a fighter/prop retracts it.
+Bots hold the button just long enough to reach the target (`useBase`).
+
+### D65 — Luffy's grapple
+`grabProbe` marches along the arm and reports the first grab: solid tiles become a wall / ceiling (arm came up under
+it) / floor, one-way platforms count only for steep arms, ladders always (except the cell you stand in). While the
+button is still held at contact: wall / floor / platform / ladder -> `stRocket` pulls the body to `gripTarget` at
+`rocketSpeed` (a platform target is a few px above its top so he lands on it, a ladder arrival starts the climb),
+a ceiling -> `stSwing`, a pendulum with a rope you can pump (left/right) and reel (Up/Down), no stretching beyond
+`ropeLen`, released by letting go or Jump (momentum kept, air jump refreshed, 4 s max). Released before contact the arm just
+retracts. Damage is halved (4.5): it is a traversal move. Render: the roped arm is drawn behind the body when swinging.
+
+### D66 — Naruto walks on walls
+`HeroDefinition.wallWalk` enables the `wallwalk` state: holding toward a wall + Up (also when Up is the jump key: the
+state latches Up) sticks him to it with gravity off; Up/Down move along it at run speed (sprint = double-tap toward the
+wall first), releasing the direction drops him, Jump kicks off (a wall jump), the top of the wall hops him over the edge,
+using an ability lets go first. The sprite is turned 90 degrees with its feet on the wall. His sprint pose with the arms
+trailing behind is data too (`sprintArmsBack`: base form + the final form; forms 1-3 keep the four-legged fox run).
+

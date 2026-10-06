@@ -2,7 +2,7 @@ import { DT, MATCH_END_TIME, ROUND_END_CONFIRM, ROUND_END_TIME, SUDDEN_DEATH_DRA
 import { teamKey } from './combat';
 import { MODIFIERS } from './data/modifiers';
 import { freshAmmo, SLOT, weaponDef } from './data/weapons';
-import type { FighterSpawn } from './fighter';
+import type { Fighter, FighterSpawn } from './fighter';
 import type { Intent } from './intent';
 import { getMap } from './map/maps';
 import { World, type WorldSettings } from './world';
@@ -199,7 +199,7 @@ export class Match {
     const settings = this.worldSettings();
     const seed = this.cfg.seed + this.round * 7919;
     this.world = new World(def, this.cfg.fighters, settings, seed);
-    this.recording = this.cfg.mode === 'brawl' ? new RoundRecording(def, this.cfg.fighters, settings, seed) : null;
+    this.recording = this.cfg.mode === 'brawl' ? new RoundRecording(def, this.cfg.fighters, settings, seed, this.world.fighters.length) : null;
     this.phase = 'fight';
     this.phaseTime = 0;
     this.decideTimer = -1;
@@ -377,20 +377,20 @@ export class Match {
       this.hill = { x: best.x - 40, y: best.y - 48, w: 80, h: 48 };
       w.objective = this.hill;
     } else if (mode === 'juggernaut') {
-      const pick = Math.abs(Math.imul(this.cfg.seed, 2654435761) >>> 0) % w.fighters.length;
+      const pick = Math.abs(Math.imul(this.cfg.seed, 2654435761) >>> 0) % this.cfg.fighters.length;
       this.makeJuggernaut(pick);
     } else if (mode === 'gungame') {
-      this.gunLevel = w.fighters.map(() => 0);
-      for (const f of w.fighters) this.armGunGame(f.id);
+      this.gunLevel = this.roster().map(() => 0);
+      for (const f of this.roster()) this.armGunGame(f.id);
     } else if (mode === 'coop') {
       this.wave = 0;
       this.waveBreak = 2;
       this.waveBots.clear();
       const humans = this.cfg.fighters.filter((f) => !f.isBot).length;
       this.lives = COOP.lives + COOP.livesPerHuman * humans;
-      this.reviveProgress = w.fighters.map(() => 0);
+      this.reviveProgress = this.roster().map(() => 0);
       // bots wait off-stage for their wave
-      for (const f of w.fighters) {
+      for (const f of this.roster()) {
         if (!this.cfg.fighters[f.id].isBot) continue;
         f.alive = false;
         f.gone = true;
@@ -398,6 +398,11 @@ export class Match {
         f.state = 'dead';
       }
     }
+  }
+
+  /** The players' fighters (Naruto's clone slots sit after them in world.fighters and never take part in modes/scores). */
+  private roster(): Fighter[] {
+    return this.world.fighters.slice(0, this.cfg.fighters.length);
   }
 
   private makeJuggernaut(i: number): void {
@@ -517,7 +522,7 @@ export class Match {
       if (this.cfg.mode === 'koth') this.stepHill();
       if (this.cfg.mode === 'gungame') {
         // the mode hands out weapons: re-arm anyone whose gun ran dry or got tossed
-        for (const f of w.fighters) {
+        for (const f of this.roster()) {
           if (!f.alive) continue;
           const id = GUN_LADDER[Math.min(this.gunLevel[f.id], GUN_LADDER.length - 1)];
           const it = f.inv[weaponDef(id).slot];
@@ -526,7 +531,7 @@ export class Match {
       }
       if (this.cfg.mode === 'juggernaut' && this.juggernaut < 0) {
         // juggernaut died to the environment: pass it on to a random living fighter
-        const alive = w.fighters.filter((f) => f.alive);
+        const alive = this.roster().filter((f) => f.alive);
         if (alive.length) this.makeJuggernaut(alive[w.tick % alive.length].id);
       }
       if (this.cfg.mode === 'coop') {
@@ -560,7 +565,7 @@ export class Match {
   private stepHill(): void {
     const h = this.hill!;
     const inside = new Set<number>();
-    for (const f of this.world.fighters) {
+    for (const f of this.roster()) {
       if (!f.alive) continue;
       const cy = f.y - f.h / 2;
       if (f.x >= h.x && f.x <= h.x + h.w && cy >= h.y && cy <= h.y + h.h) inside.add(this.teamOf(f.id));
@@ -579,7 +584,7 @@ export class Match {
 
   private stepCoop(intents: readonly Intent[]): void {
     const w = this.world;
-    const humans = w.fighters.filter((f) => !this.cfg.fighters[f.id].isBot);
+    const humans = this.roster().filter((f) => !this.cfg.fighters[f.id].isBot);
     // revives: hold interact over a downed teammate's body
     for (const d of humans) {
       if (d.alive || d.gone) continue;
@@ -619,7 +624,7 @@ export class Match {
     }
     // defeat: nobody standing and no lives (or respawns) left
     if (humans.every((f) => !f.alive) && this.respawnAt.size === 0) {
-      const botTeam = this.teamOf(w.fighters.find((f) => this.cfg.fighters[f.id].isBot)?.id ?? 0);
+      const botTeam = this.teamOf(this.roster().find((f) => this.cfg.fighters[f.id].isBot)?.id ?? 0);
       this.finishTimed(botTeam);
     }
   }
@@ -627,7 +632,7 @@ export class Match {
   private startWave(): void {
     const w = this.world;
     this.wave++;
-    const bots = w.fighters.filter((f) => this.cfg.fighters[f.id].isBot);
+    const bots = this.roster().filter((f) => this.cfg.fighters[f.id].isBot);
     const n = Math.min(bots.length, 1 + this.wave);
     const boss = this.wave % COOP.bossEvery === 0;
     for (let k = 0; k < n; k++) {

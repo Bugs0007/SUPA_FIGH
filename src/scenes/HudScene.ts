@@ -459,17 +459,18 @@ export class HudScene extends Phaser.Scene {
       nameT.setText(p.label).setTint(p.color).setPosition(px, py);
       const barW0 = PW - 7;
       // hero abilities: three chips A / K / S (ability 1, ability 2 on the kick key, super = both).
-      // Each fills as its cooldown recovers; Goku's A chip is his ki meter.
+      // Each fills as its cooldown recovers (Naruto's K chip waits until his clones are gone).
       const hero = f.alive ? heroDef(f.hero) : null;
       const chipTexts = [this.panelTexts[n][5], this.panelTexts[n][6], this.panelTexts[n][7]];
       abilT.setVisible(false);
       if (hero) {
         const sup = transformed(f);
         const chips: { frac: number; on: boolean; col: number }[] = [
-          hero.base.fly
-            ? { frac: Math.max(0, Math.min(1, f.flyMeter / hero.base.fly.meter)), on: f.flying || f.flyMeter >= hero.base.fly.minMeter, col: f.flying ? 0xa8e0ff : 0x8ad8ff }
-            : { frac: 1 - Math.max(0, f.baseCd) / hero.base.cooldown, on: f.baseCd <= 0, col: hexToNum(P.orange) },
-          { frac: 1 - Math.max(0, f.secondCd) / hero.second.cooldown, on: f.secondCd <= 0, col: hexToNum(P.yellow) },
+          { frac: 1 - Math.max(0, f.baseCd) / hero.base.cooldown, on: f.baseCd <= 0, col: hexToNum(P.orange) },
+          // shadow clones out: the chip stays lit (pressing again recalls them) and the cooldown waits
+          f.cloneCount > 0
+            ? { frac: 1, on: true, col: 0xa8e0ff }
+            : { frac: 1 - Math.max(0, f.secondCd) / hero.second.cooldown, on: f.secondCd <= 0, col: hexToNum(P.yellow) },
           { frac: sup ? 1 - Math.max(0, f.specialCd) / hero.super.cooldown : 0, on: sup && f.specialCd <= 0, col: hexToNum(P.red2) },
         ];
         chips.forEach((c, k) => {
@@ -559,7 +560,7 @@ export class HudScene extends Phaser.Scene {
     let ai = 0;
     for (let i = 0; i < w.fighters.length; i++) {
       const f = w.fighters[i];
-      if (!f.alive || f.gone) continue;
+      if (!f.alive || f.gone || f.master >= 0) continue; // (no arrows for shadow clones)
       const cy = f.y - 12;
       if (f.x >= wv.x && f.x <= wv.right && cy >= wv.y && cy <= wv.bottom) continue;
       const sx = ((f.x - wv.x) / wv.width) * VIEW_W;

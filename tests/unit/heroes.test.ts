@@ -285,23 +285,11 @@ describe('ability 2 (the kick key)', () => {
     expect(w.fighters[1].hp).toBe(before);
   });
 
-  it('Naruto: shadow clones rush forward and hit; one more clone per form', () => {
-    const count = (lvl: number) => {
-      const w = heroWorld('naruto');
-      levelUp(w, w.fighters[0], lvl);
-      run(w, 2);
-      w.step([intent({ kick: true }), intent()]);
-      run(w, 8); // (while transformed a lone press waits a moment for a second button)
-      return w.clones.filter((c) => c.active).length;
-    };
-    expect(count(0)).toBe(2);
-    expect(count(1)).toBe(3);
-    expect(count(3)).toBe(5);
+  it('Naruto: ability 2 summons real clone fighters (full rules in heroUpgrades.test.ts)', () => {
     const w = heroWorld('naruto');
-    place(w.fighters[1], 170);
-    const hp = w.fighters[1].hp;
-    press(w, { kick: true }, 1, 40);
-    expect(w.fighters[1].hp).toBeLessThan(hp - 6);
+    w.step([intent({ kick: true }), intent()]);
+    run(w, 8);
+    expect(w.fighters.filter((c) => c.master === 0 && c.alive).length).toBe(2);
   });
 
   it('Luffy: gum-gum gatling lands many hits', () => {
@@ -360,7 +348,7 @@ describe('super (both abilities together, transformed only)', () => {
     levelUp(w, w.fighters[0], 1);
     const seen = press(w, { kick: true }, 1, 20);
     expect(names(seen)).toEqual([]);
-    expect(w.clones.length).toBeGreaterThan(0);
+    expect(w.fighters.filter((c) => c.master === 0 && c.alive).length).toBe(3);
   });
 
   it('the super recharges: a second try right away does not fire', () => {
