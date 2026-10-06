@@ -216,7 +216,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       name: 'RASENGAN',
       desc: 'SPIRAL STRIKE. HOLD THE BUTTON TO KEEP CHARGING UNTIL YOU HIT SOMEONE.',
       cooldown: 3.2,
-      dash: { windup: 0.14, time: 0.2, maxTime: 1.6, speed: 330, recover: 0.16, damage: 13, knockX: 330, knockY: -190, stun: 0.35, radius: 7 },
+      dash: { windup: 0.14, time: 0.3, maxTime: 1.6, speed: 330, recover: 0.16, damage: 13, knockX: 330, knockY: -190, stun: 0.35, radius: 7 },
     },
     second: {
       kind: 'clones',

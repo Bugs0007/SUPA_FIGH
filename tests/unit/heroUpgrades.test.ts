@@ -311,7 +311,7 @@ describe('Naruto: Rasengan keeps going while held', () => {
   it('a tap is the old short dash; holding carries on much further', () => {
     const tapD = dist('naruto', 1, 400).moved;
     const heldD = dist('naruto', 70, 400).moved;
-    expect(tapD).toBeLessThan(110);
+    expect(tapD).toBeLessThan(150);
     expect(heldD).toBeGreaterThan(tapD + 150);
   });
 

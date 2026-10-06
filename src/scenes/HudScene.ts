@@ -560,7 +560,7 @@ export class HudScene extends Phaser.Scene {
     let ai = 0;
     for (let i = 0; i < w.fighters.length; i++) {
       const f = w.fighters[i];
-      if (!f.alive || f.gone) continue;
+      if (!f.alive || f.gone || f.master >= 0) continue; // (no arrows for shadow clones)
       const cy = f.y - 12;
       if (f.x >= wv.x && f.x <= wv.right && cy >= wv.y && cy <= wv.bottom) continue;
       const sx = ((f.x - wv.x) / wv.width) * VIEW_W;

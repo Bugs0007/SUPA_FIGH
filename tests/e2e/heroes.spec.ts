@@ -45,7 +45,7 @@ for (const h of HEROES) {
         const w = (window as any).__GAME__.match()?.world;
         if (!w) return;
         const f = w.fighters[0];
-        rec.clones = Math.max(rec.clones, w.clones.filter((c: any) => c.active).length);
+        rec.clones = Math.max(rec.clones, w.fighters.filter((c: any) => c.master >= 0 && c.alive).length);
         rec.beam = Math.max(rec.beam, f.beamWidth);
         rec.second = Math.max(rec.second, f.secondCd);
         rec.sup = Math.max(rec.sup, f.specialCd);
@@ -80,7 +80,7 @@ for (const h of HEROES) {
     await waitTicks(page, 100);
     const rec = await page.evaluate(() => (window as any).__REC__);
     expect(rec.second, 'ability 2 went on cooldown').toBeGreaterThan(1);
-    if (h.second === 'clone') expect(rec.clones).toBeGreaterThanOrEqual(2);
+    if (h.second === 'clone') expect(rec.clones, 'level 3 Naruto makes 5 real clone fighters').toBe(5);
     else if (h.second === 'beam') expect(rec.beam).toBeGreaterThan(2);
     await press(page, ['KeyB', 'KeyH'], 4);
     await waitTicks(page, 30);

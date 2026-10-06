@@ -485,18 +485,20 @@ export class FighterView {
           front = f.stretchAngle;
           back = 2.4;
           backLen = 1;
-          rigRot = -Math.max(-0.6, Math.min(0.6, (f.vx * f.facing) / 500));
+          // (the body hangs along the rope: head toward the anchor)
+          rigRot = Math.max(-1, Math.min(1, Math.atan2((f.anchorX - x) * f.facing, -(f.anchorY - (y - 12)))));
         } else if (kind === 'rocket') {
           // yanked toward the fist: stretched out in the direction of travel
           frame = BF.APEX;
-          rigRot = Math.max(-0.9, Math.min(0.9, f.stretchAngle * 0.8));
+          // (head leads a little toward the fist; straight up stays upright)
+          rigRot = Math.max(0, Math.min(0.7, 0.35 + f.stretchAngle * 0.35));
           back = 2.8;
           backLen = 1;
         } else if (kind === 'rasengan') {
           const dash = baseAbility(f)?.dash;
           const forming = !!dash && f.stateTime < dash.windup;
           // the orb forms between cupped hands, then the palm drives it forward
-          frame = forming ? BF.WINDUP : f.stateTime < (dash ? dash.windup + dash.time : 0) ? BF.UPPER : BF.CROSS;
+          frame = forming ? BF.WINDUP : f.recoverAt === 0 ? BF.UPPER : BF.CROSS;
           front = forming ? 0.55 : 0;
           back = forming ? 0.75 : 2.6;
           backLen = forming ? 1 : 0;

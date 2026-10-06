@@ -2040,7 +2040,8 @@ function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
     }
     f.recoverAt = t;
   }
-  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
+  // brake hard: a released / finished dash should stop, not slide on for ages
+  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL * 3 : AIR_DECEL * 2) * dt);
   integrate(w, f, dt);
   if (t >= f.recoverAt + d.recover) endSpecial(w, f);
 }

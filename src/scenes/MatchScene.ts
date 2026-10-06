@@ -177,7 +177,7 @@ export class MatchScene extends Phaser.Scene {
     this.match.world.fighters.forEach((f, i) => {
       if (i < nPlayers) return;
       const m = setup.players[f.master];
-      this.looks.push({ look: m.look, color: m.color, label: 'CLONE' });
+      this.looks.push({ look: m.look, color: m.color, label: '' });
       this.controllers.push(new BotController(() => this.match.world, i, { difficulty: m.difficulty ?? 'normal', seed: setup.config.seed, clone: true }));
     });
     this.intents = this.controllers.map((c) => c.poll());

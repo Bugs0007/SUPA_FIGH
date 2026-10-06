@@ -59,8 +59,9 @@ Pick **Goku**, **Naruto** or **Luffy** on the main menu. Heroes have three moves
 | | Goku | Naruto | Luffy |
 |---|---|---|---|
 | Combo | punch, punch, punch, **kick** | same | same (stretchy) |
-| **Ability** key | Levitation (fly in 4 directions, ki meter) | Rasengan (dash strike) | Gum-Gum Pistol (stretch punch, rockets off walls) |
-| **Kick** key = ability 2 | Kamehameha (hold to charge) | Shadow clones rush ahead (+1 per form) | Gum-Gum Gatling |
+| **Ability** key | Instant Transmission (teleport, strikes on arrival) | Rasengan (dash strike; hold to keep going until you hit) | Gum-Gum Pistol (stretching arm: hold to reach far, grabs platforms / ladders / walls and pulls you, swings from ceilings) |
+| **Kick** key = ability 2 | Kamehameha (hold to charge) | Shadow clones: real fighters that use the Rasengan (2, +1 per form; press again to recall) | Gum-Gum Gatling |
+| Movement | Final form flies (hold Up) | Walks and runs up walls (hold toward a wall + Up); final form flies | Final form flies |
 | **Both** keys = super (transformed only) | Super Kamehameha | Tailed Beast Bomb | Giant fist |
 | Forms (one **power orb** each) | Super Saiyan, SSJ2, SSJ3, Super Saiyan Blue | Crimson aura (one tail), four-tail cloak, six-tail (black), Kurama mode (gold, no tails) | Gear 2, 3, 4, 5 |
 

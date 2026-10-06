@@ -310,7 +310,7 @@ export class HeroFx {
     const t = f.stateTime;
     const forming = t < d.windup;
     const k = forming ? Math.min(1, t / d.windup) : 1;
-    if (!forming && t > d.windup + d.time) return;
+    if (!forming && f.recoverAt > 0) return; // (the orb fades once the dash is over)
     const { x: ox, y: oy } = rasenganPoint({ ...f, x } as Fighter);
     const cy = oy - f.y + y;
     const r = 1 + k * 3.2 + Math.sin(time * 50) * 0.4 + (f.power === 'hero' ? f.powerLevel * 0.5 : 0);
@@ -377,7 +377,8 @@ export class HeroFx {
 
   /** An angled rubber arm stepped pixel by pixel, a fist (radius `fist`) at the end. */
   private angledArm(f: Fighter, x: number, y: number, skin: number, fist: number): void {
-    const g = this.front;
+    // a rope-arm hanging from a ceiling runs behind the body, not over his face
+    const g = f.specialKind === 'swing' ? this.back : this.front;
     const dx = Math.cos(f.stretchAngle) * f.facing;
     const dy = Math.sin(f.stretchAngle);
     const x0 = x + f.facing * 2;
