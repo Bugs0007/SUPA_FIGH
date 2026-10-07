@@ -25,6 +25,8 @@ export interface BotOptions {
   difficulty?: Difficulty;
   personality?: Personality;
   seed?: number;
+  /** Naruto's shadow clone: only fights (Rasengan), never loots or heals, follows its master */
+  clone?: boolean;
 }
 
 type Goal =
@@ -87,6 +89,7 @@ export class BotController implements Controller {
   /** ticks left to hold ABILITY (charging a ki blast) */
   private chargeTicks = 0;
   private hold: 'ability' | 'kick' | 'both' = 'ability';
+  private readonly isClone: boolean;
 
   constructor(
     private getWorld: () => World,
@@ -97,6 +100,7 @@ export class BotController implements Controller {
     this.rng = new Rng((opts.seed ?? 1) * 7919 + id * 104729 + 13);
     this.persona = opts.personality ?? PERSONALITIES[this.rng.int(0, PERSONALITIES.length - 1)];
     this.label = 'BOT';
+    this.isClone = !!opts.clone;
   }
 
   // ------------------------------------------------------------------ main
@@ -243,7 +247,7 @@ export class BotController implements Controller {
 
     // heal
     const kit = f.inv[SLOT.GADGET];
-    if (kit?.id === 'medkit' && f.hp < 35 + 30 * this.persona.caution) {
+    if (!this.isClone && kit?.id === 'medkit' && f.hp < 35 + 30 * this.persona.caution) {
       this.goal = { t: 'heal' };
       return;
     }
@@ -268,7 +272,7 @@ export class BotController implements Controller {
     let item = -1;
     let itemScore = 0;
     const mine = this.bestWeaponValue(f);
-    for (let i = 0; i < w.items.length; i++) {
+    for (let i = 0; i < w.items.length && !this.isClone; i++) {
       const it = w.items[i];
       if (!it.active || it.live || it.thrownDmg > 0) continue;
       if ((this.ignoreItems.get(it.id) ?? -1) > this.now) continue;
@@ -326,7 +330,12 @@ export class BotController implements Controller {
       }
       this.goal = { t: 'loot', item: id };
     }
-    else if (this.goal.t !== 'roam' || this.goal.node < 0 || this.atNode(f, this.goal.node)) {
+    else if (this.isClone) {
+      // no enemy in mind: stay with the master
+      const m = w.fighters[f.master];
+      const n = m && m.alive ? g.nearest(m.x, m.y) : null;
+      this.goal = { t: 'roam', node: n ? n.id : -1 };
+    } else if (this.goal.t !== 'roam' || this.goal.node < 0 || this.atNode(f, this.goal.node)) {
       // roam toward weapon spawns and random reachable spots
       const pts = w.parsed.weaponSpawns;
       let node: NavNode | null = null;
@@ -592,6 +601,7 @@ export class BotController implements Controller {
       return true;
     };
     const roll = (k: number) => this.rng.chance(k + this.diff.throwChance * 0.2);
+    if (this.isClone) return this.useBase(w, f, e, seen);
     // super
     if (transformed(f) && f.specialCd <= 0) {
       const reach = h.super.kind === 'fist' ? (h.super.fist?.range ?? 150) : h.super.kind === 'beam' ? 300 : 230;
@@ -603,28 +613,39 @@ export class BotController implements Controller {
       if (s2.kind === 'beam' && dist >= 50 && dist <= (s2.beam?.range ?? 200) && dy <= 20 && clear() && roll(0.12)) {
         return go('kick', Math.round(this.rng.range(0.3, 1.2) * 60));
       }
-      if (s2.kind === 'clones' && dist >= 30 && dist <= 170 && dy <= 14 && clear() && roll(0.12)) return go('kick', 2);
+      if (s2.kind === 'clones' && f.cloneCount === 0 && dist >= 40 && dist <= 220 && dy <= 30 && clear() && roll(0.1)) return go('kick', 2);
       if (s2.kind === 'gatling' && dist >= 14 && dist <= (s2.gatling?.range ?? 60) && dy <= 14 && clear() && roll(0.15)) return go('kick', 2);
     }
     return this.useBase(w, f, e, seen);
   }
 
   /**
-   * Hero base abilities (D51): Rasengan dash / Gum-Gum Pistol when the target is level and in front at
-   * the right distance with nothing in between. (Goku's levitation isn't in the nav graph: bots walk.)
+   * Hero base abilities (D51): Rasengan dash (held until it lands), Gum-Gum Pistol (held while the arm
+   * reaches), Instant Transmission - when the target is in line at the right distance with nothing between.
    */
   private useBase(w: World, f: Fighter, e: Fighter, seen: boolean): boolean {
     const b = baseAbility(f);
-    if (!b || b.kind === 'fly' || f.baseCd > 0 || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0) return false;
+    if (!b || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max) || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0) return false;
     const dx = e.x - f.x;
     const dist = Math.abs(dx);
     const dy = Math.abs(e.y - f.y);
-    const band: [number, number] = b.kind === 'rasengan' ? [24, 80] : [26, (b.stretch?.range ?? 90) + 4];
-    if (dist < band[0] || dist > band[1] || dy > 8 || e.state === 'roll' || e.invuln > 0.15) return false;
+    let band: [number, number];
+    let level = 8;
+    if (b.kind === 'rasengan') band = [24, Math.min(240, (b.dash?.speed ?? 300) * 0.8)];
+    else if (b.kind === 'pistol') band = [26, (b.stretch?.maxRange ?? 100) - 40];
+    else {
+      band = [56, (b.blink?.range ?? 100) + 10];
+      level = 16;
+    }
+    if (dist < band[0] || dist > band[1] || dy > level || e.state === 'roll' || e.invuln > 0.15) return false;
     if (!w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12)) return false;
     if (!this.rng.chance(0.12 + this.diff.throwChance * 0.2)) return false;
     this.out.moveX = dx >= 0 ? 1 : -1;
-    this.chargeTicks = 1;
+    // how long to keep the button down: until the dash / arm has had time to reach the target
+    let ticks = 1;
+    if (b.kind === 'rasengan' && b.dash) ticks = Math.min(Math.ceil(b.dash.maxTime * 60), Math.ceil((b.dash.windup + dist / b.dash.speed + 0.2) * 60));
+    else if (b.kind === 'pistol' && b.stretch) ticks = Math.ceil(((dist + 10) / (b.stretch.extendSpeed ?? 700) + 0.05) * 60);
+    this.chargeTicks = ticks;
     this.hold = 'ability';
     this.out.ability = true;
     return true;

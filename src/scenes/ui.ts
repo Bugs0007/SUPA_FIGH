@@ -62,7 +62,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /**
  * Animated fighter for menus (feet at x, y; integer scale stays crisp). Loops idle -> run -> 3-hit combo
- * -> idle -> (heroes) their signature move: Goku levitates, Naruto forms a Rasengan, Luffy stretches.
+ * -> idle -> (heroes) their signature move: Goku teleports, Naruto forms a Rasengan, Luffy stretches.
  */
 export class Puppet {
   readonly root: Phaser.GameObjects.Container;
@@ -114,6 +114,8 @@ export class Puppet {
     let fl = 0;
     let lift = 0;
     let face = 1;
+    let xoff = 0;
+    let hidden = false;
     const g = this.fx.clear();
     if (t >= 2 && t < 3.2) {
       // run in place
@@ -122,6 +124,12 @@ export class Puppet {
       const s = Math.sin((k / 6) * Math.PI * 2);
       fa = Math.PI / 2 - s * 1.05 - 0.25;
       ba = Math.PI / 2 + s * 1.05 - 0.25;
+      if (this.hero === 'naruto') {
+        // the anime run: arms floating straight back
+        fa = Math.PI + 0.3;
+        ba = Math.PI + 0.12;
+        fl = 1;
+      }
     } else if (t >= 3.2 && t < 4.3) {
       // jab, cross, haymaker
       const c = t - 3.2;
@@ -145,13 +153,26 @@ export class Puppet {
     } else if (this.hero && t >= 5.2) {
       const a = t - 5.2;
       if (this.hero === 'goku') {
-        frame = BF.HOVER;
-        lift = Math.min(10, a * 30) - (a > 1.7 ? (a - 1.7) * 40 : 0) + Math.sin(a * 5) * 1;
-        fa = 1.9;
-        ba = 2.25;
-        for (let i = 0; i < 4; i++) {
-          const py = 1 + ((a * 30 + i * 5) % 12);
-          g.fillStyle(i % 2 ? 0xffffff : 0xa8e0ff, 1 - py / 12).fillRect(-2 + (i % 3) * 2, py - lift, 1, 1);
+        // instant transmission: two fingers to the forehead, vanish, reappear a few steps ahead with a strike
+        if (a < 0.8) {
+          frame = BF.IDLE0;
+          fa = -2.2;
+          ba = 1.7;
+          fl = 1;
+          const m0 = FRAME_META[frame];
+          for (let i = 0; i < 3; i++) g.fillStyle(0xfff8c0, 0.5 + 0.5 * Math.sin(a * 30 + i)).fillRect(m0.neckX - 16 + 3 + i * 3, m0.neckY - 32 - 6 - ((a * 20 + i * 4) % 6), 1, 1);
+        } else if (a < 1) {
+          hidden = true;
+          const k = Math.min(1, (a - 0.8) / 0.2);
+          for (let i = 0; i < 8; i++) g.fillStyle(i % 2 ? 0xfff8c0 : 0x7ad8ff, 1 - k * 0.6).fillRect(Math.round(k * 24) - 4 + i * 3 - 10, -16 + ((i * 7) % 11), 3, 1);
+        } else if (a < 1.9) {
+          xoff = 24;
+          const c = a - 1;
+          frame = c < 0.35 ? BF.CROSS : BF.IDLE0;
+          fa = c < 0.35 ? 0 : 1.4;
+          ba = 1.9;
+          fl = 1;
+          if (c < 0.3) disc(g, 28, -14, 2 + Math.round(c * 8), 0xfff8c0);
         }
       } else if (this.hero === 'naruto') {
         const forming = a < 0.9;
@@ -193,6 +214,24 @@ export class Puppet {
     if (fa > -50) this.front.setTexture(this.tex.arm, armFrame(fa, fl)).setPosition(m.shX - 16, m.shY - 32 - lift);
     this.root.setScale(Math.abs(this.root.scaleX) * face, this.root.scaleY).setPosition(this.x, this.y);
     this.root.setAlpha(this.dim ? 0.35 : 1);
+    if (hidden) {
+      // mid-teleport: only the spark streak is visible
+      this.body.setVisible(false);
+      this.head.setVisible(false);
+      this.back.setVisible(false);
+      this.front.setVisible(false);
+    } else {
+      this.body.setVisible(true);
+      this.head.setVisible(true);
+      this.back.setVisible(true);
+    }
+    if (xoff) {
+      // (the figure steps ahead; effects drawn above stay where they are drawn)
+      this.body.x += xoff;
+      this.head.x += xoff;
+      this.back.x += xoff;
+      this.front.x += xoff;
+    }
   }
 }
 

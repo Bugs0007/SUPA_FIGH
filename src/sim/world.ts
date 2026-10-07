@@ -9,8 +9,8 @@ import { createItem, updateItems, type Item } from './item';
 import { createProp, updateProps, type Prop } from './prop';
 import type { PropType } from './data/props';
 import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
-import { POWER_ORB } from './data/heroes';
-import { transform, updateClones, type Clone } from './hero';
+import { maxClones, POWER_ORB } from './data/heroes';
+import { dismissClone, transform } from './hero';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
 import { TK } from './map/tiles';
@@ -66,8 +66,8 @@ export class World {
   items: Item[] = [];
   props: Prop[] = [];
   fires: FirePatch[] = [];
-  /** shadow clone effect entities (hero powers) */
-  clones: Clone[] = [];
+  /** Naruto's shadow clones are real fighters in reserved slots after the players; this is true when there are any */
+  readonly hasClones: boolean;
   /** wooden tiles on fire, keyed by tile index */
   burningTiles = new Map<number, BurningTile>();
   /** seconds of Bullet Time left (the world runs slow; the owner gets two updates per tick) */
@@ -102,7 +102,14 @@ export class World {
     this.weaponRate = settings.weaponSpawnRate * (this.mods.has('armory') ? 3 : 1);
     this.gravityScale = settings.gravityScale * (def.gravityScale ?? 1) * (this.mods.has('lowGravity') ? 0.5 : 1);
     this.killY = this.map.pxH + (def.killMargin ?? 48);
-    this.specs = specs;
+    // reserved clone slots: one block per fighter whose hero makes shadow clones (they start out of the world)
+    const slots: FighterSpawn[] = [];
+    specs.forEach((s, i) => {
+      const n = maxClones(s.hero ?? '');
+      for (let k = 0; k < n; k++) slots.push({ name: 'CLONE', team: teamKey({ id: i, team: s.team }), isBot: true, upJumps: false, hero: s.hero, master: i });
+    });
+    this.specs = [...specs, ...slots];
+    this.hasClones = slots.length > 0;
 
     const pts = this.rng.shuffle([...this.parsed.spawns]);
     if (pts.length === 0) pts.push({ x: this.map.pxW / 2, y: TILE * 2 });
@@ -114,6 +121,15 @@ export class World {
       f.grounded = true;
       f.invuln = 0.6; // brief spawn protection
       if (this.mods.has('turbo')) f.speedBoost = 1e9;
+      this.fighters.push(f);
+    });
+    slots.forEach((spec, k) => {
+      const f = createFighter(specs.length + k, spec, 0, 0);
+      f.alive = false;
+      f.gone = true;
+      f.hp = 0;
+      f.state = 'dead';
+      f.invuln = 0;
       this.fighters.push(f);
     });
 
@@ -132,6 +148,7 @@ export class World {
     this.tick++;
     this.time = this.tick * DT;
     updateGimmicks(this);
+    if (this.hasClones) this.updateCloneLinks();
     for (let i = 0; i < this.fighters.length; i++) {
       const f = this.fighters[i];
       updateFighter(this, f, intents[i] ?? NO_INTENT);
@@ -148,7 +165,6 @@ export class World {
     if (this.bulletTime > 0) this.bulletTime = Math.max(0, this.bulletTime - DT);
     if (this.suddenDeath >= 2) this.drain();
     if (this.mods.has('firestorm')) this.fireStorm();
-    updateClones(this);
     updateBullets(this);
     updateItems(this);
     updateProps(this);
@@ -156,6 +172,33 @@ export class World {
     this.updateWeaponSpawner();
     if (this.settings.heroPowers) this.updatePowerSpawner();
     if (this.tick % 120 === 0) this.items = this.items.filter((it) => it.active);
+  }
+
+  /** Clones vanish with their master; masters know how many clones are out. */
+  private updateCloneLinks(): void {
+    for (const f of this.fighters) f.cloneCount = 0;
+    for (const c of this.fighters) {
+      if (c.master < 0 || !c.alive) continue;
+      const m = this.fighters[c.master];
+      if (!m.alive || m.gone) dismissClone(this, c);
+      else {
+        m.cloneCount++;
+        c.cloneForm = m.power === 'hero' ? m.powerLevel : 0;
+      }
+    }
+  }
+
+  /** A shadow clone steps out of its reserved slot beside its master. */
+  spawnClone(slot: Fighter, master: Fighter, x: number, y: number, hp: number, maxHp: number, facing: 1 | -1): void {
+    Object.assign(slot, createFighter(slot.id, this.specs[slot.id], x, y));
+    slot.hp = hp;
+    slot.maxHp = maxHp;
+    slot.facing = facing;
+    slot.invuln = 0.25;
+    slot.vy = -50;
+    slot.cloneForm = master.power === 'hero' ? master.powerLevel : 0;
+    master.cloneCount++;
+    this.emit({ t: 'clone', f: master.id, x, y, facing, id: slot.id });
   }
 
   private fireStorm(): void {
@@ -324,7 +367,7 @@ export class World {
    * autoOnly: only items the fighter would take without pressing a key (empty slot / ammo merge).
    */
   findItemNear(f: Fighter, range: number, fighterId: number, autoOnly = false): Item | null {
-    if (this.settings.noPickups) return null;
+    if (this.settings.noPickups || f.master >= 0) return null;
     let best: Item | null = null;
     let bestD = Infinity;
     for (const it of this.items) {

@@ -61,123 +61,132 @@ const tap = (w: World, i: Partial<Intent>) => {
   hold(w, 1, {});
 };
 
-describe('Goku: levitation', () => {
-  it('ABILITY takes off; flies in all 4 directions; hovers without falling', () => {
+describe('Goku: instant transmission', () => {
+  const tp = (w: World, extra: Partial<Intent> = {}) => {
+    hold(w, 1, { ability: true, ...extra });
+    hold(w, 1, {});
+  };
+
+  it('ABILITY teleports Goku forward (up to the range) with a cooldown', () => {
     const w = world('goku');
     put(w, 0, 10 * TILE);
-    put(w, 1, 34 * TILE);
+    put(w, 1, 36 * TILE);
     settle(w);
     const f = w.fighters[0];
-    tap(w, { ability: true });
-    expect(f.flying).toBe(true);
+    const x0 = f.x;
+    tp(w, { moveX: 1 });
+    const range = HEROES.goku.base.blink!.range;
+    expect(f.x - x0).toBeGreaterThan(range - 12);
+    expect(f.x - x0).toBeLessThanOrEqual(range + 1);
+    expect(f.baseCd).toBeGreaterThan(1.5);
+    // on cooldown: a second press does nothing
     hold(w, 20, {});
-    const hoverY = f.y;
-    expect(hoverY).toBeLessThan(FLOOR - 4);
-    hold(w, 30, {});
-    expect(Math.abs(f.y - hoverY)).toBeLessThan(6); // hovering, not falling
-    let y = f.y;
-    hold(w, 20, { moveY: -1 });
-    expect(f.y).toBeLessThan(y - 20); // up
-    let x = f.x;
-    hold(w, 20, { moveX: 1 });
-    expect(f.x).toBeGreaterThan(x + 20); // right
-    hold(w, 15, {}); // momentum: let him stop before reversing
-    x = f.x;
-    hold(w, 20, { moveX: -1 });
-    expect(f.x).toBeLessThan(x - 20); // left
-    y = f.y;
-    hold(w, 12, { moveY: 1 });
-    expect(f.y).toBeGreaterThan(y + 10); // down
-    expect(f.flying).toBe(true);
+    const x1 = f.x;
+    tp(w, { moveX: 1 });
+    expect(Math.abs(f.x - x1)).toBeLessThan(4); // (only the run, no second jump)
   });
 
-  it('the meter runs out and he drops; it refills on the ground', () => {
+  it('goes in the direction held: left, up (into the air) and facing when nothing is held', () => {
     const w = world('goku');
-    put(w, 0, 10 * TILE);
-    put(w, 1, 34 * TILE);
+    put(w, 0, 20 * TILE);
+    put(w, 1, 36 * TILE);
     settle(w);
     const f = w.fighters[0];
-    const max = HEROES.goku.base.fly!.meter;
-    tap(w, { ability: true });
-    hold(w, Math.ceil((max + 0.3) * 60), { moveY: -1 });
-    expect(f.flying).toBe(false);
-    expect(f.flyMeter).toBe(0);
-    hold(w, 90, {});
-    expect(f.grounded).toBe(true);
-    hold(w, 120, {});
-    expect(f.flyMeter).toBeGreaterThan(1.5);
+    const x0 = f.x;
+    tp(w, { moveX: -1 });
+    expect(f.x).toBeLessThan(x0 - 80);
+    expect(f.facing).toBe(-1);
+    hold(w, 200, {});
+    const y0 = f.y;
+    tp(w, { moveY: -1 });
+    expect(f.y).toBeLessThan(y0 - 60);
   });
 
-  it('flying down to the floor lands; ABILITY again also lands', () => {
+  it('stops short of a wall instead of ending up inside it', () => {
     const w = world('goku');
-    put(w, 0, 10 * TILE);
-    put(w, 1, 34 * TILE);
+    put(w, 0, 37 * TILE + 8); // the right wall starts at x = 39 * 16
+    put(w, 1, 4 * TILE);
     settle(w);
     const f = w.fighters[0];
-    tap(w, { ability: true });
-    hold(w, 30, {});
-    hold(w, 60, { moveY: 1 });
-    expect(f.flying).toBe(false);
-    expect(f.grounded).toBe(true);
-    hold(w, 30, {});
-    tap(w, { ability: true });
-    expect(f.flying).toBe(true);
-    hold(w, 20, {});
-    tap(w, { ability: true });
-    expect(f.flying).toBe(false);
+    tp(w, { moveX: 1 });
+    expect(f.x + f.w / 2).toBeLessThanOrEqual(39 * TILE);
+    hold(w, 10, {});
+    expect(w.map.rectSolid(f.x - f.w / 2, f.y - f.h, f.x + f.w / 2, f.y - 0.5)).toBe(false);
   });
 
-  it('jumping again with no air jumps left takes off too', () => {
+  it('locks onto a fighter in that direction: appears behind them and strikes', () => {
     const w = world('goku');
     put(w, 0, 10 * TILE);
-    put(w, 1, 34 * TILE);
+    put(w, 1, 10 * TILE + 90);
     settle(w);
     const f = w.fighters[0];
-    hold(w, 10, { jump: true });
-    hold(w, 2, {});
-    hold(w, 6, { jump: true }); // double jump
-    hold(w, 2, {});
-    expect(f.flying).toBe(false);
-    hold(w, 2, { jump: true }); // third press
-    expect(f.flying).toBe(true);
-  });
-
-  it('getting punched out of the sky ends the flight', () => {
-    const w = world('goku');
-    put(w, 0, 10 * TILE);
-    put(w, 1, 34 * TILE);
-    settle(w);
-    const f = w.fighters[0];
-    tap(w, { ability: true });
-    hold(w, 20, {});
     const o = w.fighters[1];
-    o.x = f.x + 9;
-    o.y = f.y;
-    o.facing = -1;
-    w.step([intent(), intent({ attack: true })]);
-    for (let t = 0; t < 20; t++) w.step([intent(), intent()]);
-    expect(f.hp).toBeLessThan(f.maxHp);
-    expect(f.flying).toBe(false);
+    const ox = o.x;
+    let hit = false;
+    hold(w, 1, { ability: true, moveX: 1 });
+    for (let t = 0; t < 12; t++) {
+      w.step([]);
+      if (w.events.some((e) => e.t === 'hit' && e.weapon === 'blink' && e.victim === 1)) hit = true;
+    }
+    expect(f.x).toBeGreaterThan(ox); // on the far side
+    expect(f.facing).toBe(-1); // turned back toward them
+    expect(hit).toBe(true);
+    expect(o.hp).toBeLessThan(o.maxHp);
   });
 
-  it('once transformed, flight never runs out', () => {
+  it('is invulnerable for a moment after the jump', () => {
     const w = world('goku');
     put(w, 0, 10 * TILE);
-    put(w, 1, 34 * TILE);
+    put(w, 1, 36 * TILE);
     settle(w);
+    tp(w, { moveX: 1 });
+    expect(w.fighters[0].invuln).toBeGreaterThan(0.05);
+  });
+});
+
+describe('flight (hold Up in the air): Goku always, Naruto and Luffy in the final form', () => {
+  it('Goku flies in his base form and in every form', () => {
+    for (let lvl = 0; lvl <= 4; lvl++) {
+      const w = world('goku');
+      put(w, 0, 10 * TILE, 8 * TILE);
+      put(w, 1, 36 * TILE);
+      const f = w.fighters[0];
+      for (let i = 0; i < lvl; i++) transform(w, f);
+      f.vy = 0;
+      f.grounded = false;
+      hold(w, 30, { moveY: -1 });
+      expect(f.flying, 'form ' + lvl).toBe(true);
+    }
+  });
+
+  it.each(['naruto', 'luffy'])('%s flies only in the final form', (hero) => {
+    const base = world(hero);
+    put(base, 0, 10 * TILE, 8 * TILE);
+    put(base, 1, 36 * TILE);
+    base.fighters[0].vy = 0;
+    hold(base, 30, { moveY: -1 });
+    expect(base.fighters[0].flying).toBe(false);
+
+    const w = world(hero);
+    put(w, 0, 10 * TILE, 8 * TILE);
+    put(w, 1, 36 * TILE);
     const f = w.fighters[0];
-    transform(w, f);
-    // jump, double jump, third press = flight; the meter does not drain
-    hold(w, 10, { jump: true });
-    hold(w, 2, {});
-    hold(w, 6, { jump: true });
-    hold(w, 2, {});
-    hold(w, 2, { jump: true });
+    for (let i = 0; i < 4; i++) transform(w, f);
+    expect(f.powerLevel).toBe(4);
+    f.vy = 0;
+    f.grounded = false;
+    hold(w, 30, { moveY: -1 });
     expect(f.flying).toBe(true);
-    const m = f.flyMeter;
-    hold(w, 300, {});
-    expect(f.flying).toBe(true);
-    expect(f.flyMeter).toBe(m);
+    const y = f.y;
+    hold(w, 20, { moveY: -1 });
+    expect(f.y).toBeLessThan(y - 20);
+    hold(w, 20, {});
+    expect(f.flying).toBe(false); // release: falls
+  });
+
+  it('Goku has no levitation ability any more: his ability 1 is the teleport', () => {
+    expect(HEROES.goku.base.kind).toBe('blink');
+    expect(HEROES.goku.alwaysFlies).toBe(true);
   });
 });
 
@@ -232,7 +241,32 @@ describe('Naruto: rasengan', () => {
 });
 
 describe('Luffy: gum-gum pistol', () => {
-  it('stretch punch hits a fighter far away', () => {
+  it('has three charges; a spent one refills 2 s later, one after another', () => {
+    const w = world('luffy');
+    put(w, 0, 10 * TILE);
+    put(w, 1, 36 * TILE);
+    settle(w);
+    const f = w.fighters[0];
+    for (let i = 0; i < 3; i++) {
+      tap(w, { ability: true });
+      hold(w, 30, {});
+    }
+    expect(f.baseUsed).toBe(3);
+    tap(w, { ability: true });
+    hold(w, 20, {});
+    expect(f.baseUsed, 'no fourth use').toBe(3);
+    hold(w, 60, {}); // ~2 s since the first use: one charge is back
+    expect(f.baseUsed).toBe(2);
+    tap(w, { ability: true });
+    hold(w, 20, {});
+    expect(f.baseUsed).toBe(3);
+    hold(w, 130, {});
+    expect(f.baseUsed).toBeLessThanOrEqual(2);
+    hold(w, 360, {});
+    expect(f.baseUsed).toBe(0);
+  });
+
+  it('stretch punch reaches a fighter far away but deals no damage', () => {
     const w = world('luffy');
     put(w, 0, 10 * TILE);
     put(w, 1, 10 * TILE + 90);
@@ -245,7 +279,7 @@ describe('Luffy: gum-gum pistol', () => {
       if (w.events.some((e) => e.t === 'hit' && e.weapon === 'gumgum')) hit = true;
     }
     expect(hit).toBe(true);
-    expect(o.hp).toBeLessThan(o.maxHp);
+    expect(o.hp).toBe(o.maxHp); // a traversal tool: it shoves, it never hurts
   });
 
   it('misses beyond its range', () => {
@@ -265,12 +299,12 @@ describe('Luffy: gum-gum pistol', () => {
     settle(w);
     const f = w.fighters[0];
     const x0 = f.x;
-    tap(w, { ability: true });
     let rocket = false;
-    for (let t = 0; t < 30; t++) {
-      w.step([]);
+    for (let t = 0; t < 40; t++) {
+      w.step([intent({ ability: true })]); // (held: the grab only pulls while the button is down)
       if (w.events.some((e) => e.t === 'rocket')) rocket = true;
     }
+    hold(w, 20, {});
     expect(rocket).toBe(true);
     expect(f.x).toBeGreaterThan(x0 + 30);
     expect(f.state).toBe('normal');

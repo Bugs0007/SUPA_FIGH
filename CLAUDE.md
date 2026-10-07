@@ -2,7 +2,7 @@
 
 2D pixel-art side-view arena brawler for the browser (up to 10 fighters: 4 local humans + bots).
 Includes an anime-hero expansion (M9): Naruto / Luffy / Goku as tiny fighters with a base ability each
-(levitation / rasengan / gum-gum pistol, D51), a second ability on the kick key, a super (both keys) and four
+(instant transmission / rasengan / gum-gum pistol, D51 + D62-D66), a second ability on the kick key, a super (both keys) and four
 transformation forms each, raised by eating power orbs (D58); forms have no timer, a stacked form-health bar absorbs damage first (D61).
 Phaser 3 + TypeScript + Vite. All art and audio are generated procedurally at startup.
 
@@ -39,10 +39,14 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
   gimmicks.ts     Map gimmicks from MapDef.gimmicks: movers, hazards (crusher/laser/tunnel/fissure), gravity
                   zones, supply drops, conveyors, ship waves, cannons (fired with Interact).
   hero.ts         Heroes: power-orb transformation levels (D58), hit math for rasengan / stretch punches /
-                  gatling / beams / chakra bomb, shadow clones (effect entities, never fighters).
-                  Data: data/heroes.ts (HEROES: base = ability 1, second = ability 2 on the kick key, super = both
-                  keys, forms[], combo). Move states live in fighter.ts (heroButtons, stFly, stRasengan, stPistol,
-                  stBeam, stGatling, stBomb, stSuperFist...).
+                  gatling / beams / chakra bomb, Goku's blink destination, Luffy's grab probe, and Naruto's shadow
+                  clones (summon / recall / dismiss: D63). Data: data/heroes.ts (HEROES: base = ability 1,
+                  second = ability 2 on the kick key, super = both keys, forms[], combo, wallWalk, sprintArmsBack).
+                  Move states live in fighter.ts (heroButtons, stHoldFly, stRasengan, stPistol / stRocket /
+                  stSwing, stBlink, stWallWalk, stBeam, stGatling, stBomb, stSuperFist...).
+                  Shadow clones are REAL fighters in slots the World reserves after the players (`Fighter.master`);
+                  `Match` only walks `roster()` (the players), so modes and scores never see them. Anything that
+                  indexes fighters by player (controllers, looks, recordings) must cover `world.fighters.length`.
   replay.ts       RoundRecording (intents per tick) + ReplayPlayer (deterministic re-simulation).
   awards.ts       Post-match awards from match stats. data/modifiers.ts = chaos cards.
   data/weapons.ts ALL weapon stats live here (guns, melee, throwables, gadgets, powerups, FIRE/CARRY

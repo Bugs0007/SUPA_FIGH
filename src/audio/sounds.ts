@@ -137,6 +137,14 @@ export const SOUNDS: Record<string, SfxDef> = {
     { wave: 'square', freq: 1800, decay: 0.05, duty: 0.2, volume: 0.1, delay: 0.15 },
   ],
   clone: [{ wave: 'noise', freq: 2000, slide: -2, attack: 0.01, decay: 0.12, lowpass: 0.5, volume: 0.3 }],
+  // Goku's instant transmission: a rising chirp and a soft pop
+  blink: [
+    { wave: 'square', freq: 1500, slide: -3, decay: 0.09, duty: 0.25, volume: 0.16 },
+    { wave: 'sine', freq: 700, slide: 2.5, attack: 0.01, decay: 0.12, volume: 0.28, delay: 0.04 },
+    { wave: 'noise', freq: 4000, decay: 0.05, highpass: 0.6, volume: 0.15, delay: 0.05 },
+  ],
+  // Naruto's chakra feet sticking to a wall
+  chakraStick: [{ wave: 'sine', freq: 420, slide: 1.2, decay: 0.1, volume: 0.22, vibDepth: 0.06, vibSpeed: 30 }],
   chakraBlast: [
     { wave: 'saw', freq: 90, slide: 0.5, attack: 0.02, sustain: 0.1, decay: 0.3, volume: 0.4, vibDepth: 0.1, vibSpeed: 30 },
     { wave: 'noise', freq: 700, slide: -1, sustain: 0.05, decay: 0.3, lowpass: 0.4, volume: 0.35 },

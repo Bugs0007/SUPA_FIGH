@@ -80,18 +80,23 @@ import {
   baseAbility,
   beamHits,
   beamPower,
+  blinkDestination,
+  blinkStrike,
   endPower,
   fireBomb,
   gatlingHit,
+  grabProbe,
+  gripTarget,
   holdFlies,
   pistolHits,
   rasenganHit,
+  recallClones,
   secondAbility,
-  spawnClones,
-  spawnRushClones,
   stretchAt,
+  summonClones,
   transformed,
   updatePower,
+  type Grip,
 } from './hero';
 import { detonate } from './item';
 import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
@@ -116,6 +121,7 @@ export type FState =
   | 'grabbed'
   | 'grabbing'
   | 'special'
+  | 'wallwalk'
   | 'dead';
 
 export interface InvItem {
@@ -259,13 +265,18 @@ export interface Fighter extends Body {
   /** seconds the special has been charged (-1 = not charging) */
   charge: number;
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
-  specialKind: '' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist';
+  specialKind: '' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
   /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
   stretchAngle: number;
   /** base ability (ability 1) cooldown; secondCd = ability 2; specialCd = the super */
   baseCd: number;
+  /** charged base abilities (Luffy's arm): charges spent, and seconds until the next one refills */
+  baseUsed: number;
+  baseRecharge: number;
+  /** shadow clones: the master's form level, mirrored every tick for looks only (0 = base) */
+  cloneForm: number;
   secondCd: number;
   /** seconds inside the current hero move (gatling pacing) */
   abilT: number;
@@ -274,13 +285,23 @@ export interface Fighter extends Body {
   /** super input buffers: seconds left to press the other ability button */
   btnBuf1: number;
   btnBuf2: number;
-  /** levitation (Goku): flying now, meter (seconds of flight left), seconds since take-off */
+  /** hold-Up flight (final forms): flying now, seconds since take-off */
   flying: boolean;
-  flyMeter: number;
   flyTime: number;
-  /** Gum-Gum Rocket anchor point (where the fist hit the wall) */
+  /** Gum-Gum grapple: anchor point (where the fist caught on), kind of grip, current arm reach (px past the body edge), arm coming back, swing rope length */
   anchorX: number;
   anchorY: number;
+  grip: '' | Grip['kind'];
+  armReach: number;
+  armBack: boolean;
+  ropeLen: number;
+  /** time (s into the move) the dash / grapple switched to its recovery, 0 = not yet */
+  recoverAt: number;
+  /** shadow clones (Naruto): id of the fighter this clone belongs to (-1 = a normal fighter) and, for the master, how many clones are out */
+  master: number;
+  cloneCount: number;
+  /** wall walking (Naruto): side (-1/1) of the wall being walked on while state === 'wallwalk' */
+  wallDir: number;
   prev: Intent;
 }
 
@@ -291,6 +312,8 @@ export interface FighterSpawn {
   upJumps: boolean;
   /** hero id (data/heroes.ts), '' or undefined = scrapyard fighter */
   hero?: string;
+  /** shadow clone slot (added by the World): fighter id of the master */
+  master?: number;
 }
 
 export function createFighter(id: number, spec: FighterSpawn, x: number, y: number): Fighter {
@@ -405,16 +428,26 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     stretchLen: 0,
     stretchAngle: 0,
     baseCd: 0,
+    baseUsed: 0,
+    baseRecharge: 0,
+    cloneForm: 0,
     secondCd: 0,
     abilT: 0,
     beamWidth: 0,
     btnBuf1: 0,
     btnBuf2: 0,
     flying: false,
-    flyMeter: hero?.base.fly?.meter ?? 0,
     flyTime: 0,
     anchorX: 0,
     anchorY: 0,
+    grip: '',
+    armReach: 0,
+    armBack: false,
+    ropeLen: 0,
+    recoverAt: 0,
+    master: spec.master ?? -1,
+    cloneCount: 0,
+    wallDir: 0,
     prev: emptyIntent(),
   };
 }
@@ -533,6 +566,11 @@ const moveRes: MoveResult = newMoveResult();
 export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   f.px = f.x;
   f.py = f.y;
+  if (f.master >= 0 && !f.alive) {
+    // a clone slot with nobody in it
+    copyIntent(f.prev, inp);
+    return;
+  }
   if (f.gone && !w.settings.ghosts) return;
   if (!f.alive) {
     if (f.power) endPower(w, f);
@@ -572,6 +610,11 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   f.speedMul = (activeWeapon(f).moveSpeedMul ?? 1) * (f.speedBoost > 0 ? (weaponDef('speed').powerup?.mult ?? 1) : 1);
   f.speedMul *= (ab?.speedMul ?? 1) * (heroDef(f.hero)?.stats.speed ?? 1);
   if (f.state !== 'special') f.charge = -1;
+  if (f.state === 'wallwalk' && (e.abilityP || e.kickP)) {
+    // using an ability lets go of the wall (facing away from it)
+    f.facing = (-f.wallDir || f.facing) as 1 | -1;
+    setState(f, 'normal');
+  }
   heroButtons(w, f, inp, e);
   if (f.carry >= 0) {
     f.speedMul *= CARRY.speedMul;
@@ -626,6 +669,9 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       break;
     case 'special':
       stSpecial(w, f, inp, dt);
+      break;
+    case 'wallwalk':
+      stWallWalk(w, f, inp, e, dt);
       break;
     case 'grabbed':
       if (e.anyP) f.struggle++;
@@ -788,7 +834,7 @@ function updateSprint(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): 
     f.lastTapTime = w.time;
   }
   if (f.sprintDir !== 0) {
-    const still = axis(inp.moveX) === f.sprintDir && (f.state === 'normal' || f.state === 'roll' || f.state === 'dive');
+    const still = axis(inp.moveX) === f.sprintDir && (f.state === 'normal' || f.state === 'roll' || f.state === 'dive' || f.state === 'wallwalk');
     if (!still) {
       f.sprintDir = 0;
       f.sprintCooldown = SPRINT_COOLDOWN;
@@ -812,7 +858,7 @@ function withUpJump(f: Fighter, inp: Intent): Intent {
   }
   const s = f.state;
   // (flying: Up flies up)
-  if (s === 'climb' || s === 'aim' || s === 'grabbing' || s === 'grabbed' || s === 'ledge' || s === 'ledgeClimb' || s === 'special' || f.flying) f.upLatch = true;
+  if (s === 'climb' || s === 'aim' || s === 'grabbing' || s === 'grabbed' || s === 'ledge' || s === 'ledgeClimb' || s === 'special' || s === 'wallwalk' || f.flying) f.upLatch = true;
   // holding Attack with a gun / throwable = aiming: Up sweeps the aim, even on the tick the aim starts
   if (inp.attack) {
     const d = activeWeapon(f);
@@ -898,10 +944,10 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
   if (f.h !== FIGHTER_H) restoreHeight(w, f);
   if (f.state !== 'normal') return;
   if (f.flying) {
-    stFly(w, f, inp, e, dt);
+    stHoldFly(w, f, inp, e, dt);
     return;
   }
-  // final forms (Naruto, Luffy): hold Up in the air, past the top of a jump, to fly (D61)
+  // final forms (every hero): hold Up in the air, past the top of a jump, to fly (D61)
   if (!f.grounded && inp.moveY < -0.5 && f.vy >= -40 && holdFlies(f) && !onLadder(w, f) && f.dropTimer <= 0) {
     f.flying = true;
     f.flyHold = true;
@@ -910,7 +956,7 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
     f.jumpBuffer = 0;
     f.vy = Math.min(f.vy, 0) * 0.3;
     w.emit({ t: 'flyStart', f: f.id, x: f.x, y: f.y });
-    stFly(w, f, inp, e, dt);
+    stHoldFly(w, f, inp, e, dt);
     return;
   }
   const mx = axis(inp.moveX);
@@ -928,12 +974,16 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
     startClimb(w, f, true);
     return;
   }
+  // Naruto: hold toward a wall + Up to walk up it
+  if (mx !== 0 && inp.moveY < -0.5 && !inp.attack && f.carry < 0 && f.dropTimer <= 0 && heroDef(f.hero)?.wallWalk && wallContact(w, f, mx) === mx) {
+    startWallWalk(w, f, mx);
+    return;
+  }
 
   if (f.jumpBuffer > 0 && (f.grounded || f.coyote > 0)) {
     doJump(w, f);
   } else if (e.jumpP && !f.grounded && f.coyote <= 0 && f.dropTimer <= 0) {
-    // out of air jumps: levitating heroes take off instead
-    if (!airJump(w, f, mx) && startFlight(w, f)) return;
+    airJump(w, f, mx);
   }
   if (f.jumping && f.vy < 0 && !inp.jump) {
     f.vy *= JUMP_CUT;
@@ -979,6 +1029,66 @@ function jetpack(w: World, f: Fighter, inp: Intent, dt: number): void {
     w.emit({ t: 'weaponBreak', f: f.id, weapon: 'jetpack', x: f.x, y: f.y - 12 });
     selectBestSlot(f);
   }
+}
+
+// ------------------------------------------------------------------ wall walking (Naruto)
+
+function startWallWalk(w: World, f: Fighter, side: number): void {
+  setState(f, 'wallwalk');
+  f.wallDir = side;
+  f.facing = side > 0 ? 1 : -1;
+  f.vx = side * 30;
+  f.vy = Math.min(f.vy, 0);
+  f.jumping = false;
+  f.jumpBuffer = 0;
+  f.grounded = false;
+  f.coyote = 0;
+  f.airJumps = AIR_JUMPS;
+  f.sprintCooldown = 0;
+  w.emit({ t: 'wallwalk', f: f.id, x: f.x + side * 5, y: f.y - 8, side });
+}
+
+/**
+ * Chakra feet: stuck to a wall, Up / Down walk along it (double-tap toward the wall first to run),
+ * release the direction to fall, Jump kicks off, and the top of the wall hops you over the edge.
+ */
+function stWallWalk(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
+  const side = f.wallDir;
+  const mx = axis(inp.moveX);
+  const my = axis(inp.moveY);
+  f.facing = side > 0 ? 1 : -1;
+  f.airJumps = AIR_JUMPS;
+  if (e.jumpP) {
+    f.lastWallSide = 0;
+    setState(f, 'normal');
+    airJump(w, f, side);
+    integrate(w, f, dt);
+    return;
+  }
+  if (mx !== side || (f.grounded && my >= 0 && f.stateTime > 0.05)) {
+    setState(f, 'normal');
+    f.vx = 0;
+    integrate(w, f, dt);
+    return;
+  }
+  if (wallContact(w, f, side) !== side) {
+    if (my < 0) {
+      // over the top: a little hop onto whatever the wall ends in
+      f.vy = -170;
+      f.vx = side * 90;
+      f.wallLock = 0.12;
+      f.jumping = false;
+    }
+    setState(f, 'normal');
+    integrate(w, f, dt);
+    return;
+  }
+  const speed = RUN_SPEED * f.speedMul * sprintMul(f);
+  f.vy = my * speed;
+  f.vx = side * 40; // keeps pressing into the wall
+  integrate(w, f, dt, false);
+  if (f.grounded && my >= 0) f.vy = 0;
+  if (commonActions(w, f, inp, e)) return;
 }
 
 function stCrouch(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
@@ -1378,7 +1488,6 @@ function startMelee(w: World, f: Fighter): void {
   const hit = m.combo[step];
   if (f.grounded) f.vx = f.facing * (hit.lunge ?? 40);
   w.emit({ t: 'swing', f: f.id, weapon: meleeWeaponId(f), step });
-  if (hit.clones) spawnClones(w, f, hit);
 }
 
 function stMelee(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
@@ -1550,15 +1659,21 @@ function beginMove(w: World, f: Fighter, inp: Intent, kind: Fighter['specialKind
 /** ABILITY 2 (kick button): Kamehameha (hold to charge), shadow clone rush, gum-gum gatling. */
 function startSecond(w: World, f: Fighter, inp: Intent): void {
   const s = secondAbility(f);
-  if (!s || f.secondCd > 0 || !canAct(f)) return;
+  if (!s || f.master >= 0) return; // (shadow clones only know the Rasengan)
+  // pressing it again while clones are out calls them back
+  if (s.kind === 'clones' && f.cloneCount > 0) {
+    w.emit({ t: 'recall', f: f.id, n: recallClones(w, f) });
+    f.cloneCount = 0;
+    return;
+  }
+  if (f.secondCd > 0 || !canAct(f)) return;
   if (s.kind === 'beam') {
     if (!beginMove(w, f, inp, 'beamCharge')) return;
     f.charge = 0;
     w.emit({ t: 'chargeStart', f: f.id });
   } else if (s.kind === 'clones') {
     if (!beginMove(w, f, inp, 'cast')) return;
-    spawnRushClones(w, f, s.clones!);
-    f.secondCd = s.cooldown;
+    if (summonClones(w, f) > 0) f.secondCd = s.cooldown; // (the cooldown only counts down once no clone is left)
   } else {
     if (!beginMove(w, f, inp, 'gatling')) return;
     f.secondCd = s.cooldown;
@@ -1587,11 +1702,15 @@ function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
   f.abilT += dt;
   switch (f.specialKind) {
     case 'rasengan':
-      return stRasengan(w, f, dt);
+      return stRasengan(w, f, inp, dt);
     case 'pistol':
-      return stPistol(w, f, dt);
+      return stPistol(w, f, inp, dt);
     case 'rocket':
-      return stRocket(w, f, dt);
+      return stRocket(w, f, inp, dt);
+    case 'swing':
+      return stSwing(w, f, inp, dt);
+    case 'blink':
+      return stBlink(w, f, dt);
     case 'beamCharge':
       return stBeamCharge(w, f, inp, dt);
     case 'beam':
@@ -1766,111 +1885,27 @@ function stKick(w: World, f: Fighter, dt: number): void {
 
 // ------------------------------------------------------------------ hero base abilities (D51)
 
-/** Fully transformed (Super Saiyan): flight never runs out. */
-function superFlight(f: Fighter): boolean {
-  return transformed(f);
-}
-
-/** Per tick: base cooldown, flight meter (drains while flying, refills on the ground), forced landings. */
+/** Per tick: base cooldown, hold-Up flight bookkeeping (the final forms fly while Up is held). */
 function updateBaseAbility(w: World, f: Fighter, dt: number): void {
   if (f.baseCd > 0) f.baseCd -= dt;
-  const fly = baseAbility(f)?.fly;
-  if (!fly) {
-    // hold-to-fly (final forms) keeps flying while Up is held; anything else lands
-    if (f.flyHold && f.flying && holdFlies(f)) {
-      const s = f.state;
-      if (s !== 'normal') {
-        f.flying = false;
-        f.flyHold = false;
-        w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: false });
-      } else f.flyTime += dt;
-    } else {
+  const ch = baseAbility(f)?.charges;
+  if (ch && f.baseUsed > 0) {
+    f.baseRecharge -= dt;
+    if (f.baseRecharge <= 0) {
+      f.baseUsed--;
+      f.baseRecharge = f.baseUsed > 0 ? ch.recharge : 0;
+    }
+  }
+  if (f.flyHold && f.flying && holdFlies(f)) {
+    if (f.state !== 'normal') {
       f.flying = false;
       f.flyHold = false;
-    }
-    return;
-  }
-  if (f.flying) {
-    const s = f.state;
-    // knocked out of the sky (hits, grabs) or switched to ladder/ledge/ground moves
-    if (s === 'flinch' || s === 'knockdown' || s === 'grabbed' || s === 'grabbing' || s === 'climb' || s === 'ledge' || s === 'ledgeClimb' || s === 'roll' || s === 'dive' || s === 'crouch') {
-      endFlight(w, f, false);
-      return;
-    }
-    f.flyTime += dt;
-    if (!superFlight(f)) {
-      f.flyMeter -= dt;
-      if (f.flyMeter <= 0) {
-        f.flyMeter = 0;
-        endFlight(w, f, true);
-      }
-    }
-  } else if (f.grounded) {
-    f.flyMeter = Math.min(fly.meter, f.flyMeter + fly.regen * dt);
-  }
-}
-
-/** Take off (from the ground: a little lift; mid-air: catch yourself). False if not possible. */
-function startFlight(w: World, f: Fighter): boolean {
-  const b = baseAbility(f);
-  const fly = b?.fly;
-  if (!fly || f.flying || f.baseCd > 0) return false;
-  if (!superFlight(f) && f.flyMeter < fly.minMeter) return false;
-  if (f.state !== 'normal' && f.state !== 'crouch') return false;
-  if (f.h !== FIGHTER_H) {
-    if (!hasHeadroom(w.map, f, FIGHTER_H)) return false;
-    f.h = FIGHTER_H;
-  }
-  if (f.state !== 'normal') setState(f, 'normal');
-  f.flying = true;
-  f.flyTime = 0;
-  f.jumping = false;
-  f.jumpBuffer = 0;
-  if (f.grounded) {
-    f.vy = -fly.liftoff;
-    f.grounded = false;
-    f.coyote = 0;
-  } else f.vy = Math.min(f.vy, 0) * 0.3;
-  w.emit({ t: 'flyStart', f: f.id, x: f.x, y: f.y });
-  return true;
-}
-
-function endFlight(w: World, f: Fighter, empty: boolean): void {
-  if (!f.flying) return;
-  f.flying = false;
-  f.baseCd = Math.max(f.baseCd, baseAbility(f)?.cooldown ?? 0);
-  w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty });
-}
-
-/** Levitation: free 8-direction movement, no gravity. Attacks/guns/grabs all work in the air. */
-function stFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
-  if (f.flyHold) {
-    stHoldFly(w, f, inp, e, dt);
-    return;
-  }
-  const fly = baseAbility(f)?.fly;
-  if (!fly) {
+      w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: false });
+    } else f.flyTime += dt;
+  } else {
     f.flying = false;
-    integrate(w, f, dt);
-    return;
+    f.flyHold = false;
   }
-  const mx = axis(inp.moveX);
-  const my = axis(inp.moveY);
-  const diag = mx !== 0 && my !== 0 ? Math.SQRT1_2 : 1;
-  const sp = fly.speed * f.speedMul * (superFlight(f) ? 1.25 : 1);
-  f.vx = approach(f.vx, mx * sp * diag, fly.accel * dt);
-  // the take-off kick eases into a hover instead of stopping dead
-  f.vy = approach(f.vy, my * sp * diag, fly.accel * (f.flyTime < 0.25 && my === 0 ? 0.5 : 1) * dt);
-  if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
-  if (commonActions(w, f, inp, e)) return;
-  integrate(w, f, dt, false);
-  // never above the top of the map (the camera can't follow there)
-  if (f.y - f.h < 2) {
-    f.y = 2 + f.h;
-    f.vy = Math.max(0, f.vy);
-  }
-  // touching down ends the flight (not right after taking off from the ground)
-  if (f.grounded && f.flyTime > 0.15) endFlight(w, f, false);
 }
 
 /** Hold-Up flight of the final forms: ascend and steer while Up is held, fall as soon as it is released. */
@@ -1902,43 +1937,98 @@ function stHoldFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): voi
 /** ABILITY in base form (or with another hero's generic boost). */
 function startBase(w: World, f: Fighter, inp: Intent): void {
   const b = baseAbility(f);
-  if (!b) return;
-  if (b.kind === 'fly') {
-    if (f.flying) endFlight(w, f, false);
-    else startFlight(w, f);
-    return;
-  }
-  if (f.baseCd > 0) return;
+  if (!b || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max)) return;
   if (f.h !== FIGHTER_H) {
     if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
     f.h = FIGHTER_H;
   }
+  if (b.kind === 'blink') {
+    startBlink(w, f, inp, b.blink!);
+    return;
+  }
   setState(f, 'special');
   f.swingHit.length = 0;
   f.swingProps.length = 0;
+  f.abilT = 0;
   if (inp.moveX > 0.5) f.facing = 1;
   else if (inp.moveX < -0.5) f.facing = -1;
   f.baseCd = b.cooldown;
+  if (b.charges) {
+    if (f.baseUsed === 0) f.baseRecharge = b.charges.recharge;
+    f.baseUsed++;
+  }
+  f.recoverAt = 0;
   if (b.kind === 'rasengan') {
     f.specialKind = 'rasengan';
     w.emit({ t: 'rasengan', f: f.id, phase: 'form' });
   } else {
     const s = b.stretch!;
     f.specialKind = 'pistol';
-    f.stretchAngle = inp.moveY < -0.5 ? s.upAngle : inp.moveY > 0.5 && !f.grounded ? s.downAngle : 0;
+    // straight up (ceilings / platforms above), up-forward, down-forward (air) or straight ahead
+    f.stretchAngle = inp.moveY < -0.5 ? (Math.abs(inp.moveX) > 0.5 ? s.upAngle : -Math.PI / 2 + 0.05) : inp.moveY > 0.5 && !f.grounded ? s.downAngle : 0;
+    f.armReach = 0;
+    f.armBack = false;
+    f.grip = '';
     w.emit({ t: 'stretch', f: f.id });
   }
+}
+
+/** Instant transmission: vanish, reappear up to `range` px away (behind a locked-on fighter) and strike. */
+function startBlink(w: World, f: Fighter, inp: Intent, b: NonNullable<ReturnType<typeof baseAbility>>['blink'] & object): void {
+  const mx = axis(inp.moveX);
+  const my = axis(inp.moveY);
+  const dx = mx === 0 && my === 0 ? f.facing : mx;
+  const dest = blinkDestination(w, f, b, dx, my);
+  if (!dest) {
+    // nowhere to go: a short fizzle, no cooldown
+    w.emit({ t: 'empty', f: f.id });
+    return;
+  }
+  const fx = f.x;
+  const fy = f.y;
+  w.emit({ t: 'blink', f: f.id, fromX: fx, fromY: fy - 12, toX: dest.x, toY: dest.y - 12 });
+  f.x = f.px = dest.x;
+  f.y = f.py = dest.y;
+  f.vx = f.vy = 0;
+  f.grounded = false;
+  f.coyote = 0;
+  f.jumping = false;
+  if (dest.target >= 0) f.facing = w.fighters[dest.target].x >= dest.x ? 1 : -1;
+  else if (dx !== 0) f.facing = dx > 0 ? 1 : -1;
+  f.baseCd = baseAbility(f)!.cooldown;
+  f.invuln = Math.max(f.invuln, b.iframes);
+  f.airJumps = AIR_JUMPS;
+  setState(f, 'special');
+  f.specialKind = 'blink';
+  f.swingHit.length = 0;
+  f.swingProps.length = 0;
+  f.abilT = 0;
+  blinkStrike(w, f, b);
+}
+
+function stBlink(w: World, f: Fighter, dt: number): void {
+  // a beat of recovery in place, then back to normal
+  holdStill(f, dt);
+  integrate(w, f, dt);
+  if (f.stateTime >= 0.16) endSpecial(w, f);
 }
 
 function endSpecial(w: World, f: Fighter): void {
   f.specialKind = '';
   f.stretchLen = 0;
+  f.grip = '';
+  f.armReach = 0;
+  f.recoverAt = 0;
   setState(f, 'normal');
   restoreHeight(w, f);
 }
 
-/** Rasengan: the orb forms (hang in place), a gravity-free dash, then a short recovery. */
-function stRasengan(w: World, f: Fighter, dt: number): void {
+/**
+ * Rasengan: the orb forms (hang in place), then a gravity-free dash. A tap dashes for `time`; holding the
+ * ability button keeps the dash going (up to `maxTime`) until it hits somebody or a wall, or the button is
+ * let go. Then a short recovery.
+ */
+function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
   const d = baseAbility(f)?.dash;
   if (!d) {
     endSpecial(w, f);
@@ -1952,81 +2042,189 @@ function stRasengan(w: World, f: Fighter, dt: number): void {
     integrate(w, f, dt);
     return;
   }
-  if (t < d.windup + d.time) {
-    if (t - dt < d.windup) w.emit({ t: 'rasengan', f: f.id, phase: 'dash' });
-    f.vx = f.facing * d.speed;
-    f.vy = 0;
-    const res = integrate(w, f, dt, false);
-    const hit = rasenganHit(w, f, d);
-    if (hit || res.wallX !== 0) {
-      // straight into the recovery
-      f.stateTime = d.windup + d.time;
-      f.vx *= hit ? -0.3 : 0;
-      if (!hit) w.emit({ t: 'heroFx', fx: 'rasengan', heavy: false, x: f.x + f.facing * (f.w / 2 + 3), y: f.y - SHOULDER_Y_STAND + 1 });
+  if (f.recoverAt === 0) {
+    // dashing: ends at `time` unless the button is still held (never later than `maxTime`)
+    if (t < d.windup + (inp.ability ? d.maxTime : d.time)) {
+      if (t - dt < d.windup) w.emit({ t: 'rasengan', f: f.id, phase: 'dash' });
+      f.vx = f.facing * d.speed;
+      f.vy = 0;
+      const res = integrate(w, f, dt, false);
+      const hit = rasenganHit(w, f, d);
+      if (hit || res.wallX !== 0) {
+        // straight into the recovery
+        f.recoverAt = t;
+        f.vx *= hit ? -0.3 : 0;
+        if (!hit) w.emit({ t: 'heroFx', fx: 'rasengan', heavy: false, x: f.x + f.facing * (f.w / 2 + 3), y: f.y - SHOULDER_Y_STAND + 1 });
+      }
+      return;
     }
-    return;
+    f.recoverAt = t;
   }
-  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
+  // brake hard: a released / finished dash should stop, not slide on for ages
+  f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL * 3 : AIR_DECEL * 2) * dt);
   integrate(w, f, dt);
-  if (t >= d.windup + d.time + d.recover) endSpecial(w, f);
+  if (t >= f.recoverAt + d.recover) endSpecial(w, f);
 }
 
-/** Gum-Gum Pistol: the arm shoots out along stretchAngle; touching a wall turns it into a rocket. */
-function stPistol(w: World, f: Fighter, dt: number): void {
+/**
+ * Gum-Gum Pistol (grapple): the arm stretches out while the ability button is held (a tap reaches `range`),
+ * hits the first fighter / prop it touches and then comes back. If it catches on a wall, floor, platform or
+ * ladder and the button is STILL held, Luffy is pulled to it; catching a ceiling makes him swing from it.
+ * Letting go retracts the arm (or releases Luffy with his momentum).
+ */
+function stPistol(w: World, f: Fighter, inp: Intent, dt: number): void {
   const s = baseAbility(f)?.stretch;
   if (!s) {
     endSpecial(w, f);
     integrate(w, f, dt);
     return;
   }
-  const t = f.stateTime;
   f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
   if (!f.grounded) f.vy = Math.min(f.vy, 80);
-  const reach = t < s.out ? s.range * (t / s.out) : t < s.out + s.hold ? s.range : Math.max(0, s.range * (1 - (t - s.out - s.hold) / s.back));
-  if (reach > 0) {
+  const held = inp.ability;
+  const maxR = s.maxRange ?? s.range;
+  if (!f.armBack) {
+    f.armReach = Math.min(maxR, f.armReach + (s.extendSpeed ?? 700) * dt);
+    // a tap still reaches `range`; holding keeps reaching until something is hit or `maxRange`
+    if ((!held && f.armReach >= s.range) || f.armReach >= maxR) f.armBack = true;
+  } else {
+    f.armReach = Math.max(0, f.armReach - (s.retractSpeed ?? 1000) * dt);
+  }
+  if (f.armReach > 0) {
+    const grip = f.armBack ? null : grabProbe(w, f, f.stretchAngle, f.armReach);
+    const reach = grip ? Math.max(0, grip.len - f.w / 2) : f.armReach;
+    const hitsBefore = f.swingHit.length + f.swingProps.length;
     const r = pistolHits(w, f, s, f.stretchAngle, reach);
     f.stretchLen = Math.max(0, r.len - f.w / 2);
-    if (r.wall && t <= s.out + s.hold && r.len >= 18) {
-      // the fist grabbed a wall: Gum-Gum Rocket
-      f.anchorX = f.x + f.facing * 2 + Math.cos(f.stretchAngle) * f.facing * r.len;
-      f.anchorY = f.y - SHOULDER_Y_STAND + 1 + Math.sin(f.stretchAngle) * r.len;
-      setState(f, 'special');
-      f.specialKind = 'rocket';
-      w.emit({ t: 'rocket', f: f.id, x: f.anchorX, y: f.anchorY });
-      integrate(w, f, dt);
-      return;
+    if (f.swingHit.length + f.swingProps.length > hitsBefore) f.armBack = true; // punched something: reel in
+    if (grip && !f.armBack) {
+      if (grip.len < (grip.kind === 'ladder' ? 6 : 16)) f.armBack = true;
+      else if (held) {
+        startGrip(w, f, grip);
+        integrate(w, f, dt);
+        return;
+      } else f.armBack = true;
     }
   }
   integrate(w, f, dt);
-  if (t >= s.out + s.hold + s.back) endSpecial(w, f);
+  if (f.armBack && f.armReach <= 0) endSpecial(w, f);
 }
 
-/** Gum-Gum Rocket: yanked toward the anchor, then let go with the momentum (and a fresh air jump). */
-function stRocket(w: World, f: Fighter, dt: number): void {
+/** The fist caught on something while the button is held: pull in (wall / floor / platform / ladder) or swing (ceiling). */
+function startGrip(w: World, f: Fighter, g: Grip): void {
+  f.grip = g.kind;
+  f.jumping = false;
+  setState(f, 'special');
+  f.abilT = 0;
+  f.recoverAt = 0;
+  if (g.kind === 'ceiling') {
+    f.anchorX = g.x;
+    f.anchorY = g.y;
+    f.specialKind = 'swing';
+    f.ropeLen = Math.max(24, Math.hypot(g.x - (f.x + f.facing * 2), g.y - (f.y - SHOULDER_Y_STAND + 1)));
+    w.emit({ t: 'rocket', f: f.id, x: g.x, y: g.y });
+    return;
+  }
+  const t = gripTarget(g);
+  f.anchorX = t.x;
+  f.anchorY = t.y;
+  f.specialKind = 'rocket';
+  w.emit({ t: 'rocket', f: f.id, x: g.x, y: g.y });
+}
+
+/** Where the arm points while attached (render): length past the body edge and the angle in right-facing space. */
+function aimAtAnchor(f: Fighter): number {
+  const sx = f.x + f.facing * 2;
+  const sy = f.y - SHOULDER_Y_STAND + 1;
+  const dx = f.anchorX - sx;
+  const dy = f.anchorY - sy;
+  f.stretchLen = Math.max(0, Math.hypot(dx, dy) - f.w / 2);
+  f.stretchAngle = Math.atan2(dy, dx * f.facing);
+  return Math.hypot(dx, dy);
+}
+
+/** Gum-Gum Rocket: yanked toward the anchor while the button is held, then released with the momentum. */
+function stRocket(w: World, f: Fighter, inp: Intent, dt: number): void {
   const s = baseAbility(f)?.stretch;
   const sx = f.x + f.facing * 2;
   const sy = f.y - SHOULDER_Y_STAND + 1;
   const dx = f.anchorX - sx;
   const dy = f.anchorY - sy;
   const dist = Math.hypot(dx, dy);
-  if (!s || dist < 12 || f.stateTime > s.rocketTime) {
+  const arrive = f.grip === 'ladder' ? 8 : f.grip === 'platform' ? 10 : f.grip === 'floor' ? 18 : 12;
+  const held = inp.ability;
+  if (!s || !held || dist < arrive || f.stateTime > s.rocketTime) {
     f.airJumps = AIR_JUMPS;
     f.jumping = false;
-    if (s && dist >= 12) {
-      // timed out (blocked): keep some momentum
-      f.vx *= 0.5;
-      f.vy *= 0.5;
+    const arrived = !!s && dist < arrive;
+    if (f.grip === 'ladder' && arrived) {
+      f.vx = f.vy = 0;
+      f.x = f.anchorX;
+      endSpecial(w, f);
+      if (onLadder(w, f)) startClimb(w, f, false);
+      else integrate(w, f, dt);
+      return;
     }
+    if (arrived) {
+      // got there: settle (on a platform the feet end up on top of it)
+      f.vx *= 0.3;
+      f.vy = f.grip === 'platform' ? 0 : f.vy * 0.3;
+    } else f.vx *= 0.85;
     endSpecial(w, f);
     integrate(w, f, dt);
     return;
   }
   f.vx = (dx / dist) * s.rocketSpeed;
   f.vy = (dy / dist) * s.rocketSpeed;
-  f.stretchLen = Math.max(0, dist - f.w / 2);
-  f.stretchAngle = Math.atan2(dy, dx * f.facing);
+  aimAtAnchor(f);
   const res = integrate(w, f, dt, false);
   if (res.ceil || (res.landed && dy > 0)) f.stateTime = s.rocketTime + 1;
+  // a wall stops the body before the fist point: count that as arriving
+  if (f.grip === 'wall' && (res.wallX !== 0 || (Math.abs(f.vx) < 20 && Math.abs(f.vy) < 20))) f.stateTime = s.rocketTime + 1;
+}
+
+/** Swinging from a ceiling grip: a pendulum on a rope you can pump (left/right) and reel (up/down). */
+function stSwing(w: World, f: Fighter, inp: Intent, dt: number): void {
+  const sw = baseAbility(f)?.stretch?.swing;
+  if (!sw) {
+    endSpecial(w, f);
+    integrate(w, f, dt);
+    return;
+  }
+  const mx = axis(inp.moveX);
+  const my = axis(inp.moveY);
+  if (my < 0) f.ropeLen = Math.max(24, f.ropeLen - sw.reel * dt);
+  else if (my > 0) f.ropeLen = Math.min(260, f.ropeLen + sw.reel * dt);
+  f.vy = Math.min(f.vy + GRAVITY * w.gravityAt(f.x, f.y - f.h / 2) * dt, MAX_FALL);
+  f.vx += mx * sw.pump * dt;
+  // rope: no stretching beyond ropeLen (remove outward speed, ease the body back onto the circle)
+  const cx = f.x;
+  const cy = f.y - SHOULDER_Y_STAND + 1;
+  let rx = cx - f.anchorX;
+  let ry = cy - f.anchorY;
+  const dist = Math.hypot(rx, ry) || 1;
+  rx /= dist;
+  ry /= dist;
+  if (Math.hypot(cx + f.vx * dt - f.anchorX, cy + f.vy * dt - f.anchorY) > f.ropeLen) {
+    const vr = f.vx * rx + f.vy * ry;
+    if (vr > 0) {
+      f.vx -= vr * rx;
+      f.vy -= vr * ry;
+    }
+    const over = Math.max(0, dist - f.ropeLen);
+    f.vx -= rx * over * 14;
+    f.vy -= ry * over * 14;
+  }
+  if (Math.abs(f.vx) > 15) f.facing = f.vx > 0 ? 1 : -1;
+  integrate(w, f, dt, false);
+  aimAtAnchor(f);
+  const jumpP = inp.jump && !f.prev.jump;
+  if (!inp.ability || jumpP || f.stateTime > sw.maxTime) {
+    f.airJumps = AIR_JUMPS;
+    f.jumping = false;
+    if (jumpP) f.vy = Math.min(f.vy, 0) - 150;
+    endSpecial(w, f);
+  }
 }
 
 function enterAim(w: World, f: Fighter, crouched: boolean): void {

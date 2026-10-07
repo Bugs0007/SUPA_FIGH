@@ -3,10 +3,10 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1–M11 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
+- **M1–M13 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
   build, anime universe expansion, M10 overhaul: crash fix, controls, hero base abilities, main menu, camera,
   animation, map detail). Manual play-test lists under M9 and M10.
-- `npm run dev` → http://localhost:5173 · `npm test` (259 unit tests) · `npm run test:e2e` (45 Playwright tests;
+- `npm run dev` → http://localhost:5173 · `npm test` (312 unit tests) · `npm run test:e2e` (47 Playwright tests;
   in containers `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 <map> normal 1`
 - Main menu: player cards (NAME: Enter to type; FIGHTER: Scrapper/Goku/Naruto/Luffy), quick-match panel (MAP incl.
   RANDOM, PLAYERS 1/2, BOTS, BOT SKILL), buttons Quick Match / Match Setup / Controls / Settings (L, C shortcuts;
@@ -19,10 +19,12 @@ Status legend: [x] done · [~] partial · [ ] todo
   screen's profiles and settings.
 
 ## Next steps
-1. Play-test the M10 list below on real hardware (two people on one keyboard + pads): Goku flight feel (speed
-   135, meter 4.5 s, regen 1.1/s in `sim/data/heroes.ts`), Rasengan / Gum-Gum Pistol cooldowns, camera zoom limits
-   (`render/CameraDirector.ts` Z_COMFORT / Z_FLOOR / pads), decor density (`render/Decor.ts` target / caps).
-2. Bots: teach Goku bots to fly (needs flight edges in the nav graph or a direct "fly to target" mode).
+1. Play-test the M13 list at the bottom on real hardware (two people on one keyboard + pads): clone counts / health
+   (`clones` in `sim/data/heroes.ts`), Rasengan hold length (`dash.maxTime`), grapple reach and swing feel
+   (`stretch` block of Luffy's base ability), blink range / cooldown, wall-walk speed; plus camera zoom limits
+   (`render/CameraDirector.ts`) and decor density (`render/Decor.ts`).
+2. Bots: Goku bots never fly and Luffy bots only use the arm as a ranged punch (no grapple / swing routes); Naruto bots
+   don't wall-walk. Clone bots follow their master and fight with the Rasengan.
 3. Decorations for the outdoor themes that have none yet (docks, construction) and per-map hand-placed hero props.
 4. More fighters on the character select (the hero framework + modular baker make new heroes mostly data + art).
 5. Older ideas: real low-res sprite sheets per hero via `art/externalSheets.ts` (docs/ASSETS.md); bots ride movers.
@@ -261,3 +263,25 @@ Status legend: [x] done · [~] partial · [ ] todo
 - [x] Keyboard jump key removed (Up jumps); setting removed
 - [x] Final forms of Naruto and Luffy fly while Up is held
 - [x] Naruto: fox stance in forms 1-3, aura-made tail in form 1, no tails in Kurama mode
+
+## M13 — Hero upgrades ✅
+- [x] **Goku**: Levitation removed; his ability 1 is **Instant Transmission** (teleport, lock-on, arrival strike, i-frames);
+      he flies in every form (hold Up), like Naruto's and Luffy's final forms (D62)
+- [x] **Naruto** (priority): **Shadow Clones are real fighters** (2 base, +1 per form to 5, final form 2 full-health copies),
+      Rasengan-only bots that follow him, recall on ability 2, cooldown only after all are gone (D63); **Rasengan holds**
+      until it hits / a wall / release (D64); **wall walking** (D66); anime **arms-back sprint** in base + final form
+- [x] **Luffy**: Gum-Gum Pistol is a grapple (platforms, ladders, walls pull you in; ceilings swing you), hold extends the
+      arm up to 340 px until it hits something, no damage, 3 charges refilling 2 s each (D65)
+- [x] Naruto's clones wear his current form (look, aura, tails: `Fighter.cloneForm`, render `formLevel`), still weak, Rasengan-only
+- [x] Replays record intents for the clone slots (`RoundRecording.count`); bots and the bot sim create clone brains
+- [x] Tests: 316 unit (new `heroUpgrades.test.ts`, rewritten ability tests), e2e abilities spec is now tick-based (the
+      wall-clock version failed on a clean main under software rendering) + wall walk and grapple e2e
+
+### Manual play-test checklist (M13)
+- Naruto: call clones in each form (2/3/4/5, final = 2 copies at your current health), let enemies kill them, recall with
+  ability 2 again, check the K chip only refills once all are gone; hold Rasengan at a far enemy; double-tap + hold toward
+  a wall then Up to run up it; sprint in base and Kurama form (arms trailing back).
+- Luffy: hold Up + ability under a platform / next to a ladder / at a wall (pulled there); under a ceiling (swing, pump,
+  reel, release); hold at an enemy far away (no damage, a shove; arm retracts when it connects; 3 charges).
+- Goku: Instant Transmission toward an enemy, into a wall, up; jump then hold Up to fly (any form).
+
