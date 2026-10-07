@@ -1,5 +1,15 @@
 # Brawlkai
 
+<p align="center">
+  <a href="trailer/trailer.mp4"><img src="trailer/trailer-preview.gif" alt="Brawlkai trailer: Naruto, Luffy and Goku fighting with their special moves" width="720"></a>
+</p>
+
+<p align="center">
+  <a href="trailer/trailer.mp4"><b>&#9654; Watch the full trailer (27 s, with sound)</b></a>
+  &nbsp;&middot;&nbsp;
+  <a href="https://supa-figh.vercel.app"><b>Play it free in your browser</b></a>
+</p>
+
 A chaotic pixel-art party brawler for the browser. You can have up to 10 fighters: up to 4 local humans on
 keyboards or gamepads, and the rest are bots. Fight on platform maps with guns, melee weapons, explosives,
 gadgets and physics props. Rounds are short and restarts are instant, so there's never any waiting around.
