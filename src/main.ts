@@ -15,6 +15,8 @@ import { ControlsScene } from './scenes/ControlsScene';
 import { CreatorScene } from './scenes/CreatorScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { LobbyScene } from './scenes/LobbyScene';
+import { TrailerOverlay } from './trailer/overlay';
+import { installTrailerDriver } from './trailer/driver';
 
 keyboard.attach(window);
 
@@ -41,11 +43,14 @@ const game = new Phaser.Game({
   input: { keyboard: false, gamepad: false, mouse: true, touch: false },
   audio: { noAudio: true },
   disableContextMenu: true,
+  // trailer capture reads the canvas after each frame
+  render: { preserveDrawingBuffer: new URLSearchParams(location.search).has('trailer') },
   // ?timer=1 drives the loop with setTimeout (hidden tabs / automated tests where rAF is paused)
   fps: { target: 60, forceSetTimeOut: new URLSearchParams(location.search).has('timer') },
-  scene: [BootScene, BackgroundScene, TitleScene, LobbyScene, ControlsScene, CreatorScene, SettingsScene, MatchScene, HudScene, ArtDebugScene],
+  scene: [BootScene, BackgroundScene, TitleScene, LobbyScene, ControlsScene, CreatorScene, SettingsScene, MatchScene, HudScene, ArtDebugScene, TrailerOverlay],
 });
 game.registry.set('scale', k);
+if (new URLSearchParams(location.search).has('trailer')) installTrailerDriver(game);
 
 // Menus read justPressed() during scene updates; clear edges once per game step.
 game.events.on(Phaser.Core.Events.PRE_STEP, () => padMenu.update());

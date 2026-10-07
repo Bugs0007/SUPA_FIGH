@@ -1,4 +1,4 @@
-# SCRAPYARD RIOT — developer guide
+# BRAWLKAI — developer guide
 
 2D pixel-art side-view arena brawler for the browser (up to 10 fighters: 4 local humans + bots).
 Includes an anime-hero expansion (M9): Naruto / Luffy / Goku as tiny fighters with a base ability each
@@ -19,6 +19,7 @@ npm run test:e2e   # Playwright browser tests (uses installed Edge on Windows, e
 npm run typecheck  # tsc --noEmit
 npm run balance    # bot survey across every map (scripts/balance.ts)
 npm run sim -- 8 8 test normal 1   # headless bots-only balance report (matches bots map difficulty seed)
+npm run trailer    # records + encodes the game trailer into trailer/ (see scripts/trailer/README.md)
 ```
 
 ## Architecture (the one rule: the simulation never imports Phaser)
@@ -67,6 +68,8 @@ src/art/      Procedural pixel-art generators that bake Phaser textures at boot.
               sheets later by implementing the same interface.
               heroArt.ts = hero looks (base + one Appearance override and one FormFx per form: aura, tails, extras);
               externalSheets.ts = optional low-res PNG sheets per hero (format: docs/ASSETS.md).
+src/trailer/  Trailer mode (?trailer=1 clean bot match, ?trailer=1&shot=<id> scripted deterministic shots, driven
+              frame by frame by window.__TRAILER__). Touches no sim code: it patches bot intents, moves the camera.
 src/audio/    sfxr-style WebAudio synth + sound definitions + AudioManager (pitch randomized);
               music.ts = procedural chiptune sequencer (tracks as data).
 src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particles), CameraDirector (human players

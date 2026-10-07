@@ -1,4 +1,4 @@
-# Scrapyard Riot
+# Brawlkai
 
 A chaotic pixel-art party brawler for the browser. You can have up to 10 fighters: up to 4 local humans on
 keyboards or gamepads, and the rest are bots. Fight on platform maps with guns, melee weapons, explosives,

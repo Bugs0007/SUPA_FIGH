@@ -1,5 +1,5 @@
 {
-  "name": "scrapyard-riot",
+  "name": "brawlkai",
   "private": true,
   "version": "0.12.0",
   "type": "module",
@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "sim": "vite-node scripts/botsim.ts",
-    "balance": "vite-node scripts/balance.ts"
+    "balance": "vite-node scripts/balance.ts",
+    "trailer": "node scripts/trailer/build.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

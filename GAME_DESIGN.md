@@ -1,4 +1,4 @@
-# SCRAPYARD RIOT — design summary
+# BRAWLKAI — design summary
 
 **Pitch:** a chaotic, cinematic, funny pixel-art party brawler. Up to 10 fighters (4 local humans +
 bots) scrap it out on platform maps with guns, melee weapons, explosives, gadgets and physics props.

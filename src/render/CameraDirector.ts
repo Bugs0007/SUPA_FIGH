@@ -67,6 +67,8 @@ export class CameraDirector {
   private shakeT = 0;
   shakeScale = 1;
   private first = true;
+  /** trailer mode: a scripted camera (world x/y, zoom, smoothing 1/s) replaces the automatic framing */
+  manual: { x: number; y: number; z: number; k: number } | null = null;
 
   constructor(
     private cam: Phaser.Cameras.Scene2D.Camera,
@@ -132,7 +134,11 @@ export class CameraDirector {
       }
     }
 
-    if (focus) {
+    if (this.manual) {
+      tx = this.manual.x;
+      ty = this.manual.y;
+      tz = this.manual.z;
+    } else if (focus) {
       tx = focus.x;
       ty = focus.y - 10;
       tz = Math.max(tz * 1.35, 1.7);
@@ -145,14 +151,14 @@ export class CameraDirector {
       this.first = false;
     }
     // zooming out reacts faster than zooming in (losing sight of someone is worse than a wide shot)
-    const kz = 1 - Math.exp(-dt * (focus ? 6 : tz < this.z ? 5 : 2.2));
-    const kp = 1 - Math.exp(-dt * (focus ? 8 : 6));
+    const kz = this.manual ? 1 - Math.exp(-dt * this.manual.k) : 1 - Math.exp(-dt * (focus ? 6 : tz < this.z ? 5 : 2.2));
+    const kp = this.manual ? 1 - Math.exp(-dt * this.manual.k * 1.3) : 1 - Math.exp(-dt * (focus ? 8 : 6));
     this.z += (tz - this.z) * kz;
     this.x += (tx - this.x) * kp;
     this.y += (ty - this.y) * kp;
 
     // hard guarantee: after smoothing, every human player is still inside the safe area
-    if (!focus && must.n) this.keepInView(must);
+    if (!focus && !this.manual && must.n) this.keepInView(must);
 
     // clamp to map (or center when the view is bigger than the map)
     const halfW = VIEW_W / this.z / 2;

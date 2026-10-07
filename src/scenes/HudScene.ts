@@ -342,7 +342,7 @@ export class HudScene extends Phaser.Scene {
         this.showBanner(e.winnerTeam === null ? 'DRAW!' : tn.name + ' WINS', e.winnerTeam === null ? 'EVERYBODY DIED' : 'THE ROUND', tn.color, 2.4);
       } else if (e.t === 'matchEnd') {
         const tn = this.teamName(e.winnerTeam);
-        this.showBanner(tn.name + ' WINS!', 'CHAMPION OF THE SCRAPYARD', tn.color, 2.5);
+        this.showBanner(tn.name + ' WINS!', 'BRAWLKAI CHAMPION', tn.color, 2.5);
         this.showAwards();
       } else if (e.t === 'multiKill') {
         const words = ['', '', 'DOUBLE KILL!', 'TRIPLE KILL!', 'MULTI KILL!', 'RAMPAGE!!'];

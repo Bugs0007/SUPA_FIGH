@@ -14,7 +14,7 @@ the title screen and in the crash overlay comes from `package.json`, so bump it 
 ## itch.io
 1. Run `npm run build`.
 2. Zip the contents of `dist/`, so that `index.html` sits at the root of the zip (not inside a `dist/` folder).
-   One way to do this: `cd dist && zip -r ../scrapyard-riot.zip .`
+   One way to do this: `cd dist && zip -r ../brawlkai.zip .`
 3. On itch.io, create a new project with Kind = **HTML** and upload the zip.
 4. Tick "This file will be played in the browser".
 5. Set the viewport to 1280 × 720 (or 960 × 540) and enable **Fullscreen button**.
