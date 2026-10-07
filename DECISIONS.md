@@ -2,8 +2,8 @@
 
 Newest at the bottom. Each entry: what was decided and why.
 
-### D1 — Keep the name "SCRAPYARD RIOT"
-Short, original, tells you it's messy and violent-cartoony. Easy to render in a pixel font.
+### D1 — Name: BRAWLKAI (was "SCRAPYARD RIOT")
+Renamed from SCRAPYARD RIOT. Short, made-up, anime-flavoured ("brawl" + "kai"), easy to render in a pixel font. The "scrapyard/scrapper" fighter class and the `scrapyard.*` localStorage keys keep their names on purpose (saved settings and profiles survive the rename).
 
 ### D2 — Custom deterministic AABB physics instead of Phaser Arcade Physics (override of default)
 The spec asks for simulation state separate from rendering (replays, killcams, netcode) and for
@@ -384,3 +384,13 @@ Also in this change: the keyboard jump key is gone (Up is the jump; the UP / W J
 hold-Up flight for the final forms of Naruto and Luffy (`HeroForm.flies`, `stHoldFly`: climbs while Up is held, falls
 on release or when the form ends), Naruto's fox stance (forms 1-3 use four new low body frames and move on all
 fours), form 1's tail is made of translucent crimson aura (`FormFx.ghostTails`) and Kurama mode has no tails.
+
+### D62 — Trailer mode and the BRAWLKAI rename
+The game was renamed from SCRAPYARD RIOT to BRAWLKAI (see D1). A trailer toolchain was added without touching the
+simulation: `?trailer=1` is a clean, free-running bot match (no HUD / name tags / bars / blood, a camera that frames
+the action); `?trailer=1&shot=<id>` plays a scripted *shot* (`src/trailer/shots.ts`) that places hero bots, pre-sets
+their forms, overrides their intents on a tick schedule (so every ability is shown exactly when wanted), and scripts
+camera, slow-mo and captions. `window.__TRAILER__` stops Phaser's loop and renders each video frame with one
+`game.step()` of 1/60 s, so recordings are deterministic and independent of machine speed. The soundtrack is generated
+(chiptune written as code + the game's own sfxr effects replayed from per-shot audio logs): no third-party audio.
+The finale is a natural bot-vs-bot fight (seed found with `scripts/trailer/scout.ts`); the other shots are directed.

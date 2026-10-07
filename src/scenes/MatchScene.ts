@@ -24,6 +24,8 @@ import { COOP, Match, type MatchConfig, type MatchEvent } from '../sim/match';
 import type { World } from '../sim/world';
 import { ReplayPlayer, type RoundRecording } from '../sim/replay';
 import { padMenu } from '../input/gamepad';
+import { TrailerRig, trailerEnabled } from '../trailer/rig';
+import { freeShot, shotById, type ShotSpec } from '../trailer/shots';
 
 export interface PlayerSetup {
   spawn: FighterSpawn;
@@ -109,7 +111,25 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
   };
 }
 
+/** Trailer mode: an all-bot match built from a shot spec (heroes, map, seed). */
+function trailerSetup(shot: ShotSpec): MatchSceneData {
+  const p = new URLSearchParams({
+    bots: String(shot.heroes.length),
+    heroes: shot.heroes.map((h) => h || '-').join(','),
+    map: shot.map,
+    seed: String(shot.seed),
+    diff: shot.diff ?? 'expert',
+    humans: '0',
+    powers: shot.powers ? '1' : '0',
+  });
+  const setup = defaultSetup(p);
+  for (const pl of setup.players) pl.label = '';
+  return setup;
+}
+
 export class MatchScene extends Phaser.Scene {
+  /** trailer mode only (src/trailer): scripted film set around the match */
+  trailer: TrailerRig | null = null;
   match!: Match;
   wr!: WorldRenderer;
   camDir!: CameraDirector;
@@ -149,7 +169,9 @@ export class MatchScene extends Phaser.Scene {
 
   create(data: MatchSceneData): void {
     const params = new URLSearchParams(location.search);
-    const setup = data?.config ? data : defaultSetup(params);
+    // ?trailer=1&shot=<id> = a scripted recorded shot; ?trailer=1 alone = free-running clean bot match
+    const shot = trailerEnabled(params) ? (params.has('shot') ? shotById(params.get('shot')) : freeShot(params)) : null;
+    const setup = data?.config ? data : shot ? trailerSetup(shot) : defaultSetup(params);
     this.setupData = setup;
     // the scene instance is reused by restart/start: reset all per-match state
     this.paused = false;
@@ -179,16 +201,24 @@ export class MatchScene extends Phaser.Scene {
     this.cameras.main.setRoundPixels(true);
     this.camDir.shakeScale = settings.screenShake;
     this.buildRenderer();
+    this.trailer = shot ? new TrailerRig(this, shot, params.has('shot')) : null;
+    this.trailer?.attach();
 
     this.game.events.on('rescale', this.onRescale, this);
     this.events.once('shutdown', () => {
       this.game.events.off('rescale', this.onRescale, this);
       this.wr?.destroy();
       this.scene.stop('hud');
+      this.scene.stop('trailerHud');
       this.scene.stop('bg');
     });
     this.scene.launch('bg', { theme: this.match.world.def.theme });
     this.scene.sendToBack('bg');
+    if (this.trailer) {
+      this.scene.launch('trailerHud');
+      if (!this.trailer.capture) music.play('match');
+      return;
+    }
     this.scene.launch('hud');
     audio.play('roundStart');
     music.play('match');
@@ -202,11 +232,13 @@ export class MatchScene extends Phaser.Scene {
     this.wr?.destroy();
     this.renderedWorld = this.match.world;
     this.wr = new WorldRenderer(this, this.match.world, this.looks);
+    if (this.trailer) this.wr.setBarsVisible(false);
     this.juice = new Juice(this.wr, this.camDir);
     this.acc = 0;
   }
 
   override update(_time: number, deltaMs: number): void {
+    if (this.trailer && !this.trailer.live) return;
     const dt = Math.min(deltaMs / 1000, 0.1);
     this.elapsed += dt;
     this.handleDebugKeys();
@@ -219,12 +251,13 @@ export class MatchScene extends Phaser.Scene {
       if (this.hitstop > 0) {
         this.hitstop -= dt;
       } else {
-        this.acc += dt * this.match.timeScale * this.speed;
+        this.acc += dt * (this.trailer ? Math.min(this.match.timeScale, this.trailer.timeScale()) : this.match.timeScale) * this.speed;
         if (this.frameStep) this.acc = DT;
         let steps = 0;
         const maxSteps = Math.max(8, Math.ceil(this.speed * 3));
         while (this.acc >= DT && steps < maxSteps) {
           for (let i = 0; i < this.controllers.length; i++) this.intents[i] = this.controllers[i].poll();
+          this.trailer?.shape(this.intents);
           this.match.step(this.intents);
           this.acc -= DT;
           steps++;
@@ -248,7 +281,20 @@ export class MatchScene extends Phaser.Scene {
     this.wr.hillColor = this.match.hillTeam === null ? 0xffffff : (this.players[this.match.membersOf(this.match.hillTeam)[0]]?.color ?? 0x5ac85a);
     this.wr.revive = this.match.reviveProgress.map((p) => p / COOP.reviveTime);
     this.wr.sync(alpha, visDt, this.elapsed);
-    this.camDir.update(dt, this.match.world, this.match.cinematic);
+    if (this.trailer) this.trailer.camera(dt);
+    else this.camDir.update(dt, this.match.world, this.match.cinematic);
+  }
+
+  /** Trailer: run sim ticks without drawing (warm-up before the first recorded frame). */
+  trailerFastForward(ticks: number): void {
+    for (let n = 0; n < ticks; n++) {
+      for (let i = 0; i < this.controllers.length; i++) this.intents[i] = this.controllers[i].poll();
+      this.trailer?.shape(this.intents);
+      this.match.step(this.intents);
+      this.match.world.events.length = 0;
+      this.match.events.length = 0;
+    }
+    this.ui.length = 0;
   }
 
   private drainEvents(): void {
@@ -256,6 +302,7 @@ export class MatchScene extends Phaser.Scene {
     for (const e of w.events) {
       this.juice.handle(e, w);
       this.feedback(e, w);
+      this.trailer?.logEvent(e);
     }
     w.events.length = 0;
     if (this.juice.hitstop > 0) {

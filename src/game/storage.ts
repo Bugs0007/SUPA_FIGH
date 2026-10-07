@@ -1,5 +1,6 @@
 // localStorage with graceful failure (private mode, disabled storage).
 
+// Kept as 'scrapyard.' after the BRAWLKAI rename so players' saved settings and profiles survive.
 const PREFIX = 'scrapyard.';
 
 export function load<T>(key: string, fallback: T): T {

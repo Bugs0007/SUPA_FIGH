@@ -121,8 +121,8 @@ export class TitleScene extends Phaser.Scene {
     this.mini = this.add.graphics().setDepth(4);
 
     // logo
-    this.add.bitmapText(VIEW_W / 2 + 2, 24, 'px', 'SCRAPYARD RIOT').setOrigin(0.5).setScale(4).setTint(hexToNum(P.red0)).setDepth(5);
-    this.add.bitmapText(VIEW_W / 2, 22, 'pxo', 'SCRAPYARD RIOT').setOrigin(0.5).setScale(4).setTint(hexToNum(P.yellow)).setDepth(5);
+    this.add.bitmapText(VIEW_W / 2 + 2, 24, 'px', 'BRAWLKAI').setOrigin(0.5).setScale(4).setTint(hexToNum(P.red0)).setDepth(5);
+    this.add.bitmapText(VIEW_W / 2, 22, 'pxo', 'BRAWLKAI').setOrigin(0.5).setScale(4).setTint(hexToNum(P.yellow)).setDepth(5);
     this.add.bitmapText(VIEW_W / 2, 46, 'smo', 'A PIXEL-ART PARTY BRAWLER FOR UP TO 10 FIGHTERS').setOrigin(0.5).setTint(0xc3c9dc).setDepth(5);
 
     for (let i = 0; i < 2; i++) this.buildCard(i);

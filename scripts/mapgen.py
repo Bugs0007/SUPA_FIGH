@@ -1,6 +1,6 @@
 # Usage: python3 scripts/mapgen.py [ids...]  (regenerates the themed maps, or only the named ones,
 #        e.g. `python3 scripts/mapgen.py leaf ship alien`; testArena.ts is hand-written)
-# Map builder for SCRAPYARD RIOT. Emits src/sim/map/maps/<id>.ts (ASCII rows + gimmicks).
+# Map builder for BRAWLKAI. Emits src/sim/map/maps/<id>.ts (ASCII rows + gimmicks).
 import json, sys
 import os
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'src', 'sim', 'map', 'maps') + os.sep

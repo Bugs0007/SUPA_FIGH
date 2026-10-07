@@ -4,5 +4,8 @@ test-results/
 playwright-report/
 tests/e2e/screenshots/
 *.log
+trailer/work/
+# the near-lossless master is ~80 MB: keep it on disk, out of git
+trailer/trailer_master.mp4
 .DS_Store
 .vite/

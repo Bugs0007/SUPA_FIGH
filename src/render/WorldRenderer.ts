@@ -139,6 +139,10 @@ export class WorldRenderer {
     ch.length = 0;
   }
 
+  setBarsVisible(v: boolean): void {
+    this.bars.setVisible(v);
+  }
+
   floatText(x: number, y: number, text: string, color: number, big = false): void {
     const obj = this.scene.add
       .bitmapText(Math.round(x), Math.round(y), big ? 'pxo' : 'smo', text.toUpperCase())

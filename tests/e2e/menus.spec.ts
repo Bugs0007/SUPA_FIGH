@@ -59,7 +59,7 @@ test('rebind P1 jump, see it saved, restore defaults', async ({ page }) => {
   await press(page, 'ArrowDown', 5); // attack row
   await press(page, 'Enter');
   await press(page, 'KeyQ');
-  const saved = await page.evaluate(() => localStorage.getItem('scrapyard-riot:keybinds') ?? Object.entries(localStorage).find(([k]) => k.includes('keybinds'))?.[1] ?? '');
+  const saved = await page.evaluate(() => localStorage.getItem('brawlkai:keybinds') ?? Object.entries(localStorage).find(([k]) => k.includes('keybinds'))?.[1] ?? '');
   expect(saved).toContain('KeyQ');
   // bind P1 kick to P2's attack key to trigger a conflict warning
   await press(page, 'ArrowDown', 1); // kick row
