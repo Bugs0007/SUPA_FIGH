@@ -3,7 +3,7 @@ import { TILE } from '../sim/constants';
 import { TK } from '../sim/map/tiles';
 import type { TileMap } from '../sim/map/tilemap';
 import { hash2, PixelCanvas } from './canvas';
-import { P, shade } from './palette';
+import { mix, P, shade } from './palette';
 
 // Autotiled tileset: one row per tile kind, 16 variants per row indexed by a 4-bit neighbor mask
 // (1 = up, 2 = right, 4 = down, 8 = left: set when that neighbor "connects").
@@ -506,9 +506,25 @@ export function bakeTiles(scene: Phaser.Scene, theme: string): string {
   const pc = new PixelCanvas(16 * TILE, (KIND_ROWS + BACK_VARIANTS) * TILE);
   for (const [kindStr, painter] of Object.entries(PAINTERS)) {
     const kind = Number(kindStr);
-    for (let mask = 0; mask < 16; mask++) painter(pc, mask * TILE, kind * TILE, mask, kind * 31 + mask);
+    for (let mask = 0; mask < 16; mask++) {
+      const ox = mask * TILE;
+      const oy = kind * TILE;
+      painter(pc, ox, oy, mask, kind * 31 + mask);
+      if (kind === TK.WATER || kind === TK.LADDER || kind === TK.GLASS) continue;
+      const platform = kind === TK.PLAT_WOOD || kind === TK.PLAT_METAL;
+      // A bevel across exposed faces; interiors stay continuous across tile boundaries.
+      for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+        const v = pc.get(ox + x, oy + y);
+        if (!(v >>> 24) || Math.max(v & 255, (v >>> 8) & 255, (v >>> 16) & 255) < 45) continue;
+        if (!up(mask) && y < (platform ? 3 : 5)) pc.light(ox + x, oy + y, '#f6ddb0', (1 - y / 5) * 0.19);
+        if (!right(mask) && x > 12) pc.light(ox + x, oy + y, '#181b35', (x - 12) * 0.1);
+        if (!left(mask) && x < 3) pc.light(ox + x, oy + y, '#d1dbf5', (3 - x) * 0.045);
+        if (!platform && !down(mask) && y > 10) pc.light(ox + x, oy + y, '#17182d', (y - 10) * 0.065);
+      }
+    }
   }
-  for (let v = 0; v < BACK_VARIANTS; v++) for (let mask = 0; mask < 16; mask++) paintBack(pc, mask * TILE, (BACK_ROW + v) * TILE, mask, th, theme, v);
+  const recessed = { ...th, back: mix(th.back, '#11172a', 0.18) };
+  for (let v = 0; v < BACK_VARIANTS; v++) for (let mask = 0; mask < 16; mask++) paintBack(pc, mask * TILE, (BACK_ROW + v) * TILE, mask, recessed, theme, v);
   scene.textures.addCanvas(key, pc.flush());
   return key;
 }

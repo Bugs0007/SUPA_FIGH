@@ -317,9 +317,11 @@ export class HeroFx {
     const cy = oy - f.y + y;
     const r = 1 + k * 3.2 + Math.sin(time * 50) * 0.4 + (f.power === 'hero' ? f.powerLevel * 0.5 : 0);
     const g = this.orbs;
+    this.disc(g, ox, cy, r * 2.6, 0x4a9aff, 0.07);
     this.disc(g, ox, cy, r + 1.5, hexToNum('#2a6ad8'), 0.85);
     this.disc(g, ox, cy, r, hexToNum('#7ac8ff'), 1);
     this.disc(g, ox, cy, Math.max(0.8, r * 0.45), 0xffffff, 1);
+    this.disc(g, ox - r * 0.25, cy - r * 0.3, Math.max(0.6, r * 0.28), 0xffffff, 0.9);
     for (let i = 0; i < 4; i++) {
       const a = time * 30 + (i * Math.PI) / 2;
       g.fillStyle(i % 2 ? 0xffffff : hexToNum('#bfe8ff'), 1).fillRect(Math.round(ox + Math.cos(a) * (r + 1)), Math.round(cy + Math.sin(a) * (r + 1) * 0.6), 1, 1);
@@ -438,6 +440,7 @@ export class HeroFx {
     const hx = x + f.facing * 6;
     const hy = y - 7;
     const r = 1.5 + k * (isSuper ? 6 : 4.5) + Math.sin(time * 40) * 0.5;
+    this.disc(this.front, hx, hy, r * 2.4, c0, 0.08);
     this.disc(this.front, hx, hy, r + 1, c0, 0.8);
     this.disc(this.front, hx, hy, r * 0.6, c1, 1);
     if (Math.random() < 0.7) this.fx.spawn({ frame: 'p1', x: hx + rnd(-14, 14), y: hy + rnd(-14, 14), vx: (hx - x) * 0, life: 0.18, a0: 1, a1: 0, tint: c1, add: true, depth: 58 });
@@ -461,12 +464,13 @@ export class HeroFx {
       const cx = o.x + dx * d;
       const cy = o.y + dy * d;
       const rr = half * taper + wob;
-      for (const [k, col, a] of [[1.25, c0, 0.45], [1, c0, 1], [0.6, c1, 1], [0.28, 0xffffff, 1]] as const) {
+      for (const [k, col, a] of [[2.1, c0, 0.06], [1.5, c0, 0.15], [1.25, c0, 0.45], [1, c0, 1], [0.6, c1, 1], [0.28, 0xffffff, 1]] as const) {
         const r = Math.max(0.5, rr * k);
         g.fillStyle(col, a).fillRect(Math.round(cx - r * Math.abs(px) - 1), Math.round(cy - r * Math.abs(py) - 1), Math.max(2, Math.round(r * Math.abs(px) * 2 + 2)), Math.max(2, Math.round(r * Math.abs(py) * 2 + 2)));
       }
     }
     // impact flare at the far end
+    this.disc(g, o.x + dx * len, o.y + dy * len, half * 2.8, c0, 0.1);
     this.disc(g, o.x + dx * len, o.y + dy * len, half * 1.3, c1, 0.9);
     if (dt > 0) {
       for (let i = emitCount(40 + half * 8, dt); i > 0; i--) {

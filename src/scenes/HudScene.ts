@@ -453,6 +453,8 @@ export class HudScene extends Phaser.Scene {
       const a = this.panelBlocked(px - 3, py - 3 - (f.alive && f.power ? 12 : 0), PW, 56) ? 0.3 : 1;
       this.panelAlpha[n] = a;
       g.fillStyle(hexToNum(P.ink), 0.78 * a).fillRect(px - 3, py - 3, PW, 56);
+      g.fillStyle(0x9bbde8, 0.25 * a).fillRect(px - 3, py - 3, PW, 1);
+      g.fillStyle(0x000000, 0.3 * a).fillRect(px - 1, py + 52, PW - 2, 2);
       g.lineStyle(1, p.color, a).strokeRect(px - 3.5, py - 3.5, PW + 1, 57);
       for (const t of this.panelTexts[n]) t.setAlpha(a);
       for (const t of this.panelCounts[n]) t.setAlpha(a);
@@ -513,6 +515,8 @@ export class HudScene extends Phaser.Scene {
       g.fillStyle(0x3a3448, a).fillRect(px, py + 22, barW, 4);
       const hpCol = hpFrac > 0.6 ? P.green2 : hpFrac > 0.3 ? P.yellow : P.red2;
       g.fillStyle(hexToNum(f.burn > 0 && Math.floor(this.time.now / 120) % 2 ? P.orange : hpCol), a).fillRect(px, py + 22, Math.round(barW * hpFrac), 4);
+      g.fillStyle(0xffffff, 0.32 * a).fillRect(px, py + 22, Math.round(barW * hpFrac), 1);
+      g.fillStyle(0x000000, 0.22 * a).fillRect(px, py + 25, Math.round(barW * hpFrac), 1);
       if (f.alive && f.speedBoost > 0) g.fillStyle(hexToNum(P.yellow), a).fillRect(px, py + 26, Math.round(barW * Math.min(1, f.speedBoost / 10)), 1);
       if (f.alive && f.strengthBoost > 0) g.fillStyle(hexToNum(P.red2), a).fillRect(px, py + 27, Math.round(barW * Math.min(1, f.strengthBoost / 12)), 1);
       const def = activeWeapon(f);

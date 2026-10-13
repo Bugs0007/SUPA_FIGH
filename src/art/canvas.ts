@@ -1,4 +1,4 @@
-import { hexToRgb, P } from './palette';
+import { hexToRgb, P, rgbToHex } from './palette';
 
 const colorCache = new Map<string, number>();
 
@@ -53,6 +53,38 @@ export class PixelCanvas {
 
   alphaAt(x: number, y: number): number {
     return this.get(x, y) >>> 24;
+  }
+
+  /** Composite a painted light over existing pixels, preserving their alpha. */
+  light(x: number, y: number, color: string, amount: number): void {
+    const v = this.get(x, y);
+    if (!(v >>> 24)) return;
+    const [r, g, b] = hexToRgb(color);
+    const t = Math.max(0, Math.min(1, amount));
+    this.set(x, y, rgbToHex((v & 255) * (1 - t) + r * t, ((v >>> 8) & 255) * (1 - t) + g * t, ((v >>> 16) & 255) * (1 - t) + b * t), v >>> 24);
+  }
+
+  /** Baked bloom: no runtime blur, filters or additional texture assets. */
+  bloom(cx: number, cy: number, rx: number, ry: number, color: string, strength: number): void {
+    for (let y = Math.max(0, Math.floor(cy - ry)); y < Math.min(this.h, cy + ry); y++) {
+      for (let x = Math.max(0, Math.floor(cx - rx)); x < Math.min(this.w, cx + rx); x++) {
+        const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+        if (d < 1) this.light(x, y, color, strength * (1 - d) ** 2);
+      }
+    }
+  }
+
+  /** Upper-left key light and cool lower-right shade, confined to one sprite frame. */
+  relief(rx: number, ry: number, rw: number, rh: number, strength = 1): void {
+    const source = this.px.slice();
+    const opaque = (x: number, y: number) => x >= rx && y >= ry && x < rx + rw && y < ry + rh && (source[y * this.w + x] >>> 24) > 0;
+    for (let y = ry; y < ry + rh; y++) for (let x = rx; x < rx + rw; x++) {
+      const v = source[y * this.w + x];
+      // Preserve outlines, eyes and markings; shade the coloured surface inside them.
+      if (!(v >>> 24) || Math.max(v & 255, (v >>> 8) & 255, (v >>> 16) & 255) < 48) continue;
+      if (!opaque(x, y - 2) || !opaque(x - 2, y)) this.light(x, y, '#fff1cb', 0.22 * strength);
+      else if (!opaque(x, y + 2) || !opaque(x + 2, y)) this.light(x, y, '#24203d', 0.3 * strength);
+    }
   }
 
   rect(x: number, y: number, w: number, h: number, hex: string, alpha = 255): void {
