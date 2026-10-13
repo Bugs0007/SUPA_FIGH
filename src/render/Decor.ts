@@ -140,6 +140,7 @@ interface DecorView {
   p: PlacedDecor;
   img: Phaser.GameObjects.Image;
   glow: Phaser.GameObjects.Image | null;
+  spill: Phaser.GameObjects.Image | null;
   frame: number;
 }
 
@@ -158,7 +159,12 @@ export class DecorLayer {
         // building faces sit on top of the solid tiles; everything else on the back wall
         .setDepth(d.place === 'face' ? 21 : 1);
       let glow: Phaser.GameObjects.Image | null = null;
+      let spill: Phaser.GameObjects.Image | null = null;
       if (d.glow) {
+        spill = scene.add.image(p.x + d.glow.x, p.y + d.glow.y + 4, 'fx', 'glowBig')
+          .setScale(d.glow.r / 15 * 2.5, d.glow.r / 15 * 1.6)
+          .setTint(hexToNum(d.glow.color)).setAlpha(d.glow.alpha * 0.4)
+          .setBlendMode(Phaser.BlendModes.ADD).setDepth(d.place === 'face' ? 23 : 3);
         glow = scene.add
           .image(p.x + d.glow.x, p.y + d.glow.y, 'fx', 'glowBig')
           .setScale(d.glow.r / 15)
@@ -167,7 +173,7 @@ export class DecorLayer {
           .setBlendMode(Phaser.BlendModes.ADD)
           .setDepth(d.place === 'face' ? 22 : 2);
       }
-      this.views.push({ p, img, glow, frame: 0 });
+      this.views.push({ p, img, glow, spill, frame: 0 });
     }
     this.key = atlas.key;
     this.frameName = atlas.frame;
@@ -198,7 +204,9 @@ export class DecorLayer {
           // a rare short dip, like a bad bulb
           if (Math.sin(time * 0.9 + v.p.phase * 5) > 0.985) a *= 0.4;
         }
+        if (d.id === 'window' && v.frame === 1) a = 0;
         v.glow.setAlpha(a);
+        v.spill?.setAlpha(a * 0.4);
       }
     }
   }
@@ -207,6 +215,7 @@ export class DecorLayer {
     for (const v of this.views) {
       v.img.destroy();
       v.glow?.destroy();
+      v.spill?.destroy();
     }
     this.views = [];
     void this.key;

@@ -392,9 +392,14 @@ export class TitleScene extends Phaser.Scene {
     const blink = Math.floor(this.t * 3) % 2 === 0;
     const sel = (r: Row) => this.row === r;
     const box = (x: number, y: number, w: number, h: number, color: number, active: boolean) => {
-      g.fillStyle(hexToNum(P.ink), 0.86).fillRect(x, y, w, h);
-      g.lineStyle(1, color, active ? 1 : 0.55).strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      g.fillStyle(0x000000, 0.4).fillRect(x + 3, y + 5, w, h);
+      g.fillStyle(0x101523, 0.95).fillRect(x, y, w, h);
+      g.fillStyle(0x222c43, 0.6).fillRect(x + 2, y + 13, w - 4, 44);
+      g.lineStyle(1, color, active ? 1 : 0.4).strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+      g.fillStyle(0xb8d8ff, 0.13).fillRect(x + 1, y + 13, 1, h - 15);
+      g.fillStyle(0x000000, 0.4).fillRect(x + 2, y + h - 3, w - 4, 2);
       g.fillStyle(color, active ? 1 : 0.8).fillRect(x, y, w, 12);
+      g.fillStyle(0xffffff, 0.23).fillRect(x + 1, y + 1, w - 2, 1);
     };
     const highlight = (x: number, y: number, w: number) => {
       g.fillStyle(0x3a3054, 1).fillRect(x - 2, y - 3, w + 4, 14);
@@ -410,7 +415,13 @@ export class TitleScene extends Phaser.Scene {
       const active = sel(nameRow) || sel(heroRow);
       box(x, CARD_Y, CARD_W, CARD_H, PLAYER_COLORS[i], active);
       // pedestal under the preview
-      g.fillStyle(0x000000, 0.35).fillEllipse(x + CARD_W / 2, CARD_Y + 141, 54, 8);
+      const cx = x + CARD_W / 2;
+      for (let k = 4; k > 0; k--) g.fillStyle(PLAYER_COLORS[i], 0.025).fillEllipse(cx, CARD_Y + 106, 38 + k * 18, 28 + k * 12);
+      g.fillStyle(0x080c16, 1).fillEllipse(cx, CARD_Y + 143, 112, 13);
+      g.fillStyle(0x26314b, 1).fillEllipse(cx, CARD_Y + 140, 112, 12);
+      g.lineStyle(1, PLAYER_COLORS[i], 0.55).strokeEllipse(cx, CARD_Y + 140, 106, 10);
+      g.fillStyle(0x060912, 0.7).fillEllipse(cx, CARD_Y + 140, 40, 5);
+      g.fillStyle(0xb7d8ff, 0.18).fillRect(x + 12, CARD_Y + 191, CARD_W - 24, 1);
       if (sel(nameRow)) highlight(x + 4, CARD_Y + 21, CARD_W - 8);
       if (sel(heroRow)) highlight(x + 4, CARD_Y + 39, CARD_W - 8);
       const c = this.cardTexts[i];

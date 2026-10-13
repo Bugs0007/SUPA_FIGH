@@ -3,7 +3,7 @@ import { expect, test, type Page } from '@playwright/test';
 // Main menu: player names, fighter (hero) choice and map choice flow into the quick match.
 
 type Handle = {
-  match: () => { cfg: { mapId: string }; world: { tick: number; fighters: { name: string; hero: string; isBot: boolean }[] } } | null;
+  match: () => { cfg: { mapId: string }; world: { tick: number; fighters: { name: string; hero: string; isBot: boolean; master: number }[] } } | null;
   scene: () => string[];
   game: { scene: { getScene: (k: string) => { players: { label: string }[] } } };
 };
@@ -62,7 +62,8 @@ test('name, fighter and map from the title screen are used by quick match', asyn
   const info = await page.evaluate(() => {
     const g = (window as unknown as { __GAME__: Handle }).__GAME__;
     const m = g.match()!;
-    return { map: m.cfg.mapId, fighters: m.world.fighters.map((f) => ({ name: f.name, hero: f.hero, bot: f.isBot })) };
+    // Naruto's reserved shadow-clone slots are effects of his moves, not menu roster entries.
+    return { map: m.cfg.mapId, fighters: m.world.fighters.filter((f) => f.master < 0).map((f) => ({ name: f.name, hero: f.hero, bot: f.isBot })) };
   });
   expect(info.map).toBe('train');
   expect(info.fighters).toEqual([

@@ -18,6 +18,7 @@ import { POWER_ORB } from '../sim/data/heroes';
 import { formLayers } from '../sim/hero';
 import { FORM_HP } from '../sim/data/heroes';
 import { formFx } from '../art/heroArt';
+import { Atmosphere } from './Atmosphere';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -44,6 +45,7 @@ export class WorldRenderer {
   readonly heroFx: HeroFx;
   /** background decorations (map detailing) */
   private decor: DecorLayer;
+  private atmosphere: Atmosphere;
   private tilemap: Phaser.Tilemaps.Tilemap;
   private fg: Phaser.Tilemaps.TilemapLayer;
   private bg: Phaser.Tilemaps.TilemapLayer;
@@ -94,6 +96,7 @@ export class WorldRenderer {
     }
 
     this.decor = new DecorLayer(scene, map, world.def);
+    this.atmosphere = new Atmosphere(scene, world);
     this.decals = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0, 0).setDepth(25);
     this.fx = new Fx(scene, map, this.decals);
 
@@ -136,6 +139,7 @@ export class WorldRenderer {
       this.refreshTile(c.tx, c.ty - 1);
       this.refreshTile(c.tx, c.ty + 1);
     }
+    this.atmosphere.refresh();
     ch.length = 0;
   }
 
@@ -159,6 +163,7 @@ export class WorldRenderer {
     for (const v of this.views) v.update(alpha, dt, time, w.time);
     this.heroFx.sync(alpha, dt, time);
     this.decor.update(time);
+    this.atmosphere.sync(alpha, time);
 
     // items
     const seen = new Set<number>();
@@ -341,7 +346,15 @@ export class WorldRenderer {
     // gravity zones
     for (const z of w.gimmicks.gravity) {
       if (!z.active) continue;
-      g.fillStyle(hexToNum(P.teal), 0.07).fillRect(z.l, z.t, z.r - z.l, z.b - z.t);
+      // A feathered field, with brighter edges, instead of a single flat rectangle.
+      const zoneW = z.r - z.l;
+      g.fillStyle(hexToNum(P.teal), 0.018).fillRect(z.l, z.t, zoneW, z.b - z.t);
+      for (let k = 0; k < 5; k++) {
+        const band = Math.min(6, zoneW / 10);
+        g.fillStyle(hexToNum(P.teal), 0.045 * (1 - k / 5));
+        g.fillRect(z.l + k * band, z.t, band, z.b - z.t);
+        g.fillRect(z.r - (k + 1) * band, z.t, band, z.b - z.t);
+      }
       g.lineStyle(1, hexToNum(P.teal), 0.35);
       for (let x = z.l; x < z.r; x += 8) {
         g.lineBetween(x, z.t, x + 4, z.t);
@@ -657,6 +670,7 @@ export class WorldRenderer {
     for (const v of this.views) v.destroy();
     this.heroFx.destroy();
     this.decor.destroy();
+    this.atmosphere.destroy();
     for (const img of this.items.values()) img.destroy();
     for (const f of this.floats) f.obj.destroy();
     for (const v of this.props.values()) v.img.destroy();

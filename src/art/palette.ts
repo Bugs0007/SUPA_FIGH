@@ -101,3 +101,10 @@ export function shade(hex: string, amount: number): string {
 export function hexToNum(hex: string): number {
   return parseInt(hex.slice(1), 16);
 }
+
+/** Colour interpolation for painted light and atmospheric perspective. */
+export function mix(a: string, b: string, t: number): string {
+  const c0 = hexToRgb(a);
+  const c1 = hexToRgb(b);
+  return rgbToHex(...c0.map((c, i) => c + (c1[i] - c) * Math.max(0, Math.min(1, t))) as [number, number, number]);
+}

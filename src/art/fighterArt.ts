@@ -284,6 +284,7 @@ function drawBodyFrame(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appe
     drawLeg(pc, ox, oy, p.front, a.pantsColor, a.shoesColor, shorts ? a.skin : undefined);
   }
   pc.outline(ox, oy, 32, 32);
+  pc.relief(ox, oy, 32, 32);
 }
 
 // ------------------------------------------------------------------ head
@@ -585,12 +586,18 @@ export function bakeFighter(scene: Phaser.Scene, a: Appearance): FighterTextures
   addFrames(scene.textures.addCanvas(names.body, body.flush())!, BODY_FRAMES, 32, 32, bodyCols);
 
   const head = new PixelCanvas(48, 16);
-  for (let m = 0; m < 3; m++) drawHead(head, m * 16, 0, a, m);
+  for (let m = 0; m < 3; m++) {
+    drawHead(head, m * 16, 0, a, m);
+    head.relief(m * 16, 0, 16, 16, 0.85);
+  }
   addFrames(scene.textures.addCanvas(names.head, head.flush())!, 3, 16, 16, 3);
 
   const arm = new PixelCanvas(ARM_ANGLES * 17, ARM_LENGTHS.length * 17);
   ARM_LENGTHS.forEach((len, li) => {
-    for (let k = 0; k < ARM_ANGLES; k++) drawArm(arm, k * 17, li * 17, (k / ARM_ANGLES) * Math.PI * 2, len, a);
+    for (let k = 0; k < ARM_ANGLES; k++) {
+      drawArm(arm, k * 17, li * 17, (k / ARM_ANGLES) * Math.PI * 2, len, a);
+      arm.relief(k * 17, li * 17, 17, 17, 0.7);
+    }
   });
   addFrames(scene.textures.addCanvas(names.arm, arm.flush())!, ARM_ANGLES * ARM_LENGTHS.length, 17, 17, ARM_ANGLES);
 

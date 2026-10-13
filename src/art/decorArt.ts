@@ -893,6 +893,7 @@ const rooftops: DecorDef[] = [
     weight: 6,
     frames: 2,
     period: 4.5,
+    glow: { x: 5, y: 6, r: 16, color: '#ffcb78', alpha: 0.24 },
     paint: (pc, ox, oy, f) => {
       pc.rect(ox, oy, 10, 12, '#2a1a22');
       const lit = f === 0;
@@ -973,6 +974,7 @@ export function bakeDecor(scene: Phaser.Scene, theme: string): DecorAtlas | null
   for (const d of defs) {
     for (let f = 0; f < (d.frames ?? 1); f++) {
       d.paint(pc, x, 0, f);
+      pc.relief(x, 0, d.w, d.h, 0.5);
       slots.push({ name: frame(d.id, f), x, w: d.w, h: d.h });
       x += d.w + pad;
     }

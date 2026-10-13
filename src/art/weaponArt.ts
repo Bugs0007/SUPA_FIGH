@@ -455,6 +455,7 @@ export function bakeWeapons(scene: Phaser.Scene): void {
     const x = i * cellW;
     pc.ascii(x + 1, 1, rows, PAL);
     pc.outline(x, 0, w, h);
+    pc.relief(x, 0, w, h, 0.65);
     layout.push({ id, x, w, h });
   });
   const tex = scene.textures.addCanvas('weapons', pc.flush())!;
