@@ -391,31 +391,33 @@ export function beamHits(
   return actual;
 }
 
-// ------------------------------------------------------------------ chakra bomb (Naruto super)
+// ------------------------------------------------------------------ explosive hero balls (Naruto / Goku supers)
 
 export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/heroes').SuperAbility['bomb']>, level: number): void {
   const l = Math.max(1, level) - 1;
-  const sx = f.x + f.facing * 8;
+  const size = b.size + b.sizePerLevel * l;
+  const spirit = b.kind === 'ki';
+  const sx = f.x + f.facing * (spirit ? size + 12 : 8);
   const sy = f.y - SHOULDER_Y_STAND - 2;
   const m = meleeMuls(f);
   w.spawnBullet({
     x: sx,
     y: sy,
-    vx: f.facing * b.speed,
-    vy: 0,
+    vx: f.facing * b.speed * (spirit ? Math.cos(f.stretchAngle) : 1),
+    vy: spirit ? Math.sin(f.stretchAngle) * b.speed : 0,
     ox: sx,
     oy: sy,
     owner: f.id,
     weapon: f.hero + ':super',
     damage: (b.damage + b.damagePerLevel * l) * m.dmg,
-    range: 320,
+    range: b.range ?? 320,
     falloff: 1,
     knock: 300 * m.knock,
     ricochet: false,
     pierce: 0,
-    kind: 'chakra',
+    kind: b.kind ?? 'chakra',
     gravity: 0,
-    size: b.size + b.sizePerLevel * l,
+    size,
     explosion: { radius: b.radius + b.radiusPerLevel * l, damage: (b.damage * 0.8 + b.damagePerLevel * l) * m.dmg, knock: 420 + 40 * l, breakRadius: 12 + 4 * l, shake: 0.5 + 0.1 * l },
   });
   f.vx -= f.facing * 60;

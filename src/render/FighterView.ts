@@ -471,6 +471,7 @@ export class FighterView {
       case 'special': {
         // hero moves (D51, D58). Stretch arms, beams, orbs and auras are drawn by HeroFx.
         const kind = f.specialKind;
+        const level = formLevel(f);
         frame = f.flying ? BF.HOVER : BF.AIM;
         front = 0;
         back = 0.1;
@@ -482,6 +483,12 @@ export class FighterView {
           back = 1.9;
           backLen = 0;
           leanTarget = 0.06 + f.stretchAngle * 0.1;
+          if (f.hero === 'luffy' && level === 1) leanTarget += 0.12;
+          if (f.hero === 'luffy' && level === 3) {
+            frame = BF.WINDUP;
+            leanTarget = -0.08;
+          }
+          if (f.hero === 'luffy' && level === 4) rigRot = Math.sin(f.stateTime * 20) * 0.12;
         } else if (kind === 'swing') {
           // hanging from the rope: the roped arm reaches up, legs trail behind the swing
           frame = BF.FALL;
@@ -506,6 +513,17 @@ export class FighterView {
           back = forming ? 0.75 : 2.6;
           backLen = forming ? 1 : 0;
           leanTarget = forming ? -0.05 : 0.22;
+          if (level === 2 || level === 3) {
+            frame = forming ? BF.FOX_IDLE1 : BF.FOX_JUMP;
+            front = 1.15;
+            back = 1.4;
+            leanTarget = 0.12;
+          } else if (level === 4) {
+            // The cloak's chakra hands perform the kneading while his own palm guides it.
+            back = 1.8;
+            backLen = 0;
+            leanTarget = forming ? 0 : 0.12;
+          }
         } else if (kind === 'beamCharge' || kind === 'superCharge') {
           // Kamehameha: hands cupped at the hip, trembling; then thrust forward
           frame = BF.WINDUP;
@@ -532,6 +550,26 @@ export class FighterView {
           front = -1.7;
           back = -1.4;
           leanTarget = -0.08;
+          if (f.hero === 'goku' && (f.charge > 0.75 || f.charge < 0)) {
+            // The completed Spirit Bomb is hurled forward; teleport poses are independent.
+            const push = f.charge < 0 ? 1 : (f.charge - 0.75) / 0.25;
+            front = lerp(-1.7, 0, push);
+            back = lerp(-1.4, 0.15, push);
+            frame = push > 0.6 ? BF.CROSS : BF.AIM;
+            leanTarget = push * 0.1;
+          }
+          if (f.hero === 'naruto' && (level === 2 || level === 3)) {
+            frame = BF.FOX_IDLE0;
+            front = 1.15;
+            back = 1.35;
+            leanTarget = -0.08;
+          }
+        } else if (kind === 'blink') {
+          frame = BF.WINDUP;
+          front = -1.55;
+          back = 1.8;
+          frontLen = 1;
+          leanTarget = -0.04;
         } else {
           // clones: a two-handed seal
           frame = BF.WINDUP;
@@ -647,6 +685,7 @@ export class FighterView {
     }
 
     // ---- apply
+    if (f.hero === 'luffy' && formLevel(f) === 3 && f.grounded && f.state === 'normal' && speed < 15) bob = -Math.round((Math.sin(time * 6) + 1) * 1.5);
     const want = this.texFor(formLevel(f));
     if (want !== this.curTex) {
       this.curTex = want;

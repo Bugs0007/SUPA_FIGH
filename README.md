@@ -72,7 +72,7 @@ Pick **Goku**, **Naruto** or **Luffy** on the main menu. Heroes have three moves
 | **Ability** key | Instant Transmission (teleport, strikes on arrival) | Rasengan (dash strike; hold to keep going until you hit) | Gum-Gum Pistol (stretching arm, no damage: hold to reach far, grabs platforms / ladders / walls and pulls you, swings from ceilings; 3 charges, each refills 2 s after use) |
 | **Kick** key = ability 2 | Kamehameha (hold to charge) | Shadow clones: real fighters that use the Rasengan and look like his current form (2, +1 per form; press again to recall) | Gum-Gum Gatling |
 | Movement | Flies in every form (hold Up) | Walks and runs up walls (hold toward a wall + Up); final form flies | Final form flies |
-| **Both** keys = super (transformed only) | Super Kamehameha | Tailed Beast Bomb | Giant fist |
+| **Both** keys = super (transformed only) | Spirit Bomb (gathers overhead, then throws an explosive energy ball) | Tailed Beast Bomb | Giant fist (size doubles and range grows with each Gear) |
 | Forms (one **power orb** each) | Super Saiyan, SSJ2, SSJ3, Super Saiyan Blue | Crimson aura (one tail), four-tail cloak, six-tail (black), Kurama mode (gold, no tails) | Gear 2, 3, 4, 5 |
 
 Power orbs are the only pickup: a couple appear on the map every ~15 s. Every orb a hero eats takes them up one form

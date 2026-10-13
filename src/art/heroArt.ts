@@ -1,4 +1,4 @@
-// Hero looks (M9, reworked M11): the existing modular fighter, reskinned. Same pixel density as every
+// Hero looks: signature costumes and form anatomy on the existing modular fighter. Same pixel density as every
 // fighter: a hero is an Appearance (hair/hat/face/top parts drawn in fighterArt.ts) plus one override
 // set per transformation form, and an effect set per form (aura colours, tails...). Names/stats live in
 // sim/data/heroes.ts; palettes live here.
@@ -33,41 +33,44 @@ const SKIN = '#f0c8a0';
 export const HERO_ART: Record<string, HeroArt> = {
   naruto: {
     look: {
+      design: 'naruto',
+      form: 0,
       skin: SKIN,
       hair: 'ninja',
       hairColor: '#f8d040',
       face: 'whiskers',
       hat: 'headband',
-      hatColor: '#2f4a9a',
+      hatColor: '#20222e',
       top: 'tracksuit',
       topColor: '#f08a28',
       accentColor: '#22202c',
       pantsColor: '#e07a22',
       shoesColor: '#2f4a9a',
-      legs: 'shorts',
-      trim: '#f4f1ea',
+      eyes: '#4b98db',
     },
     forms: [
       // 1: red eyes, sharper whiskers; a tail is shaped by the crimson aura (no physical tail)
       { face: 'foxeyes', eyes: '#ea3a2a', skin: '#f2b890' },
-      // 4 tails: the red chakra cloak takes over (red-orange body, black trim)
-      { face: 'foxeyes', eyes: '#ea3a2a', skin: '#f2a070', topColor: '#d8441e', accentColor: '#3a0e0a', pantsColor: '#c4361a', shoesColor: '#3a0e0a', hairColor: '#ffb030' },
-      // 6 tails: the black, corrupted cloak
-      { face: 'foxeyes', eyes: '#ff3030', skin: '#b8806a', topColor: '#2a2230', accentColor: '#120e16', pantsColor: '#221a28', shoesColor: '#120e16', hairColor: '#7a1a1a', trim: '#8a2a2a' },
+      // Four tails: a crimson beast silhouette with white eyes, no clothes or headband.
+      { face: 'foxeyes', eyes: '#fff4dd', skin: '#a81724', top: 'chakra', hat: 'none', hair: 'fox', topColor: '#ad182b', accentColor: '#420d21', pantsColor: '#921324', shoesColor: '#671225', hairColor: '#b81929' },
+      // Six tails: a dark crimson cloak with exposed pale skeletal markings.
+      { face: 'foxeyes', eyes: '#fff4dd', skin: '#361624', top: 'chakra', hat: 'none', hair: 'fox', topColor: '#381421', accentColor: '#ecdfc4', pantsColor: '#2b1020', shoesColor: '#521324', hairColor: '#a02432', trim: '#e5dac6' },
       // Kurama mode: all gold, black markings, no tails (the form is the cloak itself)
-      { face: 'foxeyes', eyes: '#1a1020', skin: '#ffe4a0', topColor: '#f8c028', accentColor: '#1a1410', pantsColor: '#f8c028', shoesColor: '#1a1410', hairColor: '#fff2a0', hatColor: '#1a1410', trim: '#fff2a0' },
+      { face: 'foxeyes', eyes: '#de7b29', skin: '#ffe4a0', topColor: '#ffcf43', accentColor: '#251820', pantsColor: '#f8c028', shoesColor: '#251820', hairColor: '#fff2a0', hatColor: '#251820', trim: '#fff2a0' },
     ],
     fx: [
       { aura: ['#ff2a2a', '#c8101a'], tails: 1, ghostTails: true, tailColors: ['#ff3a2a', '#ff9a60'], power: 1 },
-      { aura: ['#ff5a1a', '#c8201a'], tails: 4, tailColors: ['#d8441e', '#ff9a40'], power: 2 },
-      { aura: ['#7a1a2a', '#e83a3a'], tails: 6, tailColors: ['#22181e', '#c82a2a'], power: 3, extra: 'fire' },
+      { aura: ['#bc1633', '#ff6a52'], tails: 4, tailColors: ['#95152c', '#ff6254'], power: 2, extra: 'fire' },
+      { aura: ['#7a1a2a', '#e83a3a'], tails: 6, tailColors: ['#351423', '#d93748'], power: 3, extra: 'fire' },
       { aura: ['#ffd84a', '#fff8c0'], tails: 0, tailColors: ['#f8c028', '#fff8c0'], power: 4, extra: 'lightning' },
     ],
   },
   luffy: {
     look: {
+      design: 'luffy',
+      form: 0,
       skin: '#e8b890',
-      hair: 'short',
+      hair: 'spiky',
       hairColor: '#1e1614',
       face: 'scar',
       hat: 'strawhat',
@@ -78,17 +81,16 @@ export const HERO_ART: Record<string, HeroArt> = {
       pantsColor: '#2f5ab8',
       shoesColor: '#a0703a',
       legs: 'shorts',
-      trim: '#e8c060',
     },
     forms: [
       // Gear Second: pink, steaming
       { skin: '#f4a0a0' },
-      // Gear Third: flushed red-pink, inflated look (darker vest)
-      { skin: '#f08080', topColor: '#a81e1e' },
-      // Gear Fourth: Boundman, black body with orange markings, stiff hair
-      { skin: '#2a262e', topColor: '#1c1a20', accentColor: '#f08030', pantsColor: '#1c1a20', shoesColor: '#f08030', hairColor: '#0e0a0c', trim: '#f08030', eyes: '#ffd060' },
+      // Gear Third: normal costume, with bone-inflated hands drawn by the rig and move effects.
+      { skin: '#efbc96' },
+      // Gear Fourth: Boundman, a broad bare torso and black/red Haki forearms.
+      { skin: '#e5a27f', top: 'boundman', topColor: '#e5a27f', accentColor: '#891c35', hat: 'none', pantsColor: '#3f67a0', shoesColor: '#8c5e35', hair: 'wild', hairColor: '#15141e', eyes: '#17141d' },
       // Gear Fifth: Sun God Nika, white hair and clothes
-      { skin: '#f6d8c0', hair: 'wild', hairColor: '#fafaf6', topColor: '#fafaf6', accentColor: '#fafaf6', pantsColor: '#fafaf6', shoesColor: '#e8e4dc', hatColor: '#fafaf6', trim: '#ffd84a', eyes: '#3a8ae8' },
+      { skin: '#f6d8c0', hair: 'wild', hairColor: '#fafaf6', hat: 'none', topColor: '#fafaf6', accentColor: '#fafaf6', pantsColor: '#fafaf6', shoesColor: '#956744', eyes: '#d85870' },
     ],
     fx: [
       { aura: ['#ff9ad0', '#ffffff'], tails: 0, tailColors: ['#fff', '#fff'], power: 1, extra: 'steam' },
@@ -99,6 +101,8 @@ export const HERO_ART: Record<string, HeroArt> = {
   },
   goku: {
     look: {
+      design: 'goku',
+      form: 0,
       skin: SKIN,
       hair: 'saiyan',
       hairColor: '#1a1420',
@@ -116,7 +120,7 @@ export const HERO_ART: Record<string, HeroArt> = {
       // Super Saiyan: golden hair, teal eyes
       { hairColor: '#f8e040', eyes: '#2ad8c8' },
       // SSJ2: brighter, sharper
-      { hairColor: '#fff060', eyes: '#2ad8c8' },
+      { hair: 'saiyan2', hairColor: '#fff060', eyes: '#2ad8c8' },
       // SSJ3: long mane, no brows
       { hair: 'saiyan3', hairColor: '#ffe840', eyes: '#2ad8c8' },
       // Super Saiyan Blue
@@ -150,7 +154,7 @@ export function formLook(hero: string, level: number): Appearance | null {
   const h = HERO_ART[hero];
   if (!h) return null;
   if (level <= 0) return h.look;
-  return { ...h.look, ...h.forms[Math.min(h.forms.length, level) - 1] };
+  return { ...h.look, ...h.forms[Math.min(h.forms.length, level) - 1], form: Math.min(h.forms.length, level) };
 }
 
 /** Number of form levels. */

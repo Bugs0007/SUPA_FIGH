@@ -9,6 +9,9 @@ import { baseAbility, beamOrigin, rasenganPoint } from '../sim/hero';
 import type { World } from '../sim/world';
 import type { FighterView } from './FighterView';
 import type { Fx } from './Fx';
+import { moveLook } from '../art/heroMoves';
+import { HeroChoreography } from './HeroChoreography';
+import type { Bullet } from '../sim/projectile';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -70,19 +73,25 @@ export class HeroFx {
   private back: Phaser.GameObjects.Graphics;
   private front: Phaser.GameObjects.Graphics;
   private orbs: Phaser.GameObjects.Graphics;
+  readonly choreography: HeroChoreography;
+  private orbForms = new Map<Bullet, { level: number; traveled: number }>();
 
   constructor(
     scene: Phaser.Scene,
     private world: World,
     private views: FighterView[],
     private fx: Fx,
+    private previewReach = 1,
   ) {
     this.back = scene.add.graphics().setDepth(39);
     this.front = scene.add.graphics().setDepth(41);
     this.orbs = scene.add.graphics().setDepth(57);
+    this.choreography = new HeroChoreography(scene, views, this.back, this.front);
   }
 
   destroy(): void {
+    this.choreography.destroy();
+    this.orbForms.clear();
     this.back.destroy();
     this.front.destroy();
     this.orbs.destroy();
@@ -117,6 +126,23 @@ export class HeroFx {
       const a = (i / n) * Math.PI * 2;
       g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * ry), 2, 2);
     }
+  }
+
+  /** Wind-release blades around the first-form super's spinning Rasenshuriken core. */
+  private shuriken(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, time: number): void {
+    for (let i = 0; i < 4; i++) {
+      const a = time * 18 + i * Math.PI / 2;
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      for (let d = r * 0.6; d < r * 2.1; d++) {
+        const width = Math.max(1, Math.round((1 - d / (r * 2.2)) * 3));
+        g.fillStyle(0xe8fbff, 0.85).fillRect(Math.round(x + dx * d), Math.round(y + dy * d), width, width);
+      }
+    }
+    this.disc(g, x, y, r + 1, 0x3c89d8);
+    this.disc(g, x, y, r, 0x9ce8ff);
+    this.disc(g, x - r * 0.2, y - r * 0.2, r * 0.5, 0xffffff);
+    this.ring(g, x, y, r * 1.6, 0xcaf4ff, 0.4, 0.4);
   }
 
   private drawTransforms(alpha: number, dt: number): void {
@@ -163,6 +189,11 @@ export class HeroFx {
         g.fillStyle(0xffffff, fade).fillRect(Math.round(px - w / 4), Math.round(py - h), Math.max(1, Math.round(w / 2)), h);
         // ground flash
         g.fillStyle(0xffffff, 0.6 * fade).fillRect(Math.round(px - 20 * big * (1 - k * 0.5)), Math.round(py - 1), Math.round(40 * big * (1 - k * 0.5)), 2);
+        if (f.hero === 'luffy') {
+          if (x.level === 3) this.ring(this.front, px, cy, 11 + k * 14, 0x9d2848, fade, 0.8);
+        } else if (f.hero === 'naruto' && x.level < 4) {
+          drawTails(this.back, formFx(f.hero, x.level), px, py, f.facing, x.t * 8, 1 + fade * 0.25);
+        } else if (f.hero === 'goku' && x.level > 1) this.lightning(f, px, py, x.c1, x.level);
       }
     }
   }
@@ -171,23 +202,25 @@ export class HeroFx {
     this.back.clear();
     this.front.clear();
     this.orbs.clear();
+    this.choreography.begin(dt);
     for (const v of this.views) {
       const f = v.fighter;
       if (!f.alive || f.gone) continue;
       const x = lerp(f.px, f.x, alpha);
       const y = lerp(f.py, f.y, alpha);
       if (f.power || formLevel(f) > 0) this.aura(f, x, y, dt, time);
-      if (formLevel(f) > 0) this.tails(f, x, y, time);
-      if (f.flying) this.flight(f, x, y, dt, time);
+      if (formLevel(f) > 0 && !(f.hero === 'naruto' && f.state === 'special' && f.specialKind === 'rasengan')) this.tails(f, x, y, time);
+      if (f.flying) this.flight(f, x, y, dt);
       const sk = f.specialKind;
       if (f.state === 'special') {
-        if (sk === 'rasengan') this.rasengan(f, x, y, dt, time);
+        if (sk === 'rasengan') this.rasengan(v, x, y, dt, time);
         else if (sk === 'beamCharge' || sk === 'superCharge') this.chargeGlow(f, x, y, time, sk === 'superCharge');
         else if (sk === 'beam' || sk === 'superBeam') this.beam(f, x, y, dt, time, sk === 'superBeam');
         else if (sk === 'gatling') this.gatling(v, x, y, time);
         else if (sk === 'bomb') this.bombOrb(f, x, y, time, dt);
+        else if (sk === 'cast' && f.hero === 'naruto') this.choreography.cast(v, x, y, time);
       }
-      if (f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y);
+      if (f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y, time);
     }
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
@@ -201,19 +234,6 @@ export class HeroFx {
     if (expiring) return;
     const fxd = formLevel(f) > 0 ? formFx(f.hero, formLevel(f)) : null;
     const pw = fxd?.power ?? 0;
-    const cy = y - 11;
-    const n = fxd ? 4 + pw * 3 : 6;
-    const rx = fxd ? 9 + pw : 8;
-    const ry = fxd ? 13 + pw * 1.5 : 12;
-    for (let i = 0; i < n; i++) {
-      const a = time * (fxd ? 4 + pw : 3.5) + (i * Math.PI * 2) / n;
-      if ((Math.floor(time * 24) + i) % 5 === 0) continue;
-      const px = Math.round(x + Math.cos(a) * rx);
-      // flame-like: pixels drift upward along the ellipse
-      const py = Math.round(cy + Math.sin(a) * ry - Math.abs(Math.cos(a * 0.5)) * 2);
-      const g = Math.sin(a) < 0 ? this.back : this.front;
-      g.fillStyle(i % 2 ? c1 : c0, 0.9).fillRect(px - 1, py - 1, pw >= 3 ? 3 : 2, pw >= 3 ? 3 : 2);
-    }
     // ground glow under the feet
     this.back.fillStyle(c0, 0.25).fillRect(Math.round(x) - 7 - pw, Math.round(y) - 1, 14 + pw * 2, 1);
     if (!fxd) {
@@ -228,11 +248,8 @@ export class HeroFx {
         }
         break;
       case 'clouds':
-        // Nika: puffy white clouds swirl around
-        for (let i = emitCount(16, dt); i > 0; i--) {
-          const a = rnd(0, Math.PI * 2);
-          this.fx.spawn({ frame: 'puff4', x: x + Math.cos(a) * 11, y: y - 11 + Math.sin(a) * 15, vx: Math.cos(a) * 14, vy: rnd(-24, -6), drag: 1, life: rnd(0.5, 0.9), s0: 0.5, s1: 1.8, a0: 0.7, a1: 0, tint: Math.random() < 0.5 ? 0xffffff : c1, depth: Math.random() < 0.5 ? 38 : 43 });
-        }
+        // Gear Fifth keeps rising steam, without balls orbiting the body.
+        for (let i = emitCount(8, dt); i > 0; i--) this.fx.spawn({ frame: 'puff3', x: x + rnd(-5, 5), y: y - rnd(3, 17), vx: rnd(-4, 4), vy: -25, life: 0.4, s0: 0.3, s1: 0.7, a0: 0.35, a1: 0, tint: 0xffffff, depth: 38 });
         break;
       case 'fire':
         for (let i = emitCount(26, dt); i > 0; i--) {
@@ -285,28 +302,20 @@ export class HeroFx {
 
   // ------------------------------------------------------------------ flight, rasengan
 
-  /** Hold-Up flight (final forms): a soft ki shell and a downdraft while flying. */
-  private flight(f: Fighter, x: number, y: number, dt: number, time: number): void {
-    const g = this.front;
-    const cy = y - 11;
+  /** A straight downdraft while flying; no orbiting shell around the character. */
+  private flight(f: Fighter, x: number, y: number, dt: number): void {
+    const [c0, c1] = formLevel(f) > 0 ? powerColors(f) : [0xa8e0ff, 0xffffff];
     const sp = Math.hypot(f.vx, f.vy);
-    const n = 8;
-    for (let i = 0; i < n; i++) {
-      const a = time * 4 + (i * Math.PI * 2) / n;
-      if ((Math.floor(time * 20) + i) % 4 === 0) continue;
-      const px = Math.round(x + Math.cos(a) * 9);
-      const py = Math.round(cy + Math.sin(a) * 13);
-      (Math.sin(a) < 0 ? this.back : g).fillStyle(i % 2 ? 0xffffff : 0xa8e0ff, 0.55 + Math.min(0.35, sp / 400)).fillRect(px, py, 1, 1);
-    }
     if (dt > 0) {
       for (let i = emitCount(10 + sp * 0.08, dt); i > 0; i--) {
-        this.fx.spawn({ frame: 'p1', x: x + rnd(-3, 3), y: y + rnd(-1, 2), vx: -f.vx * 0.3 + rnd(-10, 10), vy: rnd(20, 50) - f.vy * 0.2, life: rnd(0.15, 0.3), a0: 0.9, a1: 0, tint: Math.random() < 0.5 ? 0xa8e0ff : 0xffffff, add: true, depth: 42 });
+        this.fx.spawn({ frame: 'p1', x: x + rnd(-3, 3), y: y + rnd(-1, 2), vx: -f.vx * 0.3 + rnd(-10, 10), vy: rnd(20, 50) - f.vy * 0.2, life: rnd(0.15, 0.3), a0: 0.9, a1: 0, tint: Math.random() < 0.5 ? c0 : c1, add: true, depth: 42 });
       }
     }
   }
 
   /** Rasengan: a spinning blue orb that forms in the palm, then rides the dash with a trail. */
-  private rasengan(f: Fighter, x: number, y: number, dt: number, time: number): void {
+  private rasengan(v: FighterView, x: number, y: number, dt: number, time: number): void {
+    const f = v.fighter;
     const d = baseAbility(f)?.dash;
     if (!d) return;
     const t = f.stateTime;
@@ -317,14 +326,22 @@ export class HeroFx {
     const cy = oy - f.y + y;
     const r = 1 + k * 3.2 + Math.sin(time * 50) * 0.4 + (f.power === 'hero' ? f.powerLevel * 0.5 : 0);
     const g = this.orbs;
-    this.disc(g, ox, cy, r * 2.6, 0x4a9aff, 0.07);
-    this.disc(g, ox, cy, r + 1.5, hexToNum('#2a6ad8'), 0.85);
-    this.disc(g, ox, cy, r, hexToNum('#7ac8ff'), 1);
+    const style = moveLook('naruto', formLevel(f));
+    this.choreography.rasengan(v, x, y, ox, cy, k, time);
+    this.disc(g, ox, cy, r * 2.6, style.rim, 0.07);
+    this.disc(g, ox, cy, r + 1.5, style.rim, 0.85);
+    this.disc(g, ox, cy, r, style.core, 1);
     this.disc(g, ox, cy, Math.max(0.8, r * 0.45), 0xffffff, 1);
     this.disc(g, ox - r * 0.25, cy - r * 0.3, Math.max(0.6, r * 0.28), 0xffffff, 0.9);
     for (let i = 0; i < 4; i++) {
       const a = time * 30 + (i * Math.PI) / 2;
-      g.fillStyle(i % 2 ? 0xffffff : hexToNum('#bfe8ff'), 1).fillRect(Math.round(ox + Math.cos(a) * (r + 1)), Math.round(cy + Math.sin(a) * (r + 1) * 0.6), 1, 1);
+      g.fillStyle(i % 2 ? 0xffffff : style.spark, 1).fillRect(Math.round(ox + Math.cos(a) * (r + 1)), Math.round(cy + Math.sin(a) * (r + 1) * 0.6), 1, 1);
+    }
+    // Counter-rotating spiral bands make the chakra visibly kneaded, rather than a static disc.
+    for (let i = 0; i < 22; i++) {
+      const a = time * 22 + i * 0.46;
+      const spiralR = r * i / 22;
+      g.fillStyle(i % 3 ? style.spark : 0xffffff, 0.75).fillRect(Math.round(ox + Math.cos(a) * spiralR), Math.round(cy + Math.sin(a) * spiralR * 0.7), 1, 1);
     }
     if (dt > 0) {
       for (let i = emitCount(forming ? 30 : 70, dt); i > 0; i--) {
@@ -339,7 +356,7 @@ export class HeroFx {
           life: rnd(0.12, 0.25),
           a0: 1,
           a1: 0,
-          tint: Math.random() < 0.5 ? hexToNum('#7ac8ff') : 0xffffff,
+          tint: Math.random() < 0.5 ? style.spark : 0xffffff,
           add: true,
           depth: 58,
         });
@@ -350,7 +367,7 @@ export class HeroFx {
   // ------------------------------------------------------------------ rubber limbs and giant fists
 
   /** Rubber arm (or leg for a stretch kick) from the body out to the current reach. */
-  private stretchLimb(v: FighterView, x: number, y: number): void {
+  private stretchLimb(v: FighterView, x: number, y: number, time: number): void {
     const f = v.fighter;
     const look = v.lookFor(formLevel(f));
     const combo = heroDef(f.hero)?.combo;
@@ -358,7 +375,11 @@ export class HeroFx {
     const angled = f.state === 'special' && (f.specialKind === 'pistol' || f.specialKind === 'rocket' || f.specialKind === 'swing' || f.specialKind === 'superFist') && Math.abs(f.stretchAngle) > 0.01;
     const big = f.specialKind === 'superFist';
     if (angled) {
-      this.angledArm(f, x, y, hexToNum(look.skin), big ? f.beamWidth : 2);
+      this.angledArm(f, x, y, hexToNum(look.skin), big ? f.beamWidth : 2, time);
+      return;
+    }
+    if (f.hero === 'luffy' && !kick) {
+      this.angledArm(f, x, y, hexToNum(look.skin), big ? f.beamWidth : 2, time);
       return;
     }
     const ly = Math.round(kick ? y - 5 : y - SHOULDER_Y_STAND + 1);
@@ -380,7 +401,7 @@ export class HeroFx {
   }
 
   /** An angled rubber arm stepped pixel by pixel, a fist (radius `fist`) at the end. */
-  private angledArm(f: Fighter, x: number, y: number, skin: number, fist: number): void {
+  private angledArm(f: Fighter, x: number, y: number, skin: number, fist: number, time: number): void {
     // a rope-arm hanging from a ceiling runs behind the body, not over his face
     const g = f.specialKind === 'swing' ? this.back : this.front;
     const dx = Math.cos(f.stretchAngle) * f.facing;
@@ -388,16 +409,30 @@ export class HeroFx {
     const x0 = x + f.facing * 2;
     const y0 = y - SHOULDER_Y_STAND + 1;
     const len = f.w / 2 + f.stretchLen;
-    const th = 1 + Math.floor(fist / 3);
+    const style = moveLook('luffy', formLevel(f));
+    const inflated = style.rubber === 'inflated';
+    const haki = style.rubber === 'haki';
+    const th = 1 + Math.floor(fist / 3) + (inflated ? 1 : 0);
     g.fillStyle(INK, 1);
     for (let d = 0; d <= len; d += 1) g.fillRect(Math.round(x0 + dx * d) - 2 - th, Math.round(y0 + dy * d) - 2 - th, 4 + th * 2, 4 + th * 2);
-    g.fillStyle(skin, 1);
+    g.fillStyle(haki ? style.core : skin, 1);
     for (let d = 0; d <= len; d += 1) g.fillRect(Math.round(x0 + dx * d) - 1 - th, Math.round(y0 + dy * d) - 1 - th, 2 + th * 2, 2 + th * 2);
     const fx = Math.round(x0 + dx * len);
     const fy = Math.round(y0 + dy * len);
-    const r = Math.max(2, fist);
+    const r = Math.max(inflated ? 5 : haki ? 4 : 2, fist);
+    this.choreography.rubberPath(f, x0, y0, len, time, g);
     this.disc(g, fx, fy, r + 1, INK);
-    this.disc(g, fx, fy, r, skin);
+    this.disc(g, fx, fy, r, haki ? style.core : skin);
+    this.disc(g, fx - dx * r * 0.25, fy - r * 0.3, Math.max(1, r * 0.35), haki ? style.rim : 0xffdfc2, 0.65);
+    if (haki) {
+      this.ring(g, fx - dx * 4, fy - dy * 4, r + 2, style.rim, 0.8, 0.6);
+      for (let d = 5; d < Math.min(len, 35); d += 5) this.ring(g, x0 + dx * d, y0 + dy * d, 3, style.rim, 0.7, 0.6);
+    } else if (style.rubber === 'jet') {
+      for (let i = 0; i < 4; i++) g.fillStyle(0xffeff0, 0.45).fillRect(Math.round(fx - dx * (7 + i * 5)), Math.round(fy - dy * (7 + i * 5)) - 4 + i * 2, 7, 1);
+    } else if (style.rubber === 'cartoon') {
+      this.ring(g, fx - dx * (r + 6), fy, r + 3, 0xffffff, 0.65, 0.5);
+      for (let i = 0; i < 3; i++) this.disc(g, fx - dx * (r + 8 + i * 5), fy + Math.sin(time * 8 + i) * 5, 2 + i % 2, 0xffffff, 0.65);
+    }
     if (r > 4) {
       // knuckle lines on the giant fist
       g.fillStyle(hexToNum(P.ink), 0.45);
@@ -413,19 +448,27 @@ export class HeroFx {
     const look = v.lookFor(formLevel(f));
     const skin = hexToNum(look.skin);
     const fr = this.front;
-    const step = Math.floor(time * 30);
-    for (let i = 0; i < 5; i++) {
+    const style = moveLook('luffy', formLevel(f));
+    const step = Math.floor(time * (style.rubber === 'jet' ? 55 : style.rubber === 'inflated' ? 20 : 30));
+    const count = style.rubber === 'inflated' ? 3 : style.rubber === 'jet' ? 7 : style.rubber === 'haki' ? 4 : 5;
+    for (let i = 0; i < count; i++) {
       const phase = (step + i * 3) % 6;
-      const reach = (phase / 5) * (g.range + 8) * (0.7 + 0.3 * ((i * 7 + step) % 3) / 2);
+      const reach = (phase / 5) * (g.range + 8) * this.previewReach * (0.7 + 0.3 * ((i * 7 + step) % 3) / 2);
       const ly = Math.round(y - SHOULDER_Y_STAND + 1 + ((i * 5 + step * 2) % 11) - 5);
       const x0 = Math.round(x + f.facing * 3);
       const x1 = x0 + f.facing * Math.round(reach);
       const l = Math.min(x0, x1);
       const w = Math.abs(x1 - x0);
       fr.fillStyle(INK, 1).fillRect(l - 1, ly - 2, w + 2, 4);
-      fr.fillStyle(skin, 1).fillRect(l, ly - 1, w, 2);
-      fr.fillStyle(INK, 1).fillRect(x1 - 3, ly - 3, 6, 6);
-      fr.fillStyle(skin, 1).fillRect(x1 - 2, ly - 2, 4, 4);
+      fr.fillStyle(style.rubber === 'haki' ? style.core : skin, 1).fillRect(l, ly - 1, w, 2);
+      const radius = style.rubber === 'inflated' ? 5 : style.rubber === 'haki' ? 4 : 2;
+      this.disc(fr, x1, ly, radius + 1, INK);
+      this.disc(fr, x1, ly, radius, style.rubber === 'haki' ? style.core : skin);
+      this.disc(fr, x1 - 1, ly - 1, 1, style.rubber === 'haki' ? style.rim : 0xffe3ca);
+      if (style.rubber === 'cartoon' || style.rubber === 'haki') {
+        this.choreography.rubberPath({ ...f, stretchAngle: 0 } as Fighter, x0, ly, reach, time + i);
+        this.ring(fr, x1 - f.facing * 7, ly, radius + 3, style.rubber === 'haki' ? style.rim : 0xffffff, 0.45, 0.5);
+      } else if (style.rubber === 'jet') fr.fillStyle(0xffe9ef, 0.6).fillRect(x1 - f.facing * 18, ly - 2, 12, 1);
     }
   }
 
@@ -436,13 +479,18 @@ export class HeroFx {
     const h = heroDef(f.hero);
     const maxC = isSuper ? (h?.super.beam?.minCharge ?? 0.5) : (h?.second.beam?.maxCharge ?? 1);
     const k = Math.min(1, Math.max(0, f.charge) / maxC);
-    const [c0, c1] = isSuper && f.power === 'hero' ? powerColors(f) : [hexToNum('#5ab0ff'), hexToNum('#e8f8ff')];
+    const style = moveLook('goku', formLevel(f));
+    const [c0, c1] = [style.rim, style.core];
     const hx = x + f.facing * 6;
     const hy = y - 7;
     const r = 1.5 + k * (isSuper ? 6 : 4.5) + Math.sin(time * 40) * 0.5;
     this.disc(this.front, hx, hy, r * 2.4, c0, 0.08);
     this.disc(this.front, hx, hy, r + 1, c0, 0.8);
     this.disc(this.front, hx, hy, r * 0.6, c1, 1);
+    const level = formLevel(f);
+    if (level > 0) {
+      if (style.lightning > 0) this.lightning(f, hx, hy + 10, style.spark, style.lightning);
+    }
     if (Math.random() < 0.7) this.fx.spawn({ frame: 'p1', x: hx + rnd(-14, 14), y: hy + rnd(-14, 14), vx: (hx - x) * 0, life: 0.18, a0: 1, a1: 0, tint: c1, add: true, depth: 58 });
   }
 
@@ -454,7 +502,8 @@ export class HeroFx {
     const dy = Math.sin(f.stretchAngle);
     const len = f.stretchLen;
     const half = f.beamWidth;
-    const [c0, c1] = isSuper && f.power === 'hero' ? powerColors(f) : [hexToNum('#4a9aff'), hexToNum('#bfe8ff')];
+    const style = moveLook('goku', formLevel(f));
+    const [c0, c1] = [style.rim, style.core];
     const g = this.orbs;
     const px = -dy;
     const py = dx;
@@ -472,6 +521,21 @@ export class HeroFx {
     // impact flare at the far end
     this.disc(g, o.x + dx * len, o.y + dy * len, half * 2.8, c0, 0.1);
     this.disc(g, o.x + dx * len, o.y + dy * len, half * 1.3, c1, 0.9);
+    const level = formLevel(f);
+    if (level > 0) {
+      const count = level === 3 ? 4 : 2;
+      for (let i = 0; i < count; i++) {
+        const distance = ((time * (level === 4 ? 190 : 120) + i * len / count) % Math.max(1, len));
+        this.ring(g, o.x + dx * distance, o.y + dy * distance, half * 1.4, style.spark, 0.55, 0.6);
+      }
+      if (style.lightning > 0) {
+        g.lineStyle(1, style.spark, 0.8);
+        for (let d = 0; d < len - 8; d += 8) {
+          const offset = Math.sin(time * 50 + d * 0.6) * (half + 2);
+          g.lineBetween(Math.round(o.x + dx * d + px * offset), Math.round(o.y + dy * d + py * offset), Math.round(o.x + dx * (d + 8) - px * offset), Math.round(o.y + dy * (d + 8) - py * offset));
+        }
+      }
+    }
     if (dt > 0) {
       for (let i = emitCount(40 + half * 8, dt); i > 0; i--) {
         const d = Math.random() * len;
@@ -483,15 +547,33 @@ export class HeroFx {
   /** Tailed Beast Bomb charging overhead (the flying orb is drawn by drawOrbs). */
   private bombOrb(f: Fighter, x: number, y: number, time: number, dt: number): void {
     if (f.charge < 0) return;
+    if (f.hero === 'goku') {
+      this.spiritBomb(f, x, y, dt);
+      return;
+    }
     const [c0, c1] = powerColors(f);
     const k = Math.max(0.1, Math.min(1, f.charge));
-    const r = 1.5 + k * (3.5 + f.powerLevel * 1.2);
-    const cx = x + f.facing * 2;
-    const cy = y - 31 - r * 0.5;
+    const level = formLevel(f);
+    const r = 1.5 + k * (3.5 + level * 1.2);
+    const beast = level === 2 || level === 3;
+    const cx = x + f.facing * (beast ? 10 : 2);
+    const cy = beast ? y - 19 : y - 31 - r * 0.5;
     const g = this.orbs;
-    this.disc(g, cx, cy, r + 2, c1, 0.5);
-    this.disc(g, cx, cy, r + 1, c0, 1);
-    this.disc(g, cx, cy, Math.max(1, r - 1), hexToNum('#18060c'), 1);
+    if (level === 1) this.shuriken(g, cx, cy, r, time);
+    else {
+      this.disc(g, cx, cy, r + 2, c1, 0.5);
+      this.disc(g, cx, cy, r + 1, c0, 1);
+      this.disc(g, cx, cy, Math.max(1, r - 1), hexToNum('#18060c'), 1);
+      this.disc(g, cx - r * 0.25, cy - r * 0.3, r * 0.3, level === 4 ? 0xffda75 : 0xb54b81, 0.65);
+    }
+    if (beast) this.choreography.rasengan(this.views[f.id], x, y, cx, cy, k, time);
+    if (level === 4) {
+      // A brief Kurama silhouette and golden chakra hands support the overhead Bijudama.
+      this.back.fillStyle(0xe3a129, 0.25).fillTriangle(x - 18, y - 28, x - 11, y - 52, x - 4, y - 31)
+        .fillTriangle(x + 18, y - 28, x + 11, y - 52, x + 4, y - 31);
+      this.choreography.curve(this.back, [x - 6, y - 12, x - 20, y - 30, cx - 13, cy - 8, cx - r, cy], 0xffd85d, 4, 0.7);
+      this.choreography.curve(this.back, [x + 6, y - 12, x + 20, y - 30, cx + 13, cy - 8, cx + r, cy], 0xffd85d, 4, 0.7);
+    }
     for (let i = 0; i < 6; i++) {
       const a = time * 11 + (i * Math.PI) / 3;
       g.fillStyle(i % 2 ? c1 : c0, 1).fillRect(Math.round(cx + Math.cos(a) * (r + 2)) - 1, Math.round(cy + Math.sin(a) * (r + 2)) - 1, 2, 2);
@@ -504,8 +586,38 @@ export class HeroFx {
     }
   }
 
+  private spiritBall(x: number, y: number, r: number): void {
+    const g = this.orbs;
+    this.disc(g, x, y, r * 1.3, 0x439ddd, 0.08);
+    this.disc(g, x, y, r + 1, 0x3d9ed8);
+    this.disc(g, x - r * 0.07, y - r * 0.07, r * 0.92, 0x84daed);
+    this.disc(g, x - r * 0.16, y - r * 0.16, r * 0.73, 0xc9f7ff);
+    this.disc(g, x - r * 0.24, y - r * 0.23, r * 0.48, 0xf6ffff);
+    // Small bright fissures are on the ball's surface, not orbiting the fighter.
+    g.fillStyle(0xe9fcff, 0.8).fillRect(Math.round(x - r * 0.7), Math.round(y - r * 0.3), Math.max(1, Math.round(r * 0.2)), 1);
+    g.fillStyle(0x419bcf, 0.7).fillRect(Math.round(x + r * 0.5), Math.round(y + r * 0.4), Math.max(1, Math.round(r * 0.2)), 1);
+  }
+
+  private spiritBomb(f: Fighter, x: number, y: number, dt: number): void {
+    const b = heroDef('goku')!.super.bomb!;
+    const maxRadius = b.size + b.sizePerLevel * Math.max(0, formLevel(f) - 1);
+    const k = Math.max(0.06, Math.min(1, f.charge));
+    const r = maxRadius * k;
+    // Gather overhead, then lower and push the fully formed ball out of both palms.
+    const release = Math.max(0, (k - 0.75) / 0.25);
+    const cx = x + f.facing * (maxRadius + 12) * release;
+    const cy = lerp(y - 32 - r, y - SHOULDER_Y_STAND - 2, release);
+    this.spiritBall(cx, cy, r);
+    for (let n = emitCount(30, dt); n > 0; n--) {
+      const sx = cx + rnd(-r - 35, r + 35);
+      const sy = cy - rnd(r + 12, r + 35);
+      this.fx.spawn({ frame: 'p1', x: sx, y: sy, vx: (cx - sx) / 0.25, vy: (cy - sy) / 0.25, life: 0.25, a0: 0.2, a1: 0.9, tint: 0xe9fcff, add: true, depth: 56 });
+    }
+  }
+
   private drawOrbs(alpha: number, dt: number, time: number): void {
     const g = this.orbs;
+    for (const bullet of this.orbForms.keys()) if (!bullet.active || bullet.kind !== 'chakra') this.orbForms.delete(bullet);
     for (const bl of this.world.bullets) {
       if (!bl.active) continue;
       if (bl.kind === 'cannonball') {
@@ -520,13 +632,30 @@ export class HeroFx {
       const y = lerp(bl.py, bl.y, alpha);
       const r = Math.max(2, bl.size + 1);
       const sp = Math.hypot(bl.vx, bl.vy) || 1;
+      if (bl.weapon === 'goku:super' && bl.kind === 'ki') {
+        this.spiritBall(x, y, bl.size);
+        for (let i = emitCount(45, dt); i > 0; i--) this.fx.spawn({ frame: 'p1', x: x - bl.vx / sp * bl.size, y: y + rnd(-bl.size * 0.4, bl.size * 0.4), vx: -bl.vx * 0.1, vy: rnd(-5, 5), life: 0.2, a0: 0.8, a1: 0, tint: 0xc9f7ff, add: true, depth: 56 });
+        continue;
+      }
       if (bl.kind === 'chakra') {
         // the Tailed Beast Bomb: dark core, ringed in the owner's current form colours
         const owner = this.world.fighters[bl.owner];
-        const [c0, c1] = owner?.power === 'hero' ? powerColors(owner) : [hexToNum('#c8202a'), hexToNum('#ff7a2a')];
-        this.disc(g, x, y, r + 2, c1, 0.85);
-        this.disc(g, x, y, r + 1, c0, 1);
-        this.disc(g, x, y, r - 1, hexToNum('#2a0610'), 1);
+        let visual = this.orbForms.get(bl);
+        if (!visual || bl.traveled < visual.traveled) {
+          visual = { level: owner ? formLevel(owner) : 2, traveled: bl.traveled };
+          this.orbForms.set(bl, visual);
+        }
+        visual.traveled = bl.traveled;
+        const level = visual.level;
+        const colors = formFx('naruto', level).aura;
+        const [c0, c1] = level === 1 ? [0x3c89d8, 0xe8fbff] : [hexToNum(colors[0]), hexToNum(colors[1])];
+        if (level === 1) this.shuriken(g, x, y, r, time);
+        else {
+          this.disc(g, x, y, r + 2, c1, 0.85);
+          this.disc(g, x, y, r + 1, c0, 1);
+          this.disc(g, x, y, r - 1, hexToNum('#2a0610'), 1);
+          this.disc(g, x - r * 0.25, y - r * 0.3, r * 0.3, c1, 0.5);
+        }
         for (let i = 0; i < 6; i++) {
           const a = time * 9 + (i * Math.PI) / 3;
           g.fillStyle(i % 2 ? c1 : 0xffffff, 1).fillRect(Math.round(x + Math.cos(a) * (r + 2)) - 1, Math.round(y + Math.sin(a) * (r + 2)) - 1, 2, 2);

@@ -6,10 +6,10 @@ export const HAT_STYLES = ['none', 'cap', 'beanie', 'tophat', 'helmet', 'bandana
 export const TOP_STYLES = ['tshirt', 'jacket', 'suit', 'hoodie', 'tank', 'vest'] as const;
 
 // Hero parts (M9, art/heroArt.ts). Not in the random/creator lists above.
-export type HairStyle = (typeof HAIR_STYLES)[number] | 'ninja' | 'saiyan' | 'saiyan3' | 'wild';
+export type HairStyle = (typeof HAIR_STYLES)[number] | 'ninja' | 'saiyan' | 'saiyan2' | 'saiyan3' | 'wild' | 'fox';
 export type FaceStyle = (typeof FACE_STYLES)[number] | 'whiskers' | 'foxeyes' | 'scar';
 export type HatStyle = (typeof HAT_STYLES)[number] | 'strawhat' | 'headband';
-export type TopStyle = (typeof TOP_STYLES)[number] | 'tracksuit' | 'openvest' | 'gi';
+export type TopStyle = (typeof TOP_STYLES)[number] | 'tracksuit' | 'openvest' | 'gi' | 'chakra' | 'boundman';
 
 /** Serializable look of a fighter (stored in profiles). */
 export interface Appearance {
@@ -30,10 +30,14 @@ export interface Appearance {
   eyes?: string;
   /** wrist bands / sash colour (gi, heroes) */
   trim?: string;
+  /** Signature anatomy and costume details; absent on custom scrappers. */
+  design?: 'naruto' | 'luffy' | 'goku';
+  /** Visual transformation level; used by the sprite baker, never by physics. */
+  form?: number;
 }
 
 export function appearanceKey(a: Appearance): string {
-  return [a.skin, a.hair, a.hairColor, a.face, a.hat, a.hatColor, a.top, a.topColor, a.accentColor, a.pantsColor, a.shoesColor, ...(a.legs ? [a.legs] : []), ...(a.eyes ? ['e' + a.eyes] : []), ...(a.trim ? ['t' + a.trim] : [])]
+  return [a.skin, a.hair, a.hairColor, a.face, a.hat, a.hatColor, a.top, a.topColor, a.accentColor, a.pantsColor, a.shoesColor, ...(a.legs ? [a.legs] : []), ...(a.eyes ? ['e' + a.eyes] : []), ...(a.trim ? ['t' + a.trim] : []), ...(a.design ? [a.design, String(a.form ?? 0)] : [])]
     .join('_')
     .replace(/#/g, '');
 }
