@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../../src/sim/constants';
-import { FORM_HP, GENERIC_DURATION, HEROES, POWER_ORB, heroAttackLabel, maxLevel } from '../../src/sim/data/heroes';
+import { FORM_HP, GENERIC_DURATION, HEROES, POWER_ORB, heroAttackLabel, maxLevel, superFistFor } from '../../src/sim/data/heroes';
 import { SLOT, WEAPONS, weaponDef } from '../../src/sim/data/weapons';
 import type { Fighter, FighterSpawn } from '../../src/sim/fighter';
 import { ability, formLayers, holdFlies, transform, transformed } from '../../src/sim/hero';
@@ -292,6 +292,23 @@ describe('ability 2 (the kick key)', () => {
     expect(w.fighters.filter((c) => c.master === 0 && c.alive).length).toBe(2);
   });
 
+  it.each([0, 1])('Naruto form %i: every clone is already alive on the frame the cast triggers', (level) => {
+    const w = heroWorld('naruto');
+    levelUp(w, w.fighters[0], level);
+    w.events.length = 0;
+    let cast = false;
+    for (let t = 0; t < 15; t++) {
+      w.step([intent({ kick: t === 0 }), intent()]);
+      if (w.events.some(e => e.t === 'clone')) {
+        cast = true;
+        expect(w.fighters.filter(c => c.master === 0 && c.alive && !c.gone)).toHaveLength(2 + level);
+        expect(w.events.filter(e => e.t === 'clone')).toHaveLength(2 + level);
+        break;
+      }
+    }
+    expect(cast).toBe(true);
+  });
+
   it('Luffy: gum-gum gatling lands many hits', () => {
     const w = heroWorld('luffy');
     place(w.fighters[1], 140);
@@ -387,18 +404,68 @@ describe('super (both abilities together, transformed only)', () => {
     expect(size(4)).toBeGreaterThan(size(1));
   });
 
-  it('Goku: the super kamehameha reaches further and hits harder than the normal one', () => {
+  it('Goku: Spirit Bomb travels beyond normal Kamehameha range and deals explosive damage', () => {
     const dmg = (kick: boolean) => {
       const w = heroWorld('goku');
       levelUp(w, w.fighters[0], 1);
       place(w.fighters[1], 370);
       const hp = w.fighters[1].hp;
-      press(w, kick ? { ability: true, kick: true } : { kick: true }, kick ? 2 : 80, 80);
+      const seen = press(w, kick ? { ability: true, kick: true } : { kick: true }, kick ? 2 : 80, 140);
+      if (kick) expect(seen.some(e => e.t === 'explosion')).toBe(true);
       return hp - w.fighters[1].hp;
     };
     const sup = dmg(true);
     expect(sup).toBeGreaterThan(20);
     expect(dmg(false)).toBe(0); // out of the normal beam's reach
+  });
+
+  it('Luffy: super fist radius doubles and range grows exponentially, including the actual hitbox', () => {
+    const stats = [1, 2, 3, 4].map(level => superFistFor('luffy', level)!);
+    expect(stats.map(s => s.fist)).toEqual([5, 10, 20, 40]);
+    expect(stats.map(s => s.range)).toEqual([150, 240, 384, 614]);
+    // A target beyond Gear Second's reach is hit by Gear Fourth's real combat query.
+    const hitAtDistance = (level: number) => {
+      const w = heroWorld('luffy');
+      levelUp(w, w.fighters[0], level);
+      place(w.fighters[1], 430);
+      return press(w, { ability: true, kick: true }, 2, 60).some(e => e.t === 'hit' && e.weapon === 'luffy:super' && e.victim === 1);
+    };
+    expect(hitAtDistance(1)).toBe(false);
+    expect(hitAtDistance(3)).toBe(true);
+  });
+
+  it('Goku: Spirit Bomb charges, launches once per use, scales with form, and is canceled by lost power', () => {
+    for (const level of [1, 4]) {
+      const w = heroWorld('goku');
+      const f = w.fighters[0];
+      levelUp(w, f, level);
+      // Keep the target invulnerable so the ball can be inspected in flight.
+      w.fighters[1].invuln = 999;
+      w.step([intent({ ability: true, kick: true }), intent()]);
+      run(w, 10);
+      expect(f.specialKind).toBe('bomb');
+      expect(w.bullets.some(b => b.active && b.weapon === 'goku:super')).toBe(false);
+      const seen: SimEvent[] = [];
+      for (let t = 0; t < 60; t++) {
+        w.step([intent(), intent()]);
+        seen.push(...w.events);
+        w.events.length = 0;
+      }
+      const ball = w.bullets.find(b => b.active && b.weapon === 'goku:super')!;
+      expect(ball.kind).toBe('ki');
+      expect(ball.size).toBe(18 + (level - 1) * 6);
+      expect(ball.range).toBe(520);
+      expect(ball.explosion!.radius).toBe(45 + (level - 1) * 12);
+      expect(seen.filter(e => e.t === 'special' && e.power === 'goku')).toHaveLength(1);
+      expect(f.specialCd).toBeGreaterThan(0);
+    }
+    const w = heroWorld('goku');
+    levelUp(w, w.fighters[0], 1);
+    w.step([intent({ ability: true, kick: true }), intent()]);
+    run(w, 10);
+    w.fighters[0].formHp = 0;
+    run(w, 80);
+    expect(w.bullets.some(b => b.weapon === 'goku:super')).toBe(false);
   });
 });
 

@@ -39,7 +39,7 @@ for (const h of HEROES) {
 
     // record what the sim does between frames
     await page.evaluate(() => {
-      const rec = { clones: 0, beam: 0, second: 0, sup: 0 };
+      const rec = { clones: 0, beam: 0, second: 0, sup: 0, spirit: 0 };
       (window as any).__REC__ = rec;
       setInterval(() => {
         const w = (window as any).__GAME__.match()?.world;
@@ -49,6 +49,7 @@ for (const h of HEROES) {
         rec.beam = Math.max(rec.beam, f.beamWidth);
         rec.second = Math.max(rec.second, f.secondCd);
         rec.sup = Math.max(rec.sup, f.specialCd);
+        rec.spirit = Math.max(rec.spirit, ...w.bullets.filter((b: any) => b.active && b.weapon === 'goku:super' && b.kind === 'ki').map((b: any) => b.size));
       }, 5);
     });
     // keep the sparring bot far away; P1 has a pistol for later
@@ -83,8 +84,9 @@ for (const h of HEROES) {
     if (h.second === 'clone') expect(rec.clones, 'level 3 Naruto makes 5 real clone fighters').toBe(5);
     else if (h.second === 'beam') expect(rec.beam).toBeGreaterThan(2);
     await press(page, ['KeyB', 'KeyH'], 4);
-    await waitTicks(page, 30);
+    await waitTicks(page, h.hero === 'goku' ? 70 : 30);
     expect(await page.evaluate(() => (window as any).__REC__.sup), 'the super went on cooldown').toBeGreaterThan(4);
+    if (h.hero === 'goku') expect(await page.evaluate(() => (window as any).__REC__.spirit), 'Spirit Bomb launched after its charge').toBeGreaterThan(18);
     await page.screenshot({ path: `tests/e2e/screenshots/hero-${h.hero}-super.png` });
 
     // the form health runs out; guns work again

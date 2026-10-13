@@ -243,6 +243,13 @@ function drawTorso(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearan
             if (rowFromTop === 0 && i >= 2 && i <= 4) col = a.accentColor;
             if (rowFromTop === 1 && i === 3) col = a.accentColor;
             break;
+          case 'chakra':
+            col = i < 2 ? shade(a.topColor, -0.2) : a.topColor;
+            break;
+          case 'boundman':
+            col = a.skin;
+            if (rowFromTop < 3 && (i === 0 || i === 5)) col = a.accentColor;
+            break;
           case 'tshirt':
           default:
             if (rowFromTop === 1 && i >= 3 && i <= 4) col = a.accentColor;
@@ -258,6 +265,80 @@ function drawTorso(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearan
   if (a.top === 'hoodie') {
     // hood bump behind the neck
     pc.rect(ox + 12 + Math.round(p.lean), oy + top - 1, 3, 2, shade(a.topColor, -0.15));
+  }
+}
+
+/** Costume and anatomy details are tied to the pose, so they survive every animation. */
+function heroBody(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearance): void {
+  if (!a.design || p.special) return;
+  const level = a.form ?? 0;
+  const top = p.hipY - p.torsoH;
+  const x = ox + 13 + p.lean;
+  const y = oy + top;
+  if (a.design === 'goku') {
+    // Crossed gi lapel, undershirt, tiny chest insignia and tied blue sash.
+    if (p.torsoH > 5) {
+      pc.line(x + 1, y, x + 3, y + 3, shade(a.topColor, 0.2));
+      pc.line(x + 5, y, x + 3, y + 3, shade(a.topColor, -0.2));
+      pc.rect(x + 4, y + 3, 2, 2, '#fff2d3');
+      pc.set(x + 5, y + 3, '#292338');
+      pc.set(x + 4, y + 4, '#292338');
+    }
+    pc.rect(ox + 13, oy + p.hipY - 1, 6, 2, a.accentColor);
+    pc.line(ox + 17, oy + p.hipY, ox + 19, oy + p.hipY + 3, a.accentColor);
+    for (const l of [p.back, p.front]) {
+      pc.rect(ox + l.fx, oy + l.fy - 2, 2, 3, a.shoesColor);
+      pc.set(ox + l.fx + 1, oy + l.fy - 1, '#cb4a3b');
+      pc.set(ox + l.kx + 1, oy + l.ky, shade(a.pantsColor, 0.2));
+    }
+  } else if (a.design === 'naruto') {
+    if (level < 2) {
+      if (p.torsoH > 5) {
+        pc.rect(x, y, 6, 2, '#232632');
+        pc.rect(x + 3, y + 2, 1, p.torsoH - 2, '#d2d7dc');
+        pc.rect(x, y + 4, 2, 2, '#a41f35'); // sleeve/village spiral motif
+        pc.set(x + 1, y + 4, '#f7b349');
+      }
+      // Full orange trousers and open-toed blue ninja sandals.
+      pc.line(ox + p.front.hx, oy + p.front.hy, ox + p.front.kx, oy + p.front.ky, shade(a.pantsColor, 0.12));
+      for (const l of [p.back, p.front]) {
+        pc.set(ox + l.fx + 2, oy + l.fy, a.skin);
+        pc.set(ox + l.fx + 1, oy + l.fy - 1, '#e6ded1');
+      }
+    } else if (level === 3) {
+      // Six-tail cloak: an exposed pale rib cage over the dark red chakra body.
+      pc.line(x + 2, y + 1, ox + 16, oy + p.hipY - 1, '#e5dac6');
+      for (let k = 2; k < p.torsoH - 1; k += 2) {
+        pc.rect(x + 1, y + k, 5, 1, '#e5dac6');
+        pc.set(x + 1, y + k + 1, '#ab938c');
+      }
+    } else if (level === 4) {
+      // Kurama cloak: magatama collar, abdomen seal and split coat hem.
+      pc.rect(x, y, 6, 1, '#271a23');
+      for (const dx of [1, 3, 5]) pc.set(x + dx, y + 2, '#271a23');
+      if (p.torsoH > 5) {
+        pc.rect(x + 2, y + 4, 3, 3, '#271a23');
+        pc.set(x + 3, y + 5, '#ffe68b');
+      }
+      pc.line(ox + 12, oy + p.hipY - 2, ox + 11, oy + p.hipY + 3, a.topColor, 2);
+      pc.line(ox + 19, oy + p.hipY - 2, ox + 21, oy + p.hipY + 3, a.topColor, 2);
+      pc.set(ox + 11, oy + p.hipY + 3, '#271a23');
+      pc.set(ox + 22, oy + p.hipY + 3, '#271a23');
+    }
+  } else if (a.design === 'luffy') {
+    const sash = level === 4 ? '#9972c2' : '#e8c05a';
+    pc.rect(ox + 13, oy + p.hipY, 6, 2, sash);
+    pc.line(ox + 12, oy + p.hipY, ox + 10, oy + p.hipY + 3, sash, 2);
+    if (p.torsoH > 5) {
+      // An open vest frames the chest and its X-shaped scar.
+      pc.line(x + 2, y + 3, x + 4, y + 5, '#ab715e');
+      pc.line(x + 4, y + 3, x + 2, y + 5, '#ab715e');
+      if (level !== 3) for (let r = 2; r < p.torsoH - 1; r += 3) pc.set(x + 5, y + r, '#f6d477');
+    }
+    for (const l of [p.back, p.front]) {
+      pc.rect(ox + l.kx, oy + l.ky, 2, 1, level === 4 ? '#cdd2eb' : '#eee7d3');
+      pc.set(ox + l.fx + 1, oy + l.fy - 1, a.skin);
+    }
   }
 }
 
@@ -279,9 +360,21 @@ function drawBodyFrame(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appe
     drawRoll(pc, ox, oy, a);
   } else {
     const shorts = a.legs === 'shorts';
+    if (a.design === 'goku' && a.form === 3) {
+      // The SSJ3 mane reaches the upper back, rather than fitting inside a short haircut.
+      pc.rect(ox + 10 + p.lean, oy + p.hipY - p.torsoH - 3, 4, p.torsoH + 2, a.hairColor);
+      pc.line(ox + 11 + p.lean, oy + p.hipY - p.torsoH - 2, ox + 10, oy + p.hipY - 1, shade(a.hairColor, -0.2));
+    }
+    if (a.design === 'luffy' && a.form === 3) {
+      // Boundman has a rounded, muscular torso and compact legs, not an all-black reskin.
+      pc.circle(ox + 16 + p.lean, oy + p.hipY - p.torsoH / 2, 5.5, a.skin);
+      pc.line(ox + 12 + p.lean, oy + p.hipY - p.torsoH + 2, ox + 10 + p.lean, oy + p.hipY - 2, '#8e2038', 2);
+      pc.line(ox + 20 + p.lean, oy + p.hipY - p.torsoH + 2, ox + 22 + p.lean, oy + p.hipY - 2, '#8e2038', 2);
+    }
     drawLeg(pc, ox, oy, p.back, shade(a.pantsColor, -0.3), shade(a.shoesColor, -0.3), shorts ? shade(a.skin, -0.2) : undefined);
     drawTorso(pc, ox, oy, p, a);
     drawLeg(pc, ox, oy, p.front, a.pantsColor, a.shoesColor, shorts ? a.skin : undefined);
+    heroBody(pc, ox, oy, p, a);
   }
   pc.outline(ox, oy, 32, 32);
   pc.relief(ox, oy, 32, 32);
@@ -294,6 +387,36 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
   const Y = (y: number) => oy + y;
   const hairDark = shade(a.hairColor, -0.25);
 
+  if (a.hair === 'fox') {
+    // A right-facing profile, mirrored by the rig for left-facing fighters.
+    // One visible eye and a projecting muzzle keep the feral forms facing their opponent.
+    const bone = a.form === 3;
+    pc.ascii(ox + 3, oy + 3, [
+      '..R........',
+      '..RR.......',
+      '.DRRRRR....',
+      '.DRRRRRR...',
+      '.DRRRRRE...',
+      '.DRRRRRRRN.',
+      '..DRRR.RWW.',
+      '...DRRRRR..',
+      '....RRRR...',
+    ], {
+      R: a.skin, D: shade(a.skin, -0.25), N: shade(a.skin, -0.55),
+      E: mode === HEAD.NORMAL ? '#fff1de' : '#d66165', W: '#ede2c8',
+    });
+    if (bone) {
+      // The skull follows the same profile: rear horn, brow, cheek and forward jaw.
+      pc.line(X(5), Y(3), X(6), Y(6), '#e5dac6');
+      pc.rect(X(7), Y(5), 3, 1, '#e5dac6');
+      pc.set(X(10), Y(6), '#e5dac6');
+      pc.line(X(9), Y(8), X(11), Y(10), '#e5dac6');
+      pc.rect(X(8), Y(10), 3, 1, '#e5dac6');
+    }
+    pc.outline(ox, oy, 16, 16);
+    return;
+  }
+
   if (a.hair === 'afro') pc.circle(X(8), Y(8), 5, a.hairColor);
   // hero hair: big spiky masses that define the silhouette (behind the skull)
   if (a.hair === 'ninja') {
@@ -301,11 +424,17 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
     for (const [x, y] of [[3, 5], [4, 3], [6, 2], [8, 3], [10, 2], [12, 3], [13, 5], [3, 7], [4, 8]]) pc.set(X(x), Y(y), a.hairColor);
     pc.set(X(5), Y(3), hairDark);
   }
-  if (a.hair === 'saiyan') {
+  if (a.hair === 'saiyan' || a.hair === 'saiyan2') {
     pc.rect(X(4), Y(3), 9, 5, a.hairColor);
     pc.rect(X(2), Y(4), 3, 2, a.hairColor);
     pc.rect(X(3), Y(6), 2, 3, a.hairColor);
     for (const [x, y] of [[3, 2], [5, 1], [5, 2], [8, 0], [8, 1], [8, 2], [11, 1], [11, 2], [13, 3], [1, 5], [2, 8], [3, 9]]) pc.set(X(x), Y(y), a.hairColor);
+    if (a.hair === 'saiyan2') {
+      pc.rect(X(10), Y(0), 2, 4, a.hairColor);
+      pc.set(X(6), Y(1), a.hairColor);
+      pc.clearRect(X(4), Y(4), 1, 2);
+    }
+    for (const [x, y] of [[5, 3], [8, 2], [11, 3]]) pc.set(X(x), Y(y), shade(a.hairColor, 0.18));
   }
   if (a.hair === 'saiyan3') {
     // Super Saiyan 3: a huge golden mane down the back
@@ -421,6 +550,11 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
   } else {
     pc.set(X(10), Y(8), eye);
     pc.set(X(10), Y(9), eye);
+    if (a.design) {
+      pc.set(X(9), Y(8), '#fff2de');
+      pc.set(X(11), Y(10), shade(a.skin, -0.2));
+      if (!(a.design === 'goku' && a.form === 3)) pc.set(X(10), Y(7), a.design === 'goku' && (a.form ?? 0) > 0 ? shade(a.hairColor, -0.25) : '#39303b');
+    }
   }
 
   // face accessories
@@ -461,13 +595,13 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
     case 'whiskers':
     case 'foxeyes': {
       const wc = a.face === 'foxeyes' ? shade(a.skin, -0.55) : shade(a.skin, -0.35);
+      for (const y of [9, 10, 11]) pc.set(X(7), Y(y), wc);
       pc.set(X(8), Y(10), wc);
-      pc.set(X(9), Y(11), wc);
-      pc.set(X(11), Y(11), wc);
       break;
     }
     case 'scar':
       pc.set(X(10), Y(10), shade(a.skin, -0.4));
+      pc.set(X(11), Y(10), shade(a.skin, -0.4));
       break;
   }
 
@@ -514,6 +648,7 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
       pc.rect(X(5), Y(4), 7, 1, P.red1);
       pc.rect(X(1), Y(5), 15, 1, hat);
       pc.rect(X(2), Y(6), 13, 1, hatDark);
+      for (const x of [3, 6, 9, 12]) pc.set(X(x), Y(5), shade(hat, 0.2));
       break;
     case 'headband':
       // forehead protector: dark cloth band + steel plate on the front
@@ -522,6 +657,8 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
       pc.set(X(9), Y(5), P.white);
       pc.set(X(4), Y(7), hatDark);
       pc.set(X(3), Y(8), hatDark);
+      pc.set(X(10), Y(5), '#505563');
+      pc.set(X(9), Y(6), '#505563');
       break;
     case 'fedora':
       pc.rect(X(6), Y(3), 5, 3, hat);
@@ -529,6 +666,12 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
       pc.rect(X(6), Y(5), 5, 1, P.ink2);
       pc.rect(X(3), Y(6), 11, 1, hatDark);
       break;
+  }
+  if (a.design === 'luffy' && a.form === 4) {
+    // Nika's curled eyebrows, red eyes and delighted grin; no straw hat in the white hair.
+    pc.set(X(9), Y(6), '#e5e5f4');
+    pc.set(X(10), Y(6), '#c9c9e0');
+    if (mode === HEAD.NORMAL) pc.rect(X(9), Y(11), 3, 1, '#fffdf2');
   }
   pc.outline(ox, oy, 16, 16);
 }
@@ -539,6 +682,7 @@ function sleeveLen(a: Appearance, len: number): number {
   switch (a.top) {
     case 'tank':
     case 'openvest':
+    case 'boundman':
       return 0;
     case 'gi':
     case 'tshirt':
@@ -559,7 +703,16 @@ function drawArm(pc: PixelCanvas, ox: number, oy: number, angle: number, len: nu
     const y = Math.round(oy + 8 + s * i - 0.5);
     let col = i < sl ? sleeve : i === sl && a.top === 'suit' ? P.white : a.skin;
     if (a.trim && i === len - 2) col = a.trim; // wrist band
-    pc.rect(x, y, 2, 2, col);
+    const haki = a.design === 'luffy' && a.form === 3 && i > 1;
+    const thick = haki ? 4 : a.design === 'luffy' && a.form === 2 && i >= len - 2 ? 3 : 2;
+    if (haki) col = i === len - 2 ? '#a92843' : '#201b30';
+    const offset = thick > 2 ? 1 : 0;
+    for (let sy = 0; sy < thick; sy++) for (let sx = 0; sx < thick; sx++) {
+      const px = x - offset + sx;
+      const py = y - offset + sy;
+      if (px >= ox && px < ox + 17 && py >= oy && py < oy + 17) pc.set(px, py, col);
+    }
+    if (haki) pc.set(x, y - 1, '#d24a5c');
   }
   pc.outline(ox, oy, 17, 17);
 }

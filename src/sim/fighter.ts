@@ -74,7 +74,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { heroDef, HOLD_FLY, SUPER_WINDOW } from './data/heroes';
+import { heroDef, HOLD_FLY, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -1681,7 +1681,7 @@ function startSecond(w: World, f: Fighter, inp: Intent): void {
   }
 }
 
-/** Both abilities while transformed: Tailed Beast Bomb, giant fist, super Kamehameha. */
+/** Both abilities while transformed: Tailed Beast Bomb, giant fist, Spirit Bomb. */
 function startSuper(w: World, f: Fighter, inp: Intent): void {
   const h = heroDef(f.hero);
   if (!h) return;
@@ -1695,6 +1695,7 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
   if (!beginMove(w, f, inp, kind)) return;
   f.specialCd = sp.cooldown;
   if (sp.kind === 'fist') f.stretchAngle = inp.moveY < -0.5 ? (sp.fist?.upAngle ?? -0.5) : inp.moveY > 0.5 && !f.grounded ? (sp.fist?.downAngle ?? 0.5) : 0;
+  if (sp.kind === 'bomb' && f.hero === 'goku') f.stretchAngle = aimAngle(f, inp);
   w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });
 }
 
@@ -1826,6 +1827,7 @@ function stGatling(w: World, f: Fighter, dt: number): void {
 }
 
 function stBomb(w: World, f: Fighter, dt: number): void {
+  if (f.hero === 'goku' && f.power !== 'hero') return endSpecial(w, f);
   const b = heroDef(f.hero)?.super.bomb;
   if (!b) return endSpecial(w, f);
   holdStill(f, dt);
@@ -1843,15 +1845,14 @@ function stBomb(w: World, f: Fighter, dt: number): void {
 }
 
 function stSuperFist(w: World, f: Fighter, dt: number): void {
-  const s = heroDef(f.hero)?.super.fist;
+  const s = superFistFor(f.hero, f.powerLevel);
   if (!s) return endSpecial(w, f);
-  const lvl = Math.max(0, f.powerLevel - 1);
   holdStill(f, dt);
   integrate(w, f, dt);
   const reach = stretchAt(s, f.stateTime);
-  const fist = (s.fist ?? 4) + s.fistPerLevel * lvl;
+  const fist = s.fist ?? 4;
   if (reach > 0) {
-    const r = pistolHits(w, f, s, f.stretchAngle, reach, { weapon: f.hero + ':super', damage: s.damage + s.damagePerLevel * lvl, fist });
+    const r = pistolHits(w, f, s, f.stretchAngle, reach, { weapon: f.hero + ':super', damage: s.damage, fist });
     f.stretchLen = Math.max(0, r.len - f.w / 2);
   }
   f.beamWidth = fist;

@@ -117,8 +117,8 @@ export interface SuperAbility {
   desc: string;
   cooldown: number;
   /** tailed beast bomb: wind-up, projectile speed, size and blast per level */
-  bomb?: { windup: number; speed: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number };
-  fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number };
+  bomb?: { windup: number; speed: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki' };
+  fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number; fistGrowth?: number; rangeGrowth?: number };
   beam?: BeamStats & { widthPerLevel: number; damagePerLevel: number };
 }
 
@@ -290,7 +290,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['JET PISTOL', 'ELEPHANT GUN', 'KING KONG GUN', 'BAJRANG GUN'],
       desc: 'A GIANT FIST THAT FLATTENS EVERYTHING IN ITS PATH.',
       cooldown: 8,
-      fist: { range: 150, out: 0.16, hold: 0.12, back: 0.14, damage: 18, knockX: 420, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 3, damagePerLevel: 8 },
+      fist: { range: 150, out: 0.16, hold: 0.12, back: 0.14, damage: 18, knockX: 420, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 8 },
     },
     forms: [
       { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 3 },
@@ -322,11 +322,11 @@ export const HEROES: Record<string, HeroDefinition> = {
       beam: { minCharge: 0.25, maxCharge: 1.2, range: 230, grow: 0.12, hold: 0.28, width: [3, 6], damage: [8, 20], knock: [180, 360] },
     },
     super: {
-      kind: 'beam',
-      names: ['SUPER KAMEHAMEHA', 'SUPER KAMEHAMEHA', 'DRAGON FIST BEAM', 'GOD KAMEHAMEHA'],
-      desc: 'A HUGE BEAM THAT BREAKS GLASS AND WOOD. BIGGER IN EVERY FORM.',
+      kind: 'bomb',
+      names: ['SPIRIT BOMB', 'SUPER SPIRIT BOMB', 'GIANT SPIRIT BOMB', 'UNIVERSAL SPIRIT BOMB'],
+      desc: 'GATHER ENERGY OVERHEAD, THEN THROW A GIANT EXPLOSIVE SPIRIT BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      beam: { minCharge: 0.5, maxCharge: 0.5, range: 360, grow: 0.15, hold: 0.45, width: [8, 8], damage: [24, 24], knock: [460, 460], breakTiles: true, widthPerLevel: 2, damagePerLevel: 9 },
+      bomb: { windup: 0.95, speed: 260, size: 18, sizePerLevel: 6, damage: 24, damagePerLevel: 8, radius: 45, radiusPerLevel: 12, range: 520, kind: 'ki' },
     },
     forms: [
       { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.25, knockMul: 1.25, reach: 1 },
@@ -347,6 +347,19 @@ export function heroDef(id: string | undefined): HeroDefinition | null {
 /** Highest form level of a hero. */
 export function maxLevel(hero: string): number {
   return HEROES[hero]?.forms.length ?? 0;
+}
+
+/** One source of truth for a super's actual reach, hit radius and damage at the current form. */
+export function superFistFor(hero: string, level: number): StretchStats | null {
+  const s = HEROES[hero]?.super.fist;
+  if (!s) return null;
+  const n = Math.max(0, Math.min(maxLevel(hero), level) - 1);
+  return {
+    ...s,
+    range: Math.round(s.range * (s.rangeGrowth ?? 1) ** n),
+    fist: s.fistGrowth ? (s.fist ?? 4) * s.fistGrowth ** n : (s.fist ?? 4) + s.fistPerLevel * n,
+    damage: s.damage + s.damagePerLevel * n,
+  };
 }
 
 /** Kill-feed weapon ids of hero moves: '<hero>:combo', 'rasengan', 'gumgum', 'clone', '<hero>:second', '<hero>:super'. */

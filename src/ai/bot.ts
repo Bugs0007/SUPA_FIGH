@@ -12,7 +12,7 @@ import { AIM_LIMIT, DT, GRAVITY, TILE } from '../sim/constants';
 import { SLOT, THROW_AIM, weaponDef, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { heroDef, POWER_ORB } from '../sim/data/heroes';
+import { heroDef, POWER_ORB, superFistFor } from '../sim/data/heroes';
 import { baseAbility, transformed } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
@@ -604,7 +604,7 @@ export class BotController implements Controller {
     if (this.isClone) return this.useBase(w, f, e, seen);
     // super
     if (transformed(f) && f.specialCd <= 0) {
-      const reach = h.super.kind === 'fist' ? (h.super.fist?.range ?? 150) : h.super.kind === 'beam' ? 300 : 230;
+      const reach = h.super.kind === 'fist' ? (superFistFor(f.hero, f.powerLevel)?.range ?? 150) : h.super.kind === 'beam' ? 300 : (h.super.bomb?.range ?? 230);
       if (dist >= 40 && dist <= reach && dy <= (h.super.kind === 'beam' ? 20 : 12) && clear() && roll(0.2)) return go('both', 4);
     }
     // ability 2

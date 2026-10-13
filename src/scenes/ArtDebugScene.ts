@@ -6,17 +6,28 @@ import { WEAPON_ART } from '../art/weaponArt';
 import { formCount, formLook, HERO_ART } from '../art/heroArt';
 import { HEROES } from '../sim/data/heroes';
 import { VIEW_H, VIEW_W } from '../game/display';
+import { HeroMoveGallery } from './HeroMoveGallery';
+import { drawTails } from '../render/HeroFx';
+import { formFx } from '../art/heroArt';
 
 /** Dev-only sprite inspector: /?scene=art (fighters), &page=weapons, &page=heroes */
 export class ArtDebugScene extends Phaser.Scene {
+  private gallery: HeroMoveGallery | null = null;
   constructor() {
     super('art');
   }
 
   create(): void {
+    this.gallery = null;
     const k = (this.registry.get('scale') as number) ?? 1;
     this.cameras.main.setZoom(k).centerOn(VIEW_W / 2, VIEW_H / 2).setBackgroundColor('#3a3448');
     const page = new URLSearchParams(location.search).get('page');
+    if (page === 'moves') {
+      const hero = new URLSearchParams(location.search).get('hero') ?? 'naruto';
+      this.cameras.main.setBackgroundColor('#0b101d');
+      this.gallery = new HeroMoveGallery(this, Object.hasOwn(HERO_ART, hero) ? hero : 'naruto');
+      return;
+    }
     if (page === 'weapons') {
       this.weaponsPage();
       return;
@@ -44,6 +55,10 @@ export class ArtDebugScene extends Phaser.Scene {
     this.add.bitmapText(12, 345, 'sm', 'WEAPONS & PROPS: ?scene=art&page=weapons');
   }
 
+  override update(_time: number, delta: number): void {
+    this.gallery?.update(Math.min(delta / 1000, 0.05));
+  }
+
   /** Every hero: base look + each transformation form (idle, 3x) and the last form punching and kicking. */
   private heroesPage(): void {
     let row = 0;
@@ -53,13 +68,20 @@ export class ArtDebugScene extends Phaser.Scene {
       const looks = [HERO_ART[id].look, ...Array.from({ length: formCount(id) }, (_, i) => formLook(id, i + 1)!)];
       looks.forEach((look, i) => {
         const tex = Art.fighter(this, look);
-        const m = FRAME_META[BF.IDLE0];
+        const beast = id === 'naruto' && (i === 2 || i === 3);
+        const frame = beast ? BF.FOX_IDLE0 : BF.IDLE0;
+        const m = FRAME_META[frame];
         const x = 40 + i * 62;
         const c = this.add.container(x, y).setScale(3);
+        if (id === 'naruto' && i > 0) {
+          const tails = this.add.graphics();
+          drawTails(tails, formFx(id, i), 0, 0, 1, 0, 1, beast);
+          c.add(tails);
+        }
         c.add(this.add.image(m.bshX - 16, m.bshY - 32, tex.arm, armFrame(1.8, 0)).setTint(0xb0a8c0));
-        c.add(this.add.image(0, 0, tex.body, BF.IDLE0).setOrigin(0.5, 1));
+        c.add(this.add.image(0, 0, tex.body, frame).setOrigin(0.5, 1));
         c.add(this.add.image(m.neckX - 16, m.neckY - 32, tex.head, 0).setOrigin(8 / 16, 13 / 16));
-        c.add(this.add.image(m.shX - 16, m.shY - 32, tex.arm, armFrame(1.4, 0)));
+        c.add(this.add.image(m.shX - 16, m.shY - 32, tex.arm, armFrame(beast ? 1.2 : 1.15, beast ? 1 : 0)));
         this.add.bitmapText(x, y + 4, 'sm', i === 0 ? 'BASE' : HEROES[id].forms[i - 1].name.replace('SUPER SAIYAN', 'SSJ').replace(' CLOAK', '').replace(' FORM', '')).setOrigin(0.5, 0);
       });
       const last = Art.fighter(this, looks[looks.length - 1]);
