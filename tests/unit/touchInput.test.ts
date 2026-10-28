@@ -3,6 +3,7 @@ import { KeyboardController } from '../../src/input/controllers';
 import { DEFAULT_KEYBOARD } from '../../src/input/bindings';
 import { Keyboard } from '../../src/input/keyboard';
 import { isTouchDevice } from '../../src/game/display';
+import { directionSector } from '../../src/input/touch';
 
 describe('synthetic key presses (on-screen touch controls)', () => {
   it('drive a keyboard controller exactly like real keys', () => {
@@ -43,5 +44,23 @@ describe('synthetic key presses (on-screen touch controls)', () => {
 describe('touch detection', () => {
   it('is off in headless runs', () => {
     expect(isTouchDevice()).toBe(false);
+  });
+});
+
+describe('8-way touch pad', () => {
+  it('maps a thumb offset to one of eight arrows, clockwise from up', () => {
+    expect(directionSector(0, -10)).toBe(0); // up
+    expect(directionSector(10, -10)).toBe(1); // up-right
+    expect(directionSector(10, 0)).toBe(2); // right
+    expect(directionSector(10, 10)).toBe(3);
+    expect(directionSector(0, 10)).toBe(4); // down
+    expect(directionSector(-10, 10)).toBe(5);
+    expect(directionSector(-10, 0)).toBe(6); // left
+    expect(directionSector(-10, -10)).toBe(7); // up-left
+  });
+
+  it('each arrow covers 45 degrees', () => {
+    expect(directionSector(10, -4)).toBe(2); // just under 22.5 degrees above right
+    expect(directionSector(10, -5)).toBe(1);
   });
 });

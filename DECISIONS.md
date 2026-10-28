@@ -465,7 +465,7 @@ grapple direction (up / up-forward / forward / down-forward) whose catch lands n
 **Touch** (`src/input/touch.ts`, only on `(pointer: coarse)` devices; `?touch=1/0` forces): a DOM overlay (pointer events, so
 multi-touch works) that presses/releases the *keyboard player 1 keys* through `Keyboard.press/release`. Nothing downstream
 knows about touch: matches read P1's bindings (rebinding still works), menus read arrows / Enter / Esc. In a match it shows a
-floating stick (up = jump, like the keyboard) + ATK / KICK / GRAB / SWAP / MED, ABIL + SUPER for heroes and a pause button;
+fixed 8-way arrow pad (up = jump, like the keyboard; swapped in for a floating stick that felt clunky on a phone) + ATK / KICK / GRAB / SWAP / MED, ABIL + SUPER for heroes and a pause button;
 everywhere else a D-pad + OK / BACK; instant replays get a SKIP button. The canvas is rendered at `ceil(fit)` x (max 3) and
 scaled by CSS to fill the screen; the camera zooms in a little more (`comfort` 0.8) because fighters are small on a phone.
 First tap = fullscreen + landscape lock + wake lock; a portrait phone pauses the match. Quick Match defaults to 1 player.
