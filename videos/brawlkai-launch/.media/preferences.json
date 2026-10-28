@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "preferences": {
+    "aspect": {
+      "value": "16:9",
+      "confirmed_in": [
+        "brawlkai-launch"
+      ],
+      "updated_at": "2026-10-13T18:24:53.445Z"
+    },
+    "storyboard": {
+      "value": "no",
+      "confirmed_in": [
+        "brawlkai-launch"
+      ],
+      "updated_at": "2026-10-13T18:24:54.133Z"
+    }
+  },
+  "sightings": {}
+}

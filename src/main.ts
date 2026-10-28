@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { audio } from './audio/AudioManager';
 import { music } from './audio/music';
-import { computeScale, VIEW_H, VIEW_W } from './game/display';
+import { computeScale, fitFactor, isTouchDevice, VIEW_H, VIEW_W } from './game/display';
 import { settings } from './game/settings';
 import { padMenu } from './input/gamepad';
 import { keyboard } from './input/keyboard';
+import { touchUI, type TouchMode } from './input/touch';
 import { BootScene } from './scenes/BootScene';
 import { HudScene } from './scenes/HudScene';
 import { MatchScene } from './scenes/MatchScene';
@@ -19,6 +20,18 @@ import { TrailerOverlay } from './trailer/overlay';
 import { installTrailerDriver } from './trailer/driver';
 
 keyboard.attach(window);
+
+// Phones and tablets: fit-to-screen canvas + on-screen controls (src/input/touch.ts)
+const touch = isTouchDevice();
+const fit = () => {
+  document.documentElement.style.setProperty('--fit', String(fitFactor()));
+  document.documentElement.style.setProperty('--vh', `${window.innerHeight}px`);
+};
+if (touch) {
+  document.documentElement.classList.add('touch');
+  fit();
+  touchUI.attach();
+}
 
 // Show uncaught errors on screen (players can report them; the game keeps running if it can).
 const crash = (msg: string) => {
@@ -56,7 +69,50 @@ if (new URLSearchParams(location.search).has('trailer')) installTrailerDriver(ga
 game.events.on(Phaser.Core.Events.PRE_STEP, () => padMenu.update());
 game.events.on(Phaser.Core.Events.POST_STEP, () => keyboard.endFrame());
 
+if (touch) {
+  // which on-screen controls to show: the match sticks/buttons while playing, a D-pad everywhere else
+  game.events.on(Phaser.Core.Events.PRE_STEP, () => {
+    const keys = game.scene.getScenes(true).map((s) => s.scene.key);
+    let mode: TouchMode = 'menu';
+    if (keys.includes('trailerHud') || keys.length === 0 || (keys.length === 1 && keys[0] === 'boot')) mode = 'off';
+    else if (keys.includes('match')) {
+      const ms = game.scene.getScene('match') as unknown as MatchScene;
+      if (ms.match) {
+        // (a phone turned upright hides the game: stop the clock instead of getting killed)
+        if (window.innerHeight > window.innerWidth) ms.paused = true;
+        mode = ms.replay ? 'skip' : ms.paused || ms.overlayOpen ? 'menu' : 'game';
+        touchUI.setHero(ms.players.some((p) => p.input === 'kb0' && !!p.spawn.hero));
+      }
+    }
+    touchUI.setMode(mode);
+  });
+
+  // first tap: full screen, landscape, screen kept awake (best effort: iOS Safari allows none of the first two)
+  let wake: { release(): Promise<void> } | null = null;
+  const keepAwake = () => {
+    const wl = (navigator as unknown as { wakeLock?: { request(t: 'screen'): Promise<{ release(): Promise<void> }> } }).wakeLock;
+    wl?.request('screen').then((l) => (wake = l)).catch(() => undefined);
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && wake) keepAwake();
+  });
+  window.addEventListener(
+    'pointerdown',
+    () => {
+      keepAwake();
+      const el = document.documentElement;
+      if (!document.fullscreenElement && el.requestFullscreen) {
+        el.requestFullscreen({ navigationUI: 'hide' })
+          .then(() => (screen.orientation as unknown as { lock?(o: string): Promise<void> }).lock?.('landscape'))
+          .catch(() => undefined);
+      }
+    },
+    { once: true },
+  );
+}
+
 window.addEventListener('resize', () => {
+  if (touch) fit();
   const nk = computeScale();
   if (nk === k) return;
   k = nk;

@@ -3,7 +3,6 @@ import { armFrame, BF, FRAME_META, type FighterTextures } from '../art/fighterAr
 import { moveLook } from '../art/heroMoves';
 import { formFx } from '../art/heroArt';
 import { hexToNum } from '../art/palette';
-import type { Fighter } from '../sim/fighter';
 import type { FighterView } from './FighterView';
 import { formLevel } from './formLevel';
 
@@ -83,10 +82,30 @@ export class HeroChoreography {
     }
   }
 
-  rasengan(v: FighterView, x: number, y: number, ox: number, oy: number, phase: number, time: number): void {
+  /** Solid, outlined chakra forearms and cupped palms, above the body but below the orb. */
+  kuramaArms(x: number, y: number, ox: number, oy: number, radius: number, alpha = 1): void {
+    for (const side of [-1, 1]) {
+      const hx = ox + side * (radius + 3);
+      const points: [number, number, number, number, number, number, number, number] = [x + side * 5, y - 11, x + side * 28, y - 35, ox + side * (radius + 17), oy - 21, hx, oy];
+      this.curve(this.front, points, 0x59351c, 7, alpha * .9);
+      this.curve(this.front, points, 0xf6ba35, 5, alpha);
+      this.curve(this.front, points, 0xffed9d, 2, alpha * .9);
+      this.front.fillStyle(0x59351c, alpha).fillRect(Math.round(hx) - 3, Math.round(oy) - 5, 6, 11);
+      this.front.fillStyle(0xffd559, alpha).fillRect(Math.round(hx) - 2, Math.round(oy) - 4, 4, 9);
+      // Inward fingers cup the sphere; a dark wrist seal anchors each hand.
+      for (const finger of [-3, 0, 3]) this.front.fillStyle(0xffefa5, alpha).fillRect(Math.round(hx - side * 3) - 1, Math.round(oy) + finger, 3, 2);
+      this.front.fillStyle(0x704321, alpha).fillRect(Math.round(hx) - 1, Math.round(oy) + 3, 2, 2);
+    }
+  }
+
+  rasengan(v: FighterView, x: number, y: number, ox: number, oy: number, phase: number, time: number, alpha = 1): void {
     const f = v.fighter;
     const level = formLevel(f);
     const style = moveLook(f.hero, level);
+    if (level === 4) {
+      this.kuramaArms(x, y, ox, oy, 4 + phase * 2, alpha);
+      return;
+    }
     const assistFade = Math.max(0, Math.min(1, (0.48 - f.stateTime) / 0.18));
     if (f.master < 0 && assistFade > 0) {
       const helpers = this.echoes.get(f.id) ?? [];
@@ -137,23 +156,6 @@ export class HeroChoreography {
       this.back.fillStyle(level > 0 ? style.spark : 0xe8eff7, 0.28).fillRect(Math.round(x + side * (15 + i % 3)), Math.round(y - 4 - drift), 3, 2);
     }
     this.front.fillStyle(level > 0 ? style.spark : 0xe8eff7, 0.8).fillRect(Math.round(x) + f.facing * 3, Math.round(y) - 14, 2, 4);
-  }
-
-  /** Form-specific limb path. Gear 5 bends like a cartoon; Gear 4 coils like a spring. */
-  rubberPath(f: Fighter, x: number, y: number, len: number, time: number, g = this.front): void {
-    const style = moveLook('luffy', formLevel(f));
-    if (style.rubber !== 'cartoon' && style.rubber !== 'haki') return;
-    const dx = Math.cos(f.stretchAngle) * f.facing;
-    const dy = Math.sin(f.stretchAngle);
-    const px = -dy;
-    const py = dx;
-    const endX = x + dx * len;
-    const endY = y + dy * len;
-    const bend = style.rubber === 'cartoon' ? Math.sin(time * 13) * Math.min(15, len * 0.2) : Math.min(8, len * 0.08);
-    const points: [number, number, number, number, number, number, number, number] = [x, y, x + dx * len / 3 + px * bend, y + dy * len / 3 + py * bend, x + dx * len * 2 / 3 - px * bend, y + dy * len * 2 / 3 - py * bend, endX, endY];
-    this.curve(g, points, 0x171523, 5);
-    this.curve(g, points, style.core, 3);
-    this.curve(g, points, style.rubber === 'haki' ? 0xb63551 : 0xffe3ca, 1);
   }
 
   destroy(): void {

@@ -56,6 +56,8 @@ src/sim/      Pure TypeScript game simulation. Deterministic, fixed 60 Hz step, 
                   renderer/audio drain for juice. The sim never plays sounds or draws.
 src/input/    Keyboard (event.code based) + Gamepad API (gamepad.ts) -> Intent. Bindings (bindings.ts, with
               conflict detection) saved in localStorage. menu.ts = unified menu nav for keys + pads.
+              touch.ts = on-screen controls for phones (press synthetic keyboard keys, D-pad in menus);
+              devices.ts = last-used device + PlayStation/Xbox button names (menus show the right glyphs).
 src/ai/       Bots (pure TS, no Phaser — run headless too). Same Controller/Intent contract as humans.
   nav.ts          Nav graph: standable cells + ladders; jump/fall/drop edges found by simulating the
                   real fighter code in a sandbox (MANEUVERS input scripts that bots replay). A*, Dijkstra.
@@ -79,6 +81,7 @@ src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particle
 src/scenes/   Boot (bake assets) -> Title menu -> [Lobby (+ Creator) | Controls | Settings] -> Match
               (+ Hud overlay above with the pause menu, Background parallax scene below).
               Settings/Controls also run as overlays over a paused match.
+              kit.ts = shared menu kit (HintBar with keyboard / PS / Xbox / touch glyphs, panel, rowBar, meter).
               lobby.ts = Phaser-free lobby model (slots/rules -> MatchSceneData), unit tested.
 src/game/     Display config (640x360 native, integer scale factor), settings, profiles (keyboard players' name /
               hero / look, edited on the title screen and shared with the lobby, D53).

@@ -1,3 +1,4 @@
+import { isTouchDevice } from './display';
 import { load, save } from './storage';
 
 export interface Settings {
@@ -32,7 +33,8 @@ const DEFAULTS: Settings = {
   quickBots: 3,
   replays: true,
   quickMap: 'test',
-  quickPlayers: 2,
+  // a phone has one set of controls
+  quickPlayers: isTouchDevice() ? 1 : 2,
 };
 
 export const settings: Settings = load('settings', DEFAULTS);

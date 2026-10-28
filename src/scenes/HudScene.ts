@@ -6,6 +6,7 @@ import { VIEW_H, VIEW_W } from '../game/display';
 import { weaponLabel } from '../render/Juice';
 import { teamKey } from '../sim/combat';
 import { computeAwards } from '../sim/awards';
+import { hint, HintBar, panel, rowBar } from './kit';
 import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/match';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
 import { FORM_HP, heroDef } from '../sim/data/heroes';
@@ -14,6 +15,7 @@ import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
 import { formLayers, formName, transformed } from '../sim/hero';
 import { audio } from '../audio/AudioManager';
+import { padMenu } from '../input/gamepad';
 import { menu } from '../input/menu';
 import { isHumanInput, type MatchScene } from './MatchScene';
 
@@ -106,6 +108,8 @@ export class HudScene extends Phaser.Scene {
   private pauseItems: Phaser.GameObjects.BitmapText[] = [];
   private pauseDim!: Phaser.GameObjects.Rectangle;
   private pauseIdx = 0;
+  private pauseGfx!: Phaser.GameObjects.Graphics;
+  private pauseBar!: HintBar;
   private wasPaused = false;
   private debugText!: Phaser.GameObjects.BitmapText;
 
@@ -140,7 +144,7 @@ export class HudScene extends Phaser.Scene {
     this.banner = this.add.bitmapText(VIEW_W / 2, 118, 'pxo', '').setOrigin(0.5).setScale(3).setDepth(10);
     this.bannerSub = this.add.bitmapText(VIEW_W / 2, 146, 'pxo', '').setOrigin(0.5).setDepth(10);
     this.announce = this.add.bitmapText(VIEW_W / 2, 72, 'pxo', '').setOrigin(0.5).setScale(2).setDepth(10);
-    this.pauseText = this.add.bitmapText(VIEW_W / 2, 110, 'pxo', 'PAUSED').setOrigin(0.5).setScale(3).setDepth(20).setVisible(false);
+    this.pauseText = this.add.bitmapText(VIEW_W / 2, 74, 'pxo', 'PAUSED').setOrigin(0.5).setScale(3).setDepth(20).setVisible(false);
     this.pauseSub = this.add
       .bitmapText(VIEW_W / 2, 300, 'sm', 'F1: HITBOXES   F2: SIM SPEED   F3: FRAME STEP')
       .setOrigin(0.5)
@@ -148,7 +152,11 @@ export class HudScene extends Phaser.Scene {
       .setVisible(false)
       .setTint(0x8d95b0);
     this.pauseDim = this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 0.6).setOrigin(0, 0).setDepth(15).setVisible(false);
-    this.pauseItems = PAUSE_ITEMS.map((it, i) => this.add.bitmapText(VIEW_W / 2, 150 + i * 22, 'pxo', it.label).setOrigin(0.5).setDepth(20).setVisible(false));
+    this.pauseGfx = this.add.graphics().setDepth(18);
+    this.pauseBar = new HintBar(this, VIEW_H - 15, 40);
+    this.pauseBar.set([hint.move('SELECT', 'ud'), hint.ok('OK'), hint.key('RESUME', ['ESC'], [9, 1], ['II'])]);
+    this.pauseBar.setVisible(false);
+    this.pauseItems = PAUSE_ITEMS.map((it, i) => this.add.bitmapText(VIEW_W / 2, 126 + i * 24, 'pxo', it.label).setOrigin(0.5).setDepth(20).setVisible(false));
     this.debugText = this.add.bitmapText(4, 4, 'smo', '').setDepth(20);
     this.modLabel = this.add.bitmapText(VIEW_W / 2, 21, 'sm', '').setOrigin(0.5, 0).setTint(0xb090e0);
     this.replayText = this.add.bitmapText(24, 7, 'pxo', 'INSTANT REPLAY').setDepth(30).setVisible(false);
@@ -612,9 +620,17 @@ export class HudScene extends Phaser.Scene {
         audio.play('uiMove');
       }
       if (menu.confirm()) ms.pauseAction(PAUSE_ITEMS[this.pauseIdx].action);
+      else if (padMenu.justPressed(1)) ms.pauseAction('resume'); // B / Circle
     }
     this.wasPaused = ms.paused;
-    this.pauseItems.forEach((t, i) => t.setVisible(showPause).setText((i === this.pauseIdx ? '> ' : '') + PAUSE_ITEMS[i].label).setTint(i === this.pauseIdx ? 0xffffff : 0x8d95b0));
+    const pg = this.pauseGfx.clear();
+    if (showPause) {
+      panel(pg, VIEW_W / 2 - 100, 100, 200, 14 + PAUSE_ITEMS.length * 24 + 6, hexToNum(P.purple1), true);
+      rowBar(pg, VIEW_W / 2 - 96, 122 + this.pauseIdx * 24, 192, 20, Math.floor(this.time.now / 330) % 2 === 0);
+      this.pauseBar.setVisible(true);
+      this.pauseBar.update();
+    } else this.pauseBar.setVisible(false);
+    this.pauseItems.forEach((t, i) => t.setVisible(showPause).setText(PAUSE_ITEMS[i].label).setTint(i === this.pauseIdx ? 0xffffff : 0x8d95b0));
     if (ms.wr?.debug) {
       const alive = w.fighters.filter((f) => f.alive).length;
       this.debugText.setText(`FPS ${Math.round(this.game.loop.actualFps)}  SPEED ${ms.speed}X  TICK ${w.tick}  ALIVE ${alive}  BULLETS ${w.bullets.filter((b) => b.active).length}`);

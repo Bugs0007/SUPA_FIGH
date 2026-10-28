@@ -4,16 +4,19 @@ import { heroLook } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { music } from '../audio/music';
-import { VIEW_H, VIEW_W } from '../game/display';
+import { isTouchDevice, VIEW_H, VIEW_W } from '../game/display';
 import { NAME_MAX, profiles, sanitizeName, saveProfiles } from '../game/profiles';
 import { saveSettings, settings } from '../game/settings';
 import { keyboardBinds, keyLabel, type Action } from '../input/bindings';
+import { inputDevice, padLabel } from '../input/devices';
+import { padBinds, padMenu } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { loadLobby, saveLobby } from './lobby';
 import { defaultSetup } from './MatchScene';
+import { hint, HintBar } from './kit';
 import { drawMinimap, PLAYER_COLORS, Puppet } from './ui';
 
 const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
@@ -79,7 +82,10 @@ export class TitleScene extends Phaser.Scene {
   private blurb: Phaser.GameObjects.BitmapText[] = [];
   private valueTexts: Partial<Record<Row, Phaser.GameObjects.BitmapText>> = {};
   private buttonTexts: Phaser.GameObjects.BitmapText[] = [];
-  private footer!: Phaser.GameObjects.BitmapText;
+  private warn!: Phaser.GameObjects.BitmapText;
+  private bar!: HintBar;
+  private barMode = '';
+  private ctl: Phaser.GameObjects.BitmapText[][] = [];
   private drawnMap = '';
 
   constructor() {
@@ -100,6 +106,8 @@ export class TitleScene extends Phaser.Scene {
     this.valueTexts = {};
     this.buttonTexts = [];
     this.drawnMap = '';
+    this.barMode = '';
+    this.ctl = [];
     this.theme = '';
     this.near = null;
 
@@ -129,9 +137,46 @@ export class TitleScene extends Phaser.Scene {
     this.buildCenter();
 
     this.buttonTexts = BUTTONS.map((b) => this.add.bitmapText(0, 318, 'pxo', b.label).setOrigin(0.5).setDepth(5));
-    this.footer = this.add.bitmapText(VIEW_W / 2, 341, 'sm', '').setOrigin(0.5, 0).setTint(0x8d95b0).setDepth(5);
-    this.add.bitmapText(VIEW_W - 4, VIEW_H - 8, 'sm', 'V' + __APP_VERSION__).setOrigin(1, 0).setTint(0x5a5668).setDepth(5);
+    this.buildTapTargets();
+    this.warn = this.add.bitmapText(VIEW_W / 2, 333, 'sm', '').setOrigin(0.5, 0).setTint(0x8d95b0).setDepth(5);
+    this.bar = new HintBar(this, VIEW_H - 15, 30);
+    this.add.bitmapText(VIEW_W - 4, 4, 'sm', 'V' + __APP_VERSION__).setOrigin(1, 0).setTint(0x5a5668).setDepth(5);
     this.refresh();
+  }
+
+  /** Touch / mouse: tap a row to change it (like pressing OK on it) and a button to go. */
+  private buildTapTargets(): void {
+    this.buttonTexts.forEach((t, i) => {
+      t.setInteractive({ useHandCursor: true });
+      t.on('pointerdown', () => {
+        if (this.editing !== null) return;
+        this.row = 'buttons';
+        this.button = i;
+        this.go(BUTTONS[i].action);
+      });
+    });
+    const zones: [Row, number, number, number][] = [
+      ['p1name', this.cardX(0), CARD_Y + 17, CARD_W],
+      ['p1hero', this.cardX(0), CARD_Y + 35, CARD_W],
+      ['p2name', this.cardX(1), CARD_Y + 17, CARD_W],
+      ['p2hero', this.cardX(1), CARD_Y + 35, CARD_W],
+      ['map', CENTER_X, CARD_Y + 17, CENTER_W],
+      ['players', CENTER_X, CARD_Y + 154, CENTER_W],
+      ['bots', CENTER_X, CARD_Y + 172, CENTER_W],
+      ['skill', CENTER_X, CARD_Y + 190, CENTER_W],
+    ];
+    for (const [row, x, y, w] of zones) {
+      const z = this.add.zone(x, y, w, 16).setOrigin(0, 0).setDepth(7).setInteractive({ useHandCursor: true });
+      z.on('pointerdown', () => {
+        if (this.editing !== null) return;
+        this.row = row;
+        if (row === 'p1name' || row === 'p2name') return this.startEdit(row === 'p1name' ? 0 : 1);
+        if (this.change(row, 1)) {
+          saveSettings();
+          audio.play('uiMove');
+        }
+      });
+    }
   }
 
   private applyZoom(k: number): void {
@@ -154,20 +199,40 @@ export class TitleScene extends Phaser.Scene {
     const hero = this.add.bitmapText(x + 50, CARD_Y + 37, 'pxo', '').setDepth(5);
     const ability = this.add.bitmapText(x + CARD_W / 2, CARD_Y + 152, 'pxo', '').setOrigin(0.5, 0).setTint(hexToNum(P.orange)).setDepth(5);
     const desc = [0, 1, 2, 3].map((l) => this.add.bitmapText(x + CARD_W / 2, CARD_Y + 166 + l * 8, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc).setDepth(5));
-    // controls (the actual bindings, so rebinding shows up here)
-    const b = keyboardBinds[i];
-    const keys = (a: Action, n = 2) => b[a].slice(0, n).map(keyLabel).join('/');
-    const lines = [
-      `MOVE ${keys('left', 1)} ${keys('right', 1)}  JUMP ${keys('up', 1)}  DROP ${keys('down', 1)} ${keys('down', 1)}`,
-      `ATTACK ${keys('attack', 1)}  KICK ${keys('kick', 1)}  GRAB ${keys('interact', 1)}  SWAP ${keys('cycle', 1)}`,
-      `ABILITY ${keys('ability', 1)}  MEDKIT ${keys('gadget', 1)}  HOLD ATTACK = AIM`,
-    ];
-    lines.forEach((l, n) => this.add.bitmapText(x + CARD_W / 2, CARD_Y + 200 + n * 9, 'sm', l).setOrigin(0.5, 0).setTint(0x8d95b0).setDepth(5));
+    // controls: filled in by refresh() for whatever the player is using (keyboard / gamepad / touch)
+    this.ctl[i] = [0, 1, 2].map((n) => this.add.bitmapText(x + CARD_W / 2, CARD_Y + 200 + n * 9, 'sm', '').setOrigin(0.5, 0).setTint(0x8d95b0).setDepth(5));
     const pup = new Puppet(this, x + CARD_W / 2, CARD_Y + 140, 3);
     pup.root.setDepth(6);
     this.puppets[i] = pup;
     this.cardTexts[i] = { name, hero, ability, desc, header };
     this.applyFighter(i);
+  }
+
+  /** The three control lines of a player card, for the device in use (player 2 is always the second keyboard). */
+  private controlLines(i: number): string[] {
+    const dev = inputDevice.current;
+    if (i === 0 && dev === 'touch') {
+      return ['LEFT STICK: MOVE  UP = JUMP  DOWN DOWN = DROP', 'ATK KICK GRAB SWAP MED   (HOLD ATK = AIM)', 'HEROES: ABIL = ABILITY 1  KICK = 2  SUPER = BOTH'];
+    }
+    if (i === 0 && (dev === 'ps' || dev === 'xbox')) {
+      const b = padBinds[0];
+      const n = (a: keyof typeof b) => padLabel(b[a][0] ?? 0, inputDevice.pad).replace(' / ', '/');
+      return [`MOVE L-STICK/D-PAD  JUMP ${n('jump')}  DROP DOWN DOWN`, `ATTACK ${n('attack')}  KICK ${n('kick')}  GRAB ${n('interact')}`, `SWAP ${n('cycle')}  MEDKIT ${n('gadget')}  ABILITY ${n('ability')}`];
+    }
+    const b = keyboardBinds[i];
+    const keys = (a: Action, n = 2) => b[a].slice(0, n).map(keyLabel).join('/');
+    return [
+      `MOVE ${keys('left', 1)} ${keys('right', 1)}  JUMP ${keys('up', 1)}  DROP ${keys('down', 1)} ${keys('down', 1)}`,
+      `ATTACK ${keys('attack', 1)}  KICK ${keys('kick', 1)}  GRAB ${keys('interact', 1)}  SWAP ${keys('cycle', 1)}`,
+      `ABILITY ${keys('ability', 1)}  MEDKIT ${keys('gadget', 1)}  HOLD ATTACK = AIM`,
+    ];
+  }
+
+  private deviceName(i: number): string {
+    const dev = inputDevice.current;
+    if (i === 0 && dev === 'touch') return 'TOUCH';
+    if (i === 0 && (dev === 'ps' || dev === 'xbox')) return dev === 'ps' ? 'PLAYSTATION PAD' : 'XBOX PAD';
+    return 'KEYBOARD';
   }
 
   private buildCenter(): void {
@@ -283,6 +348,15 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private startEdit(i: number): void {
+    if (isTouchDevice()) {
+      // no hardware keyboard: the phone's own text box
+      const v = window.prompt('NAME (MAX ' + NAME_MAX + ')', profiles[i].name);
+      if (v !== null) {
+        profiles[i].name = sanitizeName(v.toUpperCase(), i);
+        saveProfiles();
+      }
+      return;
+    }
     this.editing = i;
     this.editBuf = profiles[i].name;
     this.editFresh = true;
@@ -362,8 +436,8 @@ export class TitleScene extends Phaser.Scene {
       saveSettings();
       audio.play('uiMove');
     }
-    if (keyboard.justPressed('KeyL')) return this.go('lobby');
-    if (keyboard.justPressed('KeyC')) return this.go('controls');
+    if (keyboard.justPressed('KeyL') || padMenu.justPressed(3)) return this.go('lobby');
+    if (keyboard.justPressed('KeyC') || padMenu.justPressed(2)) return this.go('controls');
     this.refresh();
   }
 
@@ -430,7 +504,8 @@ export class TitleScene extends Phaser.Scene {
       c.name.setText(name).setTint(editing ? (this.editFresh ? 0x8d95b0 : 0xfff4a0) : PLAYER_COLORS[i]);
       const hero = this.fighterName(profiles[i].hero);
       c.hero.setText(sel(heroRow) ? `< ${hero} >` : hero).setTint(profiles[i].hero ? hexToNum(P.orange) : 0xffffff);
-      c.header.setText(off ? `PLAYER ${i + 1} - OFF (PLAYERS: 1)` : `PLAYER ${i + 1} - KEYBOARD`);
+      c.header.setText(off ? `PLAYER ${i + 1} - OFF (PLAYERS: 1)` : `PLAYER ${i + 1} - ${this.deviceName(i)}`);
+      this.controlLines(i).forEach((l, n) => this.ctl[i][n].setText(l));
       this.puppets[i].dim = off;
     }
 
@@ -473,11 +548,27 @@ export class TitleScene extends Phaser.Scene {
   }
 
   private footerText(fighters: number): void {
-    let hint: string;
-    if (this.editing !== null) hint = `TYPE A NAME (MAX ${NAME_MAX})   ENTER: SAVE   ESC: CANCEL   BACKSPACE: DELETE`;
-    else if (this.row === 'p1name' || this.row === 'p2name') hint = 'ENTER: CHANGE NAME   UP/DOWN: MOVE';
-    else if (this.row === 'buttons') hint = fighters < 2 ? 'ADD BOTS OR A SECOND PLAYER (NEED 2 FIGHTERS)' : 'LEFT/RIGHT: CHOOSE   ENTER: GO   UP: PLAYERS, FIGHTERS & MAP';
-    else hint = 'LEFT/RIGHT: CHANGE   UP/DOWN: MOVE   L: MATCH SETUP   C: CONTROLS';
-    this.footer.setText(hint).setTint(fighters < 2 && this.row === 'buttons' ? hexToNum(P.red2) : 0x8d95b0);
+    let mode: string;
+    let items;
+    if (this.editing !== null) {
+      mode = 'edit';
+      items = [hint.key(`TYPE A NAME (MAX ${NAME_MAX})`, []), hint.key('SAVE', ['ENTER']), hint.key('CANCEL', ['ESC'])];
+    } else if (this.row === 'p1name' || this.row === 'p2name') {
+      mode = 'name';
+      items = [hint.move('ROW', 'ud'), hint.ok('EDIT NAME')];
+    } else if (this.row === 'buttons') {
+      mode = 'buttons';
+      items = [hint.move('CHOOSE', 'lr'), hint.ok('GO'), hint.move('FIGHTERS & MAP', 'ud'), hint.key('SETUP', ['L'], [3]), hint.key('CONTROLS', ['C'], [2])];
+    } else {
+      mode = 'rows';
+      items = [hint.move('CHANGE', 'lr'), hint.move('ROW', 'ud'), hint.key('SETUP', ['L'], [3]), hint.key('CONTROLS', ['C'], [2])];
+    }
+    if (mode !== this.barMode) {
+      this.barMode = mode;
+      this.bar.set(items);
+    }
+    this.bar.update();
+    const need = fighters < 2 && this.row === 'buttons';
+    this.warn.setText(need ? 'ADD BOTS OR A SECOND PLAYER (NEED 2 FIGHTERS)' : this.row === 'buttons' ? '' : '').setTint(hexToNum(P.red2));
   }
 }

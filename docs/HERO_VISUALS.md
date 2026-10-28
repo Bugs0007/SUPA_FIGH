@@ -13,7 +13,7 @@ The heroes keep the game's small pixel-art scale, with signature costume details
 | Hero | Base | Form 1 | Form 2 | Form 3 | Form 4 |
 | --- | --- | --- | --- | --- | --- |
 | Naruto Rasengan | Original solo Rasengan; no visual clone assistants | Two brief clone assistants and one curved chakra tail shape the sphere | Four crimson chakra tails shape a red sphere | Six dark tails with skeletal highlights shape the sphere | Two golden chakra arms cup a golden Rasengan |
-| Luffy stretching moves | Normal rubber limbs | Fast Jet streaks and flushed skin | Inflated Elephant fists | Haki fists, coiling arms and red impact rings | Curved cartoon limbs, white cloud puffs and elastic rings |
+| Luffy stretching moves | Tapered rubber arms and clenched fists | Pink Jet punches with directional speed strokes | Large Elephant fists with knuckles and curled thumbs | Black/red Haki fists and coated forearms | A continuous cartoon S-curve; the super uses a massive Haki fist |
 | Goku Kamehameha | Blue charge and white-core beam | Golden beam sparks | Electrical arcs over the beam | Denser golden electrical arcs | Cyan lightning and blue beam light |
 
 Naruto's first-form super now has spinning Rasenshuriken blades; later forms retain dark Bijudama cores, and Kurama adds golden supporting arms. Feral forms charge at the muzzle. Clone summoning and Instant Transmission use the current form's look and colors; teleport afterimages retain the look at departure. Fired chakra projectiles retain their launch form when the owner loses power.
@@ -21,6 +21,10 @@ Naruto's first-form super now has spinning Rasenshuriken blades; later forms ret
 Rasengan's first-powered-form assistants are pooled visual echoes, not extra simulation fighters: they cannot deal damage, block movement or change the roster. There are no assistants in the base form. The separately summoned Shadow Clones remain real fighters and spawn immediately when the cast triggers; the smoke animation does not delay their appearance.
 
 Orbiting aura particles, circling flight particles, orbiting charge sparks and the Gear Fifth cloud-ball orbit have been removed. Rising steam, straight-moving sparks, chakra tails and brief impact/shockwave effects remain.
+
+Luffy's Pistol, grapple and supers share one continuous, shaded arm path and an angular clenched-hand silhouette. The arm tapers from the shoulder to the wrist instead of becoming a thick rectangular tube. Gatling staggers extension and retraction on the actual attack clock, with translucent returning punches. Body poses anticipate, drive forward and settle during recovery. The transformation costumes, grapple behavior, hitboxes, damage, cooldowns and exponential super reach/size are unchanged.
+
+Kurama's chakra arms are solid gold with dark contours, pale highlights, palms and fingers. They render above the fighter and below the chakra orb. Powered Rasengan retains fading arms during its existing hit recovery; the original solo base-form Rasengan keeps its previous recovery behavior. Kurama's bomb has supporting arms during charge and a brief forward push after launch. These effects read real match state; the visual renderer never changes fighters. The bomb charge-state initialization fix also remains required so charge art is visible in live play.
 
 ## Revised supers
 

@@ -448,3 +448,29 @@ camera, slow-mo and captions. `window.__TRAILER__` stops Phaser's loop and rende
 `game.step()` of 1/60 s, so recordings are deterministic and independent of machine speed. The soundtrack is generated
 (chiptune written as code + the game's own sfxr effects replayed from per-shot audio logs): no third-party audio.
 The finale is a natural bot-vs-bot fight (seed found with `scripts/trailer/scout.ts`); the other shots are directed.
+
+### D68 — Bots: frozen-bot fix and hero traversal
+**Frozen bots.** `BotController` kept absolute world-time stamps (`crouchUntil`, `meleeNext`, `ignoreItems`, `replanAt`...)
+across rounds, but world time restarts at 0 every round: a stale `crouchUntil = 18` made a bot crouch (and a stale
+`meleeNext` stopped its punches) for up to 18 s of the next round, so bots piled up and stood still. `reset()` now clears
+every timestamp. Two more freezes were closed: a gun/throw bot halfway on a ladder never moved (`fight()` now finishes the
+climb first), and a watchdog (`watchdog()`) shakes a bot loose when it has sent no input for 1.5 s while free to act.
+**Hero traversal** lives in `src/ai/heroMove.ts` (`HeroMobility`), offered the travel target from `navigate()` and owning the
+inputs until the move ends: Goku flies (jump, then hold Up, steer; ends at the target height or against a ceiling), Naruto
+walks up a wall that ends near the target's height and Rasengan-dashes along a clear level lane >= 110 px, Luffy picks the
+grapple direction (up / up-forward / forward / down-forward) whose catch lands nearest the target and holds the ability
+(pulled to platforms / ladders, swing + release from ceilings). Each move has a ban timer after a failure.
+
+### D69 — Phones, input devices and the menu kit
+**Touch** (`src/input/touch.ts`, only on `(pointer: coarse)` devices; `?touch=1/0` forces): a DOM overlay (pointer events, so
+multi-touch works) that presses/releases the *keyboard player 1 keys* through `Keyboard.press/release`. Nothing downstream
+knows about touch: matches read P1's bindings (rebinding still works), menus read arrows / Enter / Esc. In a match it shows a
+floating stick (up = jump, like the keyboard) + ATK / KICK / GRAB / SWAP / MED, ABIL + SUPER for heroes and a pause button;
+everywhere else a D-pad + OK / BACK; instant replays get a SKIP button. The canvas is rendered at `ceil(fit)` x (max 3) and
+scaled by CSS to fill the screen; the camera zooms in a little more (`comfort` 0.8) because fighters are small on a phone.
+First tap = fullscreen + landscape lock + wake lock; a portrait phone pauses the match. Quick Match defaults to 1 player.
+**Devices** (`src/input/devices.ts`): the last device used (keyboard / PlayStation pad / Xbox pad / touch) picks the glyphs
+menus show; the standard-mapping buttons are named in both styles (CROSS / A...). A plugged-in pad plays player 1 / 2 in Quick
+Match without setup (`MergedController` = keyboard OR pad).
+**Menu kit** (`src/scenes/kit.ts`): `HintBar` (keycaps / PS and Xbox glyphs / touch pills at the bottom of every screen),
+`panel`, `rowBar`, `meter`, `toggle`. Title, Match Setup, Settings, Controls and Pause use it.

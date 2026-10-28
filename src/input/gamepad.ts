@@ -5,6 +5,7 @@
 import { emptyIntent, type Intent } from '../sim/intent';
 import { load, save } from '../game/storage';
 import type { Controller } from './controllers';
+import { inputDevice } from './devices';
 
 export const PAD_ACTIONS = ['jump', 'attack', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
@@ -79,6 +80,12 @@ class PadMenu {
     const ps = connectedPads();
     this.cur = ps.map((p) => p.buttons.map((_, i) => pressed(p, i)));
     this.curAxis = ps.map((p) => [axis(p.axes[0]), axis(p.axes[1])]);
+    inputDevice.setPads(ps.map((p) => p.id));
+    // whoever pressed something last decides which hints the menus show
+    ps.forEach((p, s) => {
+      const fresh = this.cur[s].some((on, b) => on && !this.prev[s]?.[b]) || this.curAxis[s].some((v, a) => v !== 0 && v !== this.prevAxis[s]?.[a]);
+      if (fresh) inputDevice.notePad(p.id);
+    });
   }
 
   /** button pressed this frame on pad `slot` (or any pad if slot < 0) */

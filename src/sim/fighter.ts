@@ -1694,6 +1694,7 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
   const kind = sp.kind === 'bomb' ? 'bomb' : sp.kind === 'fist' ? 'superFist' : 'superCharge';
   if (!beginMove(w, f, inp, kind)) return;
   f.specialCd = sp.cooldown;
+  if (sp.kind === 'bomb') f.charge = 0; // Reset the idle sentinel so the charging orb is visible.
   if (sp.kind === 'fist') f.stretchAngle = inp.moveY < -0.5 ? (sp.fist?.upAngle ?? -0.5) : inp.moveY > 0.5 && !f.grounded ? (sp.fist?.downAngle ?? 0.5) : 0;
   if (sp.kind === 'bomb' && f.hero === 'goku') f.stretchAngle = aimAngle(f, inp);
   w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });

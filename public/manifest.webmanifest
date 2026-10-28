@@ -1,0 +1,13 @@
+{
+  "name": "Brawlkai",
+  "short_name": "Brawlkai",
+  "description": "A chaotic pixel-art anime brawler for up to 10 fighters.",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0912",
+  "theme_color": "#0b0912",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

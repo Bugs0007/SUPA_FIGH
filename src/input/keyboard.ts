@@ -1,3 +1,5 @@
+import { inputDevice } from './devices';
+
 // Keyboard state tracked by physical key (event.code), independent of layout and NumLock.
 // Taps shorter than a frame are latched so the sim always sees at least one "held" tick.
 
@@ -15,6 +17,7 @@ export class Keyboard {
     if (this.attached) return;
     this.attached = true;
     target.addEventListener('keydown', (e) => {
+      inputDevice.note('keyboard');
       if (!e.repeat) {
         this.latched.add(e.code);
         this.pressedThisFrame.add(e.code);
@@ -30,6 +33,19 @@ export class Keyboard {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.reset();
     });
+  }
+
+  /** Synthetic key down / up for the on-screen touch controls: indistinguishable from the real thing. */
+  press(code: string): void {
+    if (!this.down.has(code)) {
+      this.latched.add(code);
+      this.pressedThisFrame.add(code);
+    }
+    this.down.add(code);
+  }
+
+  release(code: string): void {
+    this.down.delete(code);
   }
 
   reset(): void {

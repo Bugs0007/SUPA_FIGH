@@ -1,0 +1,6 @@
+work/
+.hyperframes/
+renders/
+assets/*.mp4
+assets/*.wav
+capture/live-game/

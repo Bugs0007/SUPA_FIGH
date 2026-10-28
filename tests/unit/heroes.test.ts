@@ -444,6 +444,8 @@ describe('super (both abilities together, transformed only)', () => {
       w.step([intent({ ability: true, kick: true }), intent()]);
       run(w, 10);
       expect(f.specialKind).toBe('bomb');
+      expect(f.charge).toBeGreaterThan(0); // Charging must be visible before the projectile launches.
+      expect(f.charge).toBeLessThan(1);
       expect(w.bullets.some(b => b.active && b.weapon === 'goku:super')).toBe(false);
       const seen: SimEvent[] = [];
       for (let t = 0; t < 60; t++) {
@@ -466,6 +468,21 @@ describe('super (both abilities together, transformed only)', () => {
     w.fighters[0].formHp = 0;
     run(w, 80);
     expect(w.bullets.some(b => b.weapon === 'goku:super')).toBe(false);
+  });
+
+  it('Naruto: the charging bomb becomes visible again on a later use', () => {
+    const w = heroWorld('naruto');
+    const f = w.fighters[0];
+    levelUp(w, f, 4);
+    for (let use = 0; use < 2; use++) {
+      f.specialCd = 0;
+      w.step([intent({ ability: true, kick: true }), intent()]);
+      run(w, 10);
+      expect(f.specialKind).toBe('bomb');
+      expect(f.charge).toBeGreaterThan(0);
+      run(w, 90);
+      expect(f.charge).toBe(-1);
+    }
   });
 });
 

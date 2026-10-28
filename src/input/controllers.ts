@@ -49,6 +49,42 @@ export class KeyboardController implements Controller {
   }
 }
 
+/**
+ * Several input devices for one fighter (the keyboard layout AND a gamepad, or touch buttons): whichever is
+ * pushed wins. Lets a plugged-in pad work in Quick Match without any setup.
+ */
+export class MergedController implements Controller {
+  readonly label: string;
+  private out = emptyIntent();
+
+  constructor(private parts: Controller[]) {
+    this.label = parts.map((p) => p.label).join('+');
+  }
+
+  poll(): Intent {
+    const o = this.out;
+    o.moveX = o.moveY = 0;
+    o.jump = o.attack = o.kick = o.interact = o.cycle = o.gadget = o.ability = false;
+    for (const p of this.parts) {
+      const i = p.poll();
+      if (Math.abs(i.moveX) > Math.abs(o.moveX)) o.moveX = i.moveX;
+      if (Math.abs(i.moveY) > Math.abs(o.moveY)) o.moveY = i.moveY;
+      o.jump ||= i.jump;
+      o.attack ||= i.attack;
+      o.kick ||= i.kick;
+      o.interact ||= i.interact;
+      o.cycle ||= i.cycle;
+      o.gadget ||= i.gadget;
+      o.ability ||= i.ability;
+    }
+    return o;
+  }
+
+  rumble(strength: number, ms: number): void {
+    for (const p of this.parts) p.rumble?.(strength, ms);
+  }
+}
+
 /** Does nothing (empty slots, disconnected pads). */
 export class NullController implements Controller {
   readonly label = 'NONE';
