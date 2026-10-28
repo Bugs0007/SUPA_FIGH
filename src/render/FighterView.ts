@@ -479,16 +479,18 @@ export class FighterView {
         backLen = 1;
         showWeapon = false;
         if (kind === 'pistol' || kind === 'superFist') {
-          frame = BF.CROSS;
-          back = 1.9;
+          const move = kind === 'superFist' ? heroDef('luffy')!.super.fist! : baseAbility(f)?.stretch;
+          const extending = f.stateTime < (move?.out ?? .12);
+          const early = f.stateTime < .045;
+          frame = early ? BF.WINDUP : extending ? BF.CROSS : BF.AIM;
+          back = early ? 2.6 : extending ? 1.9 : 1.3;
           backLen = 0;
-          leanTarget = 0.06 + f.stretchAngle * 0.1;
+          leanTarget = (early ? -.1 : extending ? .18 : .02) + f.stretchAngle * .1;
           if (f.hero === 'luffy' && level === 1) leanTarget += 0.12;
           if (f.hero === 'luffy' && level === 3) {
-            frame = BF.WINDUP;
-            leanTarget = -0.08;
+            leanTarget += early ? -.04 : .04;
           }
-          if (f.hero === 'luffy' && level === 4) rigRot = Math.sin(f.stateTime * 20) * 0.12;
+          if (f.hero === 'luffy' && level === 4) rigRot = Math.sin(f.stateTime * 18) * .055;
         } else if (kind === 'swing') {
           // hanging from the rope: the roped arm reaches up, legs trail behind the swing
           frame = BF.FALL;

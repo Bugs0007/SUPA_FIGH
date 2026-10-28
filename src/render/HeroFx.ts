@@ -12,6 +12,7 @@ import type { Fx } from './Fx';
 import { moveLook } from '../art/heroMoves';
 import { HeroChoreography } from './HeroChoreography';
 import type { Bullet } from '../sim/projectile';
+import { LuffyAbilityArt } from './LuffyAbilityArt';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -74,6 +75,7 @@ export class HeroFx {
   private front: Phaser.GameObjects.Graphics;
   private orbs: Phaser.GameObjects.Graphics;
   readonly choreography: HeroChoreography;
+  private luffyArt: LuffyAbilityArt;
   private orbForms = new Map<Bullet, { level: number; traveled: number }>();
 
   constructor(
@@ -87,6 +89,7 @@ export class HeroFx {
     this.front = scene.add.graphics().setDepth(41);
     this.orbs = scene.add.graphics().setDepth(57);
     this.choreography = new HeroChoreography(scene, views, this.back, this.front);
+    this.luffyArt = new LuffyAbilityArt(this.back, this.front);
   }
 
   destroy(): void {
@@ -216,11 +219,11 @@ export class HeroFx {
         if (sk === 'rasengan') this.rasengan(v, x, y, dt, time);
         else if (sk === 'beamCharge' || sk === 'superCharge') this.chargeGlow(f, x, y, time, sk === 'superCharge');
         else if (sk === 'beam' || sk === 'superBeam') this.beam(f, x, y, dt, time, sk === 'superBeam');
-        else if (sk === 'gatling') this.gatling(v, x, y, time);
+        else if (sk === 'gatling') this.luffyArt.gatling(v, x, y, this.previewReach);
         else if (sk === 'bomb') this.bombOrb(f, x, y, time, dt);
         else if (sk === 'cast' && f.hero === 'naruto') this.choreography.cast(v, x, y, time);
       }
-      if (f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y, time);
+      if (f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y);
     }
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
@@ -321,13 +324,15 @@ export class HeroFx {
     const t = f.stateTime;
     const forming = t < d.windup;
     const k = forming ? Math.min(1, t / d.windup) : 1;
-    if (!forming && f.recoverAt > 0) return; // (the orb fades once the dash is over)
+    if (formLevel(f) === 0 && !forming && f.recoverAt > 0) return;
+    const fade = f.recoverAt > 0 ? Math.max(0, 1 - (t - f.recoverAt) / d.recover) : 1;
+    if (fade <= 0) return;
     const { x: ox, y: oy } = rasenganPoint({ ...f, x } as Fighter);
     const cy = oy - f.y + y;
-    const r = 1 + k * 3.2 + Math.sin(time * 50) * 0.4 + (f.power === 'hero' ? f.powerLevel * 0.5 : 0);
+    const r = (1 + k * 3.2 + Math.sin(time * 50) * 0.4 + (f.power === 'hero' ? f.powerLevel * 0.5 : 0)) * fade;
     const g = this.orbs;
     const style = moveLook('naruto', formLevel(f));
-    this.choreography.rasengan(v, x, y, ox, cy, k, time);
+    this.choreography.rasengan(v, x, y, ox, cy, k * fade, time, fade);
     this.disc(g, ox, cy, r * 2.6, style.rim, 0.07);
     this.disc(g, ox, cy, r + 1.5, style.rim, 0.85);
     this.disc(g, ox, cy, r, style.core, 1);
@@ -367,19 +372,14 @@ export class HeroFx {
   // ------------------------------------------------------------------ rubber limbs and giant fists
 
   /** Rubber arm (or leg for a stretch kick) from the body out to the current reach. */
-  private stretchLimb(v: FighterView, x: number, y: number, time: number): void {
+  private stretchLimb(v: FighterView, x: number, y: number): void {
     const f = v.fighter;
     const look = v.lookFor(formLevel(f));
     const combo = heroDef(f.hero)?.combo;
     const kick = f.state === 'kick' || (f.state === 'melee' && !!combo?.[Math.min(f.combo, combo.length - 1)]?.kick);
-    const angled = f.state === 'special' && (f.specialKind === 'pistol' || f.specialKind === 'rocket' || f.specialKind === 'swing' || f.specialKind === 'superFist') && Math.abs(f.stretchAngle) > 0.01;
     const big = f.specialKind === 'superFist';
-    if (angled) {
-      this.angledArm(f, x, y, hexToNum(look.skin), big ? f.beamWidth : 2, time);
-      return;
-    }
     if (f.hero === 'luffy' && !kick) {
-      this.angledArm(f, x, y, hexToNum(look.skin), big ? f.beamWidth : 2, time);
+      this.luffyArt.arm(v, x, y);
       return;
     }
     const ly = Math.round(kick ? y - 5 : y - SHOULDER_Y_STAND + 1);
@@ -398,78 +398,6 @@ export class HeroFx {
     const fx0 = x1 - (f.facing > 0 ? 1 : 3);
     g.fillStyle(INK, 1).fillRect(fx0 - 1 - fist, ly - 3 - fist, 6 + fist * 2, 6 + fist * 2);
     g.fillStyle(kick ? hexToNum(look.shoesColor) : skin, 1).fillRect(fx0 - fist, ly - 2 - fist, 4 + fist * 2, 4 + fist * 2);
-  }
-
-  /** An angled rubber arm stepped pixel by pixel, a fist (radius `fist`) at the end. */
-  private angledArm(f: Fighter, x: number, y: number, skin: number, fist: number, time: number): void {
-    // a rope-arm hanging from a ceiling runs behind the body, not over his face
-    const g = f.specialKind === 'swing' ? this.back : this.front;
-    const dx = Math.cos(f.stretchAngle) * f.facing;
-    const dy = Math.sin(f.stretchAngle);
-    const x0 = x + f.facing * 2;
-    const y0 = y - SHOULDER_Y_STAND + 1;
-    const len = f.w / 2 + f.stretchLen;
-    const style = moveLook('luffy', formLevel(f));
-    const inflated = style.rubber === 'inflated';
-    const haki = style.rubber === 'haki';
-    const th = 1 + Math.floor(fist / 3) + (inflated ? 1 : 0);
-    g.fillStyle(INK, 1);
-    for (let d = 0; d <= len; d += 1) g.fillRect(Math.round(x0 + dx * d) - 2 - th, Math.round(y0 + dy * d) - 2 - th, 4 + th * 2, 4 + th * 2);
-    g.fillStyle(haki ? style.core : skin, 1);
-    for (let d = 0; d <= len; d += 1) g.fillRect(Math.round(x0 + dx * d) - 1 - th, Math.round(y0 + dy * d) - 1 - th, 2 + th * 2, 2 + th * 2);
-    const fx = Math.round(x0 + dx * len);
-    const fy = Math.round(y0 + dy * len);
-    const r = Math.max(inflated ? 5 : haki ? 4 : 2, fist);
-    this.choreography.rubberPath(f, x0, y0, len, time, g);
-    this.disc(g, fx, fy, r + 1, INK);
-    this.disc(g, fx, fy, r, haki ? style.core : skin);
-    this.disc(g, fx - dx * r * 0.25, fy - r * 0.3, Math.max(1, r * 0.35), haki ? style.rim : 0xffdfc2, 0.65);
-    if (haki) {
-      this.ring(g, fx - dx * 4, fy - dy * 4, r + 2, style.rim, 0.8, 0.6);
-      for (let d = 5; d < Math.min(len, 35); d += 5) this.ring(g, x0 + dx * d, y0 + dy * d, 3, style.rim, 0.7, 0.6);
-    } else if (style.rubber === 'jet') {
-      for (let i = 0; i < 4; i++) g.fillStyle(0xffeff0, 0.45).fillRect(Math.round(fx - dx * (7 + i * 5)), Math.round(fy - dy * (7 + i * 5)) - 4 + i * 2, 7, 1);
-    } else if (style.rubber === 'cartoon') {
-      this.ring(g, fx - dx * (r + 6), fy, r + 3, 0xffffff, 0.65, 0.5);
-      for (let i = 0; i < 3; i++) this.disc(g, fx - dx * (r + 8 + i * 5), fy + Math.sin(time * 8 + i) * 5, 2 + i % 2, 0xffffff, 0.65);
-    }
-    if (r > 4) {
-      // knuckle lines on the giant fist
-      g.fillStyle(hexToNum(P.ink), 0.45);
-      for (let i = -1; i <= 1; i++) g.fillRect(fx + f.facing * (r - 2), fy + i * 3 - 1, 1, 2);
-    }
-  }
-
-  /** Gum-Gum Gatling: several fists flicker out in front at different heights and reaches. */
-  private gatling(v: FighterView, x: number, y: number, time: number): void {
-    const f = v.fighter;
-    const g = heroDef(f.hero)?.second.gatling;
-    if (!g) return;
-    const look = v.lookFor(formLevel(f));
-    const skin = hexToNum(look.skin);
-    const fr = this.front;
-    const style = moveLook('luffy', formLevel(f));
-    const step = Math.floor(time * (style.rubber === 'jet' ? 55 : style.rubber === 'inflated' ? 20 : 30));
-    const count = style.rubber === 'inflated' ? 3 : style.rubber === 'jet' ? 7 : style.rubber === 'haki' ? 4 : 5;
-    for (let i = 0; i < count; i++) {
-      const phase = (step + i * 3) % 6;
-      const reach = (phase / 5) * (g.range + 8) * this.previewReach * (0.7 + 0.3 * ((i * 7 + step) % 3) / 2);
-      const ly = Math.round(y - SHOULDER_Y_STAND + 1 + ((i * 5 + step * 2) % 11) - 5);
-      const x0 = Math.round(x + f.facing * 3);
-      const x1 = x0 + f.facing * Math.round(reach);
-      const l = Math.min(x0, x1);
-      const w = Math.abs(x1 - x0);
-      fr.fillStyle(INK, 1).fillRect(l - 1, ly - 2, w + 2, 4);
-      fr.fillStyle(style.rubber === 'haki' ? style.core : skin, 1).fillRect(l, ly - 1, w, 2);
-      const radius = style.rubber === 'inflated' ? 5 : style.rubber === 'haki' ? 4 : 2;
-      this.disc(fr, x1, ly, radius + 1, INK);
-      this.disc(fr, x1, ly, radius, style.rubber === 'haki' ? style.core : skin);
-      this.disc(fr, x1 - 1, ly - 1, 1, style.rubber === 'haki' ? style.rim : 0xffe3ca);
-      if (style.rubber === 'cartoon' || style.rubber === 'haki') {
-        this.choreography.rubberPath({ ...f, stretchAngle: 0 } as Fighter, x0, ly, reach, time + i);
-        this.ring(fr, x1 - f.facing * 7, ly, radius + 3, style.rubber === 'haki' ? style.rim : 0xffffff, 0.45, 0.5);
-      } else if (style.rubber === 'jet') fr.fillStyle(0xffe9ef, 0.6).fillRect(x1 - f.facing * 18, ly - 2, 12, 1);
-    }
   }
 
   // ------------------------------------------------------------------ beams and orbs
@@ -546,7 +474,14 @@ export class HeroFx {
 
   /** Tailed Beast Bomb charging overhead (the flying orb is drawn by drawOrbs). */
   private bombOrb(f: Fighter, x: number, y: number, time: number, dt: number): void {
-    if (f.charge < 0) return;
+    if (f.charge < 0) {
+      if (f.hero === 'naruto' && formLevel(f) === 4) {
+        const elapsed = f.stateTime - heroDef('naruto')!.super.bomb!.windup;
+        const fade = Math.max(0, 1 - elapsed / .3);
+        if (elapsed >= 0 && fade > 0) this.choreography.kuramaArms(x, y, x + f.facing * (8 + elapsed * 70), y - SHOULDER_Y_STAND - 2, 5, fade);
+      }
+      return;
+    }
     if (f.hero === 'goku') {
       this.spiritBomb(f, x, y, dt);
       return;
@@ -571,8 +506,7 @@ export class HeroFx {
       // A brief Kurama silhouette and golden chakra hands support the overhead Bijudama.
       this.back.fillStyle(0xe3a129, 0.25).fillTriangle(x - 18, y - 28, x - 11, y - 52, x - 4, y - 31)
         .fillTriangle(x + 18, y - 28, x + 11, y - 52, x + 4, y - 31);
-      this.choreography.curve(this.back, [x - 6, y - 12, x - 20, y - 30, cx - 13, cy - 8, cx - r, cy], 0xffd85d, 4, 0.7);
-      this.choreography.curve(this.back, [x + 6, y - 12, x + 20, y - 30, cx + 13, cy - 8, cx + r, cy], 0xffd85d, 4, 0.7);
+      this.choreography.kuramaArms(x, y, cx, cy, r, .95);
     }
     for (let i = 0; i < 6; i++) {
       const a = time * 11 + (i * Math.PI) / 3;

@@ -81,3 +81,74 @@ for (const hero of ['naruto', 'luffy', 'goku']) {
     expect(errors).toEqual([]);
   });
 }
+
+test('Kurama chakra arms render from real Rasengan and bomb inputs, including hit recovery', async ({ page }) => {
+  await page.goto('/?scene=match&trailer=1&shot=rasengan&timer=1');
+  await page.waitForFunction(() => (window as any).__TRAILER__?.ready());
+  const result = await page.evaluate(() => {
+    const h = (window as any).__GAME__, driver = (window as any).__TRAILER__;
+    const scene = h.game.scene.getScene('match'), rig = scene.trailer;
+    rig.spec.forms = [{ at: 0, who: 0, level: 4 }];
+    rig.spec.start = 4;
+    rig.spec.patches = [
+      { at: 0, dur: 300, who: 0, idle: true }, { at: 0, dur: 300, who: 1, idle: true },
+      { at: 20, dur: 3, who: 0, idle: true, ability: true },
+      { at: 100, dur: 3, who: 0, idle: true, ability: true, kick: true },
+    ];
+    rig.attach();
+    const fx = scene.wr.heroFx, f = scene.match.world.fighters[0];
+    const states = new Set<string>();
+    let unchanged = true;
+    const draw = fx.choreography.kuramaArms.bind(fx.choreography);
+    fx.choreography.kuramaArms = (...args: any[]) => {
+      const before = JSON.stringify(scene.match.world.fighters);
+      draw(...args);
+      unchanged &&= before === JSON.stringify(scene.match.world.fighters);
+      states.add(f.specialKind === 'rasengan' ? f.recoverAt > 0 ? 'rasengan-recovery' : 'rasengan' : f.charge < 0 ? 'bomb-release' : 'bomb-charge');
+    };
+    driver.begin();
+    for (let i = 0; i < 190; i++) driver.step();
+    return { states: [...states], unchanged, aboveBody: fx.front.depth > scene.wr.views[0].root.depth, belowOrb: fx.front.depth < fx.orbs.depth };
+  });
+  expect(result.states).toEqual(expect.arrayContaining(['rasengan', 'rasengan-recovery', 'bomb-charge', 'bomb-release']));
+  expect(result.unchanged).toBe(true);
+  expect(result.aboveBody && result.belowOrb).toBe(true);
+});
+
+test('Luffy attack artwork follows real Pistol, Gatling and super states without changing fighters', async ({ page }) => {
+  await page.goto('/?scene=match&trailer=1&shot=pistol&timer=1');
+  await page.waitForFunction(() => (window as any).__TRAILER__?.ready());
+  const result = await page.evaluate(() => {
+    const h = (window as any).__GAME__, driver = (window as any).__TRAILER__;
+    const scene = h.game.scene.getScene('match'), rig = scene.trailer;
+    rig.spec.forms = [{ at: 0, who: 0, level: 4 }];
+    rig.spec.start = 4;
+    rig.spec.patches = [
+      { at: 0, dur: 300, who: 0, idle: true }, { at: 0, dur: 300, who: 1, idle: true },
+      { at: 20, dur: 3, who: 0, idle: true, ability: true },
+      { at: 80, dur: 3, who: 0, idle: true, kick: true },
+      { at: 150, dur: 3, who: 0, idle: true, ability: true, kick: true },
+    ];
+    rig.attach();
+    const art = scene.wr.heroFx.luffyArt;
+    const states = new Set<string>();
+    let unchanged = true, maxRadius = 0;
+    for (const method of ['arm', 'gatling']) {
+      const draw = art[method].bind(art);
+      art[method] = (...args: any[]) => {
+        const before = JSON.stringify(scene.match.world.fighters);
+        draw(...args);
+        unchanged &&= before === JSON.stringify(scene.match.world.fighters);
+        const f = args[0].fighter;
+        states.add(f.specialKind);
+        if (f.specialKind === 'superFist') maxRadius = Math.max(maxRadius, f.beamWidth);
+      };
+    }
+    driver.begin();
+    for (let i = 0; i < 230; i++) driver.step();
+    return { states: [...states], unchanged, maxRadius };
+  });
+  expect(result.states).toEqual(expect.arrayContaining(['pistol', 'gatling', 'superFist']));
+  expect(result.unchanged).toBe(true);
+  expect(result.maxRadius).toBe(40);
+});
