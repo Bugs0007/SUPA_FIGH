@@ -7,11 +7,12 @@ import { HEROES } from '../sim/data/heroes';
 import { hexToNum, TEAM_COLORS } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { music } from '../audio/music';
+import { isTouchDevice } from '../game/display';
 import { settings } from '../game/settings';
 import { profiles } from '../game/profiles';
 import { MAP_LIST } from '../sim/map/maps';
 import { keyboardBinds } from '../input/bindings';
-import { KeyboardController, type Controller } from '../input/controllers';
+import { KeyboardController, MergedController, type Controller } from '../input/controllers';
 import { GamepadController } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { CameraDirector } from '../render/CameraDirector';
@@ -190,7 +191,12 @@ export class MatchScene extends Phaser.Scene {
     this.looks = setup.players.map((p) => ({ look: p.look, color: p.color, label: p.label }));
     this.match = new Match(setup.config);
     this.controllers = setup.players.map((p, i) => {
-      if (p.input === 'kb0' || p.input === 'kb1') return new KeyboardController(keyboard, keyboardBinds[p.input === 'kb0' ? 0 : 1], p.label);
+      if (p.input === 'kb0' || p.input === 'kb1') {
+        const n = p.input === 'kb0' ? 0 : 1;
+        const kb = new KeyboardController(keyboard, keyboardBinds[n], p.label);
+        // a gamepad plays this fighter too, unless the lobby gave that pad its own slot
+        return setup.players.some((q) => q.input === 'pad' + n) ? kb : new MergedController([kb, new GamepadController(n)]);
+      }
       if (p.input.startsWith('pad')) return new GamepadController(Number(p.input.slice(3)));
       return new BotController(() => this.match.world, i, { difficulty: p.difficulty, seed: setup.config.seed });
     });
@@ -208,6 +214,7 @@ export class MatchScene extends Phaser.Scene {
     this.camDir = new CameraDirector(this.cameras.main, k);
     this.cameras.main.setRoundPixels(true);
     this.camDir.shakeScale = settings.screenShake;
+    if (isTouchDevice()) this.camDir.comfort = 0.8;
     this.buildRenderer();
     this.trailer = shot ? new TrailerRig(this, shot, params.has('shot')) : null;
     this.trailer?.attach();

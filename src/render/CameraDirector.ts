@@ -66,6 +66,8 @@ export class CameraDirector {
   private trauma = 0;
   private shakeT = 0;
   shakeScale = 1;
+  /** zoom out no further than this just to show bots (phones raise it: tiny screens, big fighters) */
+  comfort = Z_COMFORT;
   private first = true;
   /** trailer mode: a scripted camera (world x/y, zoom, smoothing 1/s) replaces the automatic framing */
   manual: { x: number; y: number; z: number; k: number } | null = null;
@@ -118,7 +120,7 @@ export class CameraDirector {
       const zMust = must.n ? fitZoom(must) : Z_MAX;
       const zAll = fitZoom(all);
       // everyone if it's comfortable; never zoom out further than needed for the humans
-      tz = Math.max(zAll, Math.min(Z_COMFORT, zMust));
+      tz = Math.max(zAll, Math.min(this.comfort, zMust));
       tz = Math.max(Z_FLOOR, Math.min(Z_MAX, tz, zMust));
       // aim at everyone, but only as far as the humans stay framed
       const ax = (all.l + all.r) / 2;

@@ -5,6 +5,7 @@ import { randomAppearance, PLAYER_PRESETS, type Appearance } from '../art/appear
 import { heroLook } from '../art/heroArt';
 import { hexToNum, TEAM_COLORS } from '../art/palette';
 import type { Difficulty } from '../ai/botData';
+import { isTouchDevice } from '../game/display';
 import { load, save } from '../game/storage';
 import { profiles, saveProfiles } from '../game/profiles';
 import type { GameMode } from '../sim/match';
@@ -58,7 +59,7 @@ export const MAX_SLOTS = 10;
 
 export function defaultLobby(): LobbyCfg {
   const slots: SlotCfg[] = Array.from({ length: MAX_SLOTS }, (_, i) => ({
-    kind: i === 0 ? 'kb0' : i === 1 ? 'kb1' : i < 5 ? 'bot' : 'empty',
+    kind: i === 0 ? 'kb0' : i === 1 ? (isTouchDevice() ? 'bot' : 'kb1') : i < 5 ? 'bot' : 'empty',
     team: 0,
     difficulty: 'normal',
     look: i < 2 ? PLAYER_PRESETS[i] : randomAppearance(),

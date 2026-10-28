@@ -27,12 +27,15 @@ import {
   WEAPON_RATES,
   type LobbyCfg,
 } from './lobby';
+import { hint, HintBar, panel, rowBar } from './kit';
+import { inputDevice, PAD_NAMES } from '../input/devices';
 import { bindZoom, drawMinimap, fighterPreview } from './ui';
 
 const SLOT_COLS = ['kind', 'team', 'skill', 'look'] as const;
 const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'start', 'controls'] as const;
 type Setting = (typeof SETTINGS)[number];
 
+const padStyleOf = () => inputDevice.pad;
 const cycle = <T,>(list: readonly T[], cur: T, d: number): T => list[(list.indexOf(cur) + d + list.length) % list.length];
 
 /** Match setup: 10 fighter slots (keyboard / gamepad / bot / empty, team, bot skill, look) + rules. */
@@ -41,10 +44,13 @@ export class LobbyScene extends Phaser.Scene {
   private row = 0;
   private col = 0;
   private texts: Phaser.GameObjects.BitmapText[][] = [];
-  private settingTexts: Phaser.GameObjects.BitmapText[] = [];
+  private settingLabels: Phaser.GameObjects.BitmapText[] = [];
+  private settingValues: Phaser.GameObjects.BitmapText[] = [];
+  private bar!: HintBar;
+  private barMode = '';
+  private joinText!: Phaser.GameObjects.BitmapText;
   private previews: Phaser.GameObjects.Container[] = [];
   private gfx!: Phaser.GameObjects.Graphics;
-  private hint!: Phaser.GameObjects.BitmapText;
   private status!: Phaser.GameObjects.BitmapText;
   private t = 0;
   private preview!: Phaser.GameObjects.Graphics;
@@ -64,7 +70,9 @@ export class LobbyScene extends Phaser.Scene {
     this.t = 0;
     // the scene instance is reused: forget the previous run's (destroyed) objects
     this.texts = [];
-    this.settingTexts = [];
+    this.settingLabels = [];
+    this.settingValues = [];
+    this.barMode = '';
     this.previews = [];
     this.previewMap = '';
     this.gfx = this.add.graphics();
@@ -79,11 +87,15 @@ export class LobbyScene extends Phaser.Scene {
       this.texts.push([0, 1, 2, 3].map((c) => this.add.bitmapText([36, 130, 186, 244][c], y + 6, 'smo', '')));
       this.previews.push(this.add.container(0, 0));
     }
-    SETTINGS.forEach((_, i) => this.settingTexts.push(this.add.bitmapText(352, 48 + i * 17, 'pxo', '')));
-    this.hint = this.add.bitmapText(VIEW_W / 2, VIEW_H - 12, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc);
-    this.status = this.add.bitmapText(352, 48 + SETTINGS.length * 17 + 2, 'smo', '').setTint(0xea4a4a);
+    SETTINGS.forEach((_, i) => {
+      this.settingLabels.push(this.add.bitmapText(354, 52 + i * 17, 'sm', '').setTint(0x8d95b0).setDepth(2));
+      this.settingValues.push(this.add.bitmapText(626, 49 + i * 17, 'pxo', '').setOrigin(1, 0).setDepth(2));
+    });
+    this.bar = new HintBar(this);
+    this.joinText = this.add.bitmapText(8, 330, 'sm', '').setTint(0x8d95b0);
+    this.status = this.add.bitmapText(354, 48 + SETTINGS.length * 17 + 3, 'smo', '').setTint(0xea4a4a).setDepth(2);
     this.preview = this.add.graphics();
-    this.blurb = this.add.bitmapText(352, 340, 'sm', '').setTint(0x8d95b0);
+    this.blurb = this.add.bitmapText(344, 330, 'sm', '').setTint(0x8d95b0);
     this.refreshPreviews();
     this.render();
   }
@@ -92,7 +104,7 @@ export class LobbyScene extends Phaser.Scene {
   private drawMapPreview(): void {
     if (this.previewMap === this.cfg.mapId) return;
     this.previewMap = this.cfg.mapId;
-    drawMinimap(this.preview.clear(), this.cfg.mapId, 352, 240, 280, 96);
+    drawMinimap(this.preview.clear(), this.cfg.mapId, 352, 234, 276, 92);
     this.blurb.setText((getMap(this.cfg.mapId).blurb ?? '').toUpperCase());
   }
 
@@ -275,37 +287,58 @@ export class LobbyScene extends Phaser.Scene {
       }
     });
     // settings
-    const vals: Record<Setting, string> = {
-      map: `MAP: ${MAP_LIST.find((m) => m.id === c.mapId)?.name ?? c.mapId}`,
-      mode: `MODE: ${MODE_NAMES[c.mode]}`,
+    const vals: Record<Setting, [string, string]> = {
+      map: ['MAP', MAP_LIST.find((m) => m.id === c.mapId)?.name ?? c.mapId],
+      mode: ['MODE', MODE_NAMES[c.mode]],
       length:
         c.mode === 'brawl'
-          ? `FIRST TO: ${c.roundsToWin} ROUNDS`
+          ? ['FIRST TO', `${c.roundsToWin} ROUNDS`]
           : c.mode === 'coop'
-            ? 'LENGTH: SURVIVE 15 WAVES'
-            : `TIME: ${Math.floor(c.timeLimit / 60)}:${String(c.timeLimit % 60).padStart(2, '0')}`,
-      sudden: `SUDDEN DEATH: ${c.mode === 'brawl' ? (c.suddenDeath ? c.suddenDeath + 'S' : 'OFF') : '-'}`,
-      ff: `FRIENDLY FIRE: ${c.friendlyFire ? 'ON' : 'OFF'}`,
-      weapons: `WEAPONS: ${WEAPON_RATE_LABELS[WEAPON_RATES.indexOf(c.weaponSpawnRate)] ?? 'NORMAL'}`,
-      chaos: `CHAOS CARDS: ${c.chaos ? 'ON' : 'OFF'}`,
-      powers: `HERO POWER-UPS: ${c.heroPowers && c.mode !== 'gungame' ? 'ON' : 'OFF'}`,
-      start: '>> START MATCH <<',
-      controls: 'CONTROLS...',
+            ? ['LENGTH', 'SURVIVE 15 WAVES']
+            : ['TIME LIMIT', `${Math.floor(c.timeLimit / 60)}:${String(c.timeLimit % 60).padStart(2, '0')}`],
+      sudden: ['SUDDEN DEATH', c.mode === 'brawl' ? (c.suddenDeath ? c.suddenDeath + 'S' : 'OFF') : '-'],
+      ff: ['FRIENDLY FIRE', c.friendlyFire ? 'ON' : 'OFF'],
+      weapons: ['WEAPONS', WEAPON_RATE_LABELS[WEAPON_RATES.indexOf(c.weaponSpawnRate)] ?? 'NORMAL'],
+      chaos: ['CHAOS CARDS', c.chaos ? 'ON' : 'OFF'],
+      powers: ['HERO POWER-UPS', c.heroPowers && c.mode !== 'gungame' ? 'ON' : 'OFF'],
+      start: ['', '>> START MATCH <<'],
+      controls: ['', 'CONTROLS...'],
     };
-    SETTINGS.forEach((s, i) => {
+    panel(g, 344, 38, 292, SETTINGS.length * 17 + 22, hexToNum(P.purple1), this.setting() !== null);
+    SETTINGS.forEach((st, i) => {
       const sel = this.row === MAX_SLOTS + i;
-      const y = 48 + i * 17;
-      if (sel) g.fillStyle(0x3a3054, 1).fillRect(344, y - 3, 290, 14);
-      this.settingTexts[i].setText(vals[s]).setTint(s === 'start' ? hexToNum(P.green2) : sel ? 0xffffff : 0xc3c9dc);
+      const y = 50 + i * 17;
+      if (sel) rowBar(g, 346, y - 3, 288, 15, blink);
+      const [label, value] = vals[st];
+      const label_ = this.settingLabels[i];
+      const val = this.settingValues[i];
+      if (st === 'start' || st === 'controls') {
+        label_.setText('');
+        val.setOrigin(0.5, 0).setX(490).setText(value).setTint(st === 'start' ? hexToNum(P.green2) : sel ? 0xffffff : 0xc3c9dc);
+      } else {
+        label_.setText(label).setTint(sel ? 0xffffff : 0x8d95b0);
+        val.setOrigin(1, 0).setX(626).setText(sel ? `< ${value} >` : value).setTint(sel ? 0xffffff : 0xfff4a0);
+      }
     });
     this.drawMapPreview();
     const problem = lobbyProblem(c);
     this.status.setText(problem ?? '').setVisible(!!problem);
     const pads = connectedPads().length;
-    this.hint.setText(
-      this.setting() === null
-        ? `UP/DOWN: SLOT   LEFT/RIGHT: COLUMN   ENTER: CHANGE (SHIFT = BACK)   F5: SHUFFLE ALL   ESC: BACK   PADS: ${pads} (START = JOIN)`
-        : `UP/DOWN: SETTING   LEFT/RIGHT: CHANGE   ENTER: SELECT   ESC: BACK   PADS: ${pads} (START = JOIN)`,
+    const ps = pads > 0 && padStyleOf() === 'ps';
+    this.joinText.setText(
+      pads > 0
+        ? `${pads} PAD${pads > 1 ? 'S' : ''} CONNECTED - PRESS ${ps ? PAD_NAMES.ps[9] : PAD_NAMES.xbox[9]} (${ps ? PAD_NAMES.xbox[9] : PAD_NAMES.ps[9]}) ON A PAD TO JOIN`
+        : 'NO GAMEPAD - PLUG IN A PLAYSTATION OR XBOX PAD TO ADD PLAYERS',
     );
+    const mode = this.setting() === null ? 'slot' : 'rules';
+    if (mode !== this.barMode) {
+      this.barMode = mode;
+      this.bar.set(
+        mode === 'slot'
+          ? [hint.move('SLOT', 'ud'), hint.move('COLUMN', 'lr'), hint.ok('CHANGE'), hint.key('SHUFFLE LOOKS', ['F5']), hint.back('BACK')]
+          : [hint.move('SETTING', 'ud'), hint.move('CHANGE', 'lr'), hint.ok('SELECT'), hint.back('BACK')],
+      );
+    }
+    this.bar.update();
   }
 }

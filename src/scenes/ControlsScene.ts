@@ -13,9 +13,12 @@ import {
   setBinding,
   type Action,
 } from '../input/bindings';
-import { connectedPads, PAD_ACTIONS, PAD_BUTTON_NAMES, padBinds, padMenu, resetPadBinds, savePadBinds, type PadAction } from '../input/gamepad';
+import { connectedPads, PAD_ACTIONS, padBinds, padMenu, resetPadBinds, savePadBinds, type PadAction } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
+import { inputDevice, padLabel } from '../input/devices';
+import { textWidth } from '../art/font';
+import { GlyphPainter, hint, HintBar, panel } from './kit';
 import { bindZoom } from './ui';
 
 const TABS = ['KEYBOARD 1', 'KEYBOARD 2', 'GAMEPAD 1', 'GAMEPAD 2', 'GAMEPAD 3', 'GAMEPAD 4'];
@@ -32,7 +35,9 @@ export class ControlsScene extends Phaser.Scene {
   private overlay = false;
   private texts: Phaser.GameObjects.BitmapText[][] = [];
   private tabText!: Phaser.GameObjects.BitmapText;
-  private footer!: Phaser.GameObjects.BitmapText;
+  private bar!: HintBar;
+  private glyphs!: GlyphPainter;
+  private hintMode = '';
   private warn!: Phaser.GameObjects.BitmapText;
   private gfx!: Phaser.GameObjects.Graphics;
   private t = 0;
@@ -53,14 +58,16 @@ export class ControlsScene extends Phaser.Scene {
     this.texts = [];
     if (this.overlay) this.add.graphics().fillStyle(0x000000, 0.9).fillRect(0, 0, VIEW_W, VIEW_H);
     this.gfx = this.add.graphics();
+    this.glyphs = new GlyphPainter(this, this.add.graphics().setDepth(10), 10);
+    this.bar = new HintBar(this);
+    this.hintMode = '';
     this.add.bitmapText(VIEW_W / 2, 8, 'pxo', 'CONTROLS').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
-    this.tabText = this.add.bitmapText(VIEW_W / 2, 36, 'pxo', '').setOrigin(0.5, 0);
+    this.tabText = this.add.bitmapText(VIEW_W / 2, 45, 'sm', '').setOrigin(0.5, 0).setDepth(6);
     for (let i = 0; i < ACTIONS.length + 2; i++) {
       const y = 60 + i * 19;
       this.texts.push([this.add.bitmapText(120, y, 'pxo', ''), this.add.bitmapText(330, y, 'pxo', ''), this.add.bitmapText(450, y, 'pxo', '')]);
     }
-    this.warn = this.add.bitmapText(VIEW_W / 2, VIEW_H - 34, 'smo', '').setOrigin(0.5, 0).setTint(0xea4a4a);
-    this.footer = this.add.bitmapText(VIEW_W / 2, VIEW_H - 14, 'sm', '').setOrigin(0.5, 0).setTint(0xc3c9dc);
+    this.warn = this.add.bitmapText(VIEW_W / 2, VIEW_H - 32, 'smo', '').setOrigin(0.5, 0).setTint(0xea4a4a);
     this.render();
   }
 
@@ -173,13 +180,26 @@ export class ControlsScene extends Phaser.Scene {
   private render(): void {
     const g = this.gfx;
     g.clear();
+    this.glyphs.begin();
+    panel(g, 100, 42, 440, 60 + (this.actions.length + 2) * 19 + 12 - 42, hexToNum(P.purple1), true);
     const blink = Math.floor(this.t * 3) % 2 === 0;
     const padSlot = this.tab - 2;
     const padOk = this.isPad && !!connectedPads()[padSlot];
+    // tabs: one pill per layout / pad (the focused row is the tab row)
+    let tx = 70;
+    TABS.forEach((name, i) => {
+      const w = textWidth(name, 'sm') + 10;
+      const on = i === this.tab;
+      g.fillStyle(on ? 0x3a3054 : 0x151a2a, 1).fillRect(tx, 25, w, 13);
+      g.lineStyle(1, on ? (this.row === 0 ? 0xffffff : 0xf8c840) : 0x3a3054, 1).strokeRect(tx + 0.5, 25.5, w - 1, 12);
+      this.glyphs.label(name, tx + 5, 29, on ? 0xffffff : i >= 2 && !connectedPads()[i - 2] ? 0x5a6280 : 0x8d95b0);
+      tx += w + 4;
+    });
     this.tabText
-      .setText(`<  ${TABS[this.tab]}${this.isPad && !padOk ? ' (NOT CONNECTED)' : ''}  >`)
-      .setTint(this.row === 0 ? 0xffffff : 0x8d95b0);
-    if (this.row === 0) g.fillStyle(0x3a3054, 1).fillRect(140, 32, 360, 15);
+      .setPosition(VIEW_W / 2, 45)
+      .setText(this.isPad ? (padOk ? (inputDevice.pad === 'ps' ? 'PLAYSTATION PAD - SHOWING PLAYSTATION AND XBOX NAMES' : 'XBOX PAD - SHOWING XBOX AND PLAYSTATION NAMES') : 'NOT CONNECTED - PRESS A BUTTON ON THE PAD') : 'KEYBOARD - 2 KEYS PER ACTION')
+      .setFont('sm')
+      .setTint(0xfff4a0);
     const acts = this.actions;
     let warning = '';
     for (let i = 0; i < this.texts.length; i++) {
@@ -191,10 +211,21 @@ export class ControlsScene extends Phaser.Scene {
       if (i < acts.length) {
         const a = acts[i];
         if (this.isPad) {
-          label.setText(ACTION_LABELS[a as Action]).setTint(0xc3c9dc);
+          label.setText(a === 'jump' ? 'JUMP' : ACTION_LABELS[a as Action]).setTint(0xc3c9dc);
           const btns = padBinds[padSlot][a as PadAction];
-          k1.setText(this.capturing && sel ? (blink ? 'PRESS A BUTTON' : '') : btns.map((b) => PAD_BUTTON_NAMES[b] ?? 'B' + b).join(' / ') || '-').setTint(0xffffff);
-          k2.setText('');
+          const style = inputDevice.pad;
+          [k1, k2].forEach((t, c) => {
+            const bx = t.x;
+            const capturingThis = this.capturing && sel && c === 0;
+            if (capturingThis) t.setText(blink ? 'PRESS A BUTTON' : '').setTint(0xffffff);
+            else if (btns[c] !== undefined) {
+              // the pad's own symbols first, then both names (PlayStation and Xbox)
+              const gw = this.glyphs.padButton(btns[c], style, bx, y - 2);
+              this.glyphs.padButton(btns[c], style === 'ps' ? 'xbox' : 'ps', bx + gw + 3, y - 2);
+              t.setText('');
+              this.glyphs.label(padLabel(btns[c], style), bx + gw * 2 + 9, y + 1, 0xffffff);
+            } else t.setText(c === 0 ? '-' : '').setTint(0xffffff);
+          });
         } else {
           const binds = keyboardBinds[this.tab][a as Action];
           label.setText(ACTION_LABELS[a as Action]).setTint(0xc3c9dc);
@@ -222,14 +253,17 @@ export class ControlsScene extends Phaser.Scene {
       }
     }
     if (!this.capturing && !warning.startsWith('CTRL')) this.warn.setText(warning);
-    this.footer.setText(
-      this.capturing
-        ? this.isPad
-          ? 'PRESS A PAD BUTTON   ESC / BACK: CANCEL'
-          : 'PRESS A KEY   ESC: CANCEL   BACKSPACE: CLEAR'
-        : this.isPad
-          ? 'UP/DOWN: ACTION   ENTER: REBIND   MOVEMENT = LEFT STICK / D-PAD   ESC: BACK'
-          : 'UP/DOWN: ACTION   LEFT/RIGHT: 1ST/2ND KEY   ENTER: REBIND   DEL: CLEAR   ESC: BACK',
-    );
+    const mode = `${this.capturing}|${this.isPad}`;
+    if (mode !== this.hintMode) {
+      this.hintMode = mode;
+      this.bar.set(
+        this.capturing
+          ? [hint.key(this.isPad ? 'PRESS A BUTTON' : 'PRESS A KEY', []), hint.back('CANCEL')]
+          : this.isPad
+            ? [hint.move('ACTION', 'ud'), hint.ok('REBIND'), hint.back('BACK'), hint.key('MOVEMENT = LEFT STICK / D-PAD', [])]
+            : [hint.move('ACTION', 'ud'), hint.move('1ST / 2ND KEY', 'lr'), hint.ok('REBIND'), hint.key('CLEAR', ['DEL']), hint.back('BACK')],
+      );
+    }
+    this.bar.update();
   }
 }

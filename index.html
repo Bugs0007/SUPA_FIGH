@@ -2,7 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="./manifest.webmanifest" />
     <title>Brawlkai</title>
     <meta name="description" content="Brawlkai: a chaotic pixel-art anime brawler for up to 10 fighters. Local multiplayer + bots, in your browser." />
     <meta name="theme-color" content="#0b0912" />
@@ -26,7 +30,41 @@
         height: 100%;
         background: #0b0912;
         overflow: hidden;
+        overscroll-behavior: none;
       }
+      :root {
+        --sl: env(safe-area-inset-left, 0px);
+        --sr: env(safe-area-inset-right, 0px);
+        --st: env(safe-area-inset-top, 0px);
+        --sb: env(safe-area-inset-bottom, 0px);
+      }
+      /* phones: the 640x360 view is scaled to fill the screen (--fit is set from main.ts) */
+      html.touch, html.touch body { position: fixed; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+      html.touch #game canvas {
+        width: calc(var(--fit) * 640px) !important;
+        height: calc(var(--fit) * 360px) !important;
+        max-width: none;
+        max-height: none;
+        image-rendering: auto;
+        touch-action: none;
+      }
+      #rotate {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        background: #0b0912;
+        color: #f8c840;
+        font: bold 18px monospace;
+        text-align: center;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 14px;
+      }
+      #rotate .phone { width: 34px; height: 60px; border: 3px solid #f8c840; border-radius: 6px; animation: turn 2s ease-in-out infinite; }
+      @keyframes turn { 0%, 30% { transform: rotate(0); } 70%, 100% { transform: rotate(90deg); } }
+      @media (orientation: portrait) { html.touch #rotate { display: flex; } }
       #game {
         width: 100%;
         height: 100%;
@@ -59,6 +97,7 @@
   <body>
     <div id="game"></div>
     <div id="crash"></div>
+    <div id="rotate"><div class="phone"></div>TURN YOUR PHONE SIDEWAYS</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

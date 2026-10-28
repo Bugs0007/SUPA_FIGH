@@ -460,3 +460,17 @@ inputs until the move ends: Goku flies (jump, then hold Up, steer; ends at the t
 walks up a wall that ends near the target's height and Rasengan-dashes along a clear level lane >= 110 px, Luffy picks the
 grapple direction (up / up-forward / forward / down-forward) whose catch lands nearest the target and holds the ability
 (pulled to platforms / ladders, swing + release from ceilings). Each move has a ban timer after a failure.
+
+### D69 — Phones, input devices and the menu kit
+**Touch** (`src/input/touch.ts`, only on `(pointer: coarse)` devices; `?touch=1/0` forces): a DOM overlay (pointer events, so
+multi-touch works) that presses/releases the *keyboard player 1 keys* through `Keyboard.press/release`. Nothing downstream
+knows about touch: matches read P1's bindings (rebinding still works), menus read arrows / Enter / Esc. In a match it shows a
+floating stick (up = jump, like the keyboard) + ATK / KICK / GRAB / SWAP / MED, ABIL + SUPER for heroes and a pause button;
+everywhere else a D-pad + OK / BACK; instant replays get a SKIP button. The canvas is rendered at `ceil(fit)` x (max 3) and
+scaled by CSS to fill the screen; the camera zooms in a little more (`comfort` 0.8) because fighters are small on a phone.
+First tap = fullscreen + landscape lock + wake lock; a portrait phone pauses the match. Quick Match defaults to 1 player.
+**Devices** (`src/input/devices.ts`): the last device used (keyboard / PlayStation pad / Xbox pad / touch) picks the glyphs
+menus show; the standard-mapping buttons are named in both styles (CROSS / A...). A plugged-in pad plays player 1 / 2 in Quick
+Match without setup (`MergedController` = keyboard OR pad).
+**Menu kit** (`src/scenes/kit.ts`): `HintBar` (keycaps / PS and Xbox glyphs / touch pills at the bottom of every screen),
+`panel`, `rowBar`, `meter`, `toggle`. Title, Match Setup, Settings, Controls and Pause use it.

@@ -4,6 +4,7 @@ import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { saveSettings, settings, type Settings } from '../game/settings';
 import { menu } from '../input/menu';
+import { hint, HintBar, meter, panel, rowBar, toggle } from './kit';
 import { bindZoom } from './ui';
 
 type Row =
@@ -30,6 +31,9 @@ export class SettingsScene extends Phaser.Scene {
   private overlay = false;
   private texts: Phaser.GameObjects.BitmapText[] = [];
   private gfx!: Phaser.GameObjects.Graphics;
+  private values: Phaser.GameObjects.BitmapText[] = [];
+  private bar!: HintBar;
+  private t = 0;
 
   constructor() {
     super('settings');
@@ -44,12 +48,16 @@ export class SettingsScene extends Phaser.Scene {
     this.gfx = this.add.graphics();
     if (this.overlay) this.gfx.fillStyle(0x000000, 0.85).fillRect(0, 0, VIEW_W, VIEW_H);
     this.add.bitmapText(VIEW_W / 2, 24, 'pxo', 'SETTINGS').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
-    this.texts = ROWS.map((_, i) => this.add.bitmapText(VIEW_W / 2 - 120, 76 + i * 24, 'pxo', ''));
-    this.add.bitmapText(VIEW_W / 2, VIEW_H - 16, 'sm', 'UP/DOWN: SELECT   LEFT/RIGHT: CHANGE   ESC: BACK').setOrigin(0.5, 0).setTint(0xc3c9dc);
+    this.t = 0;
+    this.texts = ROWS.map((r, i) => this.add.bitmapText(VIEW_W / 2 - 150, 71 + i * 24, 'pxo', '').setDepth(2).setVisible(r.kind !== 'back'));
+    this.values = ROWS.map((_, i) => this.add.bitmapText(VIEW_W / 2 + 150, 71 + i * 24, 'pxo', '').setOrigin(1, 0).setDepth(2));
+    this.bar = new HintBar(this);
+    this.bar.set([hint.move('SELECT', 'ud'), hint.move('CHANGE', 'lr'), hint.back('BACK')]);
     this.render();
   }
 
-  override update(): void {
+  override update(_t: number, deltaMs: number): void {
+    this.t += deltaMs / 1000;
     if (menu.back() || (menu.confirm() && ROWS[this.row].kind === 'back')) {
       saveSettings();
       audio.play('uiBack');
@@ -83,15 +91,33 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   private render(): void {
+    const g = this.gfx;
+    g.clear();
+    if (this.overlay) g.fillStyle(0x000000, 0.85).fillRect(0, 0, VIEW_W, VIEW_H);
+    const blink = Math.floor(this.t * 3) % 2 === 0;
+    panel(g, VIEW_W / 2 - 170, 44, 340, ROWS.length * 24 + 34, hexToNum(P.purple1), true);
     ROWS.forEach((r, i) => {
       const sel = this.row === i;
-      let val = '';
+      const y = 71 + i * 24;
+      if (sel) rowBar(g, VIEW_W / 2 - 166, y - 6, 332, 20, blink);
+      const label = this.texts[i];
+      const val = this.values[i];
+      if (r.kind === 'back') {
+        label.setText('BACK').setOrigin(0.5, 0).setX(VIEW_W / 2).setVisible(true).setTint(sel ? 0xffffff : 0x8d95b0);
+        val.setText('');
+        return;
+      }
+      label.setText(r.label).setTint(sel ? 0xffffff : 0xc3c9dc);
       if (r.kind === 'pct') {
         const v = settings[r.key] as number;
-        val = `${'#'.repeat(Math.round(v * 10))}${'.'.repeat(10 - Math.round(v * 10))} ${Math.round(v * 100)}%`;
-      } else if (r.kind === 'bool') val = settings[r.key] ? 'ON' : 'OFF';
-      this.texts[i].setText(r.kind === 'back' ? 'BACK' : `${r.label.padEnd(16, ' ')} ${val}`).setTint(sel ? 0xffffff : 0x8d95b0);
-      if (sel) this.texts[i].setText('> ' + this.texts[i].text);
+        meter(g, VIEW_W / 2 + 34, y + 1, 82, v, sel ? 0xf8c840 : 0x5a8ad0);
+        val.setText(`${Math.round(v * 100)}%`).setTint(sel ? 0xffffff : 0xc3c9dc);
+      } else {
+        const on = !!settings[r.key];
+        toggle(g, VIEW_W / 2 + 110, y, on);
+        val.setText('').setTint(0xffffff);
+      }
     });
+    this.bar.update();
   }
 }
