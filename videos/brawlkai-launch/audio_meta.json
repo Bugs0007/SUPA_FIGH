@@ -1,0 +1,9 @@
+{
+  "duration": 45,
+  "source": "local-original-synthesis",
+  "bgm": {
+    "path": "assets/soundtrack.wav"
+  },
+  "synchronizedGameSounds": 125,
+  "voiceover": null
+}

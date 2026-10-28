@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #0b0912;
+        overflow: hidden;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #crash {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        max-width: 60%;
+        padding: 6px 10px;
+        font: 12px monospace;
+        color: #fff4a0;
+        background: #3a0a14cc;
+        border: 1px solid #ea4a4a;
+        display: none;
+        white-space: pre-wrap;
+      }
+      #game canvas {
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        max-width: 100%;
+        max-height: 100%;
+        outline: none;
+      }
+    </style>
+<script type="module" crossorigin="" src="./assets/index-KQ6mvSCK.js"></script>
+</head>
+<body>
+
+    <div id="game"><canvas width="1920" height="1080" style="image-rendering: pixelated;"></canvas></div>
+    <div id="crash"></div>
+  
+
+
+</body>
+</html>
