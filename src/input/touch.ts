@@ -4,7 +4,7 @@
 // keyboard player would, through Keyboard.press/release. Nothing downstream knows about touch: the match reads
 // Player 1's key bindings (rebinding still works), menus read arrows / Enter / Escape.
 //
-//   'game'  floating stick on the left half (up = jump, hold + attack = aim), action buttons on the right
+//   'game'  fixed 8-way arrow pad bottom-left (up = jump, hold + attack = aim), action buttons on the right
 //   'menu'  D-pad + OK + BACK (auto-repeat on the arrows)
 //   'skip'  one big button (instant replays: tap to skip)
 //   'off'   nothing (boot, trailer)
@@ -69,12 +69,13 @@ const CSS = `
 .b-swap{right:calc(var(--u)*29 + var(--sr,0px));bottom:calc(var(--u)*15 + var(--sb,0px));width:calc(var(--u)*8.5);height:calc(var(--u)*8.5);font-size:calc(var(--u)*1.7)!important}
 .b-med{right:calc(var(--u)*4 + var(--sr,0px));bottom:calc(var(--u)*33 + var(--sb,0px));width:calc(var(--u)*8);height:calc(var(--u)*8);background:rgba(90,200,90,.4)!important;font-size:calc(var(--u)*1.7)!important}
 .b-pause{right:calc(var(--u)*2 + var(--sr,0px));top:calc(var(--u)*2 + var(--st,0px));width:calc(var(--u)*6.5);height:calc(var(--u)*6.5);border-radius:20%}
-/* the stick */
-#touch .zone{position:absolute;left:0;bottom:0;width:48%;height:78%;pointer-events:auto;touch-action:none}
-#touch .base,#touch .knob{position:absolute;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);box-sizing:border-box}
-#touch .base{width:calc(var(--u)*20);height:calc(var(--u)*20);border:2px solid rgba(255,255,255,.35);background:rgba(20,15,30,.28)}
-#touch .knob{width:calc(var(--u)*9);height:calc(var(--u)*9);background:rgba(255,255,255,.5);border:2px solid rgba(255,255,255,.8)}
-#touch .base.idle,#touch .knob.idle{opacity:.45}
+/* the 8-way arrow pad: one round touch area, the thumb slides between the arrows */
+#touch .pad{position:absolute;left:calc(var(--u)*3 + var(--sl,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*25);height:calc(var(--u)*25);
+  border-radius:50%;pointer-events:auto;touch-action:none;background:rgba(20,15,30,.34);border:2px solid rgba(255,255,255,.35);box-sizing:border-box}
+#touch .pad i{position:absolute;left:50%;top:50%;width:calc(var(--u)*6.8);height:calc(var(--u)*6.8);margin:calc(var(--u)*-3.4);display:flex;align-items:center;
+  justify-content:center;font-style:normal;font-weight:bold;font-size:calc(var(--u)*3);color:rgba(255,255,255,.75);border-radius:50%;pointer-events:none;
+  transform:rotate(var(--a)) translateY(calc(var(--u)*-9)) rotate(calc(var(--a)*-1))}
+#touch .pad i.on{background:rgba(248,200,64,.65);color:#fff}
 /* menu pad: a small D-pad bottom-left, OK / BACK bottom-right (translucent: the menu stays readable behind it) */
 #touch[data-mode=menu] .tb,#touch[data-mode=skip] .tb{background:rgba(20,15,30,.34)}
 .m-up,.m-down,.m-left,.m-right{width:calc(var(--u)*10);height:calc(var(--u)*10);border-radius:22%!important}
@@ -97,18 +98,35 @@ function capture(el: HTMLElement, id: number): void {
   }
 }
 
-const STICK_R = 0.1; // stick radius as a fraction of the short side
+/** arrow glyphs for the 8 directions, clockwise from up */
+const ARROWS = ['▲', '◥', '▶', '◢', '▼', '◣', '◀', '◤'];
+/** left, right, up, down for each of the 8 sectors (clockwise from up) */
+const SECTOR_DIRS: [boolean, boolean, boolean, boolean][] = [
+  [false, false, true, false],
+  [false, true, true, false],
+  [false, true, false, false],
+  [false, true, false, true],
+  [false, false, false, true],
+  [true, false, false, true],
+  [true, false, false, false],
+  [true, false, true, false],
+];
+/** the middle of the pad (as a fraction of its radius) where nothing is pressed */
+const PAD_DEAD = 0.2;
+
+/** which of the 8 arrows (0 = up, clockwise, 45 degrees each) a thumb offset from the pad centre points at */
+export function directionSector(dx: number, dy: number): number {
+  const deg = (Math.atan2(dx, -dy) * 180) / Math.PI; // 0 = up, clockwise
+  return Math.round((deg + 360) / 45) % 8;
+}
 
 class TouchUI {
   private root: HTMLDivElement | null = null;
   private mode: TouchMode = 'off';
   private held = new Map<string, number>();
-  private zone!: HTMLDivElement;
-  private base!: HTMLDivElement;
-  private knob!: HTMLDivElement;
-  private stickId: number | null = null;
-  private ox = 0;
-  private oy = 0;
+  private pad!: HTMLDivElement;
+  private arrows: HTMLElement[] = [];
+  private padId: number | null = null;
   private dirs = { left: false, right: false, up: false, down: false };
   private timers = new Map<string, number>();
 
@@ -123,20 +141,22 @@ class TouchUI {
     root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.root = root;
 
-    this.zone = document.createElement('div');
-    this.zone.className = 'zone g';
-    this.base = document.createElement('div');
-    this.base.className = 'base g idle';
-    this.knob = document.createElement('div');
-    this.knob.className = 'knob g idle';
-    root.append(this.zone, this.base, this.knob);
-    this.restStick();
-    this.zone.addEventListener('pointerdown', (e) => this.stickDown(e));
-    this.zone.addEventListener('pointermove', (e) => this.stickMove(e));
-    const up = (e: PointerEvent) => this.stickUp(e);
-    this.zone.addEventListener('pointerup', up);
-    this.zone.addEventListener('pointercancel', up);
-    this.zone.addEventListener('lostpointercapture', up);
+    this.pad = document.createElement('div');
+    this.pad.className = 'pad g';
+    ARROWS.forEach((glyph, i) => {
+      const el = document.createElement('i');
+      el.textContent = glyph;
+      el.style.setProperty('--a', `${i * 45}deg`);
+      this.pad.appendChild(el);
+      this.arrows.push(el);
+    });
+    root.appendChild(this.pad);
+    this.pad.addEventListener('pointerdown', (e) => this.padDown(e));
+    this.pad.addEventListener('pointermove', (e) => this.padMove(e));
+    const up = (e: PointerEvent) => this.padUp(e);
+    this.pad.addEventListener('pointerup', up);
+    this.pad.addEventListener('pointercancel', up);
+    this.pad.addEventListener('lostpointercapture', up);
 
     for (const b of GAME_BUTTONS) root.appendChild(this.button(b, 'g'));
     for (const b of MENU_BUTTONS) root.appendChild(this.button(b, 'm'));
@@ -150,8 +170,6 @@ class TouchUI {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.releaseAll();
     });
-    window.addEventListener('resize', () => this.restStick());
-    window.addEventListener('orientationchange', () => this.restStick());
   }
 
   setMode(m: TouchMode): void {
@@ -161,7 +179,6 @@ class TouchUI {
     const ok = this.root.querySelector('.m-ok');
     if (ok) ok.textContent = m === 'skip' ? 'SKIP' : 'OK';
     this.releaseAll();
-    this.restStick();
   }
 
   setHero(h: boolean): void {
@@ -255,8 +272,8 @@ class TouchUI {
     this.delays.clear();
     this.timers.clear();
     this.root?.querySelectorAll('.tb.on').forEach((e) => e.classList.remove('on'));
-    this.stickId = null;
-    this.setDirs(false, false, false, false);
+    this.padId = null;
+    this.setSector(-1);
   }
 
   private buzz(ms: number): void {
@@ -267,68 +284,42 @@ class TouchUI {
     }
   }
 
-  // ------------------------------------------------------------------ stick
+  // ------------------------------------------------------------------ 8-way pad
 
-  private radius(): number {
-    return Math.min(window.innerWidth, window.innerHeight) * STICK_R;
-  }
-
-  /** the faint resting stick (bottom-left) shows where to put the thumb */
-  private restStick(): void {
-    if (!this.root) return;
-    const m = Math.min(window.innerWidth, window.innerHeight);
-    this.place(m * 0.2, window.innerHeight - m * 0.26, m * 0.2, window.innerHeight - m * 0.26);
-    this.base.classList.add('idle');
-    this.knob.classList.add('idle');
-  }
-
-  private place(bx: number, by: number, kx: number, ky: number): void {
-    this.base.style.left = `${bx}px`;
-    this.base.style.top = `${by}px`;
-    this.knob.style.left = `${kx}px`;
-    this.knob.style.top = `${ky}px`;
-  }
-
-  private stickDown(e: PointerEvent): void {
-    if (this.stickId !== null) return;
+  private padDown(e: PointerEvent): void {
+    if (this.padId !== null) return;
     e.preventDefault();
-    this.stickId = e.pointerId;
+    this.padId = e.pointerId;
     inputDevice.note('touch');
-    capture(this.zone, e.pointerId);
-    const r = this.radius();
-    this.ox = Math.max(r, Math.min(window.innerWidth * 0.5, e.clientX));
-    this.oy = Math.max(r, Math.min(window.innerHeight - r * 0.6, e.clientY));
-    this.base.classList.remove('idle');
-    this.knob.classList.remove('idle');
-    this.place(this.ox, this.oy, this.ox, this.oy);
-    this.stickMove(e);
+    capture(this.pad, e.pointerId);
+    this.padMove(e);
   }
 
-  private stickMove(e: PointerEvent): void {
-    if (e.pointerId !== this.stickId) return;
+  private padMove(e: PointerEvent): void {
+    if (e.pointerId !== this.padId) return;
     e.preventDefault();
-    const r = this.radius();
-    let dx = e.clientX - this.ox;
-    let dy = e.clientY - this.oy;
-    const len = Math.hypot(dx, dy);
-    if (len > r) {
-      // drag the base along so the thumb never runs out of room
-      const k = (len - r) / len;
-      this.ox += dx * k;
-      this.oy += dy * k;
-      dx = e.clientX - this.ox;
-      dy = e.clientY - this.oy;
-    }
-    this.place(this.ox, this.oy, this.ox + dx, this.oy + dy);
-    // up is the jump: it takes a smaller push than down (a sliding thumb should jump easily)
-    this.setDirs(dx < -r * 0.38, dx > r * 0.38, dy < -r * 0.42, dy > r * 0.55);
+    const r = this.pad.getBoundingClientRect();
+    const dx = e.clientX - (r.left + r.width / 2);
+    const dy = e.clientY - (r.top + r.height / 2);
+    this.setSector(Math.hypot(dx, dy) < (r.width / 2) * PAD_DEAD ? -1 : directionSector(dx, dy));
   }
 
-  private stickUp(e: PointerEvent): void {
-    if (e.pointerId !== this.stickId) return;
-    this.stickId = null;
-    this.setDirs(false, false, false, false);
-    this.restStick();
+  private padUp(e: PointerEvent): void {
+    if (e.pointerId !== this.padId) return;
+    this.padId = null;
+    this.setSector(-1);
+  }
+
+  private sector = -1;
+
+  /** light the arrow under the thumb and press its keys (-1 = centre / released) */
+  private setSector(s: number): void {
+    if (s === this.sector) return;
+    if (s >= 0 && this.sector < 0) this.buzz(6);
+    this.sector = s;
+    this.arrows.forEach((el, i) => el.classList.toggle('on', i === s));
+    const [l, r, u, d] = s < 0 ? [false, false, false, false] : SECTOR_DIRS[s];
+    this.setDirs(l, r, u, d);
   }
 
   private setDirs(left: boolean, right: boolean, up: boolean, down: boolean): void {
