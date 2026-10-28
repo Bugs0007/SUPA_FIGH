@@ -19,6 +19,7 @@ import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
 import type { World } from '../sim/world';
 import { DIFFICULTIES, PERSONALITIES, weaponAi, type Difficulty, type DifficultyDef, type Personality } from './botData';
+import { HeroMobility } from './heroMove';
 import { MANEUVERS, navFor, type NavEdge, type NavGraph, type NavNode } from './nav';
 
 export interface BotOptions {
@@ -90,6 +91,12 @@ export class BotController implements Controller {
   private chargeTicks = 0;
   private hold: 'ability' | 'kick' | 'both' = 'ability';
   private readonly isClone: boolean;
+  /** consecutive ticks the bot sent no input at all while it should be doing something (watchdog) */
+  private idleTicks = 0;
+  private readonly mobility = new HeroMobility();
+  private noPathUntil = 0;
+  private unstickUntil = 0;
+  private unstickDir = 1;
 
   constructor(
     private getWorld: () => World,
@@ -127,6 +134,7 @@ export class BotController implements Controller {
       }
       this.act(w, f);
       this.applyTaps();
+      this.watchdog(w, f);
     } else if (f && f.ghost) {
       this.haunt(w, f);
       this.applyTaps();
@@ -142,6 +150,30 @@ export class BotController implements Controller {
     return o;
   }
 
+  /**
+   * Last line of defense against a frozen bot (two fighters standing inside each other, a state we never
+   * handled...): if it sends no input for 1.5 s while alive and free to act, walk/jump somewhere random for
+   * a moment and pick a new goal.
+   */
+  private watchdog(w: World, f: Fighter): void {
+    const o = this.out;
+    const free = f.state === 'normal' || f.state === 'crouch' || f.state === 'climb';
+    const quiet = !o.moveX && !o.moveY && !o.jump && !o.attack && !o.kick && !o.ability && !o.interact && !o.cycle;
+    if (!free || !quiet || this.taps.size > 0 || this.chargeTicks > 0 || this.now < this.unstickUntil) {
+      this.idleTicks = 0;
+      return;
+    }
+    if (++this.idleTicks < 90) return;
+    this.idleTicks = 0;
+    this.unstickUntil = this.now + 0.7;
+    this.unstickDir = this.rng.sign();
+    this.goal = { t: 'roam', node: -1 };
+    this.nextThink = this.now;
+    this.script = null;
+    this.path = [];
+    void w;
+  }
+
   private reset(w: World): void {
     this.world = w;
     this.graph = navFor(w.def);
@@ -155,6 +187,29 @@ export class BotController implements Controller {
     this.nextThink = 0;
     this.throwAngle = null;
     this.holdTicks = 0;
+    // Every timestamp below is in world time, which restarts at 0 each round: a value left over from the
+    // previous round (e.g. crouchUntil = 18 s) would freeze the bot (crouching / unable to melee) for ages.
+    this.now = 0;
+    this.pathIdx = 0;
+    this.replanAt = 0;
+    this.progressX = 0;
+    this.progressY = 0;
+    this.progressT = 0;
+    this.stuckLevel = 0;
+    this.aimOffset = 0;
+    this.aimStart = 0;
+    this.crouchUntil = 0;
+    this.meleeNext = 0;
+    this.lootSince = 0;
+    this.lootId = -1;
+    this.ignoreItems.clear();
+    this.chargeTicks = 0;
+    this.hazardNodes.clear();
+    this.prev = emptyIntent();
+    this.idleTicks = 0;
+    this.unstickUntil = 0;
+    this.mobility.reset();
+    this.noPathUntil = 0;
   }
 
   /** Request a button press; it's delivered as a clean edge (released the tick before if needed). */
@@ -451,6 +506,21 @@ export class BotController implements Controller {
       this.out.moveY = 1;
       return;
     }
+    if (this.mobility.active) {
+      // a hero traversal move (fly / wall walk / dash / grapple) owns the inputs until it ends
+      if (this.mobility.step(w, f, this.out, this.now)) {
+        this.progressT = this.now;
+        this.progressX = f.x;
+        this.progressY = f.y;
+        return;
+      }
+    }
+    if (this.now < this.unstickUntil) {
+      // watchdog: shake loose (walk, hop, step off ladders)
+      this.out.moveX = this.unstickDir;
+      if (f.state === 'climb' || (f.grounded && (this.now * 60) % 20 < 1)) this.tap('jump');
+      return;
+    }
     if (this.dodge(w, f)) return;
 
     switch (this.goal.t) {
@@ -509,6 +579,12 @@ export class BotController implements Controller {
 
     // hero special (Kurama chakra bomb, Gear 2 rubber bullet, Super Saiyan ki blast)
     if (this.useSpecial(w, f, e, seen)) return;
+
+    // halfway up/down a ladder: guns and throws can't start here, so finish the climb instead of hanging
+    if (f.state === 'climb') {
+      this.navigate(w, f, tx, ty);
+      return;
+    }
 
     // keep throwing if we're mid-throw
     const act = activeWeapon(f);
@@ -884,6 +960,13 @@ export class BotController implements Controller {
       this.trackProgress(w, f, true);
       return;
     }
+    // heroes: fly / wall-walk / Rasengan-dash / grapple instead of the scripted jumps when that gets there faster
+    if (f.hero && !this.isClone && this.mobility.consider(w, f, g, x, y, this.now, this.out, this.now < this.noPathUntil)) {
+      this.progressT = this.now;
+      this.progressX = f.x;
+      this.progressY = f.y;
+      return;
+    }
     if (!here && f.grounded && f.state !== 'climb') {
       // standing somewhere the graph doesn't know (on a prop, a corpse...): walk to the nearest node
       const n = g.nearest(f.x, f.y);
@@ -906,6 +989,7 @@ export class BotController implements Controller {
       this.replanAt = this.now + 1.2;
       if (!p) {
         this.path = [];
+        this.noPathUntil = this.now + 1.5;
         return;
       }
       this.path = p;

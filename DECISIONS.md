@@ -448,3 +448,15 @@ camera, slow-mo and captions. `window.__TRAILER__` stops Phaser's loop and rende
 `game.step()` of 1/60 s, so recordings are deterministic and independent of machine speed. The soundtrack is generated
 (chiptune written as code + the game's own sfxr effects replayed from per-shot audio logs): no third-party audio.
 The finale is a natural bot-vs-bot fight (seed found with `scripts/trailer/scout.ts`); the other shots are directed.
+
+### D68 — Bots: frozen-bot fix and hero traversal
+**Frozen bots.** `BotController` kept absolute world-time stamps (`crouchUntil`, `meleeNext`, `ignoreItems`, `replanAt`...)
+across rounds, but world time restarts at 0 every round: a stale `crouchUntil = 18` made a bot crouch (and a stale
+`meleeNext` stopped its punches) for up to 18 s of the next round, so bots piled up and stood still. `reset()` now clears
+every timestamp. Two more freezes were closed: a gun/throw bot halfway on a ladder never moved (`fight()` now finishes the
+climb first), and a watchdog (`watchdog()`) shakes a bot loose when it has sent no input for 1.5 s while free to act.
+**Hero traversal** lives in `src/ai/heroMove.ts` (`HeroMobility`), offered the travel target from `navigate()` and owning the
+inputs until the move ends: Goku flies (jump, then hold Up, steer; ends at the target height or against a ceiling), Naruto
+walks up a wall that ends near the target's height and Rasengan-dashes along a clear level lane >= 110 px, Luffy picks the
+grapple direction (up / up-forward / forward / down-forward) whose catch lands nearest the target and holds the ability
+(pulled to platforms / ladders, swing + release from ceilings). Each move has a ban timer after a failure.
