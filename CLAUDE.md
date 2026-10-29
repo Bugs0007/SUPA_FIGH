@@ -20,6 +20,8 @@ npm run typecheck  # tsc --noEmit
 npm run balance    # bot survey across every map (scripts/balance.ts)
 npm run sim -- 8 8 test normal 1   # headless bots-only balance report (matches bots map difficulty seed)
 npm run trailer    # records + encodes the game trailer into trailer/ (see scripts/trailer/README.md)
+npm run host       # LAN multiplayer: build, serve game + WebSocket server on one port, print LAN URLs + QR (README)
+npm run server     # the game server alone (use with `npm run dev` and ?server=ws://host:8080)
 ```
 
 ## Architecture (the one rule: the simulation never imports Phaser)
@@ -58,6 +60,12 @@ src/input/    Keyboard (event.code based) + Gamepad API (gamepad.ts) -> Intent. 
               conflict detection) saved in localStorage. menu.ts = unified menu nav for keys + pads.
               touch.ts = on-screen controls for phones (press synthetic keyboard keys, D-pad in menus);
               devices.ts = last-used device + PlayStation/Xbox button names (menus show the right glyphs).
+src/net/      LAN multiplayer code shared by client and server (no Phaser, DOM or Node imports; a test enforces it):
+              protocol.ts (validated wire messages), renderState.ts (lean snapshot codec onto a mirror Match),
+              intentWire.ts (controls + edge bits), client.ts (NetClient, reconnects), timeline.ts (interpolation
+              buffer), remoteSim.ts (mirror Match fed by snapshots). sim/snapshot.ts + World/Match.snapshot()/restore().
+server/       Node-only authoritative server (D70-D76): session.ts (Match + bots + controls), room.ts, hub.ts,
+              server.ts (http+ws, tls), static.ts, host.ts (`npm run host`), netsim.ts (latency / jitter / loss).
 src/ai/       Bots (pure TS, no Phaser — run headless too). Same Controller/Intent contract as humans.
   nav.ts          Nav graph: standable cells + ladders; jump/fall/drop edges found by simulating the
                   real fighter code in a sandbox (MANEUVERS input scripts that bots replay). A*, Dijkstra.
@@ -83,6 +91,8 @@ src/scenes/   Boot (bake assets) -> Title menu -> [Lobby (+ Creator) | Controls 
               Settings/Controls also run as overlays over a paused match.
               kit.ts = shared menu kit (HintBar with keyboard / PS / Xbox / touch glyphs, panel, rowBar, meter).
               lobby.ts = Phaser-free lobby model (slots/rules -> MatchSceneData), unit tested.
+              NetLobbyScene.ts = Host game / Join game (room lobby for LAN play); netSetup.ts = server match -> MatchSceneData.
+              MatchScene has a network mode (`data.net`: a RemoteSim, no stepping) next to the local one.
 src/game/     Display config (640x360 native, integer scale factor), settings, profiles (keyboard players' name /
               hero / look, edited on the title screen and shared with the lobby, D53).
 ```

@@ -91,6 +91,81 @@ just get a short timed boost. Quick match link: `?heroes=naruto,luffy,goku`.
 - **Gun Game:** climb a 12-weapon ladder. The final kill has to be made with a knife.
 - **Co-op Survival:** humans against waves of bots, with shared lives and revives. There's a boss every 5 waves.
 
+## Playing together on a LAN
+
+Friends on the same WiFi can play together or against each other from different devices (laptops, phones, tablets).
+One computer runs the game server; everyone else just opens a web address.
+
+**On the host computer:**
+```
+npm install      # once
+npm run host     # builds the game, then serves it on port 8080
+```
+It prints the addresses (and a QR code) for your network, for example `http://192.168.0.227:8080`.
+
+**On every device:** open that address (scan the QR code with a phone), then:
+- the host picks **HOST GAME** on the title screen. The room code is shown at the top;
+- everyone else picks **JOIN GAME** and chooses the room from the list (or types its 4-letter code);
+- each device brings its first player automatically (a laptop can add a second one in the lobby; phones bring one);
+- the host picks map, mode, rounds / time, bots and rules, everyone presses **READY**, the host presses **START MATCH**.
+
+The server runs the whole match, bots included. Devices only send their controls and draw what they get back, so a
+slow phone cannot slow anybody else down. If a device drops, a bot plays its fighter until it reconnects (just wait, or
+reload the page: the game remembers the device and puts it back in the room). If the host leaves, another device
+becomes the host. You can keep playing as long as the host's server keeps running.
+
+Single-device play is unchanged: Quick Match and Match Setup do not use the server at all.
+
+### If friends can't join
+The game shows a checklist when it can't connect. In order of how often each one is the problem:
+1. **The server isn't running.** `npm run host` must still be running in a terminal on the host computer.
+2. **Different networks.** Everyone must be on the same WiFi, not a guest network and not mobile data.
+3. **Router client isolation.** Many routers (and every "guest" WiFi) block devices from talking to each other. Look for
+   *AP isolation*, *client isolation* or *guest network* in the router settings and turn it off.
+4. **Host firewall.** The first time you run it, Windows asks whether to let Node.js through the firewall: allow it on
+   **Private** networks. If you clicked Cancel: Windows Security > Firewall & network protection > Allow an app through
+   firewall > Node.js JavaScript Runtime > tick *Private*. On macOS allow incoming connections for `node`; on Linux
+   open the port (for example `sudo ufw allow 8080/tcp`).
+5. **Wrong address.** Use the address the host prints (`192.168.x.x` / `10.x.x.x`), not `localhost`, which means "this
+   device" on every device. Try `http://<host-ip>:8080/health`: it should say `ok`.
+6. **The port is taken.** `npm run host -- --port 9000`.
+
+### HTTPS mode (gamepads and screen wake-lock on other devices)
+Over plain `http://` on a LAN address, browsers treat the page as "not secure" and switch off or restrict a few APIs. The
+game works without them: **screen wake-lock is not available (phones may dim or lock mid-match: set the screen timeout to
+"never" while you play) and gamepads on other devices may not be detected** (it depends on the browser). The host computer itself opens `localhost`, which counts as secure.
+To get those APIs on the other devices, serve the game over https with a certificate they trust, made with
+[mkcert](https://github.com/FiloSottile/mkcert):
+```
+mkcert -install                      # once: creates a local certificate authority on the host
+mkdir certs
+mkcert -cert-file certs/host.pem -key-file certs/host-key.pem localhost 127.0.0.1 192.168.0.227   # your LAN IP(s)
+npm run host -- --https
+```
+Then each phone / laptop must trust mkcert's root CA: copy `rootCA.pem` (`mkcert -CAROOT` shows the folder) to the device
+and install it (iOS: AirDrop it, Settings > Profile Downloaded > Install, then Settings > General > About > Certificate
+Trust Settings > enable it; Android: Settings > Security > Install a certificate > CA certificate). The `certs/` folder is
+git-ignored; never share `rootCA-key.pem`.
+
+### Options
+`npm run host -- <options>`
+
+| option | meaning |
+|---|---|
+| `--port 8080` | port for the game and the server |
+| `--no-build` | serve the existing `dist/` without rebuilding |
+| `--https` `--cert f` `--key f` | https / wss (defaults: `certs/host.pem`, `certs/host-key.pem`) |
+| `--latency 80 --jitter 30 --loss 5` | pretend the network is bad: milliseconds each way, extra random milliseconds, percent of snapshots / controls lost |
+| `--speed 4` | run matches faster than real time (soak tests) |
+
+`npm run server` starts only the game server (port 8080, `PORT=9000 npm run server`), for developing against `npm run dev`:
+open the dev page with `?server=ws://<host-ip>:8080`.
+
+How good does it feel? With no prediction (everything is shown as the server sees it) a key press shows up on screen
+after about 180 ms on good WiFi (three frames of travel, snapshot rate and a ~70 ms smoothing buffer), ~350 ms on a
+busy network (60 ms each way, 5% loss) and ~620 ms on an awful one. That is fine for a party brawler on a home network.
+The simulation cannot be made faster than your WiFi, so for the best feel put the host on Ethernet and everyone on 5 GHz.
+
 ## Development
 ```
 npm install
@@ -98,6 +173,8 @@ npm run dev        # http://localhost:5173
 npm test           # unit tests (pure simulation, Node)
 npm run test:e2e   # Playwright browser tests (PW_EXECUTABLE=/path/to/chrome to use an installed browser)
 npm run build      # typecheck + production build into dist/
+npm run host       # LAN multiplayer: build, serve the game + game server on the LAN, print URLs + QR code
+npm run server     # the game server alone (LAN multiplayer development)
 npm run sim -- 8 8 factory normal 1   # headless bot matches: kills per weapon, round lengths
 npm run balance -- 2 normal 1        # bot survey across every map
 ```
@@ -109,6 +186,7 @@ To get started with the code:
 - `PROGRESS.md` tracks the milestones.
 - `DECISIONS.md` explains the reasoning behind design choices.
 - `docs/DEPLOY.md` covers hosting.
+- LAN multiplayer: the shared protocol and snapshot code is in `src/net/`, the Node server in `server/`; decisions D70-D76.
 
 Useful URL parameters:
 - `?scene=match&map=mine&bots=6&diff=hard&mode=koth&chaos=1`
