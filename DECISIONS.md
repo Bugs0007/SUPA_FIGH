@@ -510,3 +510,23 @@ map (`map.set` queues the redraws). Out-of-play Naruto clone slots are sent as `
 scores, stats, phase, hill, wave...) is a separate small record the server can send on change. A test scans the render,
 scene, art and audio sources and fails if they read a Fighter field the codec does not carry, so new render code cannot
 silently read stale data on a client.
+
+### D73 — The game server: rooms, sessions, controls
+`server/` (Node only; the sim and `src/net` stay environment-free) is three transport-agnostic layers plus a thin socket
+shell, so everything but `server.ts` is tested without sockets or real time. **Session** = one authoritative `Match`, a
+`BotController` per non-human fighter (including Naruto's clone slots, and any human whose device dropped), and the latest
+controls of each human; it emits a render snapshot every 2nd tick (30 Hz) with the sim / match events since the last one,
+the match-level state only when it changed (or every 10th frame), and a `wid` that bumps whenever the round's World is
+rebuilt. **Room** = host, devices ("peers", keyed by a client-chosen device id), lobby settings, claims (1-2 local players
+per device, 10 fighters max, humans first then bots), ready flags; a clock-driven `advance(ms)` steps the session in exact
+1/60 s units (accumulator scaled by `match.timeScale`, so slow-mo is shared; a backlog is dropped, never replayed).
+**Hub** = connections -> rooms: `hello` (protocol version, device id; a second connection with the same id replaces the
+first and a returning device is put straight back in its room and gets its fighters back), `create` / `join` / `list` /
+`leave`, a per-connection token bucket. **server.ts** = http + `ws` (maxPayload 8 KB, no compression), a 4 ms drift-free
+loop, ping/pong dead-peer reaping. Disconnects keep a peer's place (30 s in a lobby, the whole match while playing) and a
+fresh `BotController` plays the fighter meanwhile; `Fighter.isBot` is untouched so mode rules (co-op teams) don't change.
+**Controls** (`src/net/intentWire.ts`): `packIntent` level + sticky edge bits; the server presses an edge for exactly one
+tick, so a tap shorter than a tick still counts; a stale `seq` is ignored; a device may only drive its own fighters.
+All client input goes through `parseClientMsg`/`sanitize*` (clamped numbers, ASCII names, known ids only, size caps).
+A finished match returns the room to its lobby just before the sim would auto-restart (claims kept, readies cleared). Any
+settings change un-readies everyone, so what people agreed to is what they play.

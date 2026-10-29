@@ -13,14 +13,17 @@
     "test:e2e": "playwright test",
     "sim": "vite-node scripts/botsim.ts",
     "balance": "vite-node scripts/balance.ts",
-    "trailer": "node scripts/trailer/build.mjs"
+    "trailer": "node scripts/trailer/build.mjs",
+    "server": "vite-node server/main.ts"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "phaser": "^3.90.0",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/node": "^22.20.4",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.9.3",
     "vite": "^6.4.3",
     "vitest": "^3.2.7"
