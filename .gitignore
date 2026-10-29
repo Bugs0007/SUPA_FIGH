@@ -9,3 +9,6 @@ trailer/work/
 trailer/trailer_master.mp4
 .DS_Store
 .vite/
+
+# local HTTPS certificates (mkcert), never committed
+certs/

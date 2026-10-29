@@ -3,7 +3,7 @@ import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { lookToWire } from '../art/appearance';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
-import { rememberServer, serverUrl, deviceId } from '../game/netStore';
+import { deviceId, isSecureContextish, rememberServer, serverUrl } from '../game/netStore';
 import { isTouchDevice, VIEW_H, VIEW_W } from '../game/display';
 import { profiles } from '../game/profiles';
 import { keyboard } from '../input/keyboard';
@@ -215,6 +215,10 @@ export class NetLobbyScene extends Phaser.Scene {
         // a new arrival plays with the first profile of this device straight away; more players are opt-in
         this.client.send({ t: 'claim', local: 0, claim: this.claimFor(0) });
       }
+      if (!this.autoClaimed && !isSecureContextish() && isTouchDevice()) {
+        // no wake lock over plain http: say so once, before the screen dims in the middle of a match
+        this.flash('TIP: SET YOUR SCREEN TIMEOUT TO NEVER (NO WAKE LOCK OVER HTTP)', true, 6000);
+      }
       this.autoClaimed = true;
       this.clampRow();
     } else if (m.t === 'err') this.flash(ERRORS[m.code] ?? m.msg.toUpperCase());
@@ -224,10 +228,10 @@ export class NetLobbyScene extends Phaser.Scene {
     }
   }
 
-  private flash(text: string): void {
+  private flash(text: string, quiet = false, ms = 3000): void {
     this.flashText = text;
-    this.flashUntil = this.time.now + 3000;
-    audio.play('uiBack');
+    this.flashUntil = this.time.now + ms;
+    if (!quiet) audio.play('uiBack');
   }
 
   // ------------------------------------------------------------ room helpers

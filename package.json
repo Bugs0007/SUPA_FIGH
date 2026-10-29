@@ -14,7 +14,8 @@
     "sim": "vite-node scripts/botsim.ts",
     "balance": "vite-node scripts/balance.ts",
     "trailer": "node scripts/trailer/build.mjs",
-    "server": "vite-node server/main.ts"
+    "server": "vite-node server/main.ts",
+    "host": "vite-node server/host.ts"
   },
   "dependencies": {
     "phaser": "^3.90.0",

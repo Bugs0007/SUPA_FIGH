@@ -568,3 +568,26 @@ again, `NetClient` retries by itself); if the match ended meanwhile it lands in 
 `RemoteSim`). **Host leaving**: the role passes to the next connected device in join order; an empty room is dropped after a
 minute. Late arrivals during a match join as spectators (no fighters, the camera frames everyone). The "can't connect" screen
 lists the real causes on a LAN (server not running, guest network, router client/AP isolation, firewall, using localhost).
+
+### D76 — `npm run host`, HTTPS mode and the network simulator
+`npm run host` (`server/host.ts`, run with vite-node, so no new build tooling): `vite build` through Vite's API (no `tsc`
+step: `npm run build` still type-checks), then **one process, one port** (default 8080, bound to 0.0.0.0) serving `dist/` and
+the WebSocket (`server/static.ts`: MIME types, in-memory gzip for text (the Phaser chunk is ~1.4 MB), `immutable` caching for
+hashed `/assets/`, `no-cache` for the page, GET/HEAD only, nothing outside the directory) and printing every LAN IPv4 address
+(private ranges first), a terminal QR code of the best one (`qrcode-terminal`), and the can't-join checklist. The same
+addresses go to clients in `welcome.urls`, so the lobby shows "JOIN AT ...". Options: `--port`, `--no-build`, `--speed`,
+`--https` (+ `--cert/--key`, default `certs/host.pem` and `certs/host-key.pem`, git-ignored; without them it prints the
+mkcert commands), `--latency/--jitter/--loss`.
+**Secure contexts**: over plain http on a LAN address browsers hide the Gamepad API and Wake Lock (and fullscreen /
+orientation lock on some). Nothing depends on them: the pad lookup is guarded (and try/caught), wake lock and fullscreen are
+best effort, and a phone on http gets a one-time lobby tip to set its screen timeout. `--https` serves https / wss from a
+mkcert certificate (devices must trust mkcert's root CA) and restores those APIs.
+**Network simulator** (`server/netsim.ts`, `--latency/--jitter/--loss`, or `netSim` in `startServer`): wraps both directions
+of every connection. Delay = latency + uniform jitter, delivered in order (a late frame holds back the ones behind it, like
+TCP); "loss" drops the frames the protocol is built to lose (snapshots to clients, controls to the server), and gives any
+frame a 200 ms retransmit stall with half that probability; lobby / start / end are never lost. Seeded, so a failing run
+replays. `tests/unit/badNetwork.test.ts` plays whole matches (real server logic, NetClient and RemoteSim, simulated link, fake
+clock) at 5 ms, 60 ms +-40 / 5 % and 120 ms +-80 / 15 %: every match finishes, the drawn position stays within 2 / 3 / 4 px of
+the server's at that moment, the render clock never runs backwards, the buffer stays <= 6 ticks, and pressing a key shows on
+screen after ~180 / 350 / 620 ms (that is the no-prediction latency D70 warned about: ~3 frames at WiFi speed). A 3 s
+blackout is also covered (the clock holds, frames resume in a burst, controls work again).
