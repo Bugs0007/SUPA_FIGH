@@ -36,6 +36,7 @@ export class Session {
   private matchEvents: MatchEvent[] = [];
   private snaps = 0;
   private lastMatchKey = '';
+  private lastSnapWid = 0;
   /** the match is over and its awards screen has run its course */
   over = false;
 
@@ -108,7 +109,8 @@ export class Session {
   snapshot(): SnapMsg {
     const m = encodeMatch(this.match);
     const key = JSON.stringify({ ...m, phaseTime: 0 });
-    const withMatch = key !== this.lastMatchKey || this.snaps % MATCH_STATE_EVERY === 0 || this.matchEvents.length > 0;
+    const withMatch = key !== this.lastMatchKey || this.snaps % MATCH_STATE_EVERY === 0 || this.matchEvents.length > 0 || this.wid !== this.lastSnapWid;
+    this.lastSnapWid = this.wid;
     this.lastMatchKey = key;
     this.snaps++;
     const msg: SnapMsg = {

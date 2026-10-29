@@ -35,6 +35,11 @@ const PAUSE_ITEMS = [
   { label: 'QUIT TO TITLE', action: 'quit' },
 ] as const;
 
+/** LAN matches can't be restarted from one device: the pause menu drops that entry and 'quit' leaves the room. */
+function pauseList(net: boolean): readonly { label: string; action: (typeof PAUSE_ITEMS)[number]['action'] }[] {
+  return net ? PAUSE_ITEMS.filter((i) => i.action !== 'restart').map((i) => (i.action === 'quit' ? { ...i, label: 'LEAVE GAME' } : i)) : PAUSE_ITEMS;
+}
+
 /** Uncredited deaths: by weapon id first, then by hit kind. */
 const ENV_DEATHS: Record<string, string> = {
   water: 'DROWNED',
@@ -112,6 +117,8 @@ export class HudScene extends Phaser.Scene {
   private pauseBar!: HintBar;
   private wasPaused = false;
   private debugText!: Phaser.GameObjects.BitmapText;
+  private netText!: Phaser.GameObjects.BitmapText;
+  private pingText!: Phaser.GameObjects.BitmapText;
 
   constructor() {
     super('hud');
@@ -158,6 +165,8 @@ export class HudScene extends Phaser.Scene {
     this.pauseBar.setVisible(false);
     this.pauseItems = PAUSE_ITEMS.map((it, i) => this.add.bitmapText(VIEW_W / 2, 126 + i * 24, 'pxo', it.label).setOrigin(0.5).setDepth(20).setVisible(false));
     this.debugText = this.add.bitmapText(4, 4, 'smo', '').setDepth(20);
+    this.netText = this.add.bitmapText(VIEW_W / 2, 34, 'smo', '').setOrigin(0.5, 0).setDepth(25);
+    this.pingText = this.add.bitmapText(VIEW_W - 6, 3, 'smo', '').setOrigin(1, 0).setDepth(25).setTint(0x8d95b0);
     this.modLabel = this.add.bitmapText(VIEW_W / 2, 21, 'sm', '').setOrigin(0.5, 0).setTint(0xb090e0);
     this.replayText = this.add.bitmapText(24, 7, 'pxo', 'INSTANT REPLAY').setDepth(30).setVisible(false);
     this.replaySub = this.add.bitmapText(VIEW_W - 8, VIEW_H - 14, 'sm', 'ANY BUTTON: SKIP').setOrigin(1, 0).setDepth(30).setVisible(false).setTint(0xc3c9dc);
@@ -611,26 +620,32 @@ export class HudScene extends Phaser.Scene {
     if (showPause && !this.wasPaused) this.pauseIdx = 0;
     else if (showPause) {
       // (input ignored on the frame the menu opens: START both pauses and confirms)
+      const items = pauseList(!!ms.net);
       if (menu.up()) {
-        this.pauseIdx = (this.pauseIdx - 1 + PAUSE_ITEMS.length) % PAUSE_ITEMS.length;
+        this.pauseIdx = (this.pauseIdx - 1 + items.length) % items.length;
         audio.play('uiMove');
       }
       if (menu.down()) {
-        this.pauseIdx = (this.pauseIdx + 1) % PAUSE_ITEMS.length;
+        this.pauseIdx = (this.pauseIdx + 1) % items.length;
         audio.play('uiMove');
       }
-      if (menu.confirm()) ms.pauseAction(PAUSE_ITEMS[this.pauseIdx].action);
+      if (menu.confirm()) ms.pauseAction(items[this.pauseIdx].action);
       else if (padMenu.justPressed(1)) ms.pauseAction('resume'); // B / Circle
     }
     this.wasPaused = ms.paused;
+    const net = ms.net;
+    this.netText.setText(ms.netNotice).setTint(0xff7a6a).setVisible(!!ms.netNotice && !ms.replay);
+    this.pingText.setText(net && net.client.rtt >= 0 ? `PING ${Math.round(net.client.rtt)}` : '');
     const pg = this.pauseGfx.clear();
     if (showPause) {
-      panel(pg, VIEW_W / 2 - 100, 100, 200, 14 + PAUSE_ITEMS.length * 24 + 6, hexToNum(P.purple1), true);
+      const shown = pauseList(!!ms.net);
+      panel(pg, VIEW_W / 2 - 100, 100, 200, 14 + shown.length * 24 + 6, hexToNum(P.purple1), true);
       rowBar(pg, VIEW_W / 2 - 96, 122 + this.pauseIdx * 24, 192, 20, Math.floor(this.time.now / 330) % 2 === 0);
       this.pauseBar.setVisible(true);
       this.pauseBar.update();
     } else this.pauseBar.setVisible(false);
-    this.pauseItems.forEach((t, i) => t.setVisible(showPause).setText(PAUSE_ITEMS[i].label).setTint(i === this.pauseIdx ? 0xffffff : 0x8d95b0));
+    const listed = pauseList(!!ms.net);
+    this.pauseItems.forEach((t, i) => t.setVisible(showPause && i < listed.length).setText(listed[i]?.label ?? '').setTint(i === this.pauseIdx ? 0xffffff : 0x8d95b0));
     if (ms.wr?.debug) {
       const alive = w.fighters.filter((f) => f.alive).length;
       this.debugText.setText(`FPS ${Math.round(this.game.loop.actualFps)}  SPEED ${ms.speed}X  TICK ${w.tick}  ALIVE ${alive}  BULLETS ${w.bullets.filter((b) => b.active).length}`);

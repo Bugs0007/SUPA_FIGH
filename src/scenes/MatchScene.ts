@@ -20,7 +20,9 @@ import { Juice, type UiEvent } from '../render/Juice';
 import { WorldRenderer, type FighterLook } from '../render/WorldRenderer';
 import { DT } from '../sim/constants';
 import type { FighterSpawn } from '../sim/fighter';
-import type { Intent } from '../sim/intent';
+import type { RemoteSim } from '../net/remoteSim';
+import type { NetClient } from '../net/client';
+import { emptyIntent, type Intent } from '../sim/intent';
 import { COOP, Match, type MatchConfig, type MatchEvent } from '../sim/match';
 import type { World } from '../sim/world';
 import { ReplayPlayer, type RoundRecording } from '../sim/replay';
@@ -46,7 +48,12 @@ export function isHumanInput(input: string): boolean {
 export interface MatchSceneData {
   config: MatchConfig;
   players: PlayerSetup[];
+  /** LAN play: the match is the server's, shown through this (see src/net/remoteSim.ts). Absent = local play. */
+  net?: RemoteSim;
 }
+
+/** A fighter this device does not control (remote humans, bots): nothing to poll. */
+const IDLE_CONTROLLER: Controller = { label: '', poll: () => emptyIntent() };
 
 const PLAYER_COLORS = [0xea4a4a, 0x4a8af0, 0x5ac85a, 0xf8c840];
 
@@ -131,6 +138,10 @@ function trailerSetup(shot: ShotSpec): MatchSceneData {
 export class MatchScene extends Phaser.Scene {
   /** trailer mode only (src/trailer): scripted film set around the match */
   trailer: TrailerRig | null = null;
+  /** LAN play: the server's match as seen from here (null = a normal local match) */
+  net: RemoteSim | null = null;
+  /** one line for the HUD about the connection (empty = fine) */
+  netNotice = '';
   match!: Match;
   wr!: WorldRenderer;
   camDir!: CameraDirector;
@@ -189,8 +200,18 @@ export class MatchScene extends Phaser.Scene {
     this.speed = Number(params.get('speed') ?? 1) || 1;
     this.players = setup.players;
     this.looks = setup.players.map((p) => ({ look: p.look, color: p.color, label: p.label }));
-    this.match = new Match(setup.config);
+    this.net = setup.net ?? null;
+    this.netNotice = '';
+    this.match = this.net ? this.net.match : new Match(setup.config);
+    if (this.net) this.net.worldChanged = false;
     this.controllers = setup.players.map((p, i) => {
+      if (this.net) {
+        // only this device's fighters have local controls
+        const n = this.net.mine.indexOf(i);
+        if (n < 0) return IDLE_CONTROLLER;
+        const kb = new KeyboardController(keyboard, keyboardBinds[n], p.label);
+        return new MergedController([kb, new GamepadController(n)]);
+      }
       if (p.input === 'kb0' || p.input === 'kb1') {
         const n = p.input === 'kb0' ? 0 : 1;
         const kb = new KeyboardController(keyboard, keyboardBinds[n], p.label);
@@ -206,12 +227,14 @@ export class MatchScene extends Phaser.Scene {
       if (i < nPlayers) return;
       const m = setup.players[f.master];
       this.looks.push({ look: m.look, color: m.color, label: '' });
+      if (this.net) return this.controllers.push(IDLE_CONTROLLER);
       this.controllers.push(new BotController(() => this.match.world, i, { difficulty: m.difficulty ?? 'normal', seed: setup.config.seed, clone: true }));
     });
     this.intents = this.controllers.map((c) => c.poll());
 
     const k = (this.registry.get('scale') as number) ?? 1;
     this.camDir = new CameraDirector(this.cameras.main, k);
+    if (this.net) this.camDir.mustIds = new Set(this.net.mine);
     this.cameras.main.setRoundPixels(true);
     this.camDir.shakeScale = settings.screenShake;
     if (isTouchDevice()) this.camDir.comfort = 0.8;
@@ -221,6 +244,7 @@ export class MatchScene extends Phaser.Scene {
 
     this.game.events.on('rescale', this.onRescale, this);
     this.events.once('shutdown', () => {
+      this.net?.dispose();
       this.game.events.off('rescale', this.onRescale, this);
       this.wr?.destroy();
       this.scene.stop('hud');
@@ -257,6 +281,10 @@ export class MatchScene extends Phaser.Scene {
     const dt = Math.min(deltaMs / 1000, 0.1);
     this.elapsed += dt;
     this.handleDebugKeys();
+    if (this.net) {
+      this.updateNet(dt);
+      return;
+    }
     if (this.replay) {
       this.updateReplay(dt);
       return;
@@ -328,7 +356,12 @@ export class MatchScene extends Phaser.Scene {
       this.ui.push(...this.juice.ui);
       this.juice.ui.length = 0;
     }
-    for (const e of this.match.events) {
+    this.onMatchEvents(this.match.events);
+    this.match.events.length = 0;
+  }
+
+  private onMatchEvents(events: readonly MatchEvent[]): void {
+    for (const e of events) {
       if ((e.t === 'roundEnd' || e.t === 'matchEnd') && this.startReplay()) {
         this.heldEvents.push(e);
         continue;
@@ -348,7 +381,60 @@ export class MatchScene extends Phaser.Scene {
         this.camDir.addTrauma(0.3);
       }
     }
-    this.match.events.length = 0;
+  }
+
+  // ------------------------------------------------------------ LAN play
+
+  /** One frame of a network match: send controls, show the server's match, play its events. */
+  private updateNet(dt: number): void {
+    const net = this.net!;
+    // controls go out every frame; while a menu is up the fighter stands still (the server's match runs on)
+    const idle = this.paused || this.overlayOpen;
+    net.sendInputs(net.mine.map((fi) => (idle ? emptyIntent() : this.controllers[fi].poll())));
+    net.update(dt);
+    if (net.worldChanged) {
+      net.worldChanged = false;
+      this.buildRenderer();
+    }
+    const w = this.match.world;
+    for (const e of net.events) {
+      this.juice.handle(e, w);
+      this.feedback(e, w);
+    }
+    net.events.length = 0;
+    this.juice.hitstop = 0; // the server's clock does not stop for a hit
+    if (this.juice.ui.length) {
+      this.ui.push(...this.juice.ui);
+      this.juice.ui.length = 0;
+    }
+    this.onMatchEvents(net.matchEvents);
+    net.matchEvents.length = 0;
+
+    const client = net.client;
+    this.netNotice = !client.online ? 'CONNECTION LOST - RECONNECTING' : '';
+    if (net.ended) {
+      this.leaveNet(true);
+      return;
+    }
+    audio.timePitch = 0.6 + 0.4 * this.match.timeScale;
+    this.wr.bounty = this.match.bounty;
+    this.wr.hill = this.match.hill;
+    this.wr.hillColor = this.match.hillTeam === null ? 0xffffff : (this.players[this.match.membersOf(this.match.hillTeam)[0]]?.color ?? 0x5ac85a);
+    this.wr.revive = this.match.reviveProgress.map((p) => p / COOP.reviveTime);
+    this.wr.sync(net.alpha, dt * Math.max(0.25, this.match.timeScale), this.elapsed);
+    this.camDir.update(dt, w, this.match.cinematic);
+  }
+
+  /** Leave the server's match: back to the lobby when it ended, to the title when the player quit. */
+  private leaveNet(toLobby: boolean): void {
+    const client: NetClient = this.net!.client;
+    this.net!.dispose();
+    this.net = null;
+    if (toLobby && this.scene.manager.keys['netlobby']) this.scene.start('netlobby', { client });
+    else {
+      if (!toLobby) client.send({ t: 'leave' });
+      this.scene.start('title');
+    }
   }
 
   // ------------------------------------------------------------ instant replay
@@ -438,9 +524,10 @@ export class MatchScene extends Phaser.Scene {
       this.paused = false;
       audio.play('uiOk');
     } else if (a === 'restart') {
-      this.scene.restart(this.setupData);
+      if (!this.net) this.scene.restart(this.setupData);
     } else if (a === 'quit') {
-      this.scene.start('title');
+      if (this.net) this.leaveNet(false);
+      else this.scene.start('title');
     } else {
       this.scene.launch(a, a === 'settings' ? { overlay: true } : { from: 'overlay' });
       this.scene.bringToTop(a);

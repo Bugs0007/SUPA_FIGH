@@ -87,6 +87,12 @@ export class CameraDirector {
   }
 
   /** Bounds of fighters that must stay on screen (living humans) and of everyone else worth showing. */
+  /**
+   * Network matches: the fighters this device plays. They are the hard constraint instead of "every human",
+   * so ten players on ten phones don't force one huge zoom-out. null = every human (local play).
+   */
+  mustIds: ReadonlySet<number> | null = null;
+
   private gather(w: World): { must: Box; nice: Box } {
     const must = emptyBox();
     const nice = emptyBox();
@@ -95,7 +101,8 @@ export class CameraDirector {
       const shown = !f.gone && (f.alive || f.stateTime <= 1.2);
       if (shown) {
         // feet to name tag (tag sits ~40 px above the feet)
-        const box = (humans ? !f.isBot && f.alive : true) ? must : nice;
+        const isMust = this.mustIds ? this.mustIds.has(f.id) && f.alive : humans ? !f.isBot && f.alive : true;
+        const box = isMust ? must : nice;
         addPoint(box, f.x, f.y - 40, f.y + 2);
       }
       if (!f.alive && f.ghost) addPoint(nice, f.gx, f.gy - 30, f.gy + 4);

@@ -290,6 +290,16 @@ export class Match {
     this.reviveProgress = c.reviveProgress;
   }
 
+  /**
+   * Mirror matches (network clients) only: swap in a fresh World for `round`. Nothing is simulated;
+   * the state arrives from the server's snapshots and is applied onto it.
+   */
+  rebuildWorld(round: number, modifiers: string[]): void {
+    this.round = round;
+    this.roundModifiers = [...modifiers];
+    this.world = new World(getMap(this.cfg.mapId), this.cfg.fighters, this.worldSettings(), this.cfg.seed + round * 7919);
+  }
+
   step(intents: readonly Intent[]): void {
     const w = this.world;
     const evStart = w.events.length;

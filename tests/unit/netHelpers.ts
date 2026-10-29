@@ -2,6 +2,7 @@
 // mirror Match up to date from the snapshots, exactly like a real client will.
 
 import type { Hub } from '../../server/hub';
+import type { SocketFactory, SocketLike } from '../../src/net/client';
 import { applyMatch, applyWorld, positionsOf } from '../../src/net/renderState';
 import { PROTOCOL_VERSION, type ClientMsg, type RoomConfig, type ServerMsg, type SlotClaim, type SnapMsg } from '../../src/net/protocol';
 import { emptyIntent, packIntent, type Intent } from '../../src/sim/intent';
@@ -85,5 +86,65 @@ export function run(hub: Hub, ms: number, each?: () => void): void {
   for (let t = 0; t < ms; t += step) {
     hub.advance(step);
     each?.();
+  }
+}
+
+/** A socket that talks to a Hub in-process: lets the real NetClient run without a network or real time. */
+export function loopback(hub: Hub): { factory: SocketFactory; sockets: LoopbackSocket[] } {
+  const sockets: LoopbackSocket[] = [];
+  return {
+    sockets,
+    factory: () => {
+      const s = new LoopbackSocket(hub);
+      sockets.push(s);
+      return s;
+    },
+  };
+}
+
+export class LoopbackSocket implements SocketLike {
+  readyState = 0;
+  private fns: Record<string, ((ev: { data: unknown }) => void)[]> = {};
+  private link;
+
+  constructor(hub: Hub) {
+    this.link = hub.open({
+      send: (raw) => this.emit('message', { data: raw }),
+      close: () => this.shutdown(),
+    });
+    queueMicrotask(() => {
+      if (this.readyState !== 0) return;
+      this.readyState = 1;
+      this.emit('open', { data: null });
+    });
+  }
+
+  addEventListener(type: string, fn: (ev: { data: unknown }) => void): void {
+    (this.fns[type] ??= []).push(fn);
+  }
+
+  private emit(type: string, ev: { data: unknown }): void {
+    for (const f of this.fns[type] ?? []) f(ev);
+  }
+
+  send(data: string): void {
+    if (this.readyState === 1) this.link.message(data);
+  }
+
+  /** the client closes */
+  close(): void {
+    this.shutdown();
+  }
+
+  private shutdown(): void {
+    if (this.readyState === 3) return;
+    this.readyState = 3;
+    this.link.close();
+    this.emit('close', { data: null });
+  }
+
+  /** the network dies under the client */
+  sever(): void {
+    this.shutdown();
   }
 }

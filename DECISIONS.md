@@ -530,3 +530,23 @@ tick, so a tap shorter than a tick still counts; a stale `seq` is ignored; a dev
 All client input goes through `parseClientMsg`/`sanitize*` (clamped numbers, ASCII names, known ids only, size caps).
 A finished match returns the room to its lobby just before the sim would auto-restart (claims kept, readies cleared). Any
 settings change un-readies everyone, so what people agreed to is what they play.
+
+### D74 — The client side: NetClient, Timeline, RemoteSim and the Match scene
+**NetClient** (`src/net/client.ts`) wraps one WebSocket (injected, so tests use Node's `ws` or an in-process loopback):
+hello with the device id, a ping every 2 s for the PING readout, and automatic reconnects with the same id and a 250 ms-4 s
+backoff for a minute (the server hands the room and the fighters straight back). A first connection that fails ends
+quickly with the reason (the "can't connect" screen); a version mismatch is final. **Timeline** (`src/net/timeline.ts`)
+buffers snapshots and plays them back on *sim* ticks: the render clock trails the newest snapshot by 4-6 ticks (67-100 ms
+on average, longer as measured arrival jitter grows), advances at 60 x the match's slow-mo scale with a gentle
+proportional correction (0.8x-1.25x), jumps when more than 15 ticks off, and holds the last frame when the buffer runs dry
+(no extrapolation). A new World (different `wid`) flushes the old one's pending events and restarts the clock.
+**RemoteSim** (`src/net/remoteSim.ts`) owns the mirror Match and, each frame, shows frame `a` then `b` on it (so `px / py`
+are where `a` had things and the renderer's alpha blends), applies the match-level state, rebuilds the World on a new
+`wid` (`Match.rebuildWorld`) and queues the events whose snapshot the clock has passed; it also turns the local
+controllers' intents into `in` messages (`IntentSender`: level + edge bits + 250 ms heartbeat).
+**Match scene**: `MatchSceneData.net` switches it to `updateNet`: no stepping, no replays, no hit-stop (the server's clock
+never waits), the pause menu does not pause the server's match (the player stands still, RESTART becomes absent and QUIT
+leaves the room), `HudScene` shows PING and a CONNECTION LOST banner. Only this device's fighters are the camera's hard
+constraint (`CameraDirector.mustIds`, replacing "every human", D52); remote humans are framed like bots. Other players'
+looks arrive as flat primitives and pass through `sanitizeAppearance` (known styles, #rrggbb colours) before reaching the
+sprite baker.
