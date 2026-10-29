@@ -550,3 +550,21 @@ leaves the room), `HudScene` shows PING and a CONNECTION LOST banner. Only this 
 constraint (`CameraDirector.mustIds`, replacing "every human", D52); remote humans are framed like bots. Other players'
 looks arrive as flat primitives and pass through `sanitizeAppearance` (known styles, #rrggbb colours) before reaching the
 sprite baker.
+
+### D75 — Host / Join screens, slots and what happens when devices come and go
+The title screen gains HOST GAME and JOIN GAME (one scene, `NetLobbyScene`, key `netlobby`; connecting -> can't-connect
+checklist -> room list (join) -> room lobby). The page talks to the server it was served from (`wss?://location.host`);
+`?server=ws://ip:port` overrides it for development and the last good address is remembered (`game/netStore.ts`), as is a
+random **device id** in localStorage: it is what makes a reload or a WiFi blip land back in the same room and fighters.
+**Slots**: each device claims up to 2 local players (touch devices show only 1: phones default to one); a new arrival is given
+its first profile (name, hero, look from the title screen's player cards) automatically, player 2 and the hero picks are
+rows in the lobby. Claims keep their local index on the wire (`PeerInfo.claims` is `(SlotClaim | null)[]`). The room lists
+fighters in match order (humans by arrival, then bots) with HOST / READY / AWAY marks; the host edits map, mode, length, bots
+(count, skill, heroes), friendly fire, weapons, chaos and hero powers, everyone else sees them read-only. READY is required of
+every non-host device with a fighter; any settings change clears the readies.
+**Disconnects**: in a lobby a dropped device keeps its place (shown AWAY) for 30 s and is left out of a match started without
+it; during a match a bot plays its fighters from the moment it drops and it gets them back by reconnecting (`start` is sent
+again, `NetClient` retries by itself); if the match ended meanwhile it lands in the lobby (`room` state `lobby` ends the
+`RemoteSim`). **Host leaving**: the role passes to the next connected device in join order; an empty room is dropped after a
+minute. Late arrivals during a match join as spectators (no fighters, the camera frames everyone). The "can't connect" screen
+lists the real causes on a LAN (server not running, guest network, router client/AP isolation, firewall, using localhost).

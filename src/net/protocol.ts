@@ -73,7 +73,8 @@ export interface PeerInfo {
   name: string;
   ready: boolean;
   connected: boolean;
-  claims: SlotClaim[];
+  /** by local player index (0, 1): null where that player is not claimed */
+  claims: (SlotClaim | null)[];
 }
 
 export interface RoomInfo {
@@ -105,7 +106,8 @@ export type ClientMsg =
 // ------------------------------------------------------------------ server -> client
 
 export type ServerMsg =
-  | { t: 'welcome'; v: number; device: string }
+  /** `urls`: the addresses the server printed for friends to join at (shown in the lobby) */
+  | { t: 'welcome'; v: number; device: string; urls?: string[] }
   | { t: 'rooms'; rooms: RoomInfo[] }
   | { t: 'room'; code: string; host: string; state: 'lobby' | 'playing'; config: RoomConfig; peers: PeerInfo[] }
   /** the match begins: build a mirror Match from `cfg`; `mine[local]` = this device's fighter index per claim */

@@ -1,11 +1,13 @@
 // The socket layer: an HTTP server with a WebSocket endpoint, a drift-free real-time loop driving the Hub, and
 // a heartbeat that drops dead connections. (M5 adds static file serving for the built game next to it.)
 
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { MAX_FRAME_BYTES } from '../src/net/protocol';
 import { Hub } from './hub';
+import { NetSim, type NetSimOptions } from './netsim';
 import type { RoomOptions } from './room';
 
 export interface ServerOptions extends RoomOptions {
@@ -15,6 +17,12 @@ export interface ServerOptions extends RoomOptions {
   host?: string;
   /** handles plain HTTP requests (the built game); default answers /health only */
   http?: (req: IncomingMessage, res: ServerResponse) => void;
+  /** serve https / wss with this key and certificate (secure context for gamepads and wake lock on other devices) */
+  tls?: { key: string | Buffer; cert: string | Buffer };
+  /** addresses players can join at, passed on to clients in the welcome message */
+  urls?: string[];
+  /** simulate latency / jitter / loss between the server and every client (testing) */
+  netSim?: NetSimOptions;
 }
 
 export interface RunningServer {
@@ -33,30 +41,30 @@ const DEAD_AFTER_MS = 25_000;
 
 export function startServer(opts: ServerOptions = {}): Promise<RunningServer> {
   const hub = new Hub(opts);
-  const http = createServer((req, res) => {
+  const handler = (req: IncomingMessage, res: ServerResponse) => {
     if (opts.http) return opts.http(req, res);
     if (req.url === '/health') {
       res.writeHead(200, { 'content-type': 'text/plain' }).end('ok');
     } else {
       res.writeHead(404).end();
     }
-  });
+  };
+  const http: Server = opts.tls ? createHttpsServer(opts.tls, handler) : createHttpServer(handler);
+  const netSim = opts.netSim ? new NetSim(opts.netSim) : null;
   const wss = new WebSocketServer({ server: http, maxPayload: MAX_FRAME_BYTES, perMessageDeflate: false });
   wss.on('error', () => {}); // listen errors (port in use) reach the caller through the returned promise
   const alive = new WeakMap<WebSocket, number>();
 
   wss.on('connection', (ws) => {
     alive.set(ws, Date.now());
-    const conn = {
-      send: (raw: string) => {
-        if (ws.readyState === ws.OPEN) ws.send(raw);
-      },
-      close: () => ws.close(),
+    const out = (raw: string) => {
+      if (ws.readyState === ws.OPEN) ws.send(raw);
     };
-    const link = hub.open(conn);
+    const link = hub.open({ send: netSim ? netSim.link(out) : out, close: () => ws.close() });
+    const inbound = netSim ? netSim.link((raw) => link.message(raw)) : (raw: string) => link.message(raw);
     ws.on('message', (data, isBinary) => {
       alive.set(ws, Date.now());
-      if (!isBinary) link.message(data.toString());
+      if (!isBinary) inbound(data.toString());
     });
     ws.on('pong', () => alive.set(ws, Date.now()));
     ws.on('close', () => link.close());

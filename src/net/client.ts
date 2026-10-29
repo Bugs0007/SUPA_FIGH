@@ -31,6 +31,8 @@ export class NetClient {
   rtt = -1;
   /** why the last connection attempt failed, for the "can't connect" screen */
   lastError = '';
+  /** the server's own list of addresses to join at (empty when it doesn't know) */
+  urls: string[] = [];
   private socket: SocketLike | null = null;
   private url = '';
   private wantOpen = false;
@@ -108,6 +110,7 @@ export class NetClient {
       }
       if (msg.t === 'welcome') {
         welcomed = true;
+        this.urls = msg.urls ?? [];
         clearTimeout(timeout);
         this.attempts = 0;
         this.setState('online');

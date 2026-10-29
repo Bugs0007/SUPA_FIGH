@@ -296,7 +296,7 @@ export class Room {
   // ------------------------------------------------------------ output
 
   private peerInfo(p: Peer): PeerInfo {
-    return { device: p.device, name: p.name, ready: p.ready, connected: !!p.conn, claims: p.claims.filter((c): c is SlotClaim => !!c) };
+    return { device: p.device, name: p.name, ready: p.ready, connected: !!p.conn, claims: p.claims.slice() };
   }
 
   sendRoom(): void {

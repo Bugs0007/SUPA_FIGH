@@ -3,6 +3,11 @@
 import { parseClientMsg, PROTOCOL_VERSION, type ClientMsg, type ErrorCode, type ServerMsg } from '../src/net/protocol';
 import { Room, type Conn, type RoomOptions } from './room';
 
+export interface HubOptions extends RoomOptions {
+  /** addresses to show players for joining (the host script prints them too) */
+  urls?: string[];
+}
+
 /** room codes avoid look-alike letters (no O/0, I/1) because people read them out loud */
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 /** an empty room is dropped after this long (ms) */
@@ -26,7 +31,7 @@ export class Hub {
   /** hub clock in ms: the sum of the `advance` calls, so tests are deterministic and real runs match wall time */
   private time = 0;
 
-  constructor(private opts: RoomOptions = {}) {}
+  constructor(private opts: HubOptions = {}) {}
 
   /** A new connection. Feed `message` every frame and call `close` when it ends. */
   open(conn: Conn): { message(raw: string): void; close(): void } {
@@ -86,7 +91,7 @@ export class Hub {
     s.device = msg.device;
     s.name = msg.name;
     this.byDevice.set(msg.device, s);
-    this.send(s, { t: 'welcome', v: PROTOCOL_VERSION, device: msg.device });
+    this.send(s, { t: 'welcome', v: PROTOCOL_VERSION, device: msg.device, urls: this.opts.urls });
     // a returning device goes straight back to its room (and its fighters)
     const room = old?.room ?? [...this.rooms.values()].find((r) => r.has(msg.device)) ?? null;
     if (room) {

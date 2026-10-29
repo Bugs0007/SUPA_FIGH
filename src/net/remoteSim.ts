@@ -59,6 +59,8 @@ export class RemoteSim {
       const frame: Frame = { ...m, mm: this.lastM };
       for (const old of this.timeline.push(frame, this.now())) this.deliver(old);
     } else if (m.t === 'end') this.ended = true;
+    // reconnected after the match ended while we were away: the room is back in its lobby
+    else if (m.t === 'room' && m.state === 'lobby') this.ended = true;
   }
 
   private deliver(f: Frame): void {

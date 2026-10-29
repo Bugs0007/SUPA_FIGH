@@ -24,6 +24,8 @@ const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
 const BUTTONS = [
   { label: 'QUICK MATCH', action: 'quick' },
   { label: 'MATCH SETUP', action: 'lobby' },
+  { label: 'HOST GAME', action: 'host' },
+  { label: 'JOIN GAME', action: 'join' },
   { label: 'CONTROLS', action: 'controls' },
   { label: 'SETTINGS', action: 'settings' },
 ] as const;
@@ -305,6 +307,7 @@ export class TitleScene extends Phaser.Scene {
       params.delete('heroes'); // the cards decide
       this.scene.start('match', defaultSetup(params));
     } else if (action === 'lobby') this.scene.start('lobby');
+    else if (action === 'host' || action === 'join') this.scene.start('netlobby', { role: action });
     else this.scene.start(action, { from: 'title' });
   }
 
@@ -538,12 +541,12 @@ export class TitleScene extends Phaser.Scene {
 
     // buttons
     const widths = this.buttonTexts.map((t, i) => t.setScale(this.row === 'buttons' && i === this.button ? 2 : 1).width);
-    const total = widths.reduce((a, b) => a + b + 22, -22);
+    const total = widths.reduce((a, b) => a + b + 14, -14);
     let bx = VIEW_W / 2 - total / 2;
     this.buttonTexts.forEach((t, i) => {
       const on = this.row === 'buttons' && i === this.button;
       t.setPosition(Math.round(bx + widths[i] / 2), 318).setTint(on ? 0xffffff : 0x8d95b0).setAlpha(on && !blink ? 0.75 : 1);
-      bx += widths[i] + 22;
+      bx += widths[i] + 14;
     });
   }
 

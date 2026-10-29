@@ -97,6 +97,37 @@ describe('server: rooms and lobby', () => {
     expect(PROTOCOL_VERSION).toBe(1);
   });
 
+  it('a device that drops from the lobby keeps its place for a while, is left out of the match, then is forgotten', () => {
+    const { hub, a, b, code, room } = lobby();
+    b.drop();
+    expect(a.last('room')!.peers.find((p) => p.device === 'b')).toMatchObject({ connected: false, ready: false });
+    expect(a.last('room')!.peers.find((p) => p.device === 'b')!.claims[0]).not.toBeNull(); // still holds its fighter
+    hub.advance(10_000);
+    expect(a.last('room')!.peers).toHaveLength(2); // inside the grace period
+
+    // the host starts without it: only the connected device plays
+    a.send({ t: 'start' });
+    expect(a.last('start')!.cfg.fighters.map((f) => f.name)).toEqual(['A']);
+    expect(room.state).toBe('playing');
+
+    // ... and a lobby that is left alone forgets the missing device after 30 s
+    const l = lobby();
+    l.b.drop();
+    l.hub.advance(31_000);
+    expect(l.a.last('room')!.peers.map((p) => p.device)).toEqual(['a']);
+    void code;
+  });
+
+  it('claims keep their local index (player 2 can be on while player 1 is off)', () => {
+    const hub = new Hub();
+    const a = new TestClient(hub, 'a');
+    a.send({ t: 'create' });
+    a.send({ t: 'claim', local: 1, claim: { name: 'SECOND', hero: 'luffy', upJumps: true, look: {} } });
+    const claims = a.last('room')!.peers[0].claims;
+    expect(claims[0]).toBeNull();
+    expect(claims[1]).toMatchObject({ name: 'SECOND', hero: 'luffy' });
+  });
+
   it('leaving hands the host role to someone still connected', () => {
     const { a, b, code, hub } = lobby();
     a.send({ t: 'leave' });
