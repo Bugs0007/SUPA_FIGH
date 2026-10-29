@@ -270,4 +270,61 @@ describe('server: a running match', () => {
     expect(a.of('start')).toHaveLength(2);
     expect(room.state).toBe('playing');
   });
+
+  it('devices that send stamped controls get the exact state of their fighters with every snapshot; others get nothing extra', () => {
+    const { hub, a, b, session } = lobby();
+    a.send({ t: 'start' });
+    run(hub, 200);
+    expect(a.preds()).toHaveLength(0);
+    // b starts predicting: its controls carry the tick they are meant for
+    const wid = session().wid;
+    b.holdAt(1, session().match.world.tick + 4, wid, {});
+    run(hub, 300);
+    expect(a.preds()).toHaveLength(0);
+    const preds = b.preds();
+    expect(preds.length).toBeGreaterThan(5);
+    const last = preds[preds.length - 1];
+    expect(last.f.map((x) => x.slot)).toEqual([1]);
+    expect(last.wid).toBe(wid);
+    expect(last.tick % 2).toBe(0); // sent with the snapshots (every 2nd tick)
+    expect(b.snaps.some((sn) => sn.tick === last.tick)).toBe(true); // right after the snapshot of the same tick
+    // it is the server's fighter, complete: a replay from it is exact
+    expect(Object.keys(last.f[0].fighter).length).toBeGreaterThan(100);
+    expect(last.f[0].fighter).toMatchObject({ id: 1, alive: true });
+  });
+
+  it('stamped controls run at exactly their tick, and are counted late when they miss it', () => {
+    const { hub, a, session } = lobby();
+    a.send({ t: 'start' });
+    run(hub, 500);
+    const w = () => session().match.world;
+    const wid = session().wid;
+    const x0 = w().fighters[0].x;
+    // meant for 6 ticks from now: nothing happens until then
+    a.holdAt(0, w().tick + 6, wid, { moveX: 1 });
+    for (let i = 0; i < 5; i++) hub.advance(1000 / 60);
+    expect(w().fighters[0].vx).toBe(0);
+    expect(w().fighters[0].x).toBe(x0);
+    hub.advance(1000 / 60);
+    hub.advance(1000 / 60);
+    expect(w().fighters[0].vx).toBeGreaterThan(0);
+
+    // a stamp in the past is applied at once and counted
+    a.holdAt(0, w().tick - 3, wid, {});
+    hub.advance(1000 / 60);
+    hub.advance(1000 / 60);
+    run(hub, 200);
+    expect(a.preds().at(-1)!.late).toBe(1);
+  });
+
+  it('controls stamped for another world (a round change in flight) are applied like plain ones', () => {
+    const { hub, a, session } = lobby();
+    a.send({ t: 'start' });
+    run(hub, 500);
+    const x0 = session().match.world.fighters[0].x;
+    // far in the future of this world and of the wrong world id: must not wait for tick 100000
+    a.holdAt(0, 100000, session().wid + 7, { moveX: 1 });
+    run(hub, 300);
+    expect(session().match.world.fighters[0].x).toBeGreaterThan(x0 + 5);
+  });
 });

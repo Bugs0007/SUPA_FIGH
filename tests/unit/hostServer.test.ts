@@ -132,6 +132,19 @@ describe('NetSim', () => {
     expect(Math.min(...got.map((g, i) => g.at - i * 5))).toBeGreaterThanOrEqual(50 - 1); // never faster than the latency
   });
 
+  it('keeps order with REAL timers too (separate setTimeouts of nearly equal length do not fire in order on their own)', async () => {
+    const sim = new NetSim({ latencyMs: 150, jitterMs: 15, loss: 0, seed: 3 });
+    const got: number[] = [];
+    const send = sim.link((r) => got.push(Number(r)));
+    for (let i = 0; i < 400; i++) {
+      send(String(i));
+      if (i % 7 === 0) await new Promise((r) => setTimeout(r, 1));
+    }
+    await new Promise((r) => setTimeout(r, 500));
+    expect(got).toHaveLength(400);
+    expect(got.filter((v, i) => i > 0 && v < got[i - 1])).toEqual([]);
+  });
+
   it('drops only the frames the protocol can afford to lose, at about the configured rate', () => {
     const { sim, run, at } = rig({ latencyMs: 0, jitterMs: 0, loss: 0.2, seed: 9 });
     const got: string[] = [];

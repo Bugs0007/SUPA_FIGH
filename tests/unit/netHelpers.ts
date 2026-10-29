@@ -4,7 +4,7 @@
 import type { Hub } from '../../server/hub';
 import type { SocketFactory, SocketLike } from '../../src/net/client';
 import { applyMatch, applyWorld, positionsOf } from '../../src/net/renderState';
-import { PROTOCOL_VERSION, type ClientMsg, type RoomConfig, type ServerMsg, type SlotClaim, type SnapMsg } from '../../src/net/protocol';
+import { PROTOCOL_VERSION, type ClientMsg, type PredMsg, type RoomConfig, type ServerMsg, type SlotClaim, type SnapMsg } from '../../src/net/protocol';
 import { emptyIntent, packIntent, type Intent } from '../../src/sim/intent';
 import { Match } from '../../src/sim/match';
 
@@ -56,6 +56,10 @@ export class TestClient {
     }
   }
 
+  preds(): PredMsg[] {
+    return this.of('pred');
+  }
+
   of<T extends ServerMsg['t']>(t: T): Extract<ServerMsg, { t: T }>[] {
     return this.msgs.filter((m): m is Extract<ServerMsg, { t: T }> => m.t === t);
   }
@@ -71,6 +75,11 @@ export class TestClient {
   /** Hold these controls (the server keeps them until the next message). */
   hold(slot: number, i: Partial<Intent>, edges = 0, seq = this.seq++): void {
     this.send({ t: 'in', slot, seq, v: packIntent({ ...emptyIntent(), ...i }), e: edges });
+  }
+
+  /** Controls stamped for a server tick of world `wid` (what a predicting client sends). */
+  holdAt(slot: number, tick: number, wid: number, i: Partial<Intent>, edges = 0, seq = this.seq++): void {
+    this.send({ t: 'in', slot, seq, v: packIntent({ ...emptyIntent(), ...i }), e: edges, tick, wid });
   }
 
   private seq = 0;

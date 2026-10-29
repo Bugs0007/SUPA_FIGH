@@ -8,7 +8,7 @@ Status legend: [x] done · [~] partial · [ ] todo
   animation, map detail, orbs / forms / flight, hero upgrades, **M14 LAN multiplayer**). Manual play-test lists under
   M9, M10, M13 and M14. Bot hero abilities are done too: bots fly (Goku), grapple and swing (Luffy), wall-walk and
   Rasengan-dash (Naruto) via `ai/heroMove.ts` (D68).
-- `npm run dev` → http://localhost:5173 · `npm test` (394 unit tests) · `npm run test:e2e` (60 Playwright tests;
+- `npm run dev` → http://localhost:5173 · `npm test` (412+ unit tests) · `npm run test:e2e` (61 Playwright tests;
   in containers `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 <map> normal 1`
   · `npm run host` (LAN multiplayer: builds, serves game + server on the LAN, prints URLs + QR; see the README)
 - Main menu: player cards (NAME: Enter to type; FIGHTER: Scrapper/Goku/Naruto/Luffy), quick-match panel (MAP incl.
@@ -26,8 +26,8 @@ Status legend: [x] done · [~] partial · [ ] todo
    (`clones` in `sim/data/heroes.ts`), Rasengan hold length (`dash.maxTime`), grapple reach and swing feel
    (`stretch` block of Luffy's base ability), blink range / cooldown, wall-walk speed; plus camera zoom limits
    (`render/CameraDirector.ts`) and decor density (`render/Decor.ts`).
-2. LAN multiplayer follow-ups (see M14): client-side prediction for the local fighter (a key press currently shows after
-   ~180 ms on good WiFi), instant replays online (the server could send the `RoundRecording`), spectator / late-join
+2. LAN multiplayer follow-ups (see M14): predicting more than your own fighter's movement (hit / pickup confirmation is
+   still the server's, ~100-300 ms later), instant replays online (the server could send the `RoundRecording`), spectator / late-join
    polish, binary snapshots + delta compression if a big room on a weak router needs it, a "kick player" button, a
    NoSleep-style wake-lock fallback over plain http.
 3. Decorations for the outdoor themes that have none yet (docks, construction) and per-map hand-placed hero props.
@@ -311,8 +311,12 @@ ones local play uses. `src/sim` and `src/ai` still import nothing from Phaser or
       a match ending back into the lobby; LEAVE GAME from the pause menu).
       Verified by hand over the machine's LAN address with the production build (two browsers: host, join, ready, start;
       no console errors).
-- Measured: server ~0.3-0.5 ms CPU per tick for 10-15 fighters (budget 16.7 ms); input-to-screen ~180 ms (good WiFi) /
-  ~350 ms (60 ms each way, 5 % loss) / ~620 ms (120 ms, 15 %): no prediction yet.
+- Measured: server ~0.3-0.5 ms CPU per tick for 10-15 fighters (budget 16.7 ms). Without prediction a key press showed on
+  screen after ~180 ms (good WiFi) / ~350-600 ms (60 ms each way, 5 % loss) / ~620-800 ms (120 ms, 15 %).
+- [x] **Client-side prediction** (D77, `net/predict.ts`): your own fighters run on your device ahead of the server (the real
+      fighter code in a sandbox World, controls stamped with the server tick, exact `pred` state from the server every 33 ms,
+      rewind-and-replay, smooth correction); 17 ms reaction in a real browser with 150 ms each way (423 ms without), zero
+      error on good WiFi. Setting `LAN PREDICTION` / `?predict=0`. Found + fixed on the way: NetSim could reorder frames.
 
 ### Manual play-test checklist (M14): real devices on one WiFi
 Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed address; phones on the same 5 GHz WiFi.
@@ -327,6 +331,10 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [ ] Play two full rounds with bots: no stutter or rubber-banding; hits, explosions, sounds and the kill feed match what
       you see on the other devices; hero moves (Goku teleport / beams, Naruto clones, Luffy grapple) look right remotely.
 - [ ] Lag: `npm run host -- --latency 80 --jitter 40 --loss 5`: still playable; nothing teleports or freezes.
+- [ ] Prediction (with the lag option above): your fighter answers your keys at once; get hit / knocked back / grabbed and
+      check you are moved smoothly (not teleported); run past walls, ladders, moving platforms and crates; each hero's
+      moves (Goku teleport and flight, Naruto wall-walk and clones, Luffy grapple) feel right. Compare with
+      Settings > LAN PREDICTION off (or `?predict=0`).
 - [ ] Reconnect: turn a phone's WiFi off for ~5 s mid-match and back on (or reload its page): its fighter is bot-played, then
       yours again; the AWAY mark appears for a device that drops while in the lobby.
 - [ ] Host leaves the room (LEAVE ROOM): another device becomes the host and can start the next match. Close the host's

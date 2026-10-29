@@ -5,6 +5,7 @@
 import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { HEROES } from '../sim/data/heroes';
 import type { SimEvent } from '../sim/events';
+import type { Fighter } from '../sim/fighter';
 import { MAPS } from '../sim/map/maps';
 import type { GameMode, MatchConfig, MatchEvent } from '../sim/match';
 import { MODIFIERS } from '../sim/data/modifiers';
@@ -100,7 +101,7 @@ export type ClientMsg =
   | { t: 'ready'; ready: boolean }
   | { t: 'start' }
   /** one local player's controls: packed intent (packIntent) + buttons pressed since the last frame (same bit layout) */
-  | { t: 'in'; slot: number; seq: number; v: number; e: number }
+  | { t: 'in'; slot: number; seq: number; v: number; e: number; tick?: number; wid?: number }
   | { t: 'ping'; n: number };
 
 // ------------------------------------------------------------------ server -> client
@@ -113,11 +114,25 @@ export type ServerMsg =
   /** the match begins: build a mirror Match from `cfg`; `mine[local]` = this device's fighter index per claim */
   | { t: 'start'; cfg: MatchConfig; looks: SlotClaim['look'][]; mine: number[]; wid: number }
   | SnapMsg
+  | PredMsg
   | { t: 'end' }
   | { t: 'err'; code: ErrorCode; msg: string }
   | { t: 'pong'; n: number };
 
 export type ErrorCode = 'version' | 'badMessage' | 'noRoom' | 'notHost' | 'full' | 'notReady' | 'noPlayers' | 'state' | 'taken';
+
+/**
+ * Sent only to devices that predict (their `in` messages carry a `tick`), right after each snapshot: the complete,
+ * exact state of the fighters that device plays, as of `tick`, so the client can re-run its own recent controls from
+ * there (client-side prediction, D77). `late` counts control messages that reached the server after their tick.
+ */
+export interface PredMsg {
+  t: 'pred';
+  tick: number;
+  wid: number;
+  late: number;
+  f: { slot: number; fighter: Fighter }[];
+}
 
 export interface SnapMsg {
   t: 'snap';
@@ -240,7 +255,16 @@ export function parseClientMsg(text: string): ClientMsg | null {
       const seq = int(raw.seq, 0, 0x7fffffff);
       const v = int(raw.v, 0, 0x7fff);
       const e = int(raw.e, 0, 0x7fff);
-      return slot === null || seq === null || v === null || e === null ? null : { t: 'in', slot, seq, v, e };
+      if (slot === null || seq === null || v === null || e === null) return null;
+      const msg: ClientMsg = { t: 'in', slot, seq, v, e };
+      if (raw.tick !== undefined) {
+        const tick = int(raw.tick, 0, 0x7fffffff);
+        const wid = int(raw.wid, 0, 0x7fffffff);
+        if (tick === null || wid === null) return null;
+        msg.tick = tick;
+        msg.wid = wid;
+      }
+      return msg;
     }
     case 'ping': {
       const n = int(raw.n, 0, 0x7fffffff);

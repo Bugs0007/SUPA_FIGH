@@ -63,7 +63,8 @@ src/input/    Keyboard (event.code based) + Gamepad API (gamepad.ts) -> Intent. 
 src/net/      LAN multiplayer code shared by client and server (no Phaser, DOM or Node imports; a test enforces it):
               protocol.ts (validated wire messages), renderState.ts (lean snapshot codec onto a mirror Match),
               intentWire.ts (controls + edge bits), client.ts (NetClient, reconnects), timeline.ts (interpolation
-              buffer), remoteSim.ts (mirror Match fed by snapshots). sim/snapshot.ts + World/Match.snapshot()/restore().
+              buffer), remoteSim.ts (mirror Match fed by snapshots), predict.ts (client-side prediction of this device's
+              own fighters: sandbox World + rewind/replay, D77). sim/snapshot.ts + World/Match.snapshot()/restore().
 server/       Node-only authoritative server (D70-D76): session.ts (Match + bots + controls), room.ts, hub.ts,
               server.ts (http+ws, tls), static.ts, host.ts (`npm run host`), netsim.ts (latency / jitter / loss).
 src/ai/       Bots (pure TS, no Phaser — run headless too). Same Controller/Intent contract as humans.

@@ -591,3 +591,37 @@ clock) at 5 ms, 60 ms +-40 / 5 % and 120 ms +-80 / 15 %: every match finishes, t
 the server's at that moment, the render clock never runs backwards, the buffer stays <= 6 ticks, and pressing a key shows on
 screen after ~180 / 350 / 620 ms (that is the no-prediction latency D70 warned about: ~3 frames at WiFi speed). A 3 s
 blackout is also covered (the clock holds, frames resume in a burst, controls work again).
+
+### D77 — Client-side prediction of this device's own fighters
+**Why it works here:** the fighter code is deterministic and only needs a World around it. An experiment first: a fighter
+simulated alone in a sandbox World (`updateGimmicks`, `updateFighter` for it, then `updateItems` / `updateProps` /
+`updateFire`; no bullets, no other fighters stepped) from a snapshot matched the full server step to 0.000 px on all 13
+maps over random button-mashing. So the device runs the REAL fighter code ahead of the server (`net/predict.ts`) and draws
+its own fighters from that; everything else (hp, inventory, powers, other players, bullets, hits) is still drawn from the
+interpolated snapshots. Only `PREDICTED_FIELDS` (position, velocity, pose, aim, move-state) are taken from the prediction.
+**Exact alignment instead of guesswork:** controls are stamped with the server tick they will be applied at (`in.tick`,
+`in.wid`), the server queues them and runs input N in the step that makes tick N (`IntentSlot.applyAt`), and the
+prediction's own tick counter *is* the estimated server tick (`target = snapshot tick + RTT x 60 x timeScale + margin`,
+steered gently, re-aimed when more than 8 ticks off). Edges (taps shorter than a tick) travel with the level exactly as the
+sim sees them (`TickSampler`/`intentFor`), so the local run and the server's run use identical controls, axes quantized the
+same. A message that misses its tick is applied at once and counted (`late`); the server reports the count, the client adds
+a tick of margin (2..8, decaying after 1.5 s of quiet): a bigger lead costs nothing locally and only delays what other
+players see of your actions. A stamp for another world id (a round change in flight) is applied like a plain message.
+**Reconciliation:** after each snapshot the server sends `pred` to devices that stamp their controls: the COMPLETE fighter
+(about 2.5 KB, full precision, 30 Hz) for each of their fighters. The client rebuilds the sandbox from the snapshot of the
+same tick (`applyWorld`, so props / items / movers / tiles are the server's) plus the exact fighter, then re-runs the
+controls the server has not seen yet. Whatever differs from what was on screen (a knock-back, a hit, a pickup, a prop
+pushed by someone else) becomes a visual offset that fades with a 90 ms time constant, or snaps beyond 48 px. A fighter
+that is dead, a ghost or gone is not predicted (drawn from the server), and prediction restarts with each new World.
+Plain `in` messages still work (a client without prediction, or before the first snapshot gives it the server's clock), and
+`pred` is only sent to devices that stamp.
+**Measured** (`tests/unit/prediction.test.ts`, fake clock; `tests/e2e/netpredict.spec.ts`, real browser): first pixel of
+movement after pressing a key 33 ms (two frames) at every network quality, against 100 / 533 / 717 ms without prediction
+(good / busy / awful WiFi); in a real browser against a server adding 150 ms each way, 17 ms against 423 ms. The prediction
+for tick t equals what the server then did at tick t exactly on good WiFi, mean 0.4 px on busy WiFi (60 ms +-40, 5 % loss)
+and 5 px on a deliberately awful one (120 ms +-80, 15 % of control frames dropped, which is worse than real TCP); the
+largest per-frame jump on screen stays under 3 / 3 / 6.3 px. Hero abilities run in the sandbox too (mean difference under
+25 px with random ability spam, because their targets are other fighters the sandbox sees a moment late).
+**Setting:** `LAN PREDICTION` in Settings (default on), `?predict=0|1` overrides it. **Found on the way:** the network
+simulator could reorder frames with real timers (separate `setTimeout`s of nearly equal length are not ordered); `NetSim`
+now drains a FIFO queue, with a regression test.

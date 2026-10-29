@@ -16,6 +16,8 @@ export interface Settings {
   quickBots: number;
   /** instant replay of every round-ending kill */
   replays: boolean;
+  /** LAN play: run your own fighter ahead of the server so it reacts at once (D77); off = it is drawn as the server reports it */
+  netPrediction: boolean;
   /** quick match from the title: map id or 'random', and 1 or 2 keyboard players */
   quickMap: string;
   quickPlayers: number;
@@ -32,6 +34,7 @@ const DEFAULTS: Settings = {
   botDifficulty: 'normal',
   quickBots: 3,
   replays: true,
+  netPrediction: true,
   quickMap: 'test',
   // a phone has one set of controls
   quickPlayers: isTouchDevice() ? 1 : 2,

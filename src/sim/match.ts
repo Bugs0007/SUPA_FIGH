@@ -297,7 +297,12 @@ export class Match {
   rebuildWorld(round: number, modifiers: string[]): void {
     this.round = round;
     this.roundModifiers = [...modifiers];
-    this.world = new World(getMap(this.cfg.mapId), this.cfg.fighters, this.worldSettings(), this.cfg.seed + round * 7919);
+    this.world = this.freshWorld(round, modifiers);
+  }
+
+  /** A new World as round `round` (with those chaos modifiers) would start it. Network clients build prediction sandboxes with it. */
+  freshWorld(round: number, modifiers: string[]): World {
+    return new World(getMap(this.cfg.mapId), this.cfg.fighters, { ...this.worldSettings(), modifiers }, this.cfg.seed + round * 7919);
   }
 
   step(intents: readonly Intent[]): void {

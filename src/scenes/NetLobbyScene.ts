@@ -3,7 +3,7 @@ import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { lookToWire } from '../art/appearance';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
-import { deviceId, isSecureContextish, rememberServer, serverUrl } from '../game/netStore';
+import { deviceId, isSecureContextish, predictionEnabled, rememberServer, serverUrl } from '../game/netStore';
 import { isTouchDevice, VIEW_H, VIEW_W } from '../game/display';
 import { profiles } from '../game/profiles';
 import { keyboard } from '../input/keyboard';
@@ -224,7 +224,7 @@ export class NetLobbyScene extends Phaser.Scene {
     } else if (m.t === 'err') this.flash(ERRORS[m.code] ?? m.msg.toUpperCase());
     else if (m.t === 'start') {
       this.leaving = true; // the scene is going away: no "closed" screen
-      this.scene.start('match', netMatchData(new RemoteSim(this.client, m)));
+      this.scene.start('match', netMatchData(new RemoteSim(this.client, m, undefined, { predict: predictionEnabled() })));
     }
   }
 

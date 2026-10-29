@@ -8,7 +8,7 @@ import { Match, type MatchConfig, type MatchEvent } from '../src/sim/match';
 import type { SimEvent } from '../src/sim/events';
 import { IntentSlot } from '../src/net/intentWire';
 import { encodeMatch, encodeWorld } from '../src/net/renderState';
-import { SNAPSHOT_EVERY, type BotSpec, type SnapMsg } from '../src/net/protocol';
+import { SNAPSHOT_EVERY, type BotSpec, type PredMsg, type SnapMsg } from '../src/net/protocol';
 
 /** Match-level state is resent at least this often (snapshots) even when nothing changed */
 const MATCH_STATE_EVERY = 10;
@@ -59,9 +59,28 @@ export class Session {
   }
 
   /** Controls from a device for one of its fighters. Ignored when the fighter is not theirs. */
-  input(device: string, slot: number, seq: number, v: number, e: number): void {
+  input(device: string, slot: number, seq: number, v: number, e: number, tick?: number, wid?: number): void {
     if (this.slots[slot]?.owner !== device) return;
-    this.inputs[slot]?.apply(seq, v, e);
+    const input = this.inputs[slot];
+    if (!input) return;
+    // stamped for a tick of THIS world: run at exactly that tick (what a predicting client ran). A message from before
+    // a round change (another world's ticks) is just applied at the next tick like an unstamped one.
+    if (tick !== undefined && wid === this.wid) input.applyAt(seq, tick, v, e);
+    else input.apply(seq, v, e);
+  }
+
+  /** The exact state of the fighters of a predicting device, to go with the snapshot just built (null = nothing to send). */
+  predFor(device: string): PredMsg | null {
+    const mine = this.fightersOf(device).filter((i) => this.inputs[i]?.stamped);
+    if (mine.length === 0) return null;
+    const w = this.match.world;
+    return {
+      t: 'pred',
+      tick: w.tick,
+      wid: this.wid,
+      late: mine.reduce((n, i) => n + (this.inputs[i]?.late ?? 0), 0),
+      f: mine.map((slot) => ({ slot, fighter: w.fighters[slot] })),
+    };
   }
 
   /** A human's device dropped (a bot plays the fighter meanwhile) or came back. */
@@ -84,7 +103,7 @@ export class Session {
     const fighters = this.match.world.fighters.length;
     for (let i = 0; i < fighters; i++) {
       const input = this.inputs[i];
-      this.intents[i] = input && this.connected[i] ? input.take(this.scratch[i]) : this.controllers[i].poll();
+      this.intents[i] = input && this.connected[i] ? input.take(this.scratch[i], this.match.world.tick + 1) : this.controllers[i].poll();
     }
     this.match.step(this.intents);
     this.ticks++;

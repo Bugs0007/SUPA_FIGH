@@ -161,10 +161,13 @@ git-ignored; never share `rootCA-key.pem`.
 `npm run server` starts only the game server (port 8080, `PORT=9000 npm run server`), for developing against `npm run dev`:
 open the dev page with `?server=ws://<host-ip>:8080`.
 
-How good does it feel? With no prediction (everything is shown as the server sees it) a key press shows up on screen
-after about 180 ms on good WiFi (three frames of travel, snapshot rate and a ~70 ms smoothing buffer), ~350 ms on a
-busy network (60 ms each way, 5% loss) and ~620 ms on an awful one. That is fine for a party brawler on a home network.
-The simulation cannot be made faster than your WiFi, so for the best feel put the host on Ethernet and everyone on 5 GHz.
+How does it feel? **Your own fighter is predicted**: your device runs your fighter ahead of the server, so it moves,
+jumps, crouches, aims and swings on the very next frame (measured: 17 ms in a real browser even with 150 ms each way,
+against 423 ms without prediction). The server stays in charge and corrects the prediction smoothly when it disagrees (a
+knock-back, a grab, a prop pushed by someone else). Everything that belongs to other players or to the world (their
+movement, bullets, explosions, hits on you) is still shown as the server reports it, about 70-100 ms behind plus your
+network delay. If prediction ever misbehaves, switch it off in Settings (LAN PREDICTION) or open the page with
+`?predict=0`. For the best feel put the host on Ethernet and everyone on 5 GHz WiFi.
 
 ## Development
 ```

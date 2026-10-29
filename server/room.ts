@@ -141,7 +141,7 @@ export class Room {
     if (!p) return;
     switch (msg.t) {
       case 'in':
-        this.session?.input(device, msg.slot, msg.seq, msg.v, msg.e);
+        this.session?.input(device, msg.slot, msg.seq, msg.v, msg.e, msg.tick, msg.wid);
         return;
       case 'ping':
         this.send(p, { t: 'pong', n: msg.n });
@@ -270,7 +270,14 @@ export class Room {
         s.step();
         this.acc -= DT_MS;
         n++;
-        if (s.snapshotDue) this.broadcast(s.snapshot());
+        if (s.snapshotDue) {
+          this.broadcast(s.snapshot());
+          // devices that predict also get the exact state of their own fighters at this tick
+          for (const p of this.peers.values()) {
+            const pred = p.conn ? s.predFor(p.device) : null;
+            if (pred) this.send(p, pred);
+          }
+        }
         if (s.over) {
           this.endMatch();
           return;

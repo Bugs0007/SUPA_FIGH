@@ -1,6 +1,7 @@
 // What a device remembers about LAN play: a stable device id (so a reload or a WiFi blip puts it back in its room with
 // its fighters) and where the server is. Falls back gracefully when storage is blocked.
 
+import { settings } from './settings';
 import { load, save } from './storage';
 
 function randomId(): string {
@@ -35,6 +36,12 @@ export function serverUrl(params: URLSearchParams = new URLSearchParams(location
 
 export function rememberServer(url: string): void {
   save('serverUrl', url);
+}
+
+/** Client-side prediction on? The setting, unless the page was opened with ?predict=0 / ?predict=1. */
+export function predictionEnabled(params: URLSearchParams = new URLSearchParams(location.search)): boolean {
+  const p = params.get('predict');
+  return p === null ? settings.netPrediction : p !== '0';
 }
 
 /** Browsers only allow Gamepad / Wake Lock / fullscreen tricks in a secure context (https or localhost). */

@@ -47,9 +47,25 @@ export class NetSim {
     return o.latencyMs > 0 || o.jitterMs > 0 || o.loss > 0;
   }
 
-  /** One direction of one connection: returns the function to call instead of `deliver`. */
+  /**
+   * One direction of one connection: returns the function to call instead of `deliver`. Frames wait in a queue and are
+   * handed over strictly first-in first-out as they come due (separate timers of nearly equal length do not reliably
+   * fire in order, which a real TCP stream never does).
+   */
   link(deliver: (raw: string) => void): (raw: string) => void {
     let lastAt = 0;
+    const queue: { at: number; raw: string }[] = [];
+    let armed = false;
+    const arm = (ms: number) => {
+      if (armed) return;
+      armed = true;
+      this.schedule(Math.max(0, ms), drain);
+    };
+    const drain = () => {
+      armed = false;
+      while (queue.length && queue[0].at <= this.now()) deliver(queue.shift()!.raw);
+      if (queue.length) arm(queue[0].at - this.now()); // a timer that fires a hair early waits for the rest
+    };
     return (raw) => {
       const o = this.opts;
       if (o.loss > 0 && isLossy(raw) && this.rand() < o.loss) return;
@@ -57,7 +73,8 @@ export class NetSim {
       if (o.loss > 0 && this.rand() < o.loss / 2) delay += RETRANSMIT_MS;
       const at = Math.max(lastAt, this.now() + delay);
       lastAt = at;
-      this.schedule(at - this.now(), () => deliver(raw));
+      queue.push({ at, raw });
+      arm(queue[0].at - this.now());
     };
   }
 }

@@ -21,7 +21,7 @@ const OPEN = 1;
 const BACKOFF = [250, 500, 1000, 2000, 4000];
 const RECONNECT_GIVE_UP_MS = 60_000;
 const CONNECT_TIMEOUT_MS = 6000;
-const PING_EVERY_MS = 2000;
+const PING_EVERY_MS = 1000;
 
 export class NetClient {
   state: NetState = 'idle';
@@ -155,12 +155,14 @@ export class NetClient {
   private startPing(): void {
     this.downSince = 0;
     this.stopPing();
-    this.pingTimer = setInterval(() => {
+    const ping = () => {
       const n = this.pingN++;
       this.pingSentAt.set(n, this.now());
       this.sendRaw({ t: 'ping', n });
       if (this.pingSentAt.size > 8) this.pingSentAt.delete(this.pingSentAt.keys().next().value as number);
-    }, PING_EVERY_MS);
+    };
+    ping(); // prediction needs the round trip time right away
+    this.pingTimer = setInterval(ping, PING_EVERY_MS);
   }
 
   private stopPing(): void {

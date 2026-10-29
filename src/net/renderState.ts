@@ -62,7 +62,8 @@ export const FIRE_SPEC: Spec<FirePatch> = [
 ];
 
 // movers / hazards / zones / cannons: the sim objects hold a `def` that both sides rebuild from the map
-const MOVER_FIELDS = ['x', 'y', 'vx', 'vy', 't', 'dir'] as const;
+// (seg / wait let a predicting client keep path movers running between snapshots)
+const MOVER_FIELDS = ['x', 'y', 'vx', 'vy', 't', 'dir', 'seg', 'wait'] as const;
 const HAZARD_FIELDS = ['x', 'y', 'w', 'h', 't', 'active', 'warn'] as const;
 const CANNON_FIELDS = ['cd', 'shotAt'] as const;
 
