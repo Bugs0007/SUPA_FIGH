@@ -7,6 +7,7 @@ import type { Intent } from './intent';
 import { getMap } from './map/maps';
 import { World, type WorldSettings } from './world';
 import { RoundRecording } from './replay';
+import { clonePlain, type MatchSnapshot } from './snapshot';
 
 /**
  * brawl = rounds, last team standing. All others are one long round with respawns:
@@ -210,6 +211,83 @@ export class Match {
     this.initMode();
     this.events.push({ t: 'roundStart', round: this.round });
     if (this.cfg.chaos) this.events.push({ t: 'modifier', id: this.roundModifiers[this.roundModifiers.length - 1] });
+  }
+
+  // ------------------------------------------------------------ snapshots (D70)
+
+  /** Match + current round state as plain data (the instant-replay recordings are not included). */
+  snapshot(): MatchSnapshot {
+    return {
+      round: this.round,
+      phase: this.phase,
+      phaseTime: this.phaseTime,
+      scores: [...this.scores],
+      roundWinner: this.roundWinner,
+      matchWinner: this.matchWinner,
+      stats: clonePlain(this.stats) as unknown as Record<string, number>[],
+      events: clonePlain(this.events) as unknown as Record<string, unknown>[],
+      timeScale: this.timeScale,
+      cinematic: clonePlain(this.cinematic),
+      cineScale: this.cineScale,
+      slowmoTicks: this.slowmoTicks,
+      slowmoLen: this.slowmoLen,
+      decideTimer: this.decideTimer,
+      recentKills: clonePlain(this.recentKills),
+      respawnAt: [...this.respawnAt],
+      overtime: this.overtime,
+      hill: clonePlain(this.hill),
+      hillTeam: this.hillTeam,
+      hillTime: [...this.hillTime],
+      juggernaut: this.juggernaut,
+      gunLevel: [...this.gunLevel],
+      wave: this.wave,
+      lives: this.lives,
+      waveBreak: this.waveBreak,
+      waveBots: [...this.waveBots],
+      reviveProgress: [...this.reviveProgress],
+      roundModifiers: [...this.roundModifiers],
+      world: this.world.snapshot(),
+    };
+  }
+
+  /** Overwrite this match with a snapshot taken from a match with the same config (rebuilds the round's World). */
+  restore(s: MatchSnapshot): void {
+    const c = clonePlain(s);
+    this.round = c.round;
+    this.roundModifiers = c.roundModifiers;
+    const seed = this.cfg.seed + this.round * 7919;
+    this.world = new World(getMap(this.cfg.mapId), this.cfg.fighters, this.worldSettings(), seed);
+    this.world.restore(c.world);
+    this.recording = this.cfg.mode === 'brawl' ? new RoundRecording(this.world.def, this.cfg.fighters, this.worldSettings(), seed, this.world.fighters.length) : null;
+    this.lastRecording = null;
+    this.phase = c.phase as MatchPhase;
+    this.phaseTime = c.phaseTime;
+    this.scores = new Map(c.scores);
+    this.roundWinner = c.roundWinner;
+    this.matchWinner = c.matchWinner;
+    this.stats = c.stats as unknown as FighterStats[];
+    this.events = c.events as unknown as MatchEvent[];
+    this.timeScale = c.timeScale;
+    this.cinematic = c.cinematic;
+    this.cineScale = c.cineScale;
+    this.slowmoTicks = c.slowmoTicks;
+    this.slowmoLen = c.slowmoLen;
+    this.decideTimer = c.decideTimer;
+    this.recentKills = c.recentKills;
+    this.respawnAt = new Map(c.respawnAt);
+    this.overtime = c.overtime;
+    this.hill = c.hill;
+    // the hill is the world's objective: one shared object, as initMode makes it
+    this.world.objective = c.hill && c.world.objective ? c.hill : c.world.objective;
+    this.hillTeam = c.hillTeam;
+    this.hillTime = new Map(c.hillTime);
+    this.juggernaut = c.juggernaut;
+    this.gunLevel = c.gunLevel;
+    this.wave = c.wave;
+    this.lives = c.lives;
+    this.waveBreak = c.waveBreak;
+    this.waveBots = new Set(c.waveBots);
+    this.reviveProgress = c.reviveProgress;
   }
 
   step(intents: readonly Intent[]): void {

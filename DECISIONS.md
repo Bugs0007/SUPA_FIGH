@@ -474,3 +474,39 @@ menus show; the standard-mapping buttons are named in both styles (CROSS / A...)
 Match without setup (`MergedController` = keyboard OR pad).
 **Menu kit** (`src/scenes/kit.ts`): `HintBar` (keycaps / PS and Xbox glyphs / touch pills at the bottom of every screen),
 `panel`, `rowBar`, `meter`, `toggle`. Title, Match Setup, Settings, Controls and Pause use it.
+
+### D70 — LAN multiplayer: authoritative server, not lockstep
+**Authoritative server.** One Node process steps the existing `Match` (sim + bots) at a fixed 60 Hz; clients send only
+`Intent`s and render what comes back. Lockstep was rejected: the sim is deterministic, but it only stays so while every
+peer runs bit-identical float math, bots and RNG consumption, and one slow phone would stall every player at each tick.
+A server also keeps bots in one place (they run only there), makes joining / reconnecting a matter of sending the current
+state, and lets any device be a thin viewer. LAN latency is low enough that no client-side prediction is needed for v1.
+**Rates** (starting values, tuned in M5 under simulated bad networks): snapshots at 30 Hz, an interpolation buffer of
+~2 snapshots (~70 ms, adaptive within 50-100 ms), clients render at "newest - buffer" on *sim* time (slow-mo scales it).
+**Protocol**: WebSocket (`ws`), JSON text frames with compact positional arrays (a render snapshot is ~3-4 KB, so no delta
+compression: measured with 10-15 fighters on six maps, server CPU ~0.3-0.5 ms per tick). Binary can replace JSON later
+behind the same encode / decode functions in `src/net/`. Intents are sent with sticky edge bits (a tap shorter than a
+server tick must not be lost). Shared code (protocol types, snapshot codec) lives in `src/net/` with no Phaser, DOM or Node
+imports, enforced by `tests/unit/netRender.test.ts`. Instant replays are off online in v1 (clients have no intent log).
+
+### D71 — Exact snapshots of the simulation
+`World.snapshot()/restore()` and `Match.snapshot()/restore()` (types in `sim/snapshot.ts`) turn *all* mutable sim state
+into JSON-safe plain data and back: fighters, bullets, items, props, fires, burning tiles (Map -> entries), tiles, gimmick
+state, RNG state, spawner timers, id counters, pending events, plus every Match field (scores, mode state, slow-mo, round
+index, chaos modifiers). Static data is not included: entities hold `def` references into the map / prop tables, which
+restore rebuilds from the same constructor arguments (a snapshot only restores into a World built from the same map, specs,
+settings and seed; `restore` throws on a fighter / map size mismatch). Bots are not part of a snapshot (they only run on the
+server). `tests/unit/snapshot.test.ts` proves "restore at tick T then step to N" equals the uninterrupted run, byte for
+byte as JSON, for every game mode, hero abilities, chaos cards, and maps with movers / hazards / cannons / waves. The exact
+snapshot is ~50 KB, so it is for tests, tooling and late-join keyframes; the wire uses D72.
+
+### D72 — Render state for clients (the mirror match)
+Clients never step the sim. They build a normal `Match` from the same config (a *mirror*) and overwrite it from `src/net/
+renderState.ts` frames: only the ~65 Fighter fields (plus a handful per bullet / item / prop / fire / mover / hazard) that
+the renderer, Juice, HUD, camera and audio read, 2-decimal rounded, positional arrays. Static fighter data (name, team, hero,
+master...) comes from the config; px / py come from the previous frame (`positionsOf`) so `WorldRenderer.sync(alpha)` blends
+between frames unchanged; large jumps (respawns, clones appearing) snap. Tile edits ride along as a diff against the built
+map (`map.set` queues the redraws). Out-of-play Naruto clone slots are sent as `0`. Match-level state (`MatchRender`:
+scores, stats, phase, hill, wave...) is a separate small record the server can send on change. A test scans the render,
+scene, art and audio sources and fails if they read a Fighter field the codec does not carry, so new render code cannot
+silently read stale data on a client.

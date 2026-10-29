@@ -7,7 +7,8 @@ import { activeWeapon, createFighter, dropCooked, selectBestSlot, updateFighter,
 import { emptyIntent, type Intent } from './intent';
 import { createItem, updateItems, type Item } from './item';
 import { createProp, updateProps, type Prop } from './prop';
-import type { PropType } from './data/props';
+import { PROPS, type PropType } from './data/props';
+import { clonePlain, withoutDef, type WorldSnapshot } from './snapshot';
 import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
 import { maxClones, POWER_ORB } from './data/heroes';
 import { dismissClone, transform } from './hero';
@@ -142,6 +143,85 @@ export class World {
 
   emit(e: SimEvent): void {
     this.events.push(e);
+  }
+
+  // ------------------------------------------------------------ snapshots (D70)
+
+  /** Everything that changes while a round runs, as plain data. */
+  snapshot(): WorldSnapshot {
+    const g = this.gimmicks;
+    return {
+      tick: this.tick,
+      time: this.time,
+      rng: this.rng.state,
+      bulletTime: this.bulletTime,
+      bulletTimeOwner: this.bulletTimeOwner,
+      suddenDeath: this.suddenDeath,
+      objective: clonePlain(this.objective),
+      drainAcc: this.drainAcc,
+      fireStormTimer: this.fireStormTimer,
+      nextItemId: this.nextItemId,
+      nextPropId: this.nextPropId,
+      weaponTimer: this.weaponTimer,
+      powerTimer: this.powerTimer,
+      fighters: clonePlain(this.fighters),
+      bullets: clonePlain(this.bullets),
+      items: clonePlain(this.items),
+      props: this.props.map(withoutDef),
+      fires: clonePlain(this.fires),
+      burning: [...this.burningTiles].map(([k, t]) => [k, clonePlain(t)]),
+      tiles: Array.from(this.map.tiles),
+      gimmicks: {
+        movers: g.movers.map(withoutDef),
+        hazards: g.hazards.map(withoutDef),
+        gravity: g.gravity.map(withoutDef),
+        drops: g.drops.map(withoutDef),
+        waves: g.waves.map(withoutDef),
+        cannons: g.cannons.map(withoutDef),
+      },
+      events: clonePlain(this.events),
+    };
+  }
+
+  /**
+   * Overwrite this world with a snapshot. The world must have been constructed with the same map, fighter
+   * specs, settings and seed as the one the snapshot came from (the static parts are not in the snapshot).
+   */
+  restore(s: WorldSnapshot): void {
+    if (s.fighters.length !== this.fighters.length || s.tiles.length !== this.map.tiles.length) {
+      throw new Error('snapshot does not belong to this world (different fighters or map)');
+    }
+    const c = clonePlain(s);
+    this.tick = c.tick;
+    this.time = c.time;
+    this.rng.state = c.rng;
+    this.bulletTime = c.bulletTime;
+    this.bulletTimeOwner = c.bulletTimeOwner;
+    this.suddenDeath = c.suddenDeath;
+    this.objective = c.objective;
+    this.drainAcc = c.drainAcc;
+    this.fireStormTimer = c.fireStormTimer;
+    this.nextItemId = c.nextItemId;
+    this.nextPropId = c.nextPropId;
+    this.weaponTimer = c.weaponTimer;
+    this.powerTimer = c.powerTimer;
+    this.fighters.forEach((f, i) => Object.assign(f, c.fighters[i]));
+    this.bullets = c.bullets;
+    this.items = c.items;
+    this.props = c.props.map((p) => ({ ...p, def: PROPS[p.type] }));
+    this.fires = c.fires;
+    this.burningTiles = new Map(c.burning);
+    this.map.tiles.set(c.tiles);
+    this.map.changes.length = 0;
+    const g = this.gimmicks;
+    const apply = (dst: object[], src: Record<string, unknown>[]) => dst.forEach((d, i) => Object.assign(d, src[i]));
+    apply(g.movers, c.gimmicks.movers);
+    apply(g.hazards, c.gimmicks.hazards);
+    apply(g.gravity, c.gimmicks.gravity);
+    apply(g.drops, c.gimmicks.drops);
+    apply(g.waves, c.gimmicks.waves);
+    apply(g.cannons, c.gimmicks.cannons);
+    this.events = c.events;
   }
 
   step(intents: readonly Intent[]): void {
