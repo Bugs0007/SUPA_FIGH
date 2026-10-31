@@ -43,11 +43,23 @@ export const BF = {
   FOX_IDLE1: 34,
   FOX_RUN0: 35, // 35..38
   FOX_JUMP: 39,
+  // blocking: knees bent, weight low behind the raised forearms
+  GUARD: 40,
 } as const;
-export const BODY_FRAMES = 40;
+export const BODY_FRAMES = 41;
 export const HEAD = { NORMAL: 0, HURT: 1, DEAD: 2 } as const;
 export const ARM_ANGLES = 32;
 export const ARM_LENGTHS = [5, 7];
+/**
+ * Bent guard arms (blocking), after the angle x length frames: elbow out in front, forearm raised.
+ * ARM_GUARD = front arm (fist in front of the face), ARM_GUARD + 1 = back arm (fist in front of the chest).
+ */
+export const ARM_GUARD = ARM_ANGLES * ARM_LENGTHS.length;
+/** guard arm paths, px from the shoulder (shoulder -> elbow -> fist), same pixel density as the straight arms */
+const GUARD_ARMS: [number, number][][] = [
+  [[0, 0], [1, 1], [2, 1], [3, 0], [3, -1], [4, -2], [4, -3], [4, -4]],
+  [[0, 0], [1, 1], [2, 1], [3, 1], [4, 1], [5, 1], [6, 0], [7, -1]],
+];
 
 export interface FrameMeta {
   /** head anchor (bottom-center of the head) in frame px */
@@ -162,6 +174,7 @@ function buildPoses(): Pose[] {
   poses[BF.PUNCH] = stand(24, 8, 2, [-2, 3, -4, 6], [3, 2, 4, 6]);
   poses[BF.DANGLE] = stand(23, 8, -1, [0, 3, -1, 6], [0, 3, 1, 6]);
   poses[BF.TUMBLE] = stand(23, 8, 0, [-3, 2, -5, 4], [3, 2, 5, 5]);
+  poses[BF.GUARD] = stand(25, 7, 1, [-3, 2, -4, 5], [2, 2, 3, 5]);
   return poses;
 }
 
@@ -732,11 +745,23 @@ function sleeveLen(a: Appearance, len: number): number {
 function drawArm(pc: PixelCanvas, ox: number, oy: number, angle: number, len: number, a: Appearance): void {
   const c = Math.cos(angle);
   const s = Math.sin(angle);
+  const pts: [number, number][] = [];
+  for (let i = 0; i <= len; i++) pts.push([Math.round(ox + 8 + c * i - 0.5), Math.round(oy + 8 + s * i - 0.5)]);
+  paintArm(pc, ox, oy, pts, a);
+}
+
+/** A bent guard arm (blocking): GUARD_ARMS path `k` from the shoulder at the frame centre. */
+function drawGuardArm(pc: PixelCanvas, ox: number, oy: number, k: number, a: Appearance): void {
+  paintArm(pc, ox, oy, GUARD_ARMS[k].map(([dx, dy]) => [ox + 8 + dx, oy + 8 + dy] as [number, number]), a);
+}
+
+/** Paint an arm along pixel points (shoulder first): sleeve, skin, wrist band, hero details. */
+function paintArm(pc: PixelCanvas, ox: number, oy: number, pts: [number, number][], a: Appearance): void {
+  const len = pts.length - 1;
   const sl = sleeveLen(a, len);
   const sleeve = a.top === 'vest' ? a.accentColor : a.topColor;
   for (let i = 0; i <= len; i++) {
-    const x = Math.round(ox + 8 + c * i - 0.5);
-    const y = Math.round(oy + 8 + s * i - 0.5);
+    const [x, y] = pts[i];
     let col = i < sl ? sleeve : i === sl && a.top === 'suit' ? P.white : a.skin;
     if (a.design === 'sasuke' && i > len - 4 && i < len) col = '#393349';
     if (a.trim && i === len - 2) col = a.trim; // wrist band
@@ -782,14 +807,19 @@ export function bakeFighter(scene: Phaser.Scene, a: Appearance): FighterTextures
   }
   addFrames(scene.textures.addCanvas(names.head, head.flush())!, 3, 16, 16, 3);
 
-  const arm = new PixelCanvas(ARM_ANGLES * 17, ARM_LENGTHS.length * 17);
+  const arm = new PixelCanvas(ARM_ANGLES * 17, (ARM_LENGTHS.length + 1) * 17);
   ARM_LENGTHS.forEach((len, li) => {
     for (let k = 0; k < ARM_ANGLES; k++) {
       drawArm(arm, k * 17, li * 17, (k / ARM_ANGLES) * Math.PI * 2, len, a);
       arm.relief(k * 17, li * 17, 17, 17, 0.7);
     }
   });
-  addFrames(scene.textures.addCanvas(names.arm, arm.flush())!, ARM_ANGLES * ARM_LENGTHS.length, 17, 17, ARM_ANGLES);
+  // the bent guard arms on an extra row (frames ARM_GUARD, ARM_GUARD + 1)
+  GUARD_ARMS.forEach((_, k) => {
+    drawGuardArm(arm, k * 17, ARM_LENGTHS.length * 17, k, a);
+    arm.relief(k * 17, ARM_LENGTHS.length * 17, 17, 17, 0.7);
+  });
+  addFrames(scene.textures.addCanvas(names.arm, arm.flush())!, ARM_GUARD + GUARD_ARMS.length, 17, 17, ARM_ANGLES);
 
   cache.set(key, names);
   return names;

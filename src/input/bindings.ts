@@ -9,7 +9,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   right: 'RIGHT',
   up: 'UP = JUMP / FLY / AIM',
   down: 'DOWN (2X = DROP)',
-  attack: 'ATTACK (HOLD=AIM)',
+  attack: 'PUNCH (HOLD=BLOCK/AIM)',
   kick: 'KICK (HERO: ABILITY 2)',
   interact: 'PICK UP / GRAB',
   cycle: 'SWITCH WEAPON',

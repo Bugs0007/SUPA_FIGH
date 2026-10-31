@@ -1,4 +1,4 @@
-import { applyHit, computeDamage } from './combat';
+import { applyHit, computeDamage, hitWasBlocked } from './combat';
 import { DT } from './constants';
 import type { ExplosionStats, ProjectileKind } from './data/weapons';
 import { explode } from './explosion';
@@ -288,7 +288,9 @@ export function updateBullets(w: World): void {
           x: hx,
           y: hy,
         });
-        if (connected && b.ignite > 0) ignite(w, f, b.ignite, b.owner);
+        // a raised guard stops the bullet (no burn, no piercing through)
+        const blocked = hitWasBlocked();
+        if (connected && b.ignite > 0 && !blocked) ignite(w, f, b.ignite, b.owner);
         b.hitIds.push(f.id);
         if (b.explosion) {
           b.active = false;
@@ -298,7 +300,7 @@ export function updateBullets(w: World): void {
         b.x = hx;
         b.y = hy;
         b.traveled = dist;
-        if (b.pierce > 0) {
+        if (b.pierce > 0 && !blocked) {
           // keep flying from the hit point; hitIds stops us re-hitting the same fighter
           b.pierce--;
           b.damage *= 0.7;

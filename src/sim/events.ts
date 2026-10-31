@@ -104,4 +104,8 @@ export type SimEvent =
   | { t: 'rasengan'; f: number; phase: 'form' | 'dash' }
   /** two Rasengan / Chidori orbs met (both fighters took the other's hit); x, y = between the orbs */
   | { t: 'clash'; a: number; b: number; x: number; y: number }
-  | { t: 'rocket'; f: number; x: number; y: number };
+  | { t: 'rocket'; f: number; x: number; y: number }
+  // blocking (hold PUNCH): a blocked hit (chip = damage taken through the guard), a perfect block, a guard break
+  | { t: 'block'; victim: number; attacker: number; x: number; y: number; chip: number }
+  | { t: 'parry'; victim: number; attacker: number; x: number; y: number }
+  | { t: 'guardBreak'; victim: number; x: number; y: number };

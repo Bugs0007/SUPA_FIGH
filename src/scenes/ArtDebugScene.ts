@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { Art } from '../art';
 import { PLAYER_PRESETS, randomAppearance } from '../art/appearance';
-import { armFrame, BF, BODY_FRAMES, FRAME_META } from '../art/fighterArt';
+import { ARM_GUARD, armFrame, BF, BODY_FRAMES, FRAME_META } from '../art/fighterArt';
 import { WEAPON_ART } from '../art/weaponArt';
 import { formCount, formLook, HERO_ART } from '../art/heroArt';
 import { HEROES } from '../sim/data/heroes';
@@ -45,10 +45,11 @@ export class ArtDebugScene extends Phaser.Scene {
         const y = 50 + row * 162 + Math.floor(i / 12) * 52;
         const m = FRAME_META[i];
         const c = this.add.container(x + 16, y).setScale(s);
-        if (!m.hideArms) c.add(this.add.image(m.bshX - 16, m.bshY - 32, tex.arm, armFrame(1.8, 0)).setTint(0xb0a8c0));
+        const guard = i === BF.GUARD;
+        if (!m.hideArms) c.add(this.add.image(m.bshX - 16, m.bshY - 32, tex.arm, guard ? ARM_GUARD + 1 : armFrame(1.8, 0)).setTint(0xb0a8c0));
         c.add(this.add.image(0, 0, tex.body, i).setOrigin(0.5, 1).setRotation(0));
         if (!m.hideHead) c.add(this.add.image(m.neckX - 16, m.neckY - 32, tex.head, i === BF.HURT ? 1 : 0).setOrigin(8 / 16, 13 / 16));
-        if (!m.hideArms) c.add(this.add.image(m.shX - 16, m.shY - 32, tex.arm, armFrame(i === BF.AIM ? 0 : 1.3, i === BF.AIM ? 1 : 0)));
+        if (!m.hideArms) c.add(this.add.image(m.shX - 16, m.shY - 32, tex.arm, guard ? ARM_GUARD : armFrame(i === BF.AIM ? 0 : 1.3, i === BF.AIM ? 1 : 0)));
         this.add.bitmapText(x, y + 2, 'sm', String(i));
       }
     });

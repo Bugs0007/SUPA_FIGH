@@ -1,6 +1,7 @@
 import {
   AIR_JUMP_VEL,
   AIR_JUMPS,
+  BLOCK,
   DROP_TAP_HOLD,
   DROP_TAP_WINDOW,
   SPRINT_COOLDOWN,
@@ -128,6 +129,7 @@ export type FState =
   | 'grabbing'
   | 'special'
   | 'wallwalk'
+  | 'block'
   | 'dead';
 
 export interface InvItem {
@@ -313,6 +315,17 @@ export interface Fighter extends Body {
   cloneCount: number;
   /** wall walking (Naruto): side (-1/1) of the wall being walked on while state === 'wallwalk' */
   wallDir: number;
+  /** blocking (hold PUNCH, BLOCK in constants.ts): guard meter 0..BLOCK.max, seconds until it regenerates */
+  guard: number;
+  guardWait: number;
+  /** seconds the guard is still held up by a blocked hit (blockstun: it cannot be dropped) */
+  blockStun: number;
+  /** seconds left of the perfect-block (parry) window */
+  parryT: number;
+  /** seconds PUNCH has been held this press (-1 = this press can never raise the guard: gun, prop, grab...) */
+  guardHold: number;
+  /** this press already raised the guard once (one parry window per press) */
+  guardUsed: boolean;
   prev: Intent;
 }
 
@@ -466,6 +479,12 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     master: spec.master ?? -1,
     cloneCount: 0,
     wallDir: 0,
+    guard: BLOCK.max,
+    guardWait: 0,
+    blockStun: 0,
+    parryT: 0,
+    guardHold: 0,
+    guardUsed: false,
     prev: emptyIntent(),
   };
 }
@@ -614,6 +633,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.ledgeCooldown > 0) f.ledgeCooldown -= dt;
   if (f.wallLock > 0) f.wallLock -= dt;
   if (f.sprintCooldown > 0) f.sprintCooldown -= dt;
+  updateGuard(f, inp, e, dt);
   f.wallSlide = 0;
   updateSprint(w, f, inp, e, dt);
   doubleTapDrop(w, f, inp, e);
@@ -642,6 +662,8 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       e.attackP = e.interactP = e.kickP = false;
     }
   }
+  // holding PUNCH (fists / melee weapon) raises the guard as soon as the fighter can act
+  if (f.state !== 'block' && inp.attack && f.guardHold + 1e-6 >= BLOCK.hold && readyToGuard(f)) enterBlock(w, f);
 
   switch (f.state) {
     case 'normal':
@@ -690,6 +712,9 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       break;
     case 'wallwalk':
       stWallWalk(w, f, inp, e, dt);
+      break;
+    case 'block':
+      stBlock(w, f, inp, e, dt);
       break;
     case 'grabbed':
       if (e.anyP) f.struggle++;
@@ -1614,6 +1639,123 @@ function startKick(w: World, f: Fighter): void {
   w.emit({ t: 'kick', f: f.id, air: f.airKick });
 }
 
+// ------------------------------------------------------------------ blocking (hold PUNCH, BLOCK in constants.ts)
+
+/** Can the active weapon guard? Fists and melee weapons; with a gun / throwable / medkit, holding attack aims or uses it. */
+function guardWeapon(f: Fighter): boolean {
+  const d = activeWeapon(f);
+  return !d.gun && !d.throw && !d.gadget && !d.powerup;
+}
+
+/** Per tick: guard meter regeneration, blockstun / parry timers, and how long PUNCH has been held this press. */
+function updateGuard(f: Fighter, inp: Intent, e: Edges, dt: number): void {
+  if (f.state !== 'block') {
+    f.blockStun = 0;
+    f.parryT = 0;
+  } else {
+    if (f.blockStun > 0) f.blockStun = Math.max(0, f.blockStun - dt);
+    if (f.parryT > 0) f.parryT = Math.max(0, f.parryT - dt);
+  }
+  if (f.guardWait > 0) f.guardWait -= dt;
+  else if (f.guard < BLOCK.max) f.guard = Math.min(BLOCK.max, f.guard + BLOCK.regen * dt);
+  if (!inp.attack) {
+    f.guardHold = 0;
+    f.guardUsed = false;
+  } else if (e.attackP) {
+    // a press that throws a prop / a grabbed enemy, or starts aiming, never turns into a guard
+    const s = f.state;
+    f.guardHold = guardWeapon(f) && f.carry < 0 && s !== 'grabbing' && s !== 'grabbed' && s !== 'aim' ? 0 : -1;
+  } else if (f.guardHold >= 0) {
+    f.guardHold = guardWeapon(f) && f.carry < 0 ? f.guardHold + dt : -1;
+  }
+}
+
+/** Free to raise the guard: standing / crouching / airborne, or in a swing's windup (cancelled) or recovery. */
+function readyToGuard(f: Fighter): boolean {
+  if (f.carry >= 0 || !guardWeapon(f)) return false;
+  if (f.state === 'normal' || f.state === 'crouch') return true;
+  if (f.state === 'melee') {
+    const m = meleeStats(f);
+    const hit = m.combo[Math.min(f.combo, m.combo.length - 1)];
+    // a swing already hitting plays out; one still winding up is cancelled (no hit)
+    return f.stateTime < hit.windup || f.stateTime >= hit.windup + hit.active;
+  }
+  return false;
+}
+
+function enterBlock(w: World, f: Fighter): void {
+  if (f.flying) {
+    f.flying = false;
+    f.flyHold = false;
+    w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: false });
+  }
+  setState(f, 'block');
+  f.comboQueued = false;
+  f.stretchLen = 0;
+  f.jumping = false;
+  // the first guard of a press opens the perfect-block window
+  if (!f.guardUsed) {
+    f.guardUsed = true;
+    f.parryT = BLOCK.parryWindow;
+  }
+}
+
+function leaveBlock(w: World, f: Fighter): void {
+  setState(f, 'normal');
+  f.blockStun = 0;
+  f.parryT = 0;
+  restoreHeight(w, f);
+}
+
+/**
+ * Guarding: no walking (left / right only turn around), Down crouches behind the guard, gravity still applies.
+ * Letting go of PUNCH drops it at once (unless held in blockstun); jump, kick and interact act as from 'normal'
+ * (heroes' ability / ability 2 / super come through heroButtons + canAct).
+ */
+function stBlock(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
+  const stunned = f.blockStun > 0;
+  if (!stunned && (!inp.attack || f.carry >= 0 || !guardWeapon(f))) {
+    leaveBlock(w, f);
+    integrate(w, f, dt);
+    return;
+  }
+  if (!stunned) {
+    const mx = axis(inp.moveX);
+    if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
+    if (f.jumpBuffer > 0 && (f.grounded || f.coyote > 0) && hasHeadroom(w.map, f, FIGHTER_H)) {
+      leaveBlock(w, f);
+      f.h = FIGHTER_H;
+      doJump(w, f);
+      integrate(w, f, dt);
+      return;
+    }
+    if (e.jumpP && !f.grounded && f.coyote <= 0 && airJump(w, f, mx)) {
+      leaveBlock(w, f);
+      integrate(w, f, dt);
+      return;
+    }
+    if (e.kickP && f.kickCooldown <= 0) {
+      leaveBlock(w, f);
+      startKick(w, f);
+      return;
+    }
+    if (e.interactP) {
+      leaveBlock(w, f);
+      if (interact(w, f) && f.state !== 'normal' && f.state !== 'crouch') return;
+      integrate(w, f, dt);
+      return;
+    }
+    if (e.cycleP) cycleWeapon(w, f);
+    if (e.gadgetP) quickGadget(w, f);
+  }
+  // crouching guard: Down on the ground (stand back up only where there is room)
+  if (f.grounded && inp.moveY > 0.5) f.h = FIGHTER_CROUCH_H;
+  else if (f.h !== FIGHTER_H && hasHeadroom(w.map, f, FIGHTER_H)) f.h = FIGHTER_H;
+  const decel = !f.grounded ? BLOCK.airDecel : stunned ? BLOCK.pushDecel : GROUND_DECEL;
+  f.vx = approach(f.vx, 0, decel * dt);
+  integrate(w, f, dt);
+}
+
 // ------------------------------------------------------------------ hero specials (sim/hero.ts)
 
 // ------------------------------------------------------------------ hero buttons (D51, D58)
@@ -1622,6 +1764,7 @@ function startKick(w: World, f: Fighter): void {
 function canAct(f: Fighter): boolean {
   if (f.carry >= 0) return false;
   if (f.state === 'normal' || f.state === 'crouch') return true;
+  if (f.state === 'block') return f.blockStun <= 0; // guard-cancel into an ability (not during blockstun)
   if (f.state === 'melee') {
     const m = meleeStats(f);
     const hit = m.combo[Math.min(f.combo, m.combo.length - 1)];
@@ -1637,6 +1780,11 @@ function canAct(f: Fighter): boolean {
  */
 function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   if (!f.hero || f.carry >= 0) return;
+  if (f.state === 'block' && f.blockStun > 0) {
+    // held in the guard by a blocked hit: no ability (and no kick) until the blockstun is over
+    e.abilityP = e.kickP = false;
+    return;
+  }
   const a1 = e.abilityP;
   const a2 = e.kickP;
   e.abilityP = false;

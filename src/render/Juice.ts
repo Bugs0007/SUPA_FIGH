@@ -140,6 +140,36 @@ export class Juice {
         }
         break;
       }
+      case 'block': {
+        // a pixel shield flashes in front of the blocker (sparks fly back toward the attacker)
+        const v = w.fighters[e.victim];
+        if (v) fx.shield(v.x + v.facing * 7, v.y - v.h / 2 - 1, v.facing, hexToNum(P.glass1), e.chip >= 2);
+        this.sfx('block', e.x, 0.9, 1 - Math.min(0.25, e.chip * 0.05));
+        this.cam.addTrauma(0.06 + Math.min(0.12, e.chip * 0.03));
+        this.hitstop = Math.max(this.hitstop, 0.03);
+        break;
+      }
+      case 'parry': {
+        const v = w.fighters[e.victim];
+        const gold = hexToNum(P.yellow);
+        if (v) {
+          fx.flashRing(v.x + v.facing * 6, v.y - v.h / 2 - 1, gold);
+          fx.shield(v.x + v.facing * 7, v.y - v.h / 2 - 1, v.facing, hexToNum(P.yellow2), true);
+          this.r.floatText(v.x, v.y - 30, 'PARRY!', gold, true);
+        }
+        this.sfx('parry', e.x);
+        this.cam.addTrauma(0.12);
+        this.hitstop = Math.max(this.hitstop, 0.07);
+        break;
+      }
+      case 'guardBreak': {
+        fx.guardShards(e.x, e.y, 16, hexToNum(P.glass1));
+        this.r.floatText(e.x, e.y - 18, 'GUARD BREAK!', hexToNum(P.red2), true);
+        this.sfx('guardBreak', e.x);
+        this.cam.addTrauma(0.5);
+        this.hitstop = Math.max(this.hitstop, 0.08);
+        break;
+      }
       case 'kill': {
         fx.blood(e.x, e.y, 0, -1, 16);
         this.sfx('death', e.x);

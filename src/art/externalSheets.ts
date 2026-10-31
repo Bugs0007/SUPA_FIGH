@@ -102,6 +102,8 @@ export function animFor(f: Fighter, simTime: number): { anim: SheetAnim; t: numb
     case 'grabbed':
       return { anim: 'hurt', t };
     case 'grabbing':
+    case 'block':
+      // (sheets have no guard pose: the two-handed grab reads closest)
       return { anim: 'grab', t };
     case 'melee':
       return { anim: f.combo === 0 ? 'punch1' : f.combo === 1 ? 'punch2' : 'punch3', t };

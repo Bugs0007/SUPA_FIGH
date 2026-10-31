@@ -2,7 +2,7 @@
 // Goku's instant transmission, Luffy's grapple probe and Naruto's shadow-clone fighters.
 // Data in data/heroes.ts. The state machine lives in sim/fighter.ts.
 
-import { applyHit, sameTeam } from './combat';
+import { applyHit, hitWasBlocked, sameTeam } from './combat';
 import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from './constants';
 import {
   cloneSpec,
@@ -359,7 +359,7 @@ function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, 
   });
   if (connected) {
     if (burst) w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x, y });
-    if (d.spread) chidoriShock(w, f, o, d, p);
+    if (d.spread && !hitWasBlocked()) chidoriShock(w, f, o, d, p); // (a guard stops the shock too)
   }
   return connected;
 }

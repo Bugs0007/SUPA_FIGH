@@ -3,7 +3,7 @@ import { Art } from '../art';
 import type { Appearance } from '../art/appearance';
 import { hexToNum, P } from '../art/palette';
 import { BACK_ROW, backMask, backVariant, THEMES, tileMask } from '../art/tileArt';
-import { GRAVITY, TILE } from '../sim/constants';
+import { BLOCK, GRAVITY, TILE } from '../sim/constants';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwPower, throwVelocity, type Fighter } from '../sim/fighter';
 import { MINE_ARM } from '../sim/item';
@@ -303,6 +303,14 @@ export class WorldRenderer {
       bars.fillStyle(0xffffff, 1).fillRect(x, y, Math.round(14 * trail), 2);
       const col = frac > 0.6 ? P.green2 : frac > 0.3 ? P.yellow : P.red2;
       bars.fillStyle(hexToNum(col), 1).fillRect(x, y, Math.round(14 * frac), 2);
+      // guard meter: a thin bar under the HP bar while blocking or until it has refilled (flashes red when low)
+      if (f.state === 'block' || f.guard < BLOCK.max) {
+        const g = Math.max(0, Math.min(1, f.guard / BLOCK.max));
+        const low = f.guard < BLOCK.low && Math.floor(time * 8) % 2 === 0;
+        bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y + 2, 16, 3);
+        bars.fillStyle(0x3a3448, 1).fillRect(x, y + 3, 14, 1);
+        bars.fillStyle(hexToNum(low ? P.red2 : P.glass1), 1).fillRect(x, y + 3, Math.max(1, Math.round(14 * g)), 1);
+      }
       // form health layers stacked above the HP bar (D61)
       if (f.power === 'hero') {
         const col = hexToNum(formFx(f.hero, f.powerLevel).aura[0]);
