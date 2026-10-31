@@ -1,14 +1,17 @@
 import type Phaser from 'phaser';
-import { armSprite, KURAMA, kuramaSprite, SUSANOO, susanooSprite, type ArmSpec } from '../art/avatarSprites';
+import { armSprite, KURAMA, kuramaSprite, SUSANOO, SUSANOO_INK, SUSANOO_MATS, susanooSprite, type ArmSpec } from '../art/avatarSprites';
 import { paintRuns } from '../art/pixelRaster';
 
 type G = Phaser.GameObjects.Graphics;
+
+/** Susanoo's animation: flame / wing frames per second, how long the muzzle flash shows, and the rising embers */
+export const SUSANOO_FX = { fps: 8, flash: 0.1, embers: 7, emberRate: 0.9, emberRise: 18 };
 
 /** Paints the pixel-art spirits and arms of art/avatarSprites.ts. Local coordinates always face the opponent. */
 export class AvatarArt {
   constructor(
     private back: G,
-    private front: G,
+    readonly front: G,
   ) {}
 
   /** A spectral or chakra arm from the shoulder, through the elbow, to the fist. */
@@ -18,34 +21,27 @@ export class AvatarArt {
   }
 
   /**
-   * Sasuke's Susanoo as a bust behind the fighter: bow drawn by `charge` (0..1, -1 / -2 = released). The sprite steps
-   * between three flame frames and bobs a pixel, like the fighters' own idle frames.
+   * Sasuke's Susanoo standing over the fighter (feet on the fighter's feet), drawn at exactly one art pixel per world
+   * pixel. `charge` 0..1 draws the bow; once released (`sinceShot` >= 0 s) the string snaps with a muzzle flash, then
+   * rests. The whole spirit fades as one `alpha`. The only extra layer is a few violet embers rising off it.
    */
-  susanoo(x: number, y: number, d: number, level: number, alpha: number, time: number, charge = 1): void {
+  susanoo(x: number, y: number, d: number, level: number, alpha: number, time: number, charge = 1, sinceShot = -1): void {
     const lvl = level >= 4 ? 4 : 3;
-    const released = charge < 0;
-    const stage = released ? 0 : Math.min(SUSANOO.stages - 1, Math.floor(Math.max(0, charge) * SUSANOO.stages));
-    const sprite = susanooSprite(lvl, stage, Math.floor(time * 7));
-    const bob = Math.floor(time * 3) % 2 === 0 ? 0 : -1;
-    // the chest sits just behind the fighter's chest; the hem reaches the feet
-    const chestX = Math.round(x - d * 7);
-    const chestY = Math.round(y - 22 + bob);
-    paintRuns(this.back, sprite, d > 0 ? chestX - SUSANOO.cx : chestX + SUSANOO.cx, chestY - SUSANOO.cy, d < 0, alpha);
+    const stage =
+      sinceShot >= 0 ? (sinceShot < SUSANOO_FX.flash ? SUSANOO.shot : SUSANOO.rest) : Math.min(SUSANOO.stages - 1, Math.floor(Math.max(0, charge) * SUSANOO.stages));
+    const frame = Math.floor(time * SUSANOO_FX.fps);
+    const sprite = susanooSprite(lvl, stage, frame);
+    const fx = Math.round(x);
+    const fy = Math.round(y);
+    paintRuns(this.back, sprite, d > 0 ? fx - SUSANOO.ax : fx + SUSANOO.ax, fy - SUSANOO.ay, d < 0, alpha);
 
-    // the bowstring and the nocked arrow are single-pixel lines over the sprite, as in the sprite sheets
-    const g = this.front;
-    const at = (sx: number, sy: number): [number, number] => [chestX + d * sx, chestY + sy];
-    const nock = at(SUSANOO.nockX[stage], SUSANOO.nockY);
-    const t = at(SUSANOO.tipTop[0], SUSANOO.tipTop[1]);
-    const b = at(SUSANOO.tipBottom[0], SUSANOO.tipBottom[1]);
-    g.lineStyle(1, 0xe3d9ff, alpha).lineBetween(t[0], t[1], nock[0], nock[1]).lineBetween(nock[0], nock[1], b[0], b[1]);
-    if (!released) {
-      const tip = at(41, SUSANOO.nockY);
-      g.fillStyle(0xf0ebff, alpha).fillRect(Math.min(nock[0], tip[0]), nock[1], Math.abs(tip[0] - nock[0]) + 1, 1);
-      const pulse = Math.floor(time * 12) % 2 === 0;
-      g.fillStyle(0xffe27a, alpha);
-      for (let i = 0; i < 4; i++) g.fillRect(tip[0] - d * i, tip[1] - (3 - i), 1, (3 - i) * 2 + 1);
-      g.fillStyle(pulse ? 0xffffff : 0xfff3b0, alpha).fillRect(tip[0] - (d > 0 ? 1 : 0), tip[1], 2, 1);
+    // embers: single pixels rising off the flame tail and the shoulders, stepping on whole pixels
+    const k = SUSANOO.scale[lvl];
+    for (let i = 0; i < SUSANOO_FX.embers; i++) {
+      const phase = (time * SUSANOO_FX.emberRate + i * 0.37) % 1;
+      const u = (-26 + ((i * 11) % 30)) * k + Math.round(Math.sin(i * 2.3 + time * 3));
+      const v = (-6 - ((i * 7) % 26)) * k - phase * SUSANOO_FX.emberRise;
+      this.back.fillStyle(phase < 0.5 ? SUSANOO_INK.flash2 : SUSANOO_MATS[7].light, alpha * (1 - phase)).fillRect(fx + Math.round(d * u), fy + Math.round(v), 1, phase < 0.3 ? 2 : 1);
     }
   }
 

@@ -4,7 +4,8 @@
 // Parts are separated by a one-pixel dark rim, the way sprite artists cut plates apart.
 // Phaser-free: `AvatarArt` (render/) paints the baked runs. Everything faces +x; facing left mirrors it.
 
-import { bake, Raster, type Baked, type Material, type Pt } from './pixelRaster';
+import { SUSANOO_LAUNCH } from '../sim/data/heroes';
+import { bake, inkLine, Raster, type Baked, type Ink, type Material, type Pt } from './pixelRaster';
 
 const mat = (dark: number, base: number, light: number, hi: number): Material => ({ dark, base, light, hi });
 type XY = [number, number];
@@ -20,117 +21,193 @@ function rimmedStroke(r: Raster, pts: readonly Pt[], m: number, rimMat: number, 
   r.stroke(pts, m, thick);
 }
 
-// ---- Susanoo: violet armour over pale bone, gold trim, a glowing eye
+// ---- Susanoo: violet chakra and armour over pale bone, a glowing eye, a chakra bow
 const ARMOR = 1;
 const BONE = 2;
 const VOID = 3;
 const GOLD = 4;
 const GLOW = 5;
 const PLATE = 6;
+const CHAKRA = 7;
+const FLAME = 8;
+const BOW = 9;
 export const SUSANOO_MATS: Material[] = [
-  mat(0x2c2063, 0x5a46b0, 0x8670dc, 0xc2b4f8), // armour
-  mat(0x6558b3, 0x9d8fe0, 0xc9bff7, 0xf0ebff), // bone
-  mat(0x120c33, 0x1d1450, 0x2e2275, 0x3f3199), // shadow between plates
+  mat(0x2b1a5c, 0x5a3aa4, 0x8462d4, 0xbea4fb), // armour
+  mat(0x7462b4, 0xb2a2ea, 0xdcd2ff, 0xfaf6ff), // bone
+  mat(0x110a2a, 0x1c1242, 0x281a58, 0x34226c), // the dark between parts
   mat(0x7c4f12, 0xd1982a, 0xffd35a, 0xfff3b0), // gold
-  mat(0xffc94d, 0xffe27a, 0xfff3b0, 0xffffff), // eye / gem glow
-  mat(0x3d2f86, 0x6f5ac7, 0x9a86ec, 0xd0c4ff), // lighter plate (layers alternate with armour)
+  mat(0xb9a4ff, 0xe6dfff, 0xffffff, 0xffffff), // eye / arrowhead glow
+  mat(0x3b2580, 0x7150c6, 0x9f84ee, 0xd6c8ff), // lighter plate (layers alternate with armour)
+  mat(0x22114c, 0x3a2280, 0x5333a6, 0x6c48c4), // chakra body (the mass behind the ribs)
+  mat(0x4a2a9a, 0x8a5cf0, 0xb698ff, 0xe4dcff), // flames at the tail
+  mat(0x5e44b8, 0xa184ff, 0xd2c2ff, 0xffffff), // the chakra bow
 ];
-export const SUSANOO_OUTLINE = 0x160d3d;
+export const SUSANOO_OUTLINE = 0x140b33;
+/** the single-pixel string, arrow shaft, fletching and muzzle flash (painted unoutlined over the sprite) */
+export const SUSANOO_INK = { string: 0xe2d8ff, shaft: 0xf6f2ff, fletch: 0xa184ff, flash: 0xffffff, flash2: 0xd2c2ff };
 
-/** where things are in a baked Susanoo, relative to the raster origin */
+/**
+ * The baked Susanoo's layout. The raster pixel (ax, ay) sits on the fighter's feet; the arrowhead's point is exactly
+ * on `SUSANOO_LAUNCH` (sim/data/heroes.ts), where the sim spawns the arrow. Stages 0..3 draw the bow back, 4 is the shot
+ * (string snapping, muzzle flash), 5 the bow at rest while the spirit fades.
+ */
 export const SUSANOO = {
-  /** the chest centre, which the sprite is placed on */
-  cx: 46,
-  cy: 48,
-  /** the bow: tips and where the string's middle sits at each draw stage */
-  tipTop: [22, -27] as const,
-  tipBottom: [22, 29] as const,
-  nockX: [21, 17, 13, 9] as const,
-  nockY: 2,
+  ax: 54,
+  ay: 96,
+  w: 104,
+  h: 100,
   stages: 4,
+  shot: 4,
+  rest: 5,
+  /** body proportions are drawn once and scaled up for the Perfect form (geometry only: still 1 art px = 1 world px) */
+  scale: { 3: 1.12, 4: 1.22 } as Record<3 | 4, number>,
+  /** how far behind the bow tips the string's middle is pulled at each draw stage (before the form scale) */
+  draw: [4, 10, 15, 21] as const,
 };
 
 function susanooRaster(level: 3 | 4, stage: number, frame: number): Baked {
-  const r = new Raster(96, 84);
-  const { cx, cy } = SUSANOO;
-  const P = (pts: XY[]): Pt[] => pts.map(([x, y]) => [cx + x, cy + y] as Pt);
+  const { ax, ay } = SUSANOO;
+  const r = new Raster(SUSANOO.w, SUSANOO.h);
+  const ink: Ink[] = [];
   const top = level === 4;
-  const nockX = SUSANOO.nockX[Math.max(0, Math.min(SUSANOO.stages - 1, stage))];
+  const k = SUSANOO.scale[level];
+  // body coordinates: u pixels ahead of the feet, v pixels up from them (negative), before the form scale
+  const Q = (u: number, v: number): Pt => [ax + u * k, ay + v * k];
+  const P = (pts: XY[]): Pt[] => pts.map(([u, v]) => Q(u, v));
+  const R = (u: number, v: number): XY => [Math.round(ax + u * k), Math.round(ay + v * k)];
+  const line = (a: XY, b: XY, m: number, thick = 1) => r.line(a[0], a[1], b[0], b[1], m, thick);
+  // the bow is placed from the launch point, in whole pixels
+  const launch = SUSANOO_LAUNCH[level];
+  const lx = ax + launch.ahead;
+  const ly = ay - launch.up;
+  const gx = lx - 4; // the grip
+  const bend = Math.round(7 * k);
+  const half = Math.round(22 * k);
+  const tipX = gx - bend;
+  const drawing = stage < SUSANOO.stages;
+  const nockX = drawing ? tipX - Math.round(SUSANOO.draw[stage] * k) : tipX;
+  const limb = top ? ARMOR : BONE;
 
-  // Perfect Susanoo: a fan of feathers behind the shoulders, flapping between two frames
+  // Perfect Susanoo: a fan of long feathers behind the shoulders (two wings' worth), beating with the flame frames
   if (top) {
-    for (let i = 0; i < 6; i++) {
-      const a = ((-98 - i * 14 + (frame % 2 ? 3 : 0)) * Math.PI) / 180;
-      const len = 31 - i + (frame % 2 ? 2 : 0);
+    const flap = [0, 4, 7][frame % 3];
+    for (let i = 0; i < 5; i++) {
+      const a = ((-104 - i * 16 + flap * (1 - i * 0.15)) * Math.PI) / 180;
+      const len = 30 - i * 1.5;
       const dx = Math.cos(a);
       const dy = Math.sin(a);
-      const nx = -dy;
-      const ny = dx;
-      const at = (t: number, w: number): XY => [-10 + dx * len * t + nx * w, -10 + dy * len * t + ny * w];
-      rimmed(r, P([at(0, 3), at(0.55, 5), at(1, 0), at(0.55, -5), at(0, -3)]), i % 2 ? PLATE : BONE, VOID);
+      const at = (t: number, w: number): XY => [-12 + dx * len * t - dy * w, -37 + dy * len * t + dx * w];
+      rimmed(r, P([at(0, -2), at(0.55, -3.6), at(0.88, -2.4), at(1, 0), at(0.7, 3), at(0.3, 3), at(0, 2)]), i % 2 ? PLATE : BONE, VOID);
+      // a quill down the middle of each feather
+      line(R(...at(0.15, 0)), R(...at(0.75, 0)), VOID);
     }
   }
 
-  // flames at the hem: tongues of different heights that flicker between frames
-  const heights = [4, 6, 5, 7, 5, 6, 4];
-  for (let i = 0; i < 7; i++) {
-    const x0 = -16 + i * 4.6;
-    const tip = 20 + heights[(i + frame) % 7];
-    const lean = (i + frame) % 2 ? 2 : -2;
-    rimmed(r, P([[x0, 13], [x0 + 5.4, 13], [x0 + 3.5 + lean, tip - 3], [x0 + 2.7 + lean * 1.4, tip]]), i % 2 ? BONE : PLATE, VOID);
-  }
+  // the spirit has no legs: below the waist its chakra streams back into a tail of violet flame
+  r.poly(P([[-18, -17], [5, -17], [2, -11], [-6, -6], [-17, -3], [-29, -4], [-23, -8], [-20, -12]]), CHAKRA);
+  const tongues: [number, number, number][] = [
+    [-20, -14, 5],
+    [-24, -9, 7],
+    [-29, -5, 6],
+    [-12, -6, 5],
+    [-3, -9, 4],
+  ];
+  tongues.forEach(([u, v, len], i) => {
+    const l = len + [0, 2, 1][(i + frame) % 3];
+    const lean = [0, 1.5, -1][(i * 2 + frame) % 3];
+    const dx = -0.86;
+    const dy = i < 3 ? -0.5 : 0.25;
+    rimmed(r, P([[u + 2 * dy, v - 2 * dx], [u + dx * l + lean * dy, v + dy * l - lean * dx], [u - 2 * dy, v + 2 * dx]]), FLAME, VOID);
+  });
 
-  // body: the dark space behind the plates, then ribs (Mangekyo) or a full breastplate (Perfect)
-  r.poly(P([[-14, -6], [12, -6], [14, 8], [10, 15], [-11, 15], [-16, 8]]), VOID);
+  // chest: a dark chakra mass with pale ribs (Mangekyo), or a full breastplate with a gold belt (Perfect)
+  const chest: XY[] = [[-20, -38], [4, -38], [8, -31], [7, -22], [3, -16], [-16, -16], [-21, -26]];
   if (top) {
-    rimmed(r, P([[-13, -6], [11, -6], [12, 7], [8, 14], [-9, 14], [-14, 7]]), ARMOR, VOID);
-    rimmed(r, P([[-12, -5], [10, -5], [11, 0], [-13, 0]]), PLATE, VOID);
-    r.line(cx - 12, cy + 4, cx + 10, cy + 4, GOLD);
-    r.line(cx - 10, cy + 9, cx + 8, cy + 9, GOLD);
-    r.ellipse(cx, cy + 1, 2, 2.6, GLOW);
+    rimmed(r, P(chest), ARMOR, VOID);
+    rimmed(r, P([[-16, -36], [3, -36], [6, -30], [-1, -28], [-15, -28]]), PLATE, VOID);
+    line(R(-18, -23), R(6, -23), VOID);
+    line(R(-17, -17), R(5, -17), GOLD, 2);
+    for (let i = 0; i < 3; i++) {
+      const u0 = -16 + i * 7;
+      rimmed(r, P([[u0, -16], [u0 + 7, -16], [u0 + 6.5, -10 + (i === 1 ? 1 : 0)], [u0 + 0.5, -10]]), i % 2 ? PLATE : ARMOR, VOID);
+    }
   } else {
+    r.poly(P(chest), CHAKRA);
+    rimmedStroke(r, [R(-15, -37), R(-15, -16)], BONE, VOID, 3);
+    for (let v = -34; v <= -18; v += 4) line(R(-16, v), R(-14, v), VOID);
     for (let i = 0; i < 4; i++) {
-      const y0 = -5 + i * 5;
-      rimmed(r, P([[-12, y0], [-1, y0 + 1], [11, y0], [10, y0 + 3], [-1, y0 + 4], [-11, y0 + 3]]), BONE, VOID);
+      // each rib arcs up and forward from the spine and curls down at the front; the cage narrows toward the waist
+      const y0 = -33 + i * 5;
+      const f = 6 - i;
+      rimmedStroke(r, [R(-15, y0), R(-9, y0 - 2), R(-2, y0 - 2), R(f - 2, y0), R(f, y0 + 3)], BONE, VOID, 2);
     }
-    rimmed(r, P([[-2, -6], [2, -6], [2, 14], [-2, 14]]), BONE, VOID);
+    rimmedStroke(r, [R(-18, -37), R(3, -37)], BONE, VOID, 2);
   }
 
-  // rear pauldron: three overlapping plates
-  for (let i = 0; i < 3; i++) rimmed(r, P([[-24 + i * 2, -8 + i * 4], [-9, -10 + i * 4], [-8, -4 + i * 4], [-22 + i * 2, -2 + i * 4]]), i % 2 ? ARMOR : PLATE, VOID);
+  // the drawing arm: from the back shoulder, elbow pulled back as the string comes to the cheek
+  const elbows: XY[] = [[0, -28], [-8, -28], [-15, -29], [-21, -31]];
+  const elbow = drawing ? elbows[stage] : elbows[0];
+  const hand: XY = [nockX, ly];
+  rimmedStroke(r, [R(-14, -35), R(...elbow)], limb, VOID, top ? 4 : 3);
+  rimmedStroke(r, [R(...elbow), drawing ? hand : R(...elbows[0])], limb, VOID, top ? 3 : 2);
+  if (top) rimmed(r, P([[-24, -40], [-12, -41], [-9, -34], [-14, -29], [-24, -32]]), PLATE, VOID);
 
-  // head: two horns, helmet, beaked mask, slit eye
-  rimmed(r, P([[-6, -30], [-13, -41], [-2, -33]]), BONE, VOID);
-  rimmed(r, P([[2, -33], [3, -44], [9, -32]]), BONE, VOID);
-  rimmed(r, P([[-7, -11], [7, -11], [9, -6], [-9, -6]]), ARMOR, VOID);
-  rimmed(r, P([[-10, -16], [-9, -26], [-4, -32], [4, -34], [11, -30], [14, -22], [13, -15], [7, -11], [-5, -11]]), ARMOR, VOID);
+  // head: a swept horn, a rounded helmet and a long pale face plate with one glowing eye
+  rimmed(r, P([[-7, -53], [-15, -58], [-25, -62], [-16, -55], [-11, -50]]), top ? PLATE : BONE, VOID);
+  if (!top) rimmed(r, P([[0, -53], [5, -59], [4, -51]]), BONE, VOID);
+  rimmed(r, P([[-13, -41], [-14, -47], [-11, -52], [-5, -55], [1, -54], [5, -50], [6, -45], [3, -41]]), ARMOR, VOID);
   if (top) {
-    for (const [a, b, c] of [[[-2, -33], [0, -43], [3, -33]], [[4, -32], [8, -40], [10, -30]], [[-8, -30], [-9, -39], [-4, -31]]] as [XY, XY, XY][]) rimmed(r, P([a, b, c]), GOLD, VOID);
-    r.line(cx - 8, cy - 25, cx + 3, cy - 32, GOLD);
+    for (const spike of [[[-7, -53], [-6, -61], [-3, -54]], [[-2, -54], [0, -64], [2, -54]], [[2, -52], [6, -59], [5, -50]]] as XY[][]) rimmed(r, P(spike), GOLD, VOID);
+    line(R(-13, -46), R(4, -50), GOLD);
   }
-  rimmed(r, P([[3, -25], [15, -23], [22, -17], [17, -11], [8, -11], [3, -15]]), BONE, VOID);
-  r.poly(P([[9, -13], [19, -14], [17, -10], [10, -9]]), VOID);
-  for (let i = 0; i < 4; i++) r.rect(cx + 10 + i * 2, cy - 13, 1, 2, BONE);
-  r.poly(P([[3, -26], [12, -25], [11, -21], [4, -22]]), VOID);
-  r.rect(cx + 6, cy - 24, 4, 2, GLOW);
+  rimmed(r, P([[0, -51], [8, -51], [9, -46], [9, -40], [6, -35], [1, -37], [-1, -45]]), BONE, VOID);
+  r.poly(P([[2, -49.5], [9, -48.5], [9, -46.5], [2, -47]]), VOID);
+  const [ex, ey] = R(5, -48.5);
+  r.rect(ex, ey, 3, 1, GLOW);
+  const [mx, my] = R(3, -41);
+  r.rect(mx, my, Math.round(6 * k), 1, VOID);
+  r.set(mx + 1, my + 1, VOID);
+  r.set(mx + Math.round(4 * k), my + 1, VOID);
 
-  // front pauldron, below the beak so the two never merge
-  for (let i = 0; i < 3; i++) rimmed(r, P([[5, -5 + i * 4], [19 + i * 2, -4 + i * 4], [22 + i * 2, 1 + i * 4], [7, 2 + i * 4]]), top && i === 0 ? GOLD : i % 2 ? ARMOR : PLATE, VOID);
+  // the bow arm reaches forward to the grip
+  if (top) rimmed(r, P([[-3, -40], [7, -39], [10, -33], [6, -29], [-2, -31]]), PLATE, VOID);
+  const fe = R(14, -33);
+  rimmedStroke(r, [R(3, -35), fe], limb, VOID, top ? 4 : 3);
+  rimmedStroke(r, [fe, [gx - 2, ly]], limb, VOID, top ? 3 : 2);
+  if (top) line([gx - 6, ly - 2], [gx - 6, ly + 2], GOLD, 2);
 
-  // arms: the bow arm reaches to the grip, the other pulls the string back to the nock
-  rimmedStroke(r, P([[-8, 0], [nockX - 7, -3], [nockX, 2]]), PLATE, VOID, 4);
-  r.ellipse(cx + nockX, cy + 2, 3.2, 3.2, VOID);
-  r.ellipse(cx + nockX, cy + 2, 2.4, 2.4, BONE);
-  rimmedStroke(r, P([[14, 4], [23, 6], [31, 1]]), PLATE, VOID, 4);
-  r.line(cx + 25, cy + 3, cx + 25, cy + 8, GOLD, 2);
-  r.ellipse(cx + 32, cy + 1, 4, 4, VOID);
-  r.ellipse(cx + 32, cy + 1, 3, 3, BONE);
+  // the bow: a recurved arc of chakra, the hand closed around its grip
+  const arc: XY[] = [[tipX + 2, ly - half - 2]];
+  for (let i = 0; i <= 10; i++) {
+    const t = i / 5 - 1;
+    arc.push([Math.round(gx - bend * t * t), Math.round(ly + t * half)]);
+  }
+  arc.push([tipX + 2, ly + half + 2]);
+  r.stroke(arc, BOW, top ? 3 : 2);
+  r.ellipse(gx - 1.5, ly + 0.5, 3.2, 3.2, VOID);
+  r.ellipse(gx - 1.5, ly + 0.5, 2.3, 2.3, limb);
 
-  // the bow itself
-  rimmedStroke(r, P([[22, -27], [29, -18], [33, -6], [34, 3], [32, 13], [28, 22], [22, 29]]), GOLD, VOID, 3);
-  rimmed(r, P([[20, -29], [25, -29], [24, -25], [21, -25]]), BONE, VOID);
-  rimmed(r, P([[20, 27], [25, 27], [24, 31], [21, 31]]), BONE, VOID);
-  return bake(r, SUSANOO_MATS, SUSANOO_OUTLINE, false);
+  // the string (single pixels, as on the fighters' bows), the arrow while drawing, a muzzle flash on the shot
+  const top0: XY = [tipX, ly - half];
+  const bot0: XY = [tipX, ly + half];
+  if (drawing) {
+    inkLine(ink, top0[0], top0[1], nockX, ly, SUSANOO_INK.string);
+    inkLine(ink, nockX, ly, bot0[0], bot0[1], SUSANOO_INK.string);
+    for (let c = 0; c < 4; c++) for (let j = -Math.min(c, 2); j <= Math.min(c, 2); j++) r.set(lx - c, ly + j, GLOW);
+    inkLine(ink, nockX + 1, ly, lx - 4, ly, SUSANOO_INK.shaft);
+    for (const [dx, dy] of [[1, -1], [2, -1], [1, 1], [2, 1]]) ink.push({ x: nockX + dx, y: ly + dy, c: SUSANOO_INK.fletch });
+  } else {
+    // just released, the string snaps past straight and quivers; then it rests straight
+    const mid = stage === SUSANOO.shot ? tipX + 1 : tipX;
+    inkLine(ink, top0[0], top0[1], mid, ly, SUSANOO_INK.string);
+    inkLine(ink, mid, ly, bot0[0], bot0[1], SUSANOO_INK.string);
+    if (stage === SUSANOO.shot) {
+      inkLine(ink, lx + 1, ly, lx + 7, ly, SUSANOO_INK.flash);
+      inkLine(ink, lx + 1, ly - 3, lx + 1, ly + 3, SUSANOO_INK.flash2);
+      for (const [dx, dy] of [[2, -1], [2, 1], [3, -2], [3, 2], [0, 0], [-1, 0]]) ink.push({ x: lx + dx, y: ly + dy, c: dx > 2 ? SUSANOO_INK.flash2 : SUSANOO_INK.flash });
+    }
+  }
+  return bake(r, SUSANOO_MATS, SUSANOO_OUTLINE, false, ink);
 }
 
 const spriteCache = new Map<string, Baked>();
@@ -143,9 +220,13 @@ function cached(key: string, make: () => Baked): Baked {
   return b;
 }
 
-/** The Susanoo bust for a form (3 = Mangekyo, 4 = Perfect), bow drawn to `stage` (0..3), animation frame 0..2. */
+/**
+ * The Susanoo for a form (3 = Mangekyo, 4 = Perfect): `stage` 0..3 draws the bow back, 4 = the shot, 5 = at rest;
+ * animation frame 0..2 (the flames flicker, the wings beat).
+ */
 export function susanooSprite(level: 3 | 4, stage: number, frame: number): Baked {
-  return cached(`s${level}|${stage}|${frame % 3}`, () => susanooRaster(level, stage, frame % 3));
+  const s = Math.max(0, Math.min(SUSANOO.rest, Math.floor(stage)));
+  return cached(`s${level}|${s}|${frame % 3}`, () => susanooRaster(level, s, frame % 3));
 }
 
 // ---- Kurama: gold fur, orange shading, cream fangs, red slit eye

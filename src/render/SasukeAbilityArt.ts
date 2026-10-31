@@ -6,7 +6,11 @@ import type { Bullet } from '../sim/projectile';
 import { formLevel } from './formLevel';
 import { AvatarArt } from './AvatarArt';
 import { dashDir, rasenganPoint, usesAmaterasu } from '../sim/hero';
+import { arrowSprite, FIRE, fireballSprite, heading } from '../art/fireSprites';
+import { paintRuns } from '../art/pixelRaster';
 type G = Phaser.GameObjects.Graphics;
+/** the fireball gathering at Sasuke's mouth (radius from r0 to r0 + grow over the windup), its flicker rate and embers */
+const FIRE_CAST = { r0: 1.5, grow: 2.5, ahead: 5, up: 19, fps: 14, embers: 5 };
 /** Match and gallery share this art. All positions follow the real fighter / projectile. */
 export class SasukeAbilityArt {
   private avatar: AvatarArt;
@@ -65,14 +69,16 @@ export class SasukeAbilityArt {
         for(let i=0;i<3;i++)g.lineStyle(1,0xc76a9b,.3+k*.4).lineBetween(eyeX+d*(3+i*2),eyeY-2+i,eyeX+d*(7+i*3),eyeY-3+i);
         return;
       }
-      const color = 0xff993e;
-      g.lineStyle(1, 0xe7c9b5).lineBetween(x + d * 4, y - 13, x + d * 7, y - 18);
-      g.fillStyle(color, .4 + k * .4).fillTriangle(x + d * 7, y - 21, x + d * (10 + k * 13), y - 22 - k * 4, x + d * (10 + k * 13), y - 20 + k * 4);
+      // the jutsu gathers at the mouth as a small pixel fireball that grows until the real one is spat out
+      const r = FIRE_CAST.r0 + k * FIRE_CAST.grow;
+      const ball = fireballSprite(r, heading(d, 0), Math.floor(time * FIRE_CAST.fps));
+      paintRuns(g, ball.baked, Math.round(x + d * (FIRE_CAST.ahead + r)) + ball.ox, Math.round(y - FIRE_CAST.up) + ball.oy);
     }
     else if (f.specialKind === 'bomb') {
-      const strength = f.charge === -2 ? Math.max(0, 1 - (f.stateTime - HEROES.sasuke.super.bomb!.windup) / .3) : Math.min(1, f.charge + .35);
+      const since = f.charge === -2 ? f.stateTime - HEROES.sasuke.super.bomb!.windup : -1;
+      const strength = f.charge === -2 ? Math.max(0, 1 - since / .3) : Math.min(1, f.charge + .35);
       if (lv >= 3)
-        this.avatar.susanoo(x,y,d,lv,strength,time,f.charge);
+        this.avatar.susanoo(x,y,d,lv,strength,time,f.charge,Math.max(0,since));
       if (f.charge === -2)
         return;
       if(lv>=3)return;
@@ -88,29 +94,25 @@ export class SasukeAbilityArt {
     const nx = -dy, ny = dx, size = b.size;
     const point = (a: number, r: number) => ({ x: x + dx * a + nx * r, y: y + dy * a + ny * r });
     if (b.weapon === 'sasuke:second') {
-      const disc=(r:number,c:number,a=1,offset=0)=>{
-        g.fillStyle(c,a);
-        for(let yy=-Math.ceil(r);yy<=r;yy++){
-          const half=Math.sqrt(Math.max(0,r*r-yy*yy));
-          const p=point(offset,yy);
-          g.lineStyle(1,c,a).lineBetween(p.x-dx*half,p.y-dy*half,p.x+dx*half,p.y+dy*half);
-        }
-      };
-      disc(size+2,0xa42d23,.8,-1);
-      for(let i=0;i<9;i++){
-        const lane=(i-4)*size*.23, wave=Math.sin(time*23+i*2.4),len=size*(2.3+wave*.7);
-        const p=point(-len,lane+wave*2),q=point(-size*.5,lane);
-        g.lineStyle(3,0xe75022,.8).lineBetween(p.x,p.y,q.x,q.y);
-        g.fillStyle(i%2?0xffad35:0xff7027,.95).fillPoints([point(size*.3,lane),point(-size*.5,lane-2),point(-len,lane+wave*3),point(-size*.8,lane+2)],true);
+      // a pixel sprite as big as the hitbox, flickering through four frames, shedding embers that drop and cool
+      const cx = Math.round(x), cy = Math.round(y);
+      for (let i = 0; i < FIRE_CAST.embers; i++) {
+        const phase = (time * 3 + i * 0.29) % 1, side = (i % 2 ? 1 : -1) * size * (0.25 + (i % 3) * 0.2);
+        const p = point(-size * (1.1 + phase * 1.8), side);
+        const c = FIRE.embers[Math.min(FIRE.embers.length - 1, Math.floor(phase * FIRE.embers.length))];
+        g.fillStyle(c, 1).fillRect(Math.round(p.x), Math.round(p.y + phase * phase * 6), phase < 0.35 ? 2 : 1, phase < 0.35 ? 2 : 1);
       }
-      disc(size,0xf87723);disc(size*.72,0xffbc43,1,size*.15);disc(size*.4,0xfff0a4,1,size*.25);
-      for(let i=0;i<5;i++){
-        const phase=(time*5+i*.21)%1,p=point(-size*(1+phase*3),(i%2?1:-1)*size*(.2+phase*.7));
-        g.fillStyle(0xffd16b,1-phase).fillRect(Math.round(p.x),Math.round(p.y),1,1);
-      }
+      const ball = fireballSprite(size, heading(dx, dy), Math.floor(time * FIRE_CAST.fps));
+      paintRuns(g, ball.baked, cx + ball.ox, cy + ball.oy);
+    }
+    else if (size > 5.5) {
+      // Susanoo's arrow
+      const arrow = arrowSprite(size, heading(dx, dy), Math.floor(time * 20));
+      paintRuns(g, arrow.baked, Math.round(x) + arrow.ox, Math.round(y) + arrow.oy);
     }
     else {
-      const c = size > 5.5 ? 0xba87ff : 0x83ccff, length = 22 + size * 2;
+      // the lower forms: a Chidori spear of lightning
+      const c = 0x83ccff, length = 22 + size * 2;
       g.lineStyle(size * .9, c, .18).lineBetween(x - dx * length * 1.5, y - dy * length * 1.5, x, y);
       g.lineStyle(2, c).lineBetween(x - dx * length, y - dy * length, x + dx * size, y + dy * size);
       g.fillStyle(c).fillPoints([point(size * 1.5, 0), point(-size, -size), point(-size * .5, 0), point(-size, size)], true);

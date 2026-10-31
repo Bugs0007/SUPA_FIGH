@@ -11,7 +11,7 @@ import { PROPS, type PropType } from './data/props';
 import { clonePlain, withoutDef, type WorldSnapshot } from './snapshot';
 import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
 import { maxClones, POWER_ORB } from './data/heroes';
-import { dismissClone, resolveClashes, transform } from './hero';
+import { dismissClone, resolveOrbClashes, transform } from './hero';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
 import { TK } from './map/tiles';
@@ -244,7 +244,7 @@ export class World {
       updateBurning(this, f);
     }
     // Rasengan / Chidori orbs that met this tick: settled once everyone has moved (order-independent)
-    resolveClashes(this);
+    resolveOrbClashes(this);
     if (this.bulletTime > 0) this.bulletTime = Math.max(0, this.bulletTime - DT);
     if (this.suddenDeath >= 2) this.drain();
     if (this.mods.has('firestorm')) this.fireStorm();

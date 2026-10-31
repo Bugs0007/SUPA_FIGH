@@ -1,8 +1,9 @@
 // Art tool: render the baked Susanoo / Kurama / arm sprites to a PNG, scaled up, so they can be looked at big.
-// usage: npx vite-node scripts/spriteSheet.ts <out.png> <susanoo|kurama|arms>
+// usage: npx vite-node scripts/spriteSheet.ts <out.png> <susanoo|kurama|arms|fireball>
 import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
-import { armSprite, kuramaSprite, susanooSprite, type ArmKind } from '../src/art/avatarSprites';
+import { armSprite, kuramaSprite, SUSANOO, susanooSprite, type ArmKind } from '../src/art/avatarSprites';
+import { arrowSprite, fireballSprite } from '../src/art/fireSprites';
 import type { Baked } from '../src/art/pixelRaster';
 
 const [out, sheet = 'susanoo'] = process.argv.slice(2);
@@ -20,11 +21,51 @@ const place = (b: Baked, ox = 0, oy = 0) => {
   items.push({ baked: b, ox: cursorX + ox, oy: 4 + oy });
   cursorX += b.w + 4;
 };
+/** a fighter-sized stand-in (10 x 22, feet at (fx, fy)) so the sheet shows the scale */
+const fighterBox = (fx: number, fy: number): Item => {
+  const runs = [];
+  for (let y = 0; y < 22; y++) runs.push({ x: 0, y, w: 10, c: y < 7 ? 0xd09060 : y < 15 ? 0x3a3a52 : 0x646b87 });
+  return { baked: { w: 10, h: 22, runs }, ox: fx - 5, oy: fy - 22 };
+};
 if (sheet === 'susanoo') {
-  place(susanooSprite(3, 0, 0));
-  place(susanooSprite(3, 3, 1));
-  place(susanooSprite(4, 0, 0));
-  place(susanooSprite(4, 3, 1));
+  // each form: drawing (stages 0, 2, 3), the shot, at rest; with a fighter-sized box on the feet for scale
+  for (const level of [3, 4] as const) {
+    for (const [stage, frame] of [[0, 0], [2, 1], [3, 2], [4, 0], [5, 1]]) {
+      const b = susanooSprite(level, stage, frame);
+      items.push({ baked: b, ox: cursorX, oy: 4 + (level - 3) * (SUSANOO.h + 4) });
+      items.push(fighterBox(cursorX + SUSANOO.ax, 4 + (level - 3) * (SUSANOO.h + 4) + SUSANOO.ay));
+      cursorX += b.w + 4;
+    }
+    cursorX = 4;
+  }
+} else if (sheet === 'fireball') {
+  // the fireball at the three sizes the sim uses (radius 9 + 2.4 per form), four flicker frames, flying right and
+  // aimed down; then the tiny ball at the mouth while casting, and Susanoo's arrow in flight
+  let row = 4;
+  for (const level of [0, 1, 2]) {
+    cursorX = 4;
+    const r = 9 + 2.4 * level;
+    let rowH = 0;
+    for (const [dir, frame] of [[0, 0], [0, 1], [0, 2], [0, 3], [3, 0], [16, 1]]) {
+      const f = fireballSprite(r, dir, frame);
+      items.push({ baked: f.baked, ox: cursorX, oy: row });
+      cursorX += f.baked.w + 2;
+      rowH = Math.max(rowH, f.baked.h);
+    }
+    items.push(fighterBox(cursorX + 8, row + rowH - 8));
+    row += rowH + 2;
+  }
+  cursorX = 4;
+  for (const r of [1.5, 2.5, 3.5]) {
+    const f = fireballSprite(r, 0, 1);
+    items.push({ baked: f.baked, ox: cursorX, oy: row });
+    cursorX += f.baked.w + 4;
+  }
+  for (const [size, dir] of [[6, 0], [8, 0], [8, 2]]) {
+    const a = arrowSprite(size, dir, 0);
+    items.push({ baked: a.baked, ox: cursorX, oy: row });
+    cursorX += a.baked.w + 4;
+  }
 } else if (sheet === 'kurama') {
   place(kuramaSprite(0));
   place(kuramaSprite(1));

@@ -2245,7 +2245,7 @@ function aimDash(f: Fighter, inp: Intent): void {
  * Rasengan: the orb forms (hang in place, aim with the stick), then a gravity-free dash in the direction held as
  * it starts (8 directions, the same speed in each). A tap dashes for `time`; holding the ability button keeps
  * the dash going (up to `maxTime`) until it hits somebody, a wall, the floor or a ceiling, or the button is let
- * go. Then a short recovery. Two orbs meeting clash (resolveClashes, after every fighter has moved).
+ * go. Then a short recovery. Two orbs meeting clash (resolveOrbClashes, after every fighter has moved).
  */
 function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
   const d = baseAbility(f)?.dash;

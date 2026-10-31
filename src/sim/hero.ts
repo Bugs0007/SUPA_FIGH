@@ -15,6 +15,7 @@ import {
   heroDef,
   maxLevel,
   SUPER_AREA,
+  SUSANOO_LAUNCH,
   type AbilityDefinition,
   type BaseAbility,
   type BeamStats,
@@ -372,7 +373,7 @@ function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, 
  * moved this tick, so the outcome never depends on fighter order: both dashes end and BOTH fighters take the
  * other's full hit (each from its owner's numbers, read before either lands).
  */
-export function resolveClashes(w: World): void {
+export function resolveOrbClashes(w: World): void {
   const fs = w.fighters;
   for (let i = 0; i < fs.length; i++) {
     if (!liveOrb(fs[i])) continue;
@@ -441,7 +442,7 @@ function chidoriShock(w: World, f: Fighter, victim: Fighter, d: DashStats, p: Or
 
 /**
  * Rasengan contact: the first fighter the orb touches is blasted along the dash. Props get shoved. True on a hit.
- * A fighter whose own orb is coming the other way is left alone here: that is a clash (resolveClashes).
+ * A fighter whose own orb is coming the other way is left alone here: that is a clash (resolveOrbClashes).
  */
 export function rasenganHit(w: World, f: Fighter, d: DashStats): boolean {
   const { x: hx, y: hy } = rasenganPoint(f);
@@ -811,9 +812,9 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   const spirit = b.kind === 'ki';
   const kurama = f.hero === 'naruto' && level === 4;
   const archer = f.hero === 'sasuke' && level >= 3;
-  const avatarScale = level===4?1.28:.94;
-  const sx = f.x + f.facing * (kurama ? 53 : archer ? 52*avatarScale : spirit ? size + 12 : 8);
-  const sy = f.y - (kurama ? 27 : archer ? 26*avatarScale : SHOULDER_Y_STAND + 2);
+  const bow = SUSANOO_LAUNCH[level >= 4 ? 4 : 3];
+  const sx = f.x + f.facing * (kurama ? 53 : archer ? bow.ahead : spirit ? size + 12 : 8);
+  const sy = f.y - (kurama ? 27 : archer ? bow.up : SHOULDER_Y_STAND + 2);
   const m = meleeMuls(f);
   const blast = superBlast(f, b, level);
   const weapon = f.hero + ':super';

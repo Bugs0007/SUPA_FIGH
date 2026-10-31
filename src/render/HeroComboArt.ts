@@ -88,15 +88,29 @@ export class HeroComboArt {
   }
 }
 
-/** Black tongues cling to the actual victim; this is also used by the art-study target. */
+/** Amaterasu's colours: violet rim, black body, dark plum heart */
+const BLACK_FLAME={rim:0x80529e,body:0x171320,heart:0x39213f};
+
+/**
+ * Black tongues cling to the actual victim; this is also used by the art-study target. Pixel flames: each tongue is a
+ * stack of whole-pixel rows that narrows and leans as it rises, with a one-pixel violet rim and a plum heart.
+ */
 export function drawBlackFlames(g:G,x:number,y:number,w:number,h:number,time:number,alpha=1):void{
-  for(let i=0;i<9;i++){
-    const xx=x+(i-4)*w*.16,base=y-(i%3)*h*.2;
-    const len=8+(Math.sin(time*17+i*2.1)+1)*5,bend=Math.sin(time*11+i)*3;
-    const p=[{x:xx-2,y:base},{x:xx-3,y:base-len*.4},{x:xx+bend-1,y:base-len},
-      {x:xx+bend+2,y:base-len*.5},{x:xx+3,y:base-2}];
-    g.fillStyle(0x171320,alpha*.97).fillPoints(p,true);
-    g.lineStyle(1,0x80529e,alpha*.7).strokePoints(p,false);
-    g.fillStyle(0x39213f,alpha).fillTriangle(xx-1,base,xx+bend,base-len*.65,xx+1,base-2);
+  const step=Math.floor(time*14);
+  // pass 0 paints every tongue's rim (the whole silhouette one pixel wider), pass 1 the black bodies over it, so the
+  // tongues merge into one flame with a single violet edge
+  for(const pass of [0,1]){
+    for(let i=0;i<9;i++){
+      const xx=Math.round(x+(i-4)*w*.16),base=Math.round(y-(i%3)*h*.2);
+      const len=7+((i*5+step)%4)*3,lean=((i+step)%3)-1,hw=2+(i%2);
+      for(let j=0;j<len;j++){
+        const t=j/len,half=Math.max(0,Math.round(hw*(1-t*t))),cx=xx+Math.round(lean*t*3),yy=base-j;
+        if(pass===0)g.fillStyle(BLACK_FLAME.rim,alpha).fillRect(cx-half-1,yy-(j===len-1?1:0),half*2+3,j===len-1?2:1);
+        else{
+          g.fillStyle(BLACK_FLAME.body,alpha).fillRect(cx-half,yy,half*2+1,1);
+          if(t<.5&&half>1)g.fillStyle(BLACK_FLAME.heart,alpha).fillRect(cx,yy,1,1);
+        }
+      }
+    }
   }
 }
