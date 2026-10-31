@@ -594,6 +594,29 @@ export class Juice {
         this.hitstop = Math.max(this.hitstop, 0.06);
         break;
       }
+      case 'projectileClash': {
+        // two attacks of the same caliber blew each other up: a much bigger burst than a normal explosion (whose own
+        // fx and sound also play from the 'explosion' event right after this one)
+        const k = e.radius / 48;
+        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.22, s0: k * 3, s1: k * 5, a0: 0.9, a1: 0, tint: 0xffffff, add: true, depth: 66 });
+        fx.spawn({ frame: 'boom', x: e.x, y: e.y, life: 0.12, s0: e.radius / 7, s1: e.radius / 5, a0: 1, a1: 0.3, tint: 0xfff4c0, add: true, depth: 66 });
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.35, s0: 0.3, s1: e.radius / 12, a0: 1, a1: 0, tint: 0xffffff, depth: 66 });
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.6, s0: 0.2, s1: (e.radius / 12) * 1.5, a0: 0.8, a1: 0, tint: hexToNum(P.yellow2), depth: 66 });
+        fx.sparks(e.x, e.y, 0, -1, Math.round(20 + e.radius / 3), 0xffffff, 260 + e.radius * 3);
+        fx.chips(e.x, e.y, Math.round(6 + e.radius / 10));
+        fx.smoke(e.x, e.y, Math.round(6 + e.radius / 8), 0x8a8698);
+        this.sfx('explosion', e.x, 1, 0.55);
+        this.sfx('chakraBlast', e.x, 0.8, 0.6);
+        this.cam.addTrauma(1);
+        this.hitstop = Math.max(this.hitstop, 0.15);
+        break;
+      }
+      case 'projectileFizzle':
+        fx.sparks(e.x, e.y, 0, -1, 6, 0xffffff, 120);
+        fx.smoke(e.x, e.y, 3, 0xb0b0c0);
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.16, s0: 0.2, s1: 1.2, a0: 0.8, a1: 0, tint: 0xffffff, depth: 64 });
+        this.sfx('hiss', e.x, 0.7, 1.3);
+        break;
       case 'weaponBreak':
         fx.chips(e.x, e.y, 10);
         this.sfx('break', e.x);

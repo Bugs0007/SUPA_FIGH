@@ -16,6 +16,7 @@ import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
 import { TK } from './map/tiles';
 import { initBullet, newBullet, updateBullets, type Bullet, type BulletSpawn } from './projectile';
+import { resolveClashes } from './clash';
 import { Rng } from './rng';
 
 export interface WorldSettings {
@@ -245,6 +246,8 @@ export class World {
     if (this.bulletTime > 0) this.bulletTime = Math.max(0, this.bulletTime - DT);
     if (this.suddenDeath >= 2) this.drain();
     if (this.mods.has('firestorm')) this.fireStorm();
+    // hero ranged attacks meeting in the air (before they move on and hit anyone)
+    resolveClashes(this);
     updateBullets(this);
     updateItems(this);
     updateProps(this);

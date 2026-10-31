@@ -229,6 +229,13 @@ export const SUPER_WINDOW = 0.1;
  * to `edge` x damage at the rim. Each fighter takes the blast once; the caster and his own clones never do.
  */
 export const SUPER_AREA = { core: 0.55, edge: 0.5 };
+/**
+ * Hero ranged attacks meeting in the air (sim/clash.ts). Caliber = tier (super 2, ability 1) then form level: the
+ * higher caliber overpowers the other and flies on; equal calibers CLASH in an area blast at the meeting point whose
+ * radius is the larger of the two attacks' blasts x `radiusMul` and whose damage is the average of the two.
+ * A beam's blast for this is `beamRadius` (+ per form level).
+ */
+export const CLASH = { radiusMul: 1.25, beamRadius: 36, beamRadiusPerLevel: 8, knock: 520, breakRadius: 20, shake: 0.9 };
 /** pickup item of the power orb (data/weapons.ts) */
 export const POWER_ORB = 'powerorb';
 

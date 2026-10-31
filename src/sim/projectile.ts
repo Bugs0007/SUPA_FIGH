@@ -37,6 +37,12 @@ export interface Bullet {
   ignite: number;
   /** hit radius around fighters/props (energy orbs); 0 = a point */
   size: number;
+  /**
+   * Caliber of a hero's ranged attack (sim/clash.ts): tier 2 = super, 1 = ability, 0 = an ordinary weapon (never
+   * clashes); `form` = the caster's form level when it was cast.
+   */
+  tier: number;
+  form: number;
 }
 
 export interface BulletSpawn {
@@ -59,6 +65,8 @@ export interface BulletSpawn {
   explosion?: ExplosionStats | null;
   ignite?: number;
   size?: number;
+  tier?: number;
+  form?: number;
 }
 
 export function newBullet(): Bullet {
@@ -89,6 +97,8 @@ export function newBullet(): Bullet {
     explosion: null,
     ignite: 0,
     size: 0,
+    tier: 0,
+    form: 0,
   };
 }
 
@@ -117,6 +127,8 @@ export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
   b.explosion = s.explosion ?? null;
   b.ignite = s.ignite ?? 0;
   b.size = s.size ?? 0;
+  b.tier = s.tier ?? 0;
+  b.form = s.form ?? 0;
   return b;
 }
 

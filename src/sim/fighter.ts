@@ -83,6 +83,7 @@ import {
   blinkDestination,
   blinkStrike,
   endPower,
+  beamNow,
   fireBomb,
   fireJutsu,
   fistShock,
@@ -291,6 +292,8 @@ export interface Fighter extends Body {
   abilT: number;
   /** render: beam half-thickness / giant fist radius while firing (0 = none) */
   beamWidth: number;
+  /** a stronger hero projectile is crossing this fighter's beam: px from the beam origin it reaches this tick (-1 = no cut) */
+  beamCut: number;
   /** super input buffers: seconds left to press the other ability button */
   btnBuf1: number;
   btnBuf2: number;
@@ -449,6 +452,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     secondCd: 0,
     abilT: 0,
     beamWidth: 0,
+    beamCut: -1,
     btnBuf1: 0,
     btnBuf2: 0,
     flying: false,
@@ -1803,24 +1807,19 @@ function stSuperCharge(w: World, f: Fighter, dt: number): void {
 
 /** A beam grows out, holds (hitting everything on it once) and fades. */
 function stBeam(w: World, f: Fighter, dt: number, isSuper: boolean): void {
-  const h = heroDef(f.hero);
-  const b = isSuper ? h?.super.beam : h?.second.beam;
-  if (!b) return endSpecial(w, f);
+  const now = beamNow(f);
+  if (!now) return endSpecial(w, f);
+  const { b, half, dmg, knock, len } = now;
   const t = f.stateTime;
-  const lvl = Math.max(0, f.powerLevel - 1);
-  const pw = isSuper ? 1 : beamPower(b, f.charge);
-  const sb = isSuper ? h?.super.beam : undefined;
-  const half = sb ? sb.width[0] + sb.widthPerLevel * lvl : b.width[0] + (b.width[1] - b.width[0]) * pw;
-  const dmg = sb ? sb.damage[0] + sb.damagePerLevel * lvl : b.damage[0] + (b.damage[1] - b.damage[0]) * pw;
-  const knock = b.knock[0] + (b.knock[1] - b.knock[0]) * pw;
   // the beam pins its user in place (no gravity) and pushes back a little
   f.vx = approach(f.vx, -f.facing * 20, GROUND_DECEL * dt);
   f.vy = 0;
   integrate(w, f, dt, false);
   const fade = 0.12;
-  const len = t < b.grow ? b.range * (t / b.grow) : b.range;
   if (t < b.grow + b.hold) {
-    f.stretchLen = beamHits(w, f, f.stretchAngle, len, half, dmg, knock, f.hero + (isSuper ? ':super' : ':second'), !!b.breakTiles);
+    // a stronger hero projectile crossing the beam stops it there while it passes (sim/clash.ts)
+    const reach = f.beamCut >= 0 ? Math.min(len, f.beamCut) : len;
+    f.stretchLen = beamHits(w, f, f.stretchAngle, reach, half, dmg, knock, f.hero + (isSuper ? ':super' : ':second'), !!b.breakTiles);
     f.beamWidth = half;
   } else {
     f.beamWidth = half * Math.max(0, 1 - (t - b.grow - b.hold) / fade);
@@ -2055,6 +2054,15 @@ function stBlink(w: World, f: Fighter, dt: number): void {
   holdStill(f, dt);
   integrate(w, f, dt);
   if (f.stateTime >= 0.16) endSpecial(w, f);
+}
+
+/** A beam / giant fist stopped by a clash in the air (sim/clash.ts): the move ends at once. */
+export function cancelMove(w: World, f: Fighter): void {
+  if (f.state !== 'special') return;
+  f.beamWidth = 0;
+  f.beamCut = -1;
+  if (f.specialKind === 'beam' || f.specialKind === 'superBeam') f.charge = -1;
+  endSpecial(w, f);
 }
 
 function endSpecial(w: World, f: Fighter): void {

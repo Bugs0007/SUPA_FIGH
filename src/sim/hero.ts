@@ -514,6 +514,31 @@ export function beamPower(b: BeamStats, charge: number): number {
   return Math.max(0, Math.min(1, (charge - b.minCharge) / (b.maxCharge - b.minCharge)));
 }
 
+/**
+ * The beam a fighter is firing right now (Kamehameha, or a super beam): its stats, half thickness, damage (before
+ * the form multiplier), knockback and reach at this moment (grown, before walls). null = not firing a beam.
+ */
+export function beamNow(f: Fighter): { b: BeamStats; isSuper: boolean; half: number; dmg: number; knock: number; len: number; active: boolean } | null {
+  if (f.state !== 'special' || (f.specialKind !== 'beam' && f.specialKind !== 'superBeam')) return null;
+  const isSuper = f.specialKind === 'superBeam';
+  const h = heroDef(f.hero);
+  const sb = isSuper ? h?.super.beam : undefined;
+  const b = isSuper ? sb : h?.second.beam;
+  if (!b) return null;
+  const lvl = Math.max(0, f.powerLevel - 1);
+  const pw = isSuper ? 1 : beamPower(b, f.charge);
+  const t = f.stateTime;
+  return {
+    b,
+    isSuper,
+    half: sb ? sb.width[0] + sb.widthPerLevel * lvl : b.width[0] + (b.width[1] - b.width[0]) * pw,
+    dmg: sb ? sb.damage[0] + sb.damagePerLevel * lvl : b.damage[0] + (b.damage[1] - b.damage[0]) * pw,
+    knock: b.knock[0] + (b.knock[1] - b.knock[0]) * pw,
+    len: t < b.grow ? b.range * (t / b.grow) : b.range,
+    active: t < b.grow + b.hold,
+  };
+}
+
 /** Origin of a beam (between Goku's palms). */
 export function beamOrigin(f: Fighter): { x: number; y: number } {
   return { x: f.x + f.facing * (f.w / 2 + 2), y: f.y - SHOULDER_Y_STAND + 2 };
@@ -614,7 +639,7 @@ export function fireJutsu(w: World, f: Fighter): void {
   w.spawnBullet({ x, y, ox: x, oy: y, vx: dx * s.speed, vy: dy * s.speed,
     owner: f.id, weapon: f.hero + ':second', damage, range: s.range, falloff: 1,
     knock: 150 * m.knock, ricochet: false, pierce: 0, kind: 'ki', gravity: 0, size,
-    ignite: s.ignite,
+    ignite: s.ignite, tier: 1, form: level,
     explosion: { radius: s.radius + level * s.radiusPerLevel, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18, fire: s.fire + s.firePerLevel * level, ignite: s.ignite },
   });
   w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.8 + level * 0.2 });
@@ -712,6 +737,8 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
     gravity: 0,
     size,
     explosion: blast,
+    tier: 2,
+    form: level,
   });
 }
 
