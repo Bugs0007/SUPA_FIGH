@@ -62,11 +62,11 @@ test('rebind P1 jump, see it saved, restore defaults', async ({ page }) => {
   const saved = await page.evaluate(() => localStorage.getItem('brawlkai:keybinds') ?? Object.entries(localStorage).find(([k]) => k.includes('keybinds'))?.[1] ?? '');
   expect(saved).toContain('KeyQ');
   // bind P1 kick to P2's attack key to trigger a conflict warning
-  await press(page, 'ArrowDown', 1); // kick row
+  await press(page, 'ArrowDown', 2); // kick row (past BLOCK)
   await press(page, 'Enter');
   await press(page, 'KeyL');
   await page.screenshot({ path: 'tests/e2e/screenshots/controls.png' });
-  // restore defaults (row after the 11 actions)
+  // restore defaults (row after the 12 actions)
   await press(page, 'ArrowDown', 5);
   await press(page, 'Enter');
   const after = await page.evaluate(() => Object.entries(localStorage).find(([k]) => k.includes('keybinds'))?.[1] ?? '');
