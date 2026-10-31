@@ -934,6 +934,189 @@ const rooftops: DecorDef[] = [
   },
 ];
 
+const dojo: DecorDef[] = [
+  {
+    id: 'scroll',
+    w: 10,
+    h: 26,
+    place: 'wall',
+    weight: 3,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox, oy, 10, 2, '#4a2c1c');
+      pc.rect(ox + 1, oy + 2, 8, 21, '#c8b890');
+      pc.rect(ox + 2, oy + 3, 6, 19, '#d8c8a0');
+      for (const y of [6, 10, 14, 17]) pc.rect(ox + 4, oy + y, 2 + (y % 3), 2, '#2a2020'); // brush strokes
+      pc.rect(ox + 6, oy + 19, 2, 2, '#b8382a'); // seal
+      pc.rect(ox, oy + 23, 10, 3, '#4a2c1c');
+      outline(pc, ox, oy, 10, 26);
+    },
+  },
+  {
+    id: 'rack',
+    w: 24,
+    h: 18,
+    place: 'wall',
+    weight: 2,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox, oy + 3, 24, 2, '#5a3820');
+      pc.rect(ox, oy + 12, 24, 2, '#5a3820');
+      pc.rect(ox + 1, oy, 2, 18, '#4a2c1c');
+      pc.rect(ox + 21, oy, 2, 18, '#4a2c1c');
+      for (const [x, c] of [[6, '#9a9aa8'], [11, '#8a5a32'], [16, '#9a9aa8']] as const) {
+        pc.rect(ox + x, oy + 1, 1, 16, c); // staff / blades
+        pc.rect(ox + x - 1, oy + 1, 3, 2, c === '#8a5a32' ? '#6a4226' : '#2a2030');
+      }
+      outline(pc, ox, oy, 24, 18);
+    },
+  },
+  {
+    id: 'lantern',
+    w: 10,
+    h: 16,
+    place: 'ceiling',
+    weight: 3,
+    glow: { x: 5, y: 9, r: 24, color: '#ffb060', alpha: 0.2, flicker: true },
+    paint: (pc, ox, oy) => {
+      pc.rect(ox + 4, oy, 2, 3, '#2a1a10');
+      pc.rect(ox + 2, oy + 3, 6, 1, '#2a1a10');
+      pc.rect(ox + 1, oy + 4, 8, 9, '#d8483a');
+      pc.rect(ox + 2, oy + 5, 3, 7, '#f07050');
+      for (const y of [6, 9]) pc.rect(ox + 1, oy + y, 8, 1, '#a8302a');
+      pc.rect(ox + 2, oy + 13, 6, 1, '#2a1a10');
+      pc.rect(ox + 4, oy + 14, 2, 2, '#e8b040');
+      outline(pc, ox, oy, 10, 16);
+    },
+  },
+  {
+    id: 'drum',
+    w: 18,
+    h: 16,
+    place: 'floor',
+    weight: 2,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox + 2, oy + 12, 2, 4, '#3a2416');
+      pc.rect(ox + 14, oy + 12, 2, 4, '#3a2416');
+      pc.rect(ox + 1, oy + 2, 16, 11, '#8a3a26');
+      pc.rect(ox + 1, oy + 2, 16, 2, '#d8c8a0');
+      pc.rect(ox + 1, oy + 11, 16, 2, '#d8c8a0');
+      for (let x = 2; x < 17; x += 3) pc.set(ox + x, oy + 4, '#c8a050');
+      pc.rect(ox + 4, oy + 6, 10, 3, '#a84a30');
+      outline(pc, ox, oy, 18, 16);
+    },
+  },
+  {
+    id: 'bonsai',
+    w: 14,
+    h: 14,
+    place: 'floor',
+    weight: 2,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox + 2, oy + 10, 10, 4, '#3a4a5a');
+      pc.rect(ox + 3, oy + 10, 8, 1, '#5a6a7a');
+      pc.line(ox + 7, oy + 10, ox + 5, oy + 5, '#5a3a24', 2);
+      pc.rect(ox + 1, oy + 2, 7, 4, '#2f6a3a');
+      pc.rect(ox + 6, oy + 4, 7, 3, '#3a7a44');
+      pc.rect(ox + 2, oy + 2, 3, 1, '#5a9a5a');
+      outline(pc, ox, oy, 14, 14);
+    },
+  },
+];
+
+const museum: DecorDef[] = [
+  {
+    id: 'painting',
+    w: 26,
+    h: 20,
+    place: 'wall',
+    weight: 3,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox, oy, 26, 20, '#a8782a');
+      pc.rect(ox + 1, oy + 1, 24, 18, '#d8a040');
+      pc.rect(ox + 3, oy + 3, 20, 14, '#2a3a5a');
+      pc.rect(ox + 3, oy + 11, 20, 6, '#3a4a2a');
+      pc.circle(ox + 9, oy + 7, 3, '#e8c870'); // a starry night, more or less
+      for (const [x, y] of [[15, 5], [19, 8], [6, 12]]) pc.set(ox + x, oy + y, '#f0e0a0');
+      pc.line(ox + 18, oy + 16, ox + 19, oy + 6, '#1a2a1a', 2);
+      outline(pc, ox, oy, 26, 20);
+    },
+  },
+  {
+    id: 'portrait',
+    w: 16,
+    h: 22,
+    place: 'wall',
+    weight: 2,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox, oy, 16, 22, '#8a5a2a');
+      pc.rect(ox + 1, oy + 1, 14, 20, '#b8823a');
+      pc.rect(ox + 3, oy + 3, 10, 16, '#3a2a2a');
+      pc.circle(ox + 8, oy + 8, 3, '#c8a080');
+      pc.rect(ox + 5, oy + 12, 6, 7, '#2a3a4a');
+      outline(pc, ox, oy, 16, 22);
+    },
+  },
+  {
+    id: 'statue',
+    w: 14,
+    h: 30,
+    place: 'floor',
+    weight: 2,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox, oy + 20, 14, 10, '#6a645c');
+      pc.rect(ox, oy + 20, 14, 2, '#8a847a');
+      pc.circle(ox + 7, oy + 3, 3, '#b8b2a6');
+      pc.rect(ox + 4, oy + 6, 6, 9, '#b0aa9e');
+      pc.rect(ox + 3, oy + 7, 2, 6, '#a29c90');
+      pc.rect(ox + 9, oy + 5, 2, 5, '#a29c90'); // raised arm
+      pc.rect(ox + 5, oy + 15, 2, 5, '#a29c90');
+      pc.rect(ox + 8, oy + 15, 2, 5, '#a29c90');
+      outline(pc, ox, oy, 14, 30);
+    },
+  },
+  {
+    id: 'case',
+    w: 20,
+    h: 20,
+    place: 'floor',
+    weight: 2,
+    glow: { x: 10, y: 6, r: 16, color: '#bfe0ff', alpha: 0.14 },
+    paint: (pc, ox, oy) => {
+      pc.rect(ox + 1, oy + 12, 18, 8, '#4a3a2e');
+      pc.rect(ox + 1, oy + 12, 18, 1, '#6a5644');
+      pc.rect(ox + 2, oy + 1, 16, 11, '#5a7a8a');
+      pc.rect(ox + 3, oy + 2, 14, 9, '#6a8a9a');
+      pc.line(ox + 4, oy + 9, ox + 9, oy + 3, '#9ac0d0');
+      pc.rect(ox + 8, oy + 7, 4, 4, '#d8a040'); // a golden relic
+      outline(pc, ox, oy, 20, 20);
+    },
+  },
+  {
+    id: 'vase',
+    w: 10,
+    h: 18,
+    place: 'floor',
+    weight: 2,
+    paint: (pc, ox, oy) => {
+      pc.rect(ox + 1, oy + 12, 8, 6, '#6a645c');
+      pc.rect(ox + 3, oy, 4, 2, '#3a5a8a');
+      pc.rect(ox + 2, oy + 2, 6, 3, '#3a5a8a');
+      pc.rect(ox + 1, oy + 5, 8, 6, '#3a5a8a');
+      pc.rect(ox + 2, oy + 7, 6, 1, '#e8e0d0');
+      pc.rect(ox + 2, oy + 5, 1, 5, '#5a7aaa');
+      outline(pc, ox, oy, 10, 18);
+    },
+  },
+  {
+    id: 'lamp',
+    w: 12,
+    h: 10,
+    place: 'ceiling',
+    weight: 3,
+    glow: { x: 6, y: 14, r: 26, color: '#ffe0a0', alpha: 0.15 },
+    paint: hangingLamp('#8a6a3a', '#fff4c0'),
+  },
+];
+
 export const DECOR: Record<string, DecorDef[]> = {
   arena,
   factory,
@@ -946,6 +1129,8 @@ export const DECOR: Record<string, DecorDef[]> = {
   leaf,
   alien,
   rooftops,
+  dojo,
+  museum,
 };
 
 export interface DecorAtlas {

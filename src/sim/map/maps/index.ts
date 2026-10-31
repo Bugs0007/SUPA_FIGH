@@ -14,6 +14,8 @@ import { grandLineShip } from './ship';
 import { alienPlanet } from './alien';
 import { citadel, neon } from './expansion';
 import { valleyOfTheEnd } from './valley';
+import { tournamentHall } from './dojo';
+import { museumAtrium } from './museum';
 
 export const MAP_LIST: MapDef[] = [
   testArena,
@@ -33,6 +35,9 @@ export const MAP_LIST: MapDef[] = [
   valleyOfTheEnd,
   citadel,
   neon,
+  // open indoor halls built for hero fights (long clear lines for supers and ultimates)
+  tournamentHall,
+  museumAtrium,
 ];
 
 export const MAPS: Record<string, MapDef> = Object.fromEntries(MAP_LIST.map((m) => [m.id, m]));
