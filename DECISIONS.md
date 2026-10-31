@@ -664,3 +664,62 @@ round of a match: the fighter gets exactly what eating that many orbs would give
 `formHp = level x FORM_HP`, no timer). It is capped at the hero's top form and ignored for non-heroes and shadow clones (clones
 copy their master's form as before). `SlotCfg.form` is saved with the lobby (old saves load as 0), `slotStartForm` in `lobby.ts` is
 the one place that clamps it. Power orbs still work on top (turn HERO POWER-UPS off for a pure form-vs-form test).
+
+### D81 — Rasengan / Chidori in 8 directions, symmetric orb clashes
+The base dash is aimed with the stick in 8 directions (`aimDash`, stored as a facing-relative `Fighter.dashAngle`: 0 = ahead,
++ = down), re-aimable during the windup and locked on the first dash tick; neutral = straight ahead, and on the ground a
+downward aim becomes forward. The dash ends on a hit or any solid contact (wall, floor while going down, ceiling, world top);
+knockback follows the dash with the old lift, a grounded victim is always popped up, and straight dashes keep the exact old
+numbers. Fighters update in slot order, so when two orbs met the first one updated used to win: `rasenganHit` now ignores a
+target whose own orb is coming the other way, and `World.step` calls `resolveOrbClashes` once every fighter has moved. Orbs
+overlapping (`rA + rB + DASH_CLASH.slack`), or one orb reaching the other body while both aim at each other, end both dashes and
+each fighter takes the other's full hit, using its owner's numbers read before either lands (an orb counts from `formedFrac` of
+the windup, so dashing head-on into a forming orb clashes too). A `clash` event drives a pixel flash, rings, cracks and `orbClash`.
+
+### D82 — Blocking (hold PUNCH)
+No new button: tapping PUNCH still punches; holding it 0.15 s with fists or a melee weapon raises a guard (`block` state:
+standing, crouching or in the air). A swing still in its windup is cancelled into the guard, one already hitting plays out; a gun
+or throwable keeps hold = aim. Frontal melee, kick, bullet (incl. ki / chakra) and explosion hits are resolved in `applyHit`:
+chip damage (0.15; 0.3 for hero abilities, supers and explosions), x0.25 horizontal pushback, a short blockstun (0.12 + 0.006 per
+damage, max 0.35 s) and a 0-100 guard meter cost (x1, x1.8 heavy, x2 kicks) regenerating 25/s after 1 s. An empty meter is a
+GUARD BREAK: the hit lands in full plus a 1.2 s stun and the meter refills to 50. The first 0.12 s of each press's guard is a
+parry: no cost, and a close melee attacker is staggered 0.45 s. Fire, drain, hazards, grabs and throws ignore the guard ("throws
+beat guard"), as do hits from behind. Jump, kick, interact and hero abilities cancel the guard (a way out of fist fights). All
+numbers in `BLOCK` (sim/constants.ts); `hitWasBlocked()` lets hit sources skip on-hit extras (bullet pierce / ignite, Chidori's
+shock). A blocked Chidori does not spread.
+
+### D83 — Supers hit an area
+Bomb supers (Naruto, Sasuke, Goku) left from well ahead of the hero (bow, mouth, overhead orb), so enemies crowding him were
+skipped, lock-on clamped the shot into the floor behind the group, and the blast's steep falloff (x0.2 at the rim) left the rest of
+a group almost untouched: a Sasuke ult on a pack of shadow clones took out one. Now any enemy or wall between the hero's body and
+the launch point sets the super off at once (`launchBlock`); the projectile does no contact damage, it goes off on the first enemy
+it touches and the blast is the whole hit, once per fighter: full damage within 55 % of the radius, easing to 50 % at the rim
+(`SUPER_AREA`, `ExplosionStats.core` / `edge`; grenades and rockets unchanged). Radii 54-96 px by hero and form; wall cover still
+applies; supers never hurt the caster or his clones, and friends don't stop them. Luffy's giant fist adds a landing shockwave
+(32 + 10 px per form) for enemies the arm missed. Single-target damage stayed within 1 % of before.
+
+### D84 — Hero ranged attacks collide in the air
+Hero ranged attacks carry a caliber: tier (super 2, ability 1) then the caster's form level at the cast, stored on the bullet;
+gun bullets are tier 0 and never collide. Kamehameha / super beams and Luffy's giant fist head take part too. `sim/clash.ts`
+runs once per tick after the fighters and before the bullets and resolves touching rival pairs in a fixed order (bullets by pool
+index, then fighters by id). Higher tier wins whatever the forms (an ult tears through any normal ability, e.g. Sasuke's arrow
+through a Kamehameha); same tier, higher form wins; same tier and form CLASH: both vanish in a mid-air blast (the larger blast
+x1.25, the average damage, credit to the bigger attack's caster) that hurts anyone in range. A weaker projectile or fist fizzles;
+a weaker beam is cut where the projectile crosses it, re-checked every tick. Own attacks never collide, teammates' only with
+friendly fire. Events `projectileClash`, `projectileFizzle`, `shockwave`.
+
+### D85 — Sasuke's Susanoo and fireball are whole-pixel sprites
+Susanoo (forms 3-4) is baked by `art/avatarSprites.ts` at 1 art px = 1 world px: geometry is scaled per form (1.12 / 1.22)
+before rasterizing, never with a transform (it used to be drawn at 0.94 / 1.28, under glow rings). It stands on the fighter's
+feet, and its arrowhead sits exactly on `SUSANOO_LAUNCH` (sim/data/heroes.ts), which `fireBomb` reads, so art and sim share one
+number. Stages 0-3 draw the bow, 4 is the shot, 5 rest, with 3 flame / wing frames; the sprite fades as one alpha; strings, shafts
+and flashes are an unoutlined ink layer; the only extra effect is a few rising embers. The fireball and the flying arrow are
+rasterized onto the world grid for 32 headings (`art/fireSprites.ts`), sized to the sim hitbox; Amaterasu's black flames are
+whole-pixel tongues.
+
+### D86 — Amaterasu is instant and sees up and down
+Amaterasu fires on the press (`windup` 0, like the shadow clones; a transformed hero's press still waits `SUPER_WINDOW` 0.1 s
+for the other button), so a target can no longer walk out of the old 0.36 s eye-cast. Range 360 px (+60 per form: 420 at the
+top). Targets are picked in Sasuke's peripheral view: anyone in front within `view` = 1.25 rad (~72 degrees) above or below
+straight ahead and in clear sight, nearest first (no longer a narrow cone around the aimed direction), so enemies on platforms
+above and below are caught; straight overhead and behind are not.

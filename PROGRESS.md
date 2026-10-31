@@ -354,4 +354,11 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] Fixed: Kurama's chakra arms vanished while the Tailed Beast Bomb flew off
 - [x] Match Setup START FORM column: a hero slot can start every round (and every respawn) in any power-up form, for form-vs-form simulations (D80)
 - [x] Tests: 516 unit (+ pixelArt, sasukeBalance, startForm) and 79 e2e (+ touchcontrols)
+- [x] Rasengan / Chidori dash in 8 directions; two orbs meeting clash symmetrically (D81)
+- [x] Blocking: hold PUNCH (chip, pushback, guard meter, parry, guard break; throws beat guard) (D82)
+- [x] Supers hit an area and work at point-blank (Sasuke's ult on a pack of clones) (D83)
+- [x] Hero ranged attacks collide in the air: ult beats ability, higher form wins, equals explode (D84)
+- [x] Pixel-sprite Susanoo, fireball, Susanoo arrow and Amaterasu flames (D85)
+- [x] Amaterasu instant, 360-420 px, peripheral up / down view (D86)
 - [ ] Play-test on a phone: JUMP / CROUCH reach, no zoom on rapid taps; Chidori stun feel, Amaterasu with 3-4 enemies, ultimate lock-on at different heights
+- [ ] Play-test: block / parry timing, 8-way dash feel, super area size (a top-form super does ~120 to everyone near the impact), mid-air clashes

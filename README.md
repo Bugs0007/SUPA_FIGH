@@ -38,7 +38,7 @@ On a gamepad, press START in the lobby to join.
 | Move / aim | W A S D | Arrows | Arrows | Left stick / D-pad |
 | Jump (there is no jump key: Up jumps) | **W** | **Up** | **Up** | A |
 | Drop through a platform | **S S** (double tap) | **Down Down** | **Down Down** | Down Down |
-| Attack (hold = aim) | F | Num4 | L | X / RT |
+| Attack (hold = aim with a gun, block with fists / melee) | F | Num4 | L | X / RT |
 | Kick (heroes: ability 2) | H | Num6 | J | B |
 | Interact (pick up / grab / throw) | T | Num8 | O | Y |
 | Cycle weapon | R | Num7 | I | RB |
@@ -54,6 +54,16 @@ never jumps then).
 **Guns:** hold Attack to aim (Up and Down sweep the angle and never jump), or tap it for a hip shot.
 
 **Combo:** Attack three times for punch, punch, punch, then a kicking finisher.
+
+**Block:** hold Attack (with fists or a melee weapon) to raise your guard against hits from the front: you take a little
+chip damage and get pushed back instead of being knocked around. Raising it just before a hit (the first 0.12 s) is a
+**parry** that staggers the attacker. Blocking drains a guard meter (the thin bar under your health); when it empties
+your **guard breaks** and you are stunned. Grabs, throws, fire and hits from behind go straight through. Jump, kick or a
+hero ability cancels the guard.
+
+**Hero tips:** Rasengan and Chidori can be aimed in 8 directions while the orb forms; two orbs meeting clash and both
+fighters take the other's hit. Ultimates now blast an area. Hero shots that meet in the air collide: an ultimate tears
+through a normal ability, the higher form wins between the same kind, and equal ones explode mid-air.
 
 **Movement:**
 - Run, then press Down to roll.
