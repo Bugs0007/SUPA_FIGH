@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import { PixelCanvas, hash2 } from './canvas';
 import { shade } from './palette';
 import { parseMap, type MapDef } from '../sim/map/mapData';
+import { bakeValleyScenery } from './valleyArt';
 export const ARENA_COLORS: Record<string, [
   string,
   string,
@@ -11,16 +12,18 @@ export const ARENA_COLORS: Record<string, [
   factory: ['#e89950', '#7fb8a3', '#35252d'], construction: ['#efc96b', '#89bfd1', '#394c60'], casino: ['#edba65', '#e378a7', '#3e1e3b'],
   docks: ['#e1ad81', '#85ccd2', '#253b51'], office: ['#b8dce8', '#85babd', '#32495e'], lab: ['#7ce4bc', '#e6bc6b', '#193b42'],
   mine: ['#a286df', '#70c8cc', '#302738'], leaf: ['#94bd68', '#d3b079', '#2d463b'], ship: ['#d8ad6c', '#a1d5d8', '#3d3c4b'], alien: ['#9c8ae0', '#73dbc9', '#3d2b59'],
-  valley: ['#82d8ce', '#e1cf9c', '#2a514d'], citadel: ['#e9d2a0', '#9dbbd1', '#40566b'], neon: ['#61d7ee', '#ec7cb9', '#282a52'],
+  valley: ['#a9c48a', '#e7b98a', '#2a3a36'], citadel: ['#e9d2a0', '#9dbbd1', '#40566b'], neon: ['#61d7ee', '#ec7cb9', '#282a52'],
 };
 /** World-sized architectural detail, shared by live arenas and the menu's full-map renders. */
 export function bakeArenaScenery(scene: Phaser.Scene, def: MapDef): string {
+  if (def.theme === 'valley')
+    return bakeValleyScenery(scene, def); // the statues are the terrain: painted cell by cell (valleyArt.ts)
   const key = 'arena-scenery-' + def.id;
   if (scene.textures.exists(key))
     return key;
   const map = parseMap(def), w = map.w * 16, h = map.h * 16;
   const pc = new PixelCanvas(w, h), [accent, warm, dark] = ARENA_COLORS[def.theme] ?? ARENA_COLORS.arena;
-  const natural = ['leaf', 'valley', 'citadel', 'alien', 'mine'].includes(def.theme);
+  const natural = ['leaf', 'citadel', 'alien', 'mine'].includes(def.theme);
   // Architectural bays, cables and masonry make empty wall rooms feel inhabited.
   for (let y = 0; y < map.h; y++)
     for (let x = 0; x < map.w; x++) {
@@ -58,7 +61,7 @@ export function bakeArenaScenery(scene: Phaser.Scene, def: MapDef): string {
       }
     }
   const horizon = h - 64;
-  if (['leaf', 'valley'].includes(def.theme)) {
+  if (def.theme === 'leaf') {
     for (const x of [w * .15, w * .82]) {
       pc.rect(x - 7, 80, 14, h - 150, dark);
       for (let i = 0; i < 7; i++) {
@@ -69,25 +72,7 @@ export function bakeArenaScenery(scene: Phaser.Scene, def: MapDef): string {
       }
     }
   }
-  if (def.theme === 'valley') {
-    const x = w * .5;
-    pc.rect(x - 35, 0, 70, horizon, '#407f89');
-    pc.rect(x - 22, 0, 44, horizon, '#78bdc1');
-    for (let i = 0; i < 14; i++) {
-      const xx = x - 31 + i * 5;
-      pc.rect(xx, hash2(i, 1) * 60, 2, horizon, '#b5e6dc');
-    }
-    pc.bloom(x, horizon, 170, 65, '#c6efe1', .4);
-    for (const side of [-1, 1]) {
-      const sx = x + side * 155;
-      pc.rect(sx - 22, horizon - 115, 44, 110, '#3f5d5c');
-      pc.circle(sx, horizon - 137, 23, '#486765');
-      pc.rect(sx - 30, horizon - 115, 60, 17, '#577c70');
-      pc.rect(sx - 14, horizon - 141, 27, 8, '#213c40');
-      pc.rect(sx - 25, horizon - 20, 50, 14, '#2d494a');
-    }
-  }
-  else if (def.theme === 'citadel') {
+  if (def.theme === 'citadel') {
     for (let i = 0; i < 5; i++) {
       const x = 60 + i * (w - 120) / 4, y = 80 + (i % 2) * 90;
       pc.rect(x - 22, y, 44, 9, '#c4b99a');

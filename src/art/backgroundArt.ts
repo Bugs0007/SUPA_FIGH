@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { hash2, packColor, PixelCanvas } from './canvas';
 import { mix, P, shade } from './palette';
+import { paintValleyBackground } from './valleyArt';
 
 // Procedural parallax backgrounds per map theme: a FAR and a NEAR layer, each 640x360, horizontally
 // tileable (painted with x wrapping). Chunky silhouettes, hard edges, limited palette, ordered
@@ -31,7 +32,7 @@ export const BACKGROUNDS: Record<string, BackgroundDef> = {
   leaf: { sky: '#5aa0e0', far: 0.1, near: 0.35 },
   ship: { sky: '#4a90d8', far: 0.08, near: 0.25, bob: 4 },
   alien: { sky: '#1a0a3a', far: 0.1, near: 0.3 },
-  valley: { sky: '#598b9d', far: .08, near: .25 },
+  valley: { sky: '#28304f', far: .08, near: .25 },
   citadel: { sky: '#728fac', far: .06, near: .22 },
   neon: { sky: '#12152f', far: .12, near: .35 },
 };
@@ -408,15 +409,7 @@ const PAINTERS: Record<string, Painter> = {
       }
     }
   },
-  valley: (pc, layer) => {
-    PAINTERS.leaf(pc,layer);
-    if(layer==='far'){
-      mountains(pc,320,140,'#496b77',1.4,13);
-      pc.rect(296,100,48,230,'#8cc7cd');
-      for(let x=300;x<342;x+=5)pc.rect(x,110,2,210,'#c3e8df');
-      pc.bloom(320,320,180,55,'#d3f0e5',.35);
-    }
-  },
+  valley: paintValleyBackground,
   citadel: (pc, layer) => {
     if (layer === 'far') {
       sky(pc, '#596e9b', '#b9d8dd');

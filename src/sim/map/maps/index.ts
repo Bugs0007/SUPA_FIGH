@@ -12,7 +12,8 @@ import { testArena } from './testArena';
 import { leafForest } from './leaf';
 import { grandLineShip } from './ship';
 import { alienPlanet } from './alien';
-import { valley, citadel, neon } from './expansion';
+import { citadel, neon } from './expansion';
+import { valleyOfTheEnd } from './valley';
 
 export const MAP_LIST: MapDef[] = [
   testArena,
@@ -29,7 +30,7 @@ export const MAP_LIST: MapDef[] = [
   leafForest,
   grandLineShip,
   alienPlanet,
-  valley,
+  valleyOfTheEnd,
   citadel,
   neon,
 ];

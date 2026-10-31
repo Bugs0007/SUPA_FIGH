@@ -108,15 +108,7 @@ export class Atmosphere {
     this.dust.clear();
     const map = w.map;
     const view = this.scene.cameras.main.worldView;
-    if (w.def.theme === 'valley') {
-      // Falling water catches light behind the fighters, with mist at the foot of the falls.
-      for (let i=0;i<28;i++) {
-        const x=map.pxW*.5-29+hash2(i,0)*58;
-        const y=(hash2(i,1)*map.pxH+time*(75+hash2(i,2)*50))%(map.pxH-64);
-        this.dust.fillStyle(0xd5f5e8,.24).fillRect(Math.round(x),Math.round(y),1,6+hash2(i,3)*8);
-      }
-      for(let i=0;i<12;i++)this.dust.fillStyle(0xc1f0e4,.1).fillEllipse(map.pxW*.5+Math.sin(time*.7+i)*65,map.pxH-67-Math.sin(time+i)*7,24,5);
-    } else if (w.def.theme === 'citadel') {
+    if (w.def.theme === 'citadel') {
       const zone=w.gimmicks.gravity[0];
       if(zone){
         for(let i=0;i<16;i++){
