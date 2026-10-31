@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BotController } from '../../src/ai/bot';
+import { BOT_FIGHT } from '../../src/ai/botData';
 import { applyHit, heavyOnGuard } from '../../src/sim/combat';
 import { BLOCK, DT } from '../../src/sim/constants';
 import { SLOT } from '../../src/sim/data/weapons';
@@ -307,16 +308,24 @@ describe('blocking (hold PUNCH)', () => {
     expect(b.hp).toBeLessThan(90);
   });
 
-  it('bots never raise a guard by accident', () => {
+  it('bots guard now and then, always briefly (they never turtle)', () => {
+    // (bots raise the guard on purpose since the close-fight AI, BOT_FIGHT in ai/botData.ts)
     const map = getMap('test');
     const n = 6;
     const w = new World(map, Array.from({ length: n }, (_, i) => ({ ...spec('bot' + i), isBot: true })), { friendlyFire: false, weaponSpawnRate: 1, gravityScale: 1 }, 11);
     const bots = w.fighters.map((_, i) => new BotController(() => w, i, { difficulty: 'expert', seed: 100 + i }));
+    const run = new Array(n).fill(0);
     let blocks = 0;
+    let longest = 0;
     for (let t = 0; t < 60 * 40; t++) {
       w.step(bots.map((bot) => bot.poll()));
-      for (const f of w.fighters) if (f.state === 'block') blocks++;
+      w.fighters.forEach((f, i) => {
+        run[i] = f.state === 'block' ? run[i] + 1 : 0;
+        if (run[i]) blocks++;
+        longest = Math.max(longest, run[i]);
+      });
     }
-    expect(blocks).toBe(0);
+    expect(blocks / (n * 60 * 40)).toBeLessThan(0.05);
+    expect(longest * DT).toBeLessThanOrEqual(BOT_FIGHT.guardMax + BLOCK.stunMax + 0.1);
   });
 });

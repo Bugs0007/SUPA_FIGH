@@ -63,6 +63,16 @@ export class HeroMobility {
     return this.m !== null;
   }
 
+  /** flying (a fight can interrupt it: hero moves work from the air) */
+  get flying(): boolean {
+    return this.m?.kind === 'fly';
+  }
+
+  /** Stop the current move (the bot does something else with its inputs now). */
+  cancel(now: number): void {
+    if (this.m) this.end(now, 0.5, this.m.kind);
+  }
+
   /**
    * Called every tick while a move is running. Fills `out` and returns true while the move owns the bot,
    * false once it is over (state restored, bans set).

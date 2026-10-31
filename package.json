@@ -12,6 +12,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "sim": "vite-node scripts/botsim.ts",
+    "herofight": "vite-node scripts/heroFight.ts",
     "balance": "vite-node scripts/balance.ts",
     "trailer": "node scripts/trailer/build.mjs",
     "server": "vite-node server/main.ts",
