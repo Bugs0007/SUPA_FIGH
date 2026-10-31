@@ -431,8 +431,19 @@ export class Juice {
       case 'special': {
         const f = w.fighters[e.f];
         const [c0, c1] = f.power === 'hero' ? levelColors(f.hero, f.powerLevel) : levelColors('', 0);
-        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.12, s0: 1 * e.scale, s1: 2 * e.scale, a0: 0.8, a1: 0, tint: c1, add: true, depth: 64 });
-        fx.sparks(e.x, e.y, f.facing, 0, 8, c0, 180);
+        const fireball = f.hero === 'sasuke' && f.specialKind === 'fireball';
+        const susanoo = f.hero === 'sasuke' && f.specialKind === 'bomb' && f.power === 'hero' && f.powerLevel >= 3;
+        if (fireball) {
+          // the game's pixel muzzle flash at the mouth (unscaled, mirrored by a half turn), sparks in fire colours
+          fx.spawn({ frame: 'flash0', x: Math.round(e.x - f.facing * 4), y: Math.round(e.y), life: 0.07, rot: f.facing < 0 ? Math.PI : 0, depth: 64 });
+          fx.sparks(e.x, e.y, f.facing, 0, 8, hexToNum(P.orange), 180);
+        } else if (susanoo) {
+          // the Susanoo sprite draws its own muzzle flash: only a few sparks off the arrow
+          fx.sparks(e.x, e.y, f.facing, 0, 6, c0, 180);
+        } else {
+          fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.12, s0: 1 * e.scale, s1: 2 * e.scale, a0: 0.8, a1: 0, tint: c1, add: true, depth: 64 });
+          fx.sparks(e.x, e.y, f.facing, 0, 8, c0, 180);
+        }
         this.sfx('chakraBlast', e.x, 1, 0.9);
         this.cam.addTrauma(0.2 + e.scale * 0.1);
         break;
@@ -440,7 +451,8 @@ export class Juice {
       case 'superStart': {
         const f = w.fighters[e.f];
         const [c0, c1] = levelColors(f.hero, f.powerLevel);
-        fx.spawn({ frame: 'ring', x: f.x, y: f.y - 12, life: 0.4, s0: 0.3, s1: 5, a0: 1, a1: 0, tint: c1, depth: 64 });
+        // (Sasuke's Susanoo rises over him instead: a scaled-up ring would bury the sprite)
+        if (!(f.hero === 'sasuke' && f.power === 'hero' && f.powerLevel >= 3)) fx.spawn({ frame: 'ring', x: f.x, y: f.y - 12, life: 0.4, s0: 0.3, s1: 5, a0: 1, a1: 0, tint: c1, depth: 64 });
         fx.motes(f.x, f.y - 8, 14, c0);
         this.sfx('transform', f.x, 0.9, 1.3);
         this.cam.addTrauma(0.3);

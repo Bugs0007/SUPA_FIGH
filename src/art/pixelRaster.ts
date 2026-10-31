@@ -121,13 +121,67 @@ export interface Baked {
   runs: Run[];
 }
 
+/** A single pixel of a fixed colour painted over a baked raster (strings, arrow shafts, sparks): no outline, no shading. */
+export interface Ink {
+  x: number;
+  y: number;
+  c: number;
+}
+
+/** Bresenham pixels from (x0, y0) to (x1, y1) in colour `c`, appended to `out` (for `bake`'s ink layer). */
+export function inkLine(out: Ink[], x0: number, y0: number, x1: number, y1: number, c: number): void {
+  let x = Math.round(x0);
+  let y = Math.round(y0);
+  const ex = Math.round(x1);
+  const ey = Math.round(y1);
+  const dx = Math.abs(ex - x);
+  const dy = -Math.abs(ey - y);
+  const sx = x < ex ? 1 : -1;
+  const sy = y < ey ? 1 : -1;
+  let err = dx + dy;
+  for (;;) {
+    out.push({ x, y, c });
+    if (x === ex && y === ey) break;
+    const e2 = 2 * err;
+    if (e2 >= dy) {
+      err += dy;
+      x += sx;
+    }
+    if (e2 <= dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+}
+
+/** Turn a colour per pixel (-1 = empty) into horizontal runs. */
+export function toRuns(colors: Int32Array, w: number, h: number): Baked {
+  const runs: Run[] = [];
+  for (let y = 0; y < h; y++) {
+    let x = 0;
+    while (x < w) {
+      const c = colors[y * w + x];
+      if (c < 0) {
+        x++;
+        continue;
+      }
+      let e = x + 1;
+      while (e < w && colors[y * w + e] === c) e++;
+      runs.push({ x, y, w: e - x, c });
+      x = e;
+    }
+  }
+  return { w, h, runs };
+}
+
 /**
  * Shade and outline a raster. `mats[i - 1]` colours material i. A pixel is lit when the pixel above or to its left is
  * not the same material, shaded when the one below or to its right is not; the corner gets the highlight. With
  * `dither`, the last two rows above a shaded edge alternate with the dark tone (a cheap sense of volume). Every empty
- * pixel next to a filled one becomes the outline colour.
+ * pixel next to a filled one becomes the outline colour. `ink` pixels are painted last, over everything, unoutlined:
+ * they are part of the same sprite, so it still fades as one.
  */
-export function bake(r: Raster, mats: readonly Material[], outline: number, dither = true): Baked {
+export function bake(r: Raster, mats: readonly Material[], outline: number, dither = true, ink: readonly Ink[] = []): Baked {
   const colors = new Int32Array(r.w * r.h).fill(-1);
   const same = (x: number, y: number, m: number) => r.get(x, y) === m;
   for (let y = 0; y < r.h; y++) {
@@ -150,22 +204,8 @@ export function bake(r: Raster, mats: readonly Material[], outline: number, dith
       if (r.get(x - 1, y) || r.get(x + 1, y) || r.get(x, y - 1) || r.get(x, y + 1)) colors[y * r.w + x] = outline;
     }
   }
-  const runs: Run[] = [];
-  for (let y = 0; y < r.h; y++) {
-    let x = 0;
-    while (x < r.w) {
-      const c = colors[y * r.w + x];
-      if (c < 0) {
-        x++;
-        continue;
-      }
-      let e = x + 1;
-      while (e < r.w && colors[y * r.w + e] === c) e++;
-      runs.push({ x, y, w: e - x, c });
-      x = e;
-    }
-  }
-  return { w: r.w, h: r.h, runs };
+  for (const p of ink) if (p.x >= 0 && p.y >= 0 && p.x < r.w && p.y < r.h) colors[p.y * r.w + p.x] = p.c;
+  return toRuns(colors, r.w, r.h);
 }
 
 /** The slice of Phaser's Graphics this needs (so tests can pass a recorder). */

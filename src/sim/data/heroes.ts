@@ -246,6 +246,15 @@ const heroCombo = (fx: 'chakra' | 'steam' | 'ki', stretch = false): MeleeHit[] =
   hit({ damage: 9, windup: 0.08, active: 0.09, recover: 0.24, range: stretch ? 18 : 13, knockX: 280, knockY: -150, stun: 0.3, knockdown: true, lunge: 40, kick: true, fx, heavy: true }),
 ];
 
+/**
+ * Where Susanoo's arrow leaves the bow (Sasuke's ultimate in forms 3 / 4), in whole pixels ahead of and above the
+ * fighter's feet. The pixel-art Susanoo (art/avatarSprites.ts) is drawn around this point: its arrowhead sits on it.
+ */
+export const SUSANOO_LAUNCH: Record<3 | 4, { ahead: number; up: number }> = {
+  3: { ahead: 34, up: 35 },
+  4: { ahead: 37, up: 38 },
+};
+
 export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {
     id: 'sasuke', name: 'SASUKE',
