@@ -10,7 +10,7 @@ import { clonePlain } from '../../src/sim/snapshot';
 const state = (m: Match) => JSON.stringify(m.snapshot());
 
 function config(mapId: string, mode: GameMode, extra: Partial<MatchConfig> = {}): MatchConfig {
-  const heroes = ['naruto', 'luffy', 'goku', undefined, undefined, 'naruto'];
+  const heroes = ['naruto', 'luffy', 'goku', 'sasuke', undefined, 'naruto'];
   return {
     mapId,
     mode,

@@ -3,6 +3,21 @@ import type { SfxDef } from './sfxr';
 // Every sound in the game, as synth parameters. Tweak freely.
 
 export const SOUNDS: Record<string, SfxDef> = {
+  // Many overlapping rising chirps over a crackling discharge: original synthesized "thousand birds".
+  chidori: [
+    { wave:'noise',freq:6800,highpass:.82,attack:.025,sustain:.16,decay:.2,volume:.22,tremolo:67 },
+    ...Array.from({length:14},(_,i)=>({wave:'sine' as const,freq:2100+(i%5)*440,slide:8+(i%3)*2,
+      vibDepth:.13,vibSpeed:90+i*7,attack:.003,sustain:.008,decay:.035,delay:i*.022,volume:.15})),
+  ],
+  chidoriDash: [
+    {wave:'noise',freq:7400,highpass:.78,attack:.008,sustain:.25,decay:.5,volume:.19,tremolo:83},
+    ...Array.from({length:24},(_,i)=>({wave:'sine' as const,freq:2700+(i%7)*310,slide:7,
+      attack:.002,sustain:.006,decay:.027,delay:i*.028,volume:.12,vibDepth:.1,vibSpeed:120})),
+  ],
+  amaterasu: [
+    {wave:'noise',freq:1200,attack:.005,sustain:.04,decay:.26,lowpass:.35,volume:.4},
+    {wave:'sine',freq:760,slide:-3,decay:.32,volume:.16,tremolo:38},
+  ],
   swing: [{ wave: 'noise', freq: 2400, slide: -1.5, attack: 0.02, sustain: 0.02, decay: 0.08, lowpass: 0.25, volume: 0.22 }],
   punch: [
     { wave: 'noise', freq: 1400, slide: -3, decay: 0.07, lowpass: 0.5, volume: 0.45 },

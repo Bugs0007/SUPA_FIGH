@@ -84,6 +84,9 @@ import {
   blinkStrike,
   endPower,
   fireBomb,
+  fireJutsu,
+  superGuard,
+  usesAmaterasu,
   gatlingHit,
   grabProbe,
   gripTarget,
@@ -227,6 +230,7 @@ export interface Fighter extends Body {
   burn: number;
   burnBy: number;
   burnAcc: number;
+  burnStyle: 'fire' | 'amaterasu';
   speedBoost: number;
   strengthBoost: number;
   // throwables & gadgets
@@ -265,7 +269,7 @@ export interface Fighter extends Body {
   /** seconds the special has been charged (-1 = not charging) */
   charge: number;
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
-  specialKind: '' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink';
+  specialKind: '' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
   /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
@@ -401,6 +405,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     burn: 0,
     burnBy: -1,
     burnAcc: 0,
+    burnStyle: 'fire',
     speedBoost: 0,
     strengthBoost: 0,
     cook: -1,
@@ -760,6 +765,7 @@ function propContacts(w: World, f: Fighter, prevY: number): void {
 }
 
 function checkOutOfWorld(w: World, f: Fighter): void {
+  if (superGuard(f)) return;
   if (!f.alive) return;
   const out = f.y > w.killY || f.x < -160 || f.x > w.map.pxW + 160;
   if (out) {
@@ -1671,6 +1677,12 @@ function startSecond(w: World, f: Fighter, inp: Intent): void {
     if (!beginMove(w, f, inp, 'beamCharge')) return;
     f.charge = 0;
     w.emit({ t: 'chargeStart', f: f.id });
+  } else if (s.kind === 'fireball') {
+    if (!beginMove(w, f, inp, 'fireball')) return;
+    f.charge = 0;
+    f.stretchAngle = aimAngle(f, inp);
+    f.secondCd = s.cooldown;
+    w.emit({ t: 'chargeStart', f: f.id });
   } else if (s.kind === 'clones') {
     if (!beginMove(w, f, inp, 'cast')) return;
     if (summonClones(w, f) > 0) f.secondCd = s.cooldown; // (the cooldown only counts down once no clone is left)
@@ -1696,7 +1708,7 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
   f.specialCd = sp.cooldown;
   if (sp.kind === 'bomb') f.charge = 0; // Reset the idle sentinel so the charging orb is visible.
   if (sp.kind === 'fist') f.stretchAngle = inp.moveY < -0.5 ? (sp.fist?.upAngle ?? -0.5) : inp.moveY > 0.5 && !f.grounded ? (sp.fist?.downAngle ?? 0.5) : 0;
-  if (sp.kind === 'bomb' && f.hero === 'goku') f.stretchAngle = aimAngle(f, inp);
+  if (sp.kind === 'bomb' && sp.bomb?.kind === 'ki') f.stretchAngle = aimAngle(f, inp);
   w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });
 }
 
@@ -1725,6 +1737,8 @@ function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
       return stGatling(w, f, dt);
     case 'bomb':
       return stBomb(w, f, dt);
+    case 'fireball':
+      return stFireball(w, f, dt);
     case 'superFist':
       return stSuperFist(w, f, dt);
     default:
@@ -1828,7 +1842,7 @@ function stGatling(w: World, f: Fighter, dt: number): void {
 }
 
 function stBomb(w: World, f: Fighter, dt: number): void {
-  if (f.hero === 'goku' && f.power !== 'hero') return endSpecial(w, f);
+  if ((f.hero === 'goku' || f.hero === 'sasuke') && f.power !== 'hero') return endSpecial(w, f);
   const b = heroDef(f.hero)?.super.bomb;
   if (!b) return endSpecial(w, f);
   holdStill(f, dt);
@@ -1843,6 +1857,19 @@ function stBomb(w: World, f: Fighter, dt: number): void {
     f.charge = -1;
     endSpecial(w, f);
   }
+}
+
+function stFireball(w: World, f: Fighter, dt: number): void {
+  const def = secondAbility(f);
+  const s = usesAmaterasu(f) ? def?.amaterasu : def?.fireball;
+  if (!s) return endSpecial(w, f);
+  holdStill(f, dt);
+  integrate(w, f, dt);
+  if (f.stateTime >= s.windup && f.charge !== -2) {
+    fireJutsu(w, f);
+    f.charge = -2;
+  }
+  if (f.stateTime >= s.windup + s.recover) endSpecial(w, f);
 }
 
 function stSuperFist(w: World, f: Fighter, dt: number): void {
@@ -2492,7 +2519,7 @@ function findGrabTarget(w: World, f: Fighter): Fighter | null {
   let bestD = Infinity;
   for (const o of w.fighters) {
     if (o === f || !o.alive || o.gone) continue;
-    if (o.state === 'grabbed' || o.state === 'roll' || o.state === 'dive' || o.state === 'ledgeClimb' || o.invuln > 0) continue;
+    if (o.state === 'grabbed' || o.state === 'roll' || o.state === 'dive' || o.state === 'ledgeClimb' || o.invuln > 0 || superGuard(o)) continue;
     if (!w.settings.friendlyFire && sameTeam(o, f)) continue;
     const dx = o.x - f.x;
     if (Math.abs(o.y - f.y) > 10) continue;

@@ -1,7 +1,7 @@
 import { LAST_HIT_CREDIT } from './constants';
 import type { HitKind } from './events';
 import type { Fighter } from './fighter';
-import { absorbForm, dismissClone } from './hero';
+import { absorbForm, dismissClone, superGuard } from './hero';
 import type { World } from './world';
 
 export interface Hit {
@@ -58,6 +58,8 @@ export function sameTeam(a: { id: number; team: number }, b: { id: number; team:
  */
 export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   if (v.gone) return false;
+  // Supers cannot be cancelled by damage, stun, knockback, or burning (even ignoreInvuln hits).
+  if (superGuard(v)) return false;
   // a shadow clone's hits (and kills) count for its master
   if (hit.attacker >= 0) {
     const a = w.fighters[hit.attacker];

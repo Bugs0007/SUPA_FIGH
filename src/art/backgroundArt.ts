@@ -31,6 +31,9 @@ export const BACKGROUNDS: Record<string, BackgroundDef> = {
   leaf: { sky: '#5aa0e0', far: 0.1, near: 0.35 },
   ship: { sky: '#4a90d8', far: 0.08, near: 0.25, bob: 4 },
   alien: { sky: '#1a0a3a', far: 0.1, near: 0.3 },
+  valley: { sky: '#598b9d', far: .08, near: .25 },
+  citadel: { sky: '#728fac', far: .06, near: .22 },
+  neon: { sky: '#12152f', far: .12, near: .35 },
 };
 
 const W = 640;
@@ -404,6 +407,42 @@ const PAINTERS: Record<string, Painter> = {
         pc.circle(wrap(x + 1), H - 22 - h, 3, i % 3 ? '#4af0e0' : '#c8f8a0');
       }
     }
+  },
+  valley: (pc, layer) => {
+    PAINTERS.leaf(pc,layer);
+    if(layer==='far'){
+      mountains(pc,320,140,'#496b77',1.4,13);
+      pc.rect(296,100,48,230,'#8cc7cd');
+      for(let x=300;x<342;x+=5)pc.rect(x,110,2,210,'#c3e8df');
+      pc.bloom(320,320,180,55,'#d3f0e5',.35);
+    }
+  },
+  citadel: (pc, layer) => {
+    if (layer === 'far') {
+      sky(pc, '#596e9b', '#b9d8dd');
+      pc.bloom(470,65,190,160,'#e9d8b7',.3);
+      pc.circle(470,65,25,'#efdfb9');
+      mountains(pc,350,60,'#839cb8',.5,67);
+      for (let i=0;i<7;i++) {
+        const x=25+i*96, y=170+(i%3)*24;
+        floatingRock(pc,x,y,52,'#71899b','#a7bba5',i+70);
+        for(let k=0;k<3;k++){
+          rectW(pc,x-12+k*9,y-28,4,28,'#c9c8ba');
+          rectW(pc,x-12+k*9,y-28,1,28,'#f1e0ba');
+        }
+        rectW(pc,x-16,y-32,36,4,'#dbd0b3');
+      }
+    } else {
+      for(let i=0;i<5;i++){
+        const x=30+i*135,y=310+(i%2)*20;
+        pc.bloom(x,y,135,32,'#e0e6e3',.24);
+        for(let k=0;k<4;k++)pc.circle(wrap(x+k*19),y,10+k%2*5,'#b8ced4',100);
+      }
+    }
+  },
+  neon: (pc, layer) => {
+    PAINTERS.rooftops(pc,layer);
+    if(layer==='far')pc.bloom(320,260,540,160,'#6b59c9',.19);
   },
   mine: (pc, layer) => {
     if (layer === 'far') {

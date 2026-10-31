@@ -161,7 +161,7 @@ describe('client-side prediction', () => {
     expect(session().match.world.fighters[me].x - x0).toBeGreaterThan(5); // and the server agrees
   }, 60_000);
 
-  it.each(['naruto', 'luffy', 'goku'])('%s: abilities, flight and combos run in the sandbox without trouble and stay near the server', async (hero) => {
+  it.each(['naruto', 'luffy', 'goku', 'sasuke'])('%s: abilities, flight and combos run in the sandbox without trouble and stay near the server', async (hero) => {
     const { simA, simB, session, pump } = await playUnder({ latencyMs: 30, jitterMs: 10, loss: 0 }, { predict: true, heroes: [hero, ''], config: { bots: [{ hero: '', difficulty: 'easy' }], timeLimit: 120 } });
     const me = simA.mine[0];
     const p = simA.predictor!;

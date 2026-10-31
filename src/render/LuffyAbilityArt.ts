@@ -101,6 +101,20 @@ export class LuffyAbilityArt {
     }
   }
 
+  combo(v:FighterView,x:number,y:number,reach:number,extension:number,alpha:number,upper:boolean,kick:boolean):void{
+    if(alpha<=0)return;
+    const f=v.fighter,lv=formLevel(f),skin=v.lookFor(lv).skin;
+    const haki=lv===3||lv===4, r=lv===2?4:lv>=3?3.5:2.2;
+    const len=Math.max(3,(reach-r-2)*extension),sx=x+f.facing*2,sy=y-(kick?8:16);
+    const bend=lv===4?Math.sin(extension*Math.PI)*7:upper?-Math.sin(extension*Math.PI)*4:0;
+    const dx=f.facing,dy=0;
+    this.limb(this.front,sx,sy,dx,dy,f.facing,len,r,skin,haki,bend,alpha);
+    this.fist(this.front,sx+dx*len,sy,dx,dy,f.facing,r,skin,haki,alpha);
+    if(lv===1)for(let i=0;i<3;i++)this.back.lineStyle(2,0xffe4e8,alpha*.25)
+      .lineBetween(x-f.facing*(5+i*3),y-4-i*5,x-f.facing*(9+i*3),y-15-i*5);
+    if(lv===4)this.front.lineStyle(1,0xffffff,alpha*.7).lineBetween(sx,sy-3,sx+dx*(len-3),sy-3);
+  }
+
   gatling(v: FighterView, x: number, y: number, previewReach: number): void {
     const f = v.fighter, level = formLevel(f), style = moveLook('luffy', level);
     const stats = heroDef('luffy')!.second.gatling!;

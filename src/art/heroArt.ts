@@ -31,6 +31,23 @@ export interface HeroArt {
 const SKIN = '#f0c8a0';
 
 export const HERO_ART: Record<string, HeroArt> = {
+  sasuke: {
+    look: { design: 'sasuke', form: 0, skin: '#edcbb3', hair: 'uchiha', hairColor: '#191c30',
+      face: 'plain', hat: 'none', hatColor: '#252338', top: 'openrobe', topColor: '#c6c7d3',
+      accentColor: '#8270ac', pantsColor: '#28263d', shoesColor: '#222638', eyes: '#292a3d' },
+    forms: [
+      { eyes: '#ef364d' },
+      { skin: '#a39aa8', hairColor: '#272337', topColor: '#9c97ad', eyes: '#dcb34b', trim: '#383049' },
+      { eyes: '#f52a47', topColor: '#cbd0dc', accentColor: '#8062ad' },
+      { eyes: '#b593f4', topColor: '#d6d6e8', accentColor: '#936acb', trim: '#baa4e9' },
+    ],
+    fx: [
+      { aura: ['#82caff', '#e5f5ff'], tails: 0, tailColors: ['#fff', '#fff'], power: 1 },
+      { aura: ['#9057cf', '#c9a8ff'], tails: 0, tailColors: ['#fff', '#fff'], power: 2, extra: 'lightning' },
+      { aura: ['#8052ca', '#e1adff'], tails: 0, tailColors: ['#fff', '#fff'], power: 3, extra: 'fire' },
+      { aura: ['#a37aec', '#e8d9ff'], tails: 0, tailColors: ['#fff', '#fff'], power: 4, extra: 'lightning' },
+    ],
+  },
   naruto: {
     look: {
       design: 'naruto',

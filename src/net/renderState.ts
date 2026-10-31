@@ -31,7 +31,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
   ['state', 's'], ['stateTime', 'n'], ['hp', 'n'], ['maxHp', 'n'], ['alive', 'b'], ['gone', 'b'], ['invuln', 'n'],
   ['wallSlide', 'n'], ['sprintDir', 'n'], ['airJumpTime', 'n'], ['aimAngle', 'n'], ['aimHeld', 'b'], ['crouchAim', 'b'],
   ['lastShotTime', 'n'], ['inv', 'i'], ['active', 'n'], ['combo', 'n'], ['airKick', 'b'], ['thrownBy', 'n'], ['rot', 'n'],
-  ['burn', 'n'], ['speedBoost', 'n'], ['strengthBoost', 'n'], ['cook', 'n'], ['jetting', 'b'], ['carry', 'n'],
+  ['burn', 'n'], ['burnStyle', 's'], ['speedBoost', 'n'], ['strengthBoost', 'n'], ['cook', 'n'], ['jetting', 'b'], ['carry', 'n'],
   ['ghost', 'b'], ['gx', 'n'], ['gy', 'n'], ['ghostCd', 'n'],
   ['power', 's'], ['powerLevel', 'n'], ['formHp', 'n'], ['powerTime', 'n'], ['powerMax', 'n'], ['specialCd', 'n'],
   ['charge', 'n'], ['specialKind', 's'], ['stretchLen', 'n'], ['stretchAngle', 'n'], ['baseCd', 'n'], ['baseUsed', 'n'],

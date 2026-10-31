@@ -13,6 +13,10 @@ import { moveLook } from '../art/heroMoves';
 import { HeroChoreography } from './HeroChoreography';
 import type { Bullet } from '../sim/projectile';
 import { LuffyAbilityArt } from './LuffyAbilityArt';
+import { SasukeAbilityArt } from './SasukeAbilityArt';
+import { AvatarArt } from './AvatarArt';
+import { HeroComboArt, drawBlackFlames } from './HeroComboArt';
+import { superGuard } from '../sim/hero';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -76,6 +80,9 @@ export class HeroFx {
   private orbs: Phaser.GameObjects.Graphics;
   readonly choreography: HeroChoreography;
   private luffyArt: LuffyAbilityArt;
+  private sasukeArt: SasukeAbilityArt;
+  private avatars: AvatarArt;
+  private comboArt: HeroComboArt;
   private orbForms = new Map<Bullet, { level: number; traveled: number }>();
 
   constructor(
@@ -90,6 +97,9 @@ export class HeroFx {
     this.orbs = scene.add.graphics().setDepth(57);
     this.choreography = new HeroChoreography(scene, views, this.back, this.front);
     this.luffyArt = new LuffyAbilityArt(this.back, this.front);
+    this.sasukeArt = new SasukeAbilityArt(this.back, this.front);
+    this.avatars = new AvatarArt(this.back,this.front);
+    this.comboArt = new HeroComboArt(this.back,this.front,this.luffyArt);
   }
 
   destroy(): void {
@@ -208,13 +218,25 @@ export class HeroFx {
     this.choreography.begin(dt);
     for (const v of this.views) {
       const f = v.fighter;
-      if (!f.alive || f.gone) continue;
+      if (f.gone) continue;
       const x = lerp(f.px, f.x, alpha);
       const y = lerp(f.py, f.y, alpha);
+      if(f.burn>0&&f.burnStyle==='amaterasu')drawBlackFlames(this.orbs,x,y,f.w,f.h,time);
+      if (!f.alive) continue;
+      const comboDrawn=this.comboArt.draw(v,x,y,time);
+      if(superGuard(f)){
+        // Vertical chakra sparks indicate protection without hiding the fighter or adding orbiting balls.
+        const color=powerColors(f)[1];
+        for(let i=0;i<4;i++)this.front.fillStyle(color,.3).fillRect(Math.round(x-9+i*6),Math.round(y-3-((time*35+i*7)%28)),1,4);
+      }
       if (f.power || formLevel(f) > 0) this.aura(f, x, y, dt, time);
       if (formLevel(f) > 0 && !(f.hero === 'naruto' && f.state === 'special' && f.specialKind === 'rasengan')) this.tails(f, x, y, time);
       if (f.flying) this.flight(f, x, y, dt);
       const sk = f.specialKind;
+      if (f.hero === 'sasuke') {
+        this.sasukeArt.fighter(f, x, y, time);
+        continue;
+      }
       if (f.state === 'special') {
         if (sk === 'rasengan') this.rasengan(v, x, y, dt, time);
         else if (sk === 'beamCharge' || sk === 'superCharge') this.chargeGlow(f, x, y, time, sk === 'superCharge');
@@ -223,7 +245,7 @@ export class HeroFx {
         else if (sk === 'bomb') this.bombOrb(f, x, y, time, dt);
         else if (sk === 'cast' && f.hero === 'naruto') this.choreography.cast(v, x, y, time);
       }
-      if (f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y);
+      if (!comboDrawn && f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y);
     }
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
@@ -474,6 +496,21 @@ export class HeroFx {
 
   /** Tailed Beast Bomb charging overhead (the flying orb is drawn by drawOrbs). */
   private bombOrb(f: Fighter, x: number, y: number, time: number, dt: number): void {
+    if(f.hero==='naruto'&&formLevel(f)===4){
+      const b=heroDef('naruto')!.super.bomb!;
+      const fade=f.charge<0?Math.max(0,1-(f.stateTime-b.windup)/.3):1;
+      this.avatars.kurama(x,y,f.facing,fade,time);
+      if(f.charge>=0){
+        const k=Math.max(.08,Math.min(1,f.charge)),r=(b.size+b.sizePerLevel*3)*k;
+        const cx=x+f.facing*53,cy=y-27;
+        this.disc(this.orbs,cx,cy,r+2,0xffda7b,.55);
+        this.disc(this.orbs,cx,cy,r+1,0x6a3348);
+        this.disc(this.orbs,cx,cy,r,0x211427);
+        this.disc(this.orbs,cx-r*.25,cy-r*.25,r*.32,0xe5a6ca,.65);
+        this.choreography.kuramaArms(x,y,cx,cy,r,fade*.85);
+      }
+      return;
+    }
     if (f.charge < 0) {
       if (f.hero === 'naruto' && formLevel(f) === 4) {
         const elapsed = f.stateTime - heroDef('naruto')!.super.bomb!.windup;
@@ -566,6 +603,10 @@ export class HeroFx {
       const y = lerp(bl.py, bl.y, alpha);
       const r = Math.max(2, bl.size + 1);
       const sp = Math.hypot(bl.vx, bl.vy) || 1;
+      if (bl.weapon === 'sasuke:second' || bl.weapon === 'sasuke:super') {
+        this.sasukeArt.projectile(g, bl, x, y, time);
+        continue;
+      }
       if (bl.weapon === 'goku:super' && bl.kind === 'ki') {
         this.spiritBall(x, y, bl.size);
         for (let i = emitCount(45, dt); i > 0; i--) this.fx.spawn({ frame: 'p1', x: x - bl.vx / sp * bl.size, y: y + rnd(-bl.size * 0.4, bl.size * 0.4), vx: -bl.vx * 0.1, vy: rnd(-5, 5), life: 0.2, a0: 0.8, a1: 0, tint: 0xc9f7ff, add: true, depth: 56 });

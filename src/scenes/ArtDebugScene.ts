@@ -63,8 +63,8 @@ export class ArtDebugScene extends Phaser.Scene {
   private heroesPage(): void {
     let row = 0;
     for (const id of Object.keys(HERO_ART)) {
-      const y = 100 + row * 112;
-      this.add.bitmapText(4, y - 96, 'sm', HEROES[id]?.name ?? id);
+      const y = 78 + row * 86;
+      this.add.bitmapText(4, y - 70, 'sm', HEROES[id]?.name ?? id);
       const looks = [HERO_ART[id].look, ...Array.from({ length: formCount(id) }, (_, i) => formLook(id, i + 1)!)];
       looks.forEach((look, i) => {
         const tex = Art.fighter(this, look);
@@ -72,7 +72,7 @@ export class ArtDebugScene extends Phaser.Scene {
         const frame = beast ? BF.FOX_IDLE0 : BF.IDLE0;
         const m = FRAME_META[frame];
         const x = 40 + i * 62;
-        const c = this.add.container(x, y).setScale(3);
+        const c = this.add.container(x, y).setScale(2);
         if (id === 'naruto' && i > 0) {
           const tails = this.add.graphics();
           drawTails(tails, formFx(id, i), 0, 0, 1, 0, 1, beast);
@@ -82,12 +82,13 @@ export class ArtDebugScene extends Phaser.Scene {
         c.add(this.add.image(0, 0, tex.body, frame).setOrigin(0.5, 1));
         c.add(this.add.image(m.neckX - 16, m.neckY - 32, tex.head, 0).setOrigin(8 / 16, 13 / 16));
         c.add(this.add.image(m.shX - 16, m.shY - 32, tex.arm, armFrame(beast ? 1.2 : 1.15, beast ? 1 : 0)));
-        this.add.bitmapText(x, y + 4, 'sm', i === 0 ? 'BASE' : HEROES[id].forms[i - 1].name.replace('SUPER SAIYAN', 'SSJ').replace(' CLOAK', '').replace(' FORM', '')).setOrigin(0.5, 0);
+        const label = i === 0 ? 'BASE' : HEROES[id].forms[i - 1].name.replace('SUPER SAIYAN', 'SSJ').replace(' CLOAK', '').replace(' FORM', '').replace(' / PERFECT SUSANOO', '').replace('MANGEKYO SHARINGAN', 'MANGEKYO');
+        this.add.bitmapText(x, y + 4, 'sm', label).setOrigin(0.5, 0);
       });
       const last = Art.fighter(this, looks[looks.length - 1]);
       [BF.PUNCH, BF.KICK].forEach((frame, i) => {
         const m = FRAME_META[frame];
-        const c = this.add.container(380 + i * 70, y).setScale(3);
+        const c = this.add.container(380 + i * 70, y).setScale(2);
         c.add(this.add.image(m.bshX - 16, m.bshY - 32, last.arm, armFrame(1.8, 0)).setTint(0xb0a8c0));
         c.add(this.add.image(0, 0, last.body, frame).setOrigin(0.5, 1));
         c.add(this.add.image(m.neckX - 16, m.neckY - 32, last.head, 0).setOrigin(8 / 16, 13 / 16));

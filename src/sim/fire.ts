@@ -6,6 +6,8 @@ import { TK } from './map/tiles';
 import { moveBody, newMoveResult, type Body } from './physics';
 import { damageProp, supportOnProps } from './prop';
 import type { World } from './world';
+import { superGuard } from './hero';
+import { heroDef } from './data/heroes';
 
 /** A small burning puddle (molotov, flamethrower drips, exploding gas). Falls, then burns in place. */
 export interface FirePatch extends Body {
@@ -55,12 +57,14 @@ export function spawnFire(w: World, x: number, y: number, vx: number, vy: number
 }
 
 /** Set a fighter on fire (or top up the burn). */
-export function ignite(w: World, f: Fighter, seconds: number, by: number): void {
+export function ignite(w: World, f: Fighter, seconds: number, by: number, style: Fighter['burnStyle'] = 'fire'): void {
   if (!f.alive || f.gone) return;
+  if (superGuard(f)) return;
   if (w.map.hazardAtPx(f.x, f.y - 3) === 'water') return;
   if (f.burn <= 0) w.emit({ t: 'ignite', f: f.id });
+  if (f.burn <= 0 || style === 'amaterasu') f.burnStyle = style;
   f.burn = Math.min(FIRE.maxBurn, Math.max(f.burn, seconds));
-  if (by >= 0 || f.burnBy < 0) f.burnBy = by;
+  if ((by >= 0 || f.burnBy < 0) && (f.burnStyle !== 'amaterasu' || style === 'amaterasu')) f.burnBy = by;
 }
 
 export function igniteTile(w: World, tx: number, ty: number, by: number): void {
@@ -156,16 +160,18 @@ export function updateBurning(w: World, f: Fighter): void {
     if (f.burn <= 0) f.burn = 0;
     return;
   }
-  f.burnAcc += FIRE.dps * DT;
-  if (f.burnAcc >= FIRE.dps * 0.25) {
+  const black = f.burnStyle === 'amaterasu';
+  const dps = black ? (heroDef(w.fighters[f.burnBy]?.hero)?.second.amaterasu?.dps ?? FIRE.dps) : FIRE.dps;
+  f.burnAcc += dps * DT;
+  if (f.burnAcc >= dps * 0.25) {
     const dmg = f.burnAcc;
     f.burnAcc = 0;
     const by = f.burnBy >= 0 && f.burnBy !== f.id ? f.burnBy : -1;
-    applyHit(w, f, { damage: dmg, kbX: 0, kbY: 0, attacker: by, weapon: 'fire', kind: 'fire', ignoreInvuln: true });
+    applyHit(w, f, { damage: dmg, kbX: 0, kbY: 0, attacker: by, weapon: black ? 'amaterasu' : 'fire', kind: 'fire', ignoreInvuln: true });
     if (!f.alive) return;
   }
   // spread to whoever we're touching
-  for (const o of w.fighters) {
+  for (const o of black ? [] : w.fighters) {
     if (o === f || !o.alive || o.burn > 0) continue;
     if (Math.abs(o.x - f.x) < (o.w + f.w) / 2 && Math.abs(o.y - f.y) < 12 && w.rng.chance(1.5 * DT)) ignite(w, o, 2, f.burnBy);
   }

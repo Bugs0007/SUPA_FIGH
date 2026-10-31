@@ -8,7 +8,7 @@ import { animFor, EXTERNAL_SHEETS, sheetFrame, type ExternalSheetDef } from '../
 import { ARM_LONG, ARM_SHORT, ROLL_TIME } from '../sim/constants';
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
-import { baseAbility, formLayers } from '../sim/hero';
+import { baseAbility, formLayers, usesAmaterasu } from '../sim/hero';
 import { heroDef } from '../sim/data/heroes';
 
 /** Rig pivot: body center, this many px above the feet. */
@@ -122,7 +122,7 @@ export class FighterView {
     if (this.flash > 0) {
       this.flash -= dt;
       img.setTintFill(0xffffff);
-    } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) img.setTint(0xffa060);
+    } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) img.setTint(f.burnStyle==='amaterasu'?0xa78abd:0xffa060);
     else img.clearTint();
     this.root.setAlpha(f.alive && f.invuln > 0 && f.state !== 'roll' && Math.floor(time * 20) % 2 === 0 ? 0.45 : 1);
     this.tag.setVisible(f.alive).setPosition(Math.round(x), Math.round(y - 35 - formLayers(f) * 3));
@@ -466,6 +466,11 @@ export class FighterView {
           back = 1.5;
           weaponAngle = front;
         }
+        if(heroCombo&&((f.hero==='sasuke'&&formLevel(f)>=3)||(f.hero==='naruto'&&formLevel(f)===4))){
+          frame=BF.WINDUP;
+          front=.9;back=1.2;frontLen=0;backLen=0;
+          leanTarget=inActive?.08:0;
+        }
         break;
       }
       case 'special': {
@@ -515,16 +520,32 @@ export class FighterView {
           back = forming ? 0.75 : 2.6;
           backLen = forming ? 1 : 0;
           leanTarget = forming ? -0.05 : 0.22;
-          if (level === 2 || level === 3) {
+          if (f.hero === 'naruto' && (level === 2 || level === 3)) {
             frame = forming ? BF.FOX_IDLE1 : BF.FOX_JUMP;
             front = 1.15;
             back = 1.4;
             leanTarget = 0.12;
-          } else if (level === 4) {
+          } else if (f.hero === 'naruto' && level === 4) {
             // The cloak's chakra hands perform the kneading while his own palm guides it.
             back = 1.8;
             backLen = 0;
             leanTarget = forming ? 0 : 0.12;
+          }
+          if (f.hero === 'sasuke') {
+            frame = forming ? BF.WINDUP : BF.CROSS;
+            front = forming ? .7 : 0;
+            back = forming ? 1.9 : 2.7;
+            backLen = 1;
+            leanTarget = forming ? -.08 : .26;
+          }
+        } else if (kind === 'fireball') {
+          frame = f.charge === -2 ? BF.CROSS : BF.WINDUP;
+          front = -.8;
+          back = -.55;
+          leanTarget = f.charge === -2 ? .1 : -.06;
+          if(usesAmaterasu(f)){
+            frame=f.charge===-2?BF.IDLE0:BF.WINDUP;
+            front=-1.3;back=1.6;leanTarget=0;
           }
         } else if (kind === 'beamCharge' || kind === 'superCharge') {
           // Kamehameha: hands cupped at the hip, trembling; then thrust forward
@@ -565,6 +586,12 @@ export class FighterView {
             front = 1.15;
             back = 1.35;
             leanTarget = -0.08;
+          }
+          if (f.hero === 'sasuke') {
+            frame = f.charge === -2 ? BF.CROSS : BF.WINDUP;
+            front = f.stretchAngle;
+            back = f.charge === -2 ? 1.7 : .7;
+            leanTarget = f.charge === -2 ? .1 : -.07;
           }
         } else if (kind === 'blink') {
           frame = BF.WINDUP;
@@ -771,8 +798,8 @@ export class FighterView {
       this.flash -= dt;
       for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTintFill(0xffffff);
     } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) {
-      for (const p of [this.body, this.head, this.frontArm]) p.setTint(0xffa060);
-      this.backArm.setTint(0xc08060);
+      for (const p of [this.body, this.head, this.frontArm]) p.setTint(f.burnStyle==='amaterasu'?0xa78abd:0xffa060);
+      this.backArm.setTint(f.burnStyle==='amaterasu'?0x6e507d:0xc08060);
     } else if (!f.alive && f.burn > 0) {
       for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTint(0x605050);
     } else {

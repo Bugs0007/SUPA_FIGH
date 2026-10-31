@@ -691,6 +691,7 @@ export class BotController implements Controller {
       }
       if (s2.kind === 'clones' && f.cloneCount === 0 && dist >= 40 && dist <= 220 && dy <= 30 && clear() && roll(0.1)) return go('kick', 2);
       if (s2.kind === 'gatling' && dist >= 14 && dist <= (s2.gatling?.range ?? 60) && dy <= 14 && clear() && roll(0.15)) return go('kick', 2);
+      if (s2.kind === 'fireball' && dist >= 45 && dist <= (f.powerLevel >= (s2.amaterasu?.minLevel??99) ? s2.amaterasu!.range : s2.fireball?.range ?? 300) && dy <= 20 && clear() && roll(0.13)) return go('kick', 2);
     }
     return this.useBase(w, f, e, seen);
   }

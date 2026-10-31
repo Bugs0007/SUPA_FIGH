@@ -16,7 +16,7 @@ import {
 import { Match, type MatchConfig } from '../../src/sim/match';
 
 function config(mapId: string, extra: Partial<MatchConfig> = {}): MatchConfig {
-  const heroes = ['naruto', 'luffy', 'goku', undefined, undefined, 'naruto', undefined, 'goku'];
+  const heroes = ['naruto', 'luffy', 'goku', 'sasuke', undefined, 'naruto', undefined, 'goku'];
   return {
     mapId,
     mode: 'brawl',

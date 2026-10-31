@@ -19,6 +19,7 @@ import { formLayers } from '../sim/hero';
 import { FORM_HP } from '../sim/data/heroes';
 import { formFx } from '../art/heroArt';
 import { Atmosphere } from './Atmosphere';
+import { bakeArenaScenery } from '../art/arenaArt';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -46,6 +47,7 @@ export class WorldRenderer {
   /** background decorations (map detailing) */
   private decor: DecorLayer;
   private atmosphere: Atmosphere;
+  private scenery: Phaser.GameObjects.Image;
   private tilemap: Phaser.Tilemaps.Tilemap;
   private fg: Phaser.Tilemaps.TilemapLayer;
   private bg: Phaser.Tilemaps.TilemapLayer;
@@ -96,6 +98,7 @@ export class WorldRenderer {
     }
 
     this.decor = new DecorLayer(scene, map, world.def);
+    this.scenery = scene.add.image(0,0,bakeArenaScenery(scene,world.def)).setOrigin(0,0).setDepth(.5);
     this.atmosphere = new Atmosphere(scene, world);
     this.decals = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0, 0).setDepth(25);
     this.fx = new Fx(scene, map, this.decals);
@@ -582,7 +585,7 @@ export class WorldRenderer {
     }
     for (const f of w.fighters) {
       if (f.gone) continue;
-      if (f.burn > 0) {
+      if (f.burn > 0 && f.burnStyle !== 'amaterasu') {
         for (let i = emitCount(30, dt); i > 0; i--) this.fx.flame(f.x + (Math.random() - 0.5) * f.w, f.y - Math.random() * f.h, 0.9);
       }
       if (f.alive && f.sprintDir !== 0 && f.grounded && Math.random() < dt * 20) this.fx.dust(f.x - f.sprintDir * 4, f.y, 1, 20);
@@ -667,6 +670,7 @@ export class WorldRenderer {
   }
 
   destroy(): void {
+    this.scenery.destroy();
     for (const v of this.views) v.destroy();
     this.heroFx.destroy();
     this.decor.destroy();

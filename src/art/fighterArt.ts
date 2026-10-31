@@ -238,6 +238,10 @@ function drawTorso(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearan
             // open front: bare chest down the middle
             if (rowFromTop >= 1 && (i === 3 || i === 4)) col = a.skin;
             break;
+          case 'openrobe':
+            if (rowFromTop < 2) col = shade(a.topColor, -0.22);
+            else if (i === 3 || i === 4) col = a.skin;
+            break;
           case 'gi':
             // undershirt V at the collar
             if (rowFromTop === 0 && i >= 2 && i <= 4) col = a.accentColor;
@@ -275,7 +279,23 @@ function heroBody(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearanc
   const top = p.hipY - p.torsoH;
   const x = ox + 13 + p.lean;
   const y = oy + top;
-  if (a.design === 'goku') {
+  if (a.design === 'sasuke') {
+    // High open collar, split robe, thick purple rope belt and the Kusanagi scabbard.
+    pc.rect(x - 1, y - 2, 2, 4, shade(a.topColor, -0.2));
+    pc.rect(x + 5, y - 1, 2, 3, a.topColor);
+    pc.line(x + 1, y + 1, x + 3, y + 4, '#e0e1eb');
+    pc.rect(ox + 12, oy + p.hipY - 1, 8, 3, '#56406f');
+    for (let i = 0; i < 8; i += 2) pc.rect(ox + 12 + i, oy + p.hipY, 1, 2, a.accentColor);
+    pc.line(ox + 12, oy + p.hipY, ox + 10, oy + p.hipY + 4, a.accentColor, 2);
+    pc.line(ox + 13, oy + p.hipY, ox + 16, oy + p.hipY + 4, a.accentColor, 2);
+    pc.line(ox + 11, oy + p.hipY - 3, ox + 7, oy + p.hipY + 6, '#202131', 2);
+    pc.rect(ox + 11, oy + p.hipY - 4, 3, 1, '#9aa4b8');
+    for (const l of [p.back, p.front]) {
+      pc.rect(ox + l.kx, oy + l.ky, 2, 2, '#d2d3de');
+      pc.set(ox + l.fx + 2, oy + l.fy, a.skin);
+    }
+    if (level === 2) for (let i = 1; i < p.torsoH - 1; i += 2) pc.set(x + 4, y + i, '#383049');
+  } else if (a.design === 'goku') {
     // Crossed gi lapel, undershirt, tiny chest insignia and tied blue sash.
     if (p.torsoH > 5) {
       pc.line(x + 1, y, x + 3, y + 3, shade(a.topColor, 0.2));
@@ -419,6 +439,12 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
 
   if (a.hair === 'afro') pc.circle(X(8), Y(8), 5, a.hairColor);
   // hero hair: big spiky masses that define the silhouette (behind the skull)
+  if (a.hair === 'uchiha') {
+    pc.rect(X(3), Y(3), 9, 5, a.hairColor);
+    pc.rect(X(3), Y(6), 3, 5, a.hairColor);
+    for (const [x, y] of [[1, 5], [2, 3], [3, 2], [5, 1], [7, 2], [9, 2], [11, 3], [2, 8], [3, 10]]) pc.set(X(x), Y(y), a.hairColor);
+    pc.line(X(4), Y(4), X(8), Y(3), shade(a.hairColor, 0.2));
+  }
   if (a.hair === 'ninja') {
     pc.rect(X(4), Y(4), 9, 4, a.hairColor);
     for (const [x, y] of [[3, 5], [4, 3], [6, 2], [8, 3], [10, 2], [12, 3], [13, 5], [3, 7], [4, 8]]) pc.set(X(x), Y(y), a.hairColor);
@@ -463,6 +489,13 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
   // hair
   const hc = a.hairColor;
   switch (a.hair) {
+    case 'uchiha':
+      pc.rect(X(5), Y(5), 7, 2, hc);
+      pc.rect(X(5), Y(7), 2, 5, hc);
+      pc.rect(X(7), Y(6), 2, 3, hc);
+      pc.set(X(9), Y(7), hc);
+      pc.set(X(12), Y(6), hc);
+      break;
     case 'buzz':
       pc.rect(X(5), Y(6), 7, 1, hc);
       pc.rect(X(5), Y(7), 1, 2, hc);
@@ -534,6 +567,9 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
       break;
   }
 
+  if (a.design === 'sasuke' && a.form === 2) {
+    for (const [x, y] of [[9, 7], [11, 9], [10, 11], [8, 12]]) pc.set(X(x), Y(y), '#3b3047');
+  }
   // eyes
   const eye = mode !== HEAD.NORMAL ? P.ink : (a.eyes ?? (a.face === 'foxeyes' ? P.red2 : P.ink));
   if (mode === HEAD.DEAD) {
@@ -702,6 +738,7 @@ function drawArm(pc: PixelCanvas, ox: number, oy: number, angle: number, len: nu
     const x = Math.round(ox + 8 + c * i - 0.5);
     const y = Math.round(oy + 8 + s * i - 0.5);
     let col = i < sl ? sleeve : i === sl && a.top === 'suit' ? P.white : a.skin;
+    if (a.design === 'sasuke' && i > len - 4 && i < len) col = '#393349';
     if (a.trim && i === len - 2) col = a.trim; // wrist band
     const haki = a.design === 'luffy' && a.form === 3 && i > 1;
     const thick = haki ? 4 : a.design === 'luffy' && a.form === 2 && i >= len - 2 ? 3 : 2;

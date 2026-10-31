@@ -11,6 +11,7 @@ const HEROES = [
   { hero: 'naruto', second: 'clone' },
   { hero: 'luffy', second: 'gatling' },
   { hero: 'goku', second: 'beam' },
+  { hero: 'sasuke', second: 'fireball' },
 ];
 
 const tick = (page: Page) => page.evaluate(`${G}.match()?.world.tick ?? -1`) as Promise<number>;
