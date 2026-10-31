@@ -42,6 +42,8 @@ export const THEMES: Record<string, ThemeColors> = {
   valley: { back:'#2d514c',backSeam:'#203c3d',sky0:'#598b9d',sky1:'#c0dfd1' },
   citadel: { back:'#516277',backSeam:'#3b4d62',sky0:'#728fac',sky1:'#dee4d0' },
   neon: { back:'#252340',backSeam:'#181a31',sky0:'#12152f',sky1:'#543474' },
+  dojo: { back: '#5a3a26', backSeam: '#462c1c', sky0: '#2a1a3a', sky1: '#f0a060' },
+  museum: { back: '#5e5852', backSeam: '#4c4640', sky0: '#060a1a', sky1: '#2a3458' },
 };
 
 type Painter = (pc: PixelCanvas, ox: number, oy: number, mask: number, seed: number) => void;
@@ -228,6 +230,49 @@ const conveyor =
     edges(pc, ox, oy, m, P.steel3, P.ink2);
   };
 
+/** Polished dojo floorboards (the tournament hall's concrete reads as wood). */
+const dojoFloor: Painter = (pc, ox, oy, m, seed) => {
+  const tones = ['#7a4a2a', '#8a5632', '#6e4226'];
+  for (let row = 0; row < 4; row++) {
+    const off = (row * 7 + (seed % 5)) % 16;
+    const c = tones[(row + seed) % 3];
+    pc.rect(ox, oy + row * 4, 16, 4, c);
+    pc.rect(ox, oy + row * 4 + 3, 16, 1, shade(c, -0.25));
+    pc.set(ox + off, oy + row * 4, shade(c, -0.3));
+    pc.set(ox + off, oy + row * 4 + 1, shade(c, -0.3));
+    pc.set(ox + off, oy + row * 4 + 2, shade(c, -0.3));
+    if (hash2(row, seed, 3) < 0.4) pc.rect(ox + ((off + 6) % 14), oy + row * 4 + 1, 2, 1, shade(c, 0.12)); // grain
+  }
+  if (!up(m)) {
+    pc.rect(ox, oy + 2, 16, 1, '#b07a48'); // waxed sheen on the walking surface
+    pc.rect(ox, oy + 3, 16, 1, '#8a5a34');
+  }
+  edges(pc, ox, oy, m, '#c89058', '#4a2c1a');
+};
+
+/** Museum marble: grey-cream slabs with veins, a polished top edge. */
+const marbleFloor: Painter = (pc, ox, oy, m, seed) => {
+  const b = '#827c74';
+  pc.rect(ox, oy, 16, 16, b);
+  pc.rect(ox, oy, 8, 8, '#8a847b'); // slabs laid in a faint checker
+  pc.rect(ox + 8, oy + 8, 8, 8, '#8a847b');
+  for (let i = 0; i < 14; i++) {
+    const x = (i + Math.floor(hash2(seed, 1) * 8)) % 16;
+    const y = Math.floor(i * 1.1 + hash2(seed, 2) * 3);
+    if (y < 16) pc.set(ox + x, oy + y, shade(b, -0.18));
+  }
+  pc.rect(ox, oy + 15, 16, 1, shade(b, -0.3));
+  pc.rect(ox + 15, oy, 1, 16, shade(b, -0.22));
+  if (!up(m)) pc.rect(ox, oy + 2, 16, 1, '#d8d2c4');
+  edges(pc, ox, oy, m, '#e4dccc', shade(b, -0.35));
+};
+
+/** Per-theme replacements for a tile kind's look (the sim material stays the same). */
+const THEME_PAINTERS: Record<string, Record<number, Painter>> = {
+  dojo: { [TK.CONCRETE]: dojoFloor },
+  museum: { [TK.CONCRETE]: marbleFloor },
+};
+
 const PAINTERS: Record<number, Painter> = {
   [TK.CONV_L]: conveyor(-1),
   [TK.CONV_R]: conveyor(1),
@@ -249,7 +294,7 @@ const PAINTERS: Record<number, Painter> = {
 // the plain material, 1..3 add a detail (stain, rivets, vent, crack, knot...). WorldRenderer picks a
 // variant per cell from a hash so walls never look like a repeated grid.
 
-type BackStyle = 'panels' | 'plates' | 'damask' | 'drywall' | 'labtile' | 'rock' | 'planks' | 'bricks' | 'concrete' | 'crystal';
+type BackStyle = 'panels' | 'plates' | 'damask' | 'drywall' | 'labtile' | 'rock' | 'planks' | 'bricks' | 'concrete' | 'crystal' | 'shoji' | 'marble';
 
 const BACK_STYLE: Record<string, BackStyle> = {
   arena: 'panels',
@@ -265,6 +310,8 @@ const BACK_STYLE: Record<string, BackStyle> = {
   leaf: 'planks',
   ship: 'planks',
   alien: 'crystal',
+  dojo: 'shoji',
+  museum: 'marble',
 };
 
 function paintBackStyle(pc: PixelCanvas, ox: number, oy: number, th: ThemeColors, style: BackStyle, v: number): void {
@@ -457,6 +504,35 @@ function paintBackStyle(pc: PixelCanvas, ox: number, oy: number, th: ThemeColors
       if (v === 3) for (let i = 0; i < 7; i++) set(8 + i, 9 + (i % 3), dark);
       break;
     }
+    case 'shoji': {
+      // dark timber posts and rails framing recessed lattice panels
+      pc.rect(ox, oy, 2, 16, dark);
+      pc.rect(ox, oy + 7, 16, 2, dark);
+      for (let x = 6; x < 16; x += 5) pc.rect(ox + x, oy, 1, 16, lo);
+      for (const y of [3, 12]) pc.rect(ox + 2, oy + y, 14, 1, lo);
+      set(1, 8, hi);
+      if (v === 1) for (let y = 1; y < 6; y++) pc.rect(ox + 8, oy + y, 4, 1, shade(b, 0.12)); // a pinned paper charm
+      if (v === 2) {
+        set(4, 4, shade('#c84a3a', -0.35));
+        set(4, 5, shade('#c84a3a', -0.35));
+      }
+      if (v === 3) for (let i = 0; i < 5; i++) set(10 + i, 10 + (i % 2), dark); // a scuffed rail
+      break;
+    }
+    case 'marble': {
+      // ashlar blocks with faint veins, offset courses
+      pc.rect(ox, oy, 16, 1, lo);
+      pc.rect(ox, oy + 8, 16, 1, lo);
+      pc.rect(ox, oy, 1, 8, lo);
+      pc.rect(ox + 8, oy + 8, 1, 8, lo);
+      for (let i = 0; i < 9; i++) set((3 + i * 2) % 16, 2 + Math.floor(i * 1.4), shade(b, -0.1));
+      set(2, 2, hi);
+      set(10, 10, hi);
+      if (v === 1) for (let i = 0; i < 8; i++) set(4 + i, 11 + (i % 3 === 0 ? 1 : 0), shade(b, -0.16));
+      if (v === 2) for (let i = 0; i < 10; i++) set(2 + i, 4 + Math.floor(i / 3), shade(b, -0.12)); // a long vein
+      if (v === 3) for (let i = 0; i < 6; i++) set(12 - i, 9 + i, dark);
+      break;
+    }
     case 'crystal': {
       for (let y = 0; y < 16; y++)
         for (let x = 0; x < 16; x++) {
@@ -508,8 +584,9 @@ export function bakeTiles(scene: Phaser.Scene, theme: string): string {
   if (scene.textures.exists(key)) return key;
   const th = THEMES[theme] ?? THEMES.arena;
   const pc = new PixelCanvas(16 * TILE, (KIND_ROWS + BACK_VARIANTS) * TILE);
-  for (const [kindStr, painter] of Object.entries(PAINTERS)) {
+  for (const [kindStr, basePainter] of Object.entries(PAINTERS)) {
     const kind = Number(kindStr);
+    const painter = THEME_PAINTERS[theme]?.[kind] ?? basePainter;
     for (let mask = 0; mask < 16; mask++) {
       const ox = mask * TILE;
       const oy = kind * TILE;

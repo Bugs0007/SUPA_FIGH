@@ -22,8 +22,8 @@ export function bakeMapPreview(scene: Phaser.Scene, id: string): string {
   ctx.imageSmoothingEnabled = false;
   ctx.fillStyle = BACKGROUNDS[def.theme]?.sky ?? '#111727';
   ctx.fillRect(0, 0, 640, 320);
-  const bg = bakeBackground(scene, def.theme);
-  for (const name of [bg.far, bg.near])
+  const bg = bakeBackground(scene, def.theme, { fx: false });
+  for (const name of [bg.far, bg.clouds, bg.mid, bg.near])
     if (name)
       ctx.drawImage(scene.textures.get(name).getSourceImage() as HTMLCanvasElement, 0, 0, 640, 320);
   const s = Math.min(624 / map.pxW, 304 / map.pxH), ox = (640 - map.pxW * s) / 2, oy = (320 - map.pxH * s) / 2;

@@ -555,7 +555,70 @@ def alien():
     ]
     emit('alienPlanet', 'alien', 'ALIEN ENERGY PLANET', 'alien', 'Low-gravity fields, floating rocks and energy fissures. Home of the energy core.', g, gim, power_bias='ssj')
 
+# ------------------------------------------------------------------ TOURNAMENT HALL (open indoor, hero fights)
+def dojo():
+    W, H = 76, 36
+    g = G(W, H)
+    g.hl(0, W - 1, 0, '#'); g.rect(0, 33, W - 1, H - 1, '#')
+    g.vl(0, 0, 32, '#'); g.vl(W - 1, 0, 32, '#')
+    g.back(1, 1, W - 2, 32)
+    g.rect(15, 2, 60, 18, '.')                       # the back wall opens onto the mountains (shoji screens slid away)
+    # spectator galleries on both sides: three tiers, ladders between them
+    for side in (0, 1):
+        f = (lambda x: x) if side == 0 else (lambda x: W - 1 - x)
+        def hl(x0, x1, y):
+            a, b = sorted((f(x0), f(x1))); g.hl(a, b, y, '-')
+        hl(1, 11, 26); g.ladder(f(4), 26, 32)
+        hl(1, 13, 20); g.ladder(f(10), 20, 25)
+        hl(1, 10, 14); g.ladder(f(4), 14, 19)
+        hl(22, 27, 28)                               # low ledges by the ring
+        hl(19, 27, 16); g.ladder(f(24), 16, 27)      # rafters
+    g.hl(32, 43, 22, '-')                            # judges' platform over the ring
+    g.hl(31, 44, 10, '-')                            # top beam (power orb)
+    g.ladder(37, 10, 32)                             # the centre pole: floor -> judges -> top beam
+    for x, r in [(7, 33), (18, 33), (30, 33), (45, 33), (57, 33), (68, 33), (7, 20), (68, 20), (6, 14), (69, 14)]:
+        g.mark(x, r, 'S')
+    for x, r in [(8, 26), (67, 26), (25, 28), (50, 28), (34, 22), (41, 22), (21, 16), (54, 16)]:
+        g.mark(x, r, 'w')
+    g.mark(34, 10, 'P'); g.mark(40, 33, 'P')
+    for x, r, c in [(2, 20, 'c'), (73, 20, 'c')]:
+        g.mark(x, r, c)
+    for x in (32, 43):
+        g.p(x, 11, 'l')                              # paper lanterns under the top beam
+    emit('tournamentHall', 'dojo', 'TOURNAMENT HALL', 'dojo', 'A wide open fighting floor under the rafters. Nowhere to hide from an ultimate.', g, power_bias='kurama')
+
+# ------------------------------------------------------------------ MUSEUM ATRIUM (open indoor, hero fights)
+def museum():
+    W, H = 80, 36
+    g = G(W, H)
+    g.hl(0, W - 1, 0, '#'); g.rect(0, 33, W - 1, H - 1, '#')
+    g.vl(0, 0, 32, '#'); g.vl(W - 1, 0, 32, '#')
+    g.back(1, 1, W - 2, 32)
+    g.rect(22, 1, 57, 12, '.')                       # glass roof: the night sky shows through
+    for side in (0, 1):
+        f = (lambda x: x) if side == 0 else (lambda x: W - 1 - x)
+        def hl(x0, x1, y):
+            a, b = sorted((f(x0), f(x1))); g.hl(a, b, y, '=')
+        hl(1, 12, 25); g.ladder(f(3), 25, 32)        # mezzanines
+        hl(1, 10, 18); g.ladder(f(9), 18, 24)
+        hl(1, 12, 11); g.ladder(f(3), 11, 17)
+        hl(24, 29, 27); g.ladder(f(27), 15, 26)      # display decks, ladders up to the bridge
+        a = min(f(20), f(21)); g.rect(a, 31, a + 1, 32, '#')   # exhibit plinths: cover at the edges of the hall
+    g.hl(24, 55, 15, '=')                            # gallery bridge
+    g.hl(35, 44, 8, '='); g.ladder(39, 8, 14)        # skylight catwalk (power orb)
+    for x, r in [(6, 33), (15, 33), (31, 33), (48, 33), (64, 33), (73, 33), (6, 18), (73, 18), (6, 11), (73, 11)]:
+        g.mark(x, r, 'S')
+    for x, r in [(8, 25), (71, 25), (25, 27), (54, 27), (32, 15), (47, 15), (10, 11), (69, 11)]:
+        g.mark(x, r, 'w')
+    g.mark(37, 8, 'P'); g.mark(40, 33, 'P')
+    for x, r, c in [(2, 25, 'c'), (77, 25, 'c')]:
+        g.mark(x, r, c)
+    for x in (33, 46):
+        g.p(x, 16, 'l')                              # chandeliers under the bridge
+    emit('museumAtrium', 'museum', 'MUSEUM ATRIUM', 'museum', 'Marble floor, glass roof, a long gallery bridge. Plenty of room for a big finish.', g, power_bias='ssj')
+
 ALL = {'rooftops': rooftops, 'train': train, 'factory': factory, 'construction': construction, 'casino': casino,
-       'docks': docks, 'office': office, 'lab': lab, 'mine': mine, 'leaf': leaf, 'ship': ship, 'alien': alien}
+       'docks': docks, 'office': office, 'lab': lab, 'mine': mine, 'leaf': leaf, 'ship': ship, 'alien': alien,
+       'dojo': dojo, 'museum': museum}
 for name in (sys.argv[1:] or list(ALL)):
     ALL[name]()

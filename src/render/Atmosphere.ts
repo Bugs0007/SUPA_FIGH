@@ -17,7 +17,7 @@ export class Atmosphere {
 
   constructor(private scene: Phaser.Scene, private world: World) {
     const map = world.map;
-    this.accent = ({ leaf: 0xffe4ac, valley: 0x9de1d6, citadel: 0xffdfaa, neon: 0x85dff4, ship: 0xc8efff, docks: 0xffbf8d, factory: 0xff9954, lab: 0x67e8cf, alien: 0xad9aff, mine: 0xd4bb94 } as Record<string, number>)[world.def.theme] ?? 0xa6bbee;
+    this.accent = ({ leaf: 0xffe4ac, valley: 0x9de1d6, citadel: 0xffdfaa, neon: 0x85dff4, ship: 0xc8efff, docks: 0xffbf8d, factory: 0xff9954, lab: 0x67e8cf, alien: 0xad9aff, mine: 0xd4bb94, dojo: 0xffc890, museum: 0xc8d8f0 } as Record<string, number>)[world.def.theme] ?? 0xa6bbee;
     this.architecture = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0).setDepth(19);
     this.surfaces = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0).setDepth(20.5);
     this.contact = scene.add.graphics().setDepth(31);

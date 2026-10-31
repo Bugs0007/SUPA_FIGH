@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { bakeBackground, BACKGROUNDS } from '../art/backgroundArt';
+import { BACKGROUNDS } from '../art/backgroundArt';
+import { ParallaxBackdrop } from '../render/Parallax';
 import { heroLook } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
@@ -75,8 +76,7 @@ export class TitleScene extends Phaser.Scene {
     vy: number;
     img: Phaser.GameObjects.Image;
   }[] = [];
-  private far!: Phaser.GameObjects.TileSprite;
-  private near: Phaser.GameObjects.TileSprite | null = null;
+  private backdrop: ParallaxBackdrop | null = null;
   private theme = '';
   private gfx!: Phaser.GameObjects.Graphics;
   private arenaImage!: Phaser.GameObjects.Image;
@@ -117,14 +117,13 @@ export class TitleScene extends Phaser.Scene {
     this.barMode = '';
     this.ctl = [];
     this.theme = '';
-    this.near = null;
     const k = (this.registry.get('scale') as number) ?? 1;
     this.applyZoom(k);
     this.game.events.on('rescale', this.applyZoom, this);
     this.events.once('shutdown', () => this.game.events.off('rescale', this.applyZoom, this));
     music.play('title');
     // backdrop: the selected map's parallax layers, dimmed
-    this.far = this.add.tileSprite(0, 0, VIEW_W, VIEW_H, '__DEFAULT').setOrigin(0, 0);
+    this.backdrop = new ParallaxBackdrop(this, VIEW_W, VIEW_H, 0, { release: true, animate: false });
     this.applyTheme();
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, hexToNum(P.night), 0.55).setOrigin(0, 0).setDepth(1);
     for (let i = 0; i < 34; i++) {
@@ -253,17 +252,8 @@ export class TitleScene extends Phaser.Scene {
     if (theme === this.theme)
       return;
     this.theme = theme;
-    const keys = bakeBackground(this, theme);
     this.cameras.main.setBackgroundColor(BACKGROUNDS[theme]?.sky ?? P.night);
-    this.far.setTexture(keys.far);
-    if (keys.near) {
-      if (!this.near)
-        this.near = this.add.tileSprite(0, 0, VIEW_W, VIEW_H, keys.near).setOrigin(0, 0).setDepth(0.5);
-      else
-        this.near.setTexture(keys.near).setVisible(true);
-    }
-    else
-      this.near?.setVisible(false);
+    this.backdrop?.setTheme(theme);
   }
   /** The fully rendered arena ('random' cycles through the whole collection). */
   private resolvedPreviewMap(): string {
@@ -459,11 +449,8 @@ export class TitleScene extends Phaser.Scene {
       }
       s.img.setPosition(Math.round(s.x), Math.round(s.y));
     }
-    const def = BACKGROUNDS[this.theme];
-    const drift = this.t * 18 + (def?.scroll ?? 0) * this.t * 0.2;
-    this.far.tilePositionX = Math.round(drift * (def?.far ?? 0.1) * 3);
-    if (this.near)
-      this.near.tilePositionX = Math.round(drift * (def?.near ?? 0.3) * 3);
+    // a slow pan across the selected map's parallax layers
+    this.backdrop?.update(dt, this.t * 54, null);
     for (const p of this.puppets)
       p.update(dt);
   }
