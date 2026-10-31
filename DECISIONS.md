@@ -655,3 +655,12 @@ starts, `Fighter.lockOn` remembers it (shown by a bracket), and `fireBomb` re-ai
 its movement; Up / Down held at the start still aims by hand. It applies to every hero with a bomb ultimate (Sasuke, Goku, Naruto):
 none of them flies over or under an enemy it is facing any more. `lockOn`, `flinchTime` and `FirePatch.black` are part of the
 network render state. All numbers are in `data/heroes.ts`; `tests/unit/sasukeBalance.test.ts` pins them (per form).
+
+### D80 — Start form (Match Setup)
+Each hero slot in Match Setup has a START FORM column (BASE, FORM 1 .. the hero's top form; Enter cycles, Shift+Enter goes back;
+blank for scrapyard fighters), so forms can be matched up (bot vs bot, or you vs a bot) without waiting for power orbs.
+`FighterSpawn.startForm` is applied in `createFighter`, so it holds at round start, on every Deathmatch respawn and in every
+round of a match: the fighter gets exactly what eating that many orbs would give (`power = 'hero'`, `powerLevel`, `powerFull`,
+`formHp = level x FORM_HP`, no timer). It is capped at the hero's top form and ignored for non-heroes and shadow clones (clones
+copy their master's form as before). `SlotCfg.form` is saved with the lobby (old saves load as 0), `slotStartForm` in `lobby.ts` is
+the one place that clamps it. Power orbs still work on top (turn HERO POWER-UPS off for a pure form-vs-form test).

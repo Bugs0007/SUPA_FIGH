@@ -26,6 +26,7 @@ Open the game. The main menu has a card for each keyboard player and a quick-mat
   backdrop and minimap show up right in the menu.
 - **Quick Match** starts with those settings (0–8 and Tab still work as shortcuts).
 - **Match Setup** opens the lobby. There you set the players, teams, map, mode, rounds and chaos cards.
+  Hero slots also have a **START FORM** (base up to the top power-up form), so you can match forms against each other without collecting power orbs.
 - **Controls** lets you rebind every action for both keyboard layouts and up to 4 gamepads.
 - **Settings** covers volumes, screen shake, gore, damage numbers, replays and fullscreen.
 

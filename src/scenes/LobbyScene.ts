@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { randomAppearance } from '../art/appearance';
 import { heroLook } from '../art/heroArt';
-import { HEROES } from '../sim/data/heroes';
+import { HEROES, maxLevel } from '../sim/data/heroes';
 import { hexToNum, P, TEAM_COLORS, TEAM_NAMES } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
@@ -19,6 +19,7 @@ import {
   loadLobby,
   MAX_SLOTS,
   saveLobby,
+  slotStartForm,
   SLOT_KIND_LABELS,
   SLOT_KINDS,
   SUDDEN_DEATH_OPTIONS,
@@ -32,7 +33,9 @@ import { inputDevice, PAD_NAMES } from '../input/devices';
 import { bindZoom, fighterPreview } from './ui';
 import { bakeMapPreview } from '../art/mapPreview';
 
-const SLOT_COLS = ['kind', 'team', 'skill', 'look'] as const;
+const SLOT_COLS = ['kind', 'team', 'skill', 'look', 'form'] as const;
+const SLOT_COL_X = [36, 130, 186, 244, 298];
+const SLOT_COL_W = [88, 50, 52, 50, 38];
 const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'start', 'controls'] as const;
 type Setting = (typeof SETTINGS)[number];
 
@@ -82,10 +85,11 @@ export class LobbyScene extends Phaser.Scene {
     this.add.bitmapText(130, 32, 'sm', 'TEAM').setTint(0x8d95b0);
     this.add.bitmapText(186, 32, 'sm', 'BOT SKILL').setTint(0x8d95b0);
     this.add.bitmapText(244, 32, 'sm', 'HERO / LOOK').setTint(0x8d95b0);
+    this.add.bitmapText(298, 32, 'sm', 'START FORM').setTint(0x8d95b0);
     for (let i = 0; i < MAX_SLOTS; i++) {
       const y = 44 + i * 28;
       this.add.bitmapText(8, y + 6, 'smo', String(i + 1)).setTint(0x8d95b0);
-      this.texts.push([0, 1, 2, 3].map((c) => this.add.bitmapText([36, 130, 186, 244][c], y + 6, 'smo', '')));
+      this.texts.push(SLOT_COL_X.map((x) => this.add.bitmapText(x, y + 6, 'smo', '')));
       this.previews.push(this.add.container(0, 0));
     }
     SETTINGS.forEach((_, i) => {
@@ -158,8 +162,7 @@ export class LobbyScene extends Phaser.Scene {
         return;
       }
       if (menu.confirm() || keyboard.justPressed('Tab')) {
-        this.changeSlot(this.row, SLOT_COLS[this.col], keyboard.isDown('ShiftLeft') || keyboard.isDown('ShiftRight') ? -1 : 1);
-        changed = true;
+        changed = this.changeSlot(this.row, SLOT_COLS[this.col], keyboard.isDown('ShiftLeft') || keyboard.isDown('ShiftRight') ? -1 : 1);
       }
     } else {
       if (lr) changed = this.changeSetting(set, lr);
@@ -206,12 +209,18 @@ export class LobbyScene extends Phaser.Scene {
     }
   }
 
-  private changeSlot(i: number, col: (typeof SLOT_COLS)[number], d: number): void {
+  /** Cycle the value of one slot column; false when that column does nothing for this slot. */
+  private changeSlot(i: number, col: (typeof SLOT_COLS)[number], d: number): boolean {
     const s = this.cfg.slots[i];
     if (col === 'kind') s.kind = cycle(SLOT_KINDS, s.kind, d);
     else if (col === 'team') s.team = (s.team + d + 5) % 5;
     else if (col === 'skill') s.difficulty = cycle(DIFF_ORDER, s.difficulty, d);
-    else s.look = randomAppearance();
+    else if (col === 'form') {
+      if (s.kind === 'empty' || !s.hero) return false; // only heroes have power-up forms
+      const n = maxLevel(s.hero) + 1;
+      s.form = (slotStartForm(s) + d + n) % n;
+    } else s.look = randomAppearance();
+    return true;
   }
 
   private changeSetting(set: Setting, d: number): boolean {
@@ -273,18 +282,18 @@ export class LobbyScene extends Phaser.Scene {
     c.slots.forEach((s, i) => {
       const y = 44 + i * 28;
       const sel = this.row === i;
-      g.fillStyle(sel ? 0x3a3054 : 0x221d2e, 1).fillRect(4, y, 300, 26);
+      g.fillStyle(sel ? 0x3a3054 : 0x221d2e, 1).fillRect(4, y, 334, 26);
       if (s.team > 0 && s.kind !== 'empty') g.fillStyle(hexToNum(TEAM_COLORS[s.team]), 1).fillRect(4, y, 2, 26);
-      const [kind, team, skill, look] = this.texts[i];
+      const [kind, team, skill, look, form] = this.texts[i];
       const dim = s.kind === 'empty' ? 0x5a5668 : 0xffffff;
       kind.setText(SLOT_KIND_LABELS[s.kind]).setTint(s.kind.startsWith('pad') && !connectedPads()[Number(s.kind.slice(3))] ? 0xc08060 : dim);
       team.setText(s.kind === 'empty' ? '' : TEAM_NAMES[s.team]).setTint(s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : 0xc3c9dc);
       skill.setText(s.kind === 'bot' ? s.difficulty.toUpperCase() : '').setTint(0xc3c9dc);
       look.setText(s.kind === 'empty' ? '' : s.hero ? (HEROES[s.hero]?.name ?? 'EDIT...') : 'EDIT...').setTint(s.hero ? hexToNum(P.orange) : 0x8d95b0);
+      const lv = slotStartForm(s);
+      form.setText(s.kind === 'empty' || !s.hero ? '' : lv ? `FORM ${lv}` : 'BASE').setTint(lv ? hexToNum(P.yellow) : 0xc3c9dc);
       if (sel) {
-        const x = [36, 130, 186, 244][this.col];
-        const w = [88, 50, 52, 50][this.col];
-        g.lineStyle(1, blink ? 0xffffff : 0xf8c840, 1).strokeRect(x - 3.5, y + 2.5, w, 14);
+        g.lineStyle(1, blink ? 0xffffff : 0xf8c840, 1).strokeRect(SLOT_COL_X[this.col] - 3.5, y + 2.5, SLOT_COL_W[this.col], 14);
       }
     });
     // settings

@@ -124,3 +124,38 @@ test('lobby → creator: pick a hero for slot 1 and start a match with it', asyn
   expect(hero).toBe('goku');
   expect(errors).toEqual([]);
 });
+
+test('lobby: START FORM column starts a hero already transformed', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem('scrapyard.lobby', JSON.stringify({ slots: [{}, {}, { hero: 'goku' }, { hero: 'sasuke' }] })));
+  await page.goto('/?scene=lobby&timer=1');
+  await page.waitForFunction(() => (window as any).__GAME__?.scene().includes('lobby'));
+  await page.waitForTimeout(300);
+  const key = async (k: string, n = 1) => {
+    for (let i = 0; i < n; i++) {
+      await page.keyboard.press(k);
+      await page.waitForTimeout(120);
+    }
+  };
+  // slot 3 (a bot with Goku): column START FORM is the 5th (4 steps right); confirm twice = FORM 2
+  await key('ArrowDown', 2);
+  await key('ArrowRight', 4);
+  await key('Enter', 2);
+  // slot 4 (Sasuke): one step the other way round wraps to his top form
+  await key('ArrowLeft', 4);
+  await key('ArrowDown');
+  await key('ArrowRight', 4);
+  await page.keyboard.down('ShiftLeft');
+  await key('Enter');
+  await page.keyboard.up('ShiftLeft');
+  const forms = await page.evaluate(() => JSON.parse(localStorage.getItem('scrapyard.lobby') ?? '{}').slots.map((s: any) => s.form));
+  expect(forms.slice(0, 4)).toEqual([0, 0, 2, 4]);
+  await page.screenshot({ path: 'tests/e2e/screenshots/lobby-start-form.png' });
+  // start the match (the scene's own start(), as the START MATCH row would)
+  await page.evaluate(() => (window as any).__GAME__.game.scene.getScene('lobby').start());
+  await page.waitForFunction(() => (window as any).__GAME__.match()?.world);
+  const lv = await page.evaluate(() => (window as any).__GAME__.match().world.fighters.slice(0, 4).map((f: any) => f.powerLevel));
+  expect(lv).toEqual([0, 0, 2, 4]);
+  expect(errors).toEqual([]);
+});

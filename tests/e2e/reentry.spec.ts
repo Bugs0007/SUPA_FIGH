@@ -80,7 +80,7 @@ test('re-enter title, lobby and creator without errors', async ({ page }) => {
   await press(page, 'ArrowDown', 9);
   await press(page, 'ArrowDown'); // back to slot 1
   for (let i = 0; i < 2; i++) {
-    await press(page, 'ArrowLeft'); // slot 1, LOOK column (columns wrap)
+    await press(page, 'ArrowLeft', 2); // slot 1, LOOK column (columns wrap: KIND -> START FORM -> LOOK)
     await press(page, 'Enter');
     await onScene(page, 'creator');
     await page.waitForTimeout(150);

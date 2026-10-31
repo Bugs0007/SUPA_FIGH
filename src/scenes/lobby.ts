@@ -8,6 +8,7 @@ import type { Difficulty } from '../ai/botData';
 import { isTouchDevice } from '../game/display';
 import { load, save } from '../game/storage';
 import { profiles, saveProfiles } from '../game/profiles';
+import { maxLevel } from '../sim/data/heroes';
 import type { GameMode } from '../sim/match';
 import type { MatchSceneData, PlayerSetup } from './MatchScene';
 import { PLAYER_COLORS } from './ui';
@@ -38,6 +39,8 @@ export interface SlotCfg {
   look: Appearance;
   /** hero id (sim/data/heroes.ts), '' = scrapyard fighter with the custom look */
   hero: string;
+  /** power-up form the hero starts in (0 = base .. the hero's top form), so forms can be matched up without waiting for orbs */
+  form: number;
 }
 
 export interface LobbyCfg {
@@ -64,6 +67,7 @@ export function defaultLobby(): LobbyCfg {
     difficulty: 'normal',
     look: i < 2 ? PLAYER_PRESETS[i] : randomAppearance(),
     hero: '',
+    form: 0,
   }));
   return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75, chaos: false, heroPowers: true };
 }
@@ -102,6 +106,12 @@ export function saveLobby(c: LobbyCfg): void {
   save('lobby', c);
 }
 
+/** The form a slot really starts in: 0 for non-heroes, otherwise its setting capped at the hero's top form. */
+export function slotStartForm(s: Pick<SlotCfg, 'hero' | 'form'>): number {
+  if (!s.hero) return 0;
+  return Math.max(0, Math.min(maxLevel(s.hero), Math.floor(Number(s.form) || 0)));
+}
+
 /** Why the lobby can't start yet (null = ready). */
 export function lobbyProblem(c: LobbyCfg): string | null {
   const active = c.slots.filter((s) => s.kind !== 'empty');
@@ -130,8 +140,9 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
     const label = isBot ? 'B' + ++bot : kb >= 0 ? profiles[kb].name : 'P' + ++human;
     if (!isBot && kb >= 0) human++;
     const color = s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : isBot ? hexToNum(TEAM_COLORS[0]) : PLAYER_COLORS[(human - 1) % PLAYER_COLORS.length];
+    const startForm = slotStartForm(s);
     players.push({
-      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined },
+      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined, startForm: startForm || undefined },
       look: heroLook(s.hero, s.look),
       color,
       label,

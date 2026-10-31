@@ -74,7 +74,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { heroDef, HOLD_FLY, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -319,6 +319,8 @@ export interface FighterSpawn {
   upJumps: boolean;
   /** hero id (data/heroes.ts), '' or undefined = scrapyard fighter */
   hero?: string;
+  /** power-up form the hero starts every life in (0 = base, capped at the hero's top form); ignored for non-heroes and clones */
+  startForm?: number;
   /** shadow clone slot (added by the World): fighter id of the master */
   master?: number;
 }
@@ -326,6 +328,7 @@ export interface FighterSpawn {
 export function createFighter(id: number, spec: FighterSpawn, x: number, y: number): Fighter {
   const hero = heroDef(spec.hero);
   const hp = hero ? hero.stats.hp : MAX_HP;
+  const startLevel = hero && spec.master === undefined ? Math.max(0, Math.min(maxLevel(hero.id), Math.floor(spec.startForm ?? 0))) : 0;
   return {
     id,
     name: spec.name,
@@ -423,13 +426,14 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     gvy: 0,
     ghostCd: 0,
     hero: hero ? hero.id : '',
-    power: '',
-    powerLevel: 0,
-    formHp: 0,
+    // a hero can start a round already transformed (Match Setup "START FORM"): same state an orb would give
+    power: startLevel > 0 ? 'hero' : '',
+    powerLevel: startLevel,
+    formHp: startLevel * FORM_HP,
     flyHold: false,
     powerTime: 0,
     powerMax: 0,
-    powerFull: false,
+    powerFull: startLevel > 0,
     specialCd: 0,
     charge: -1,
     specialKind: '',
