@@ -1,5 +1,5 @@
 import type Phaser from 'phaser';
-import { hash2, PixelCanvas } from './canvas';
+import { hash2, packColor, PixelCanvas } from './canvas';
 import { mix, shade } from './palette';
 import {
   BG_H as H,
@@ -935,6 +935,18 @@ const PAINTERS: Record<string, Painter> = {
   // Valley of the End: its own painter (art/valleyArt.ts) for the far and near layers
   valley: (pc, layer) => {
     if (layer === 'far' || layer === 'near') paintValleyBackground(pc, layer);
+    // the far layer is the backdrop and must have no holes: the valley painter writes its clouds and glow with alpha,
+    // so blend those pixels onto the sky colour
+    if (layer === 'far') {
+      const sky = packColor(BACKGROUNDS.valley.sky);
+      for (let i = 0; i < pc.px.length; i++) {
+        const v = pc.px[i], a = v >>> 24;
+        if (a === 255) continue;
+        const k = a / 255;
+        const ch = (sh: number) => Math.round(((v >>> sh) & 255) * k + ((sky >>> sh) & 255) * (1 - k));
+        pc.px[i] = ((255 << 24) | (ch(16) << 16) | (ch(8) << 8) | ch(0)) >>> 0;
+      }
+    }
   },
 
   // SKY CITADEL: above a sea of clouds, floating islands with ruined colonnades, motes drifting.
