@@ -53,7 +53,7 @@ export function sameTeam(a: { id: number; team: number }, b: { id: number; team:
   return teamKey(a) === teamKey(b);
 }
 
-// ------------------------------------------------------------------ blocking (hold PUNCH, BLOCK in constants.ts)
+// ------------------------------------------------------------------ blocking (hold BLOCK, BLOCK in constants.ts)
 
 /** Hit kinds a raised guard stops (from the front). Fire, drain, hazards, falls, splats, bodyslams, grabs and throws go through. */
 const BLOCKABLE: readonly HitKind[] = ['melee', 'kick', 'bullet', 'explosion'];

@@ -126,7 +126,7 @@ describe('co-op survival', () => {
     for (let i = 0; i < (COOP.reviveTime + 0.2) / DT && !h2.alive; i++) {
       h1.x = h2.x;
       h1.y = h2.y;
-      m.step([{ moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: true, cycle: false, gadget: false, ability: false }]);
+      m.step([{ moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: true, cycle: false, gadget: false, ability: false, block: false }]);
     }
     expect(h2.alive).toBe(true);
     expect(m.lives).toBe(lives); // refunded

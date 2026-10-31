@@ -1,6 +1,6 @@
 import { load, save } from '../game/storage';
 
-export const ACTIONS = ['left', 'right', 'up', 'down', 'attack', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
+export const ACTIONS = ['left', 'right', 'up', 'down', 'attack', 'block', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
 export type Action = (typeof ACTIONS)[number];
 export type KeyBinds = Record<Action, string[]>;
 
@@ -9,7 +9,8 @@ export const ACTION_LABELS: Record<Action, string> = {
   right: 'RIGHT',
   up: 'UP = JUMP / FLY / AIM',
   down: 'DOWN (2X = DROP)',
-  attack: 'PUNCH (HOLD=BLOCK/AIM)',
+  attack: 'PUNCH (HOLD=AIM)',
+  block: 'BLOCK (HOLD)',
   kick: 'KICK (HERO: ABILITY 2)',
   interact: 'PICK UP / GRAB',
   cycle: 'SWITCH WEAPON',
@@ -25,6 +26,7 @@ export const DEFAULT_KEYBOARD: KeyBinds[] = [
     up: ['KeyW'],
     down: ['KeyS'],
     attack: ['KeyF'],
+    block: ['KeyG'],
     kick: ['KeyH'],
     interact: ['KeyT'],
     cycle: ['KeyR'],
@@ -37,6 +39,7 @@ export const DEFAULT_KEYBOARD: KeyBinds[] = [
     up: ['ArrowUp'],
     down: ['ArrowDown'],
     attack: ['Numpad4', 'KeyL'],
+    block: ['Numpad5', 'KeyK'],
     kick: ['Numpad6', 'KeyJ'],
     interact: ['Numpad8', 'KeyO'],
     cycle: ['Numpad7', 'KeyI'],
@@ -51,15 +54,25 @@ function clone(b: KeyBinds): KeyBinds {
   return out;
 }
 
-export const keyboardBinds: KeyBinds[] = (() => {
-  const stored = load<KeyBinds[] | null>('keybinds', null);
+export const keyboardBinds: KeyBinds[] = loadKeyBinds(load<KeyBinds[] | null>('keybinds', null));
+
+/**
+ * Saved bindings over the defaults. An action the save does not know yet (BLOCK, added after D82) gets its default
+ * keys, minus any key the save already gives to something else (the player rebinds it in CONTROLS then).
+ */
+export function loadKeyBinds(stored: Partial<KeyBinds>[] | null): KeyBinds[] {
   if (!stored || stored.length !== DEFAULT_KEYBOARD.length) return DEFAULT_KEYBOARD.map(clone);
+  const used = new Set<string>();
+  for (const b of stored) for (const a of ACTIONS) if (Array.isArray(b[a])) for (const c of b[a]!) used.add(c);
   return stored.map((b, i) => {
     const d = clone(DEFAULT_KEYBOARD[i]);
-    for (const a of ACTIONS) if (Array.isArray(b[a])) d[a] = b[a];
+    for (const a of ACTIONS) {
+      if (Array.isArray(b[a])) d[a] = b[a]!;
+      else d[a] = d[a].filter((c) => !used.has(c));
+    }
     return d;
   });
-})();
+}
 
 export interface BindConflict {
   code: string;

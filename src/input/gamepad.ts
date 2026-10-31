@@ -7,13 +7,15 @@ import { load, save } from '../game/storage';
 import type { Controller } from './controllers';
 import { inputDevice } from './devices';
 
-export const PAD_ACTIONS = ['jump', 'attack', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
+export const PAD_ACTIONS = ['jump', 'attack', 'block', 'kick', 'interact', 'cycle', 'gadget', 'ability'] as const;
 export type PadAction = (typeof PAD_ACTIONS)[number];
 export type PadBinds = Record<PadAction, number[]>;
 
+/** RT guards (shoulder / trigger = guard, as in most fighting and platform brawlers); it was a second PUNCH before. */
 export const DEFAULT_PAD: PadBinds = {
   jump: [0],
-  attack: [2, 7],
+  attack: [2],
+  block: [7],
   kick: [1],
   interact: [3],
   cycle: [5],
@@ -33,15 +35,29 @@ function clonePad(b: PadBinds): PadBinds {
 }
 
 /** Per-pad-slot button bindings (pad slot = order the pads were connected in). */
-export const padBinds: PadBinds[] = (() => {
-  const stored = load<PadBinds[] | null>('padbinds', null);
+export const padBinds: PadBinds[] = loadPadBinds(load<Partial<PadBinds>[] | null>('padbinds', null));
+
+/**
+ * Saved pad bindings over the defaults. A save from before BLOCK had RT as a second PUNCH (attack [X, RT]): that
+ * RT moves to BLOCK. Otherwise a missing action gets its default buttons minus any the save uses elsewhere.
+ */
+export function loadPadBinds(stored: (Partial<PadBinds> | null | undefined)[] | null): PadBinds[] {
   return Array.from({ length: MAX_PADS }, (_, i) => {
     const d = clonePad(DEFAULT_PAD);
     const s = stored?.[i];
-    if (s) for (const a of PAD_ACTIONS) if (Array.isArray(s[a])) d[a] = s[a];
+    if (!s) return d;
+    const old = s.block === undefined && Array.isArray(s.attack) && s.attack.length === 2 && s.attack[0] === 2 && s.attack[1] === 7;
+    const used = new Set<number>();
+    for (const a of PAD_ACTIONS) if (Array.isArray(s[a])) for (const b of s[a]!) used.add(b);
+    if (old) used.delete(7);
+    for (const a of PAD_ACTIONS) {
+      if (Array.isArray(s[a])) d[a] = s[a]!;
+      else d[a] = d[a].filter((b) => !used.has(b));
+    }
+    if (old) d.attack = [2];
     return d;
   });
-})();
+}
 
 export function savePadBinds(): void {
   save('padbinds', padBinds);
@@ -140,7 +156,7 @@ export class GamepadController implements Controller {
     const p = this.pad();
     o.moveX = 0;
     o.moveY = 0;
-    o.jump = o.attack = o.kick = o.interact = o.cycle = o.gadget = o.ability = false;
+    o.jump = o.attack = o.block = o.kick = o.interact = o.cycle = o.gadget = o.ability = false;
     if (!p) return o; // unplugged: fighter stands still until it's back
     const ax = p.axes[0] ?? 0;
     const ay = p.axes[1] ?? 0;

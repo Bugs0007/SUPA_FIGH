@@ -94,7 +94,7 @@ describe('server: rooms and lobby', () => {
     const rude = new TestClient(hub, 'd');
     rude.sendRaw(JSON.stringify({ t: 'start' }));
     expect(rude.last('err')?.code).toBe('noRoom');
-    expect(PROTOCOL_VERSION).toBe(1);
+    expect(PROTOCOL_VERSION).toBe(2); // (2: the BLOCK button bit in the controls)
   });
 
   it('a device that drops from the lobby keeps its place for a while, is left out of the match, then is forgotten', () => {

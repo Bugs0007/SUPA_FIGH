@@ -320,16 +320,14 @@ export interface Fighter extends Body {
   cloneCount: number;
   /** wall walking (Naruto): side (-1/1) of the wall being walked on while state === 'wallwalk' */
   wallDir: number;
-  /** blocking (hold PUNCH, BLOCK in constants.ts): guard meter 0..BLOCK.max, seconds until it regenerates */
+  /** blocking (hold BLOCK, BLOCK in constants.ts): guard meter 0..BLOCK.max, seconds until it regenerates */
   guard: number;
   guardWait: number;
   /** seconds the guard is still held up by a blocked hit (blockstun: it cannot be dropped) */
   blockStun: number;
   /** seconds left of the perfect-block (parry) window */
   parryT: number;
-  /** seconds PUNCH has been held this press (-1 = this press can never raise the guard: gun, prop, grab...) */
-  guardHold: number;
-  /** this press already raised the guard once (one parry window per press) */
+  /** this press of BLOCK already raised the guard once (one parry window per press) */
   guardUsed: boolean;
   prev: Intent;
 }
@@ -489,7 +487,6 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     guardWait: 0,
     blockStun: 0,
     parryT: 0,
-    guardHold: 0,
     guardUsed: false,
     prev: emptyIntent(),
   };
@@ -639,7 +636,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   if (f.ledgeCooldown > 0) f.ledgeCooldown -= dt;
   if (f.wallLock > 0) f.wallLock -= dt;
   if (f.sprintCooldown > 0) f.sprintCooldown -= dt;
-  updateGuard(f, inp, e, dt);
+  updateGuard(f, inp, dt);
   f.wallSlide = 0;
   updateSprint(w, f, inp, e, dt);
   doubleTapDrop(w, f, inp, e);
@@ -668,8 +665,8 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       e.attackP = e.interactP = e.kickP = false;
     }
   }
-  // holding PUNCH (fists / melee weapon) raises the guard as soon as the fighter can act
-  if (f.state !== 'block' && inp.attack && f.guardHold + 1e-6 >= BLOCK.hold && readyToGuard(f)) enterBlock(w, f);
+  // holding BLOCK raises the guard as soon as the fighter can act (any weapon in hand)
+  if (f.state !== 'block' && inp.block && readyToGuard(f)) enterBlock(w, f);
 
   switch (f.state) {
     case 'normal':
@@ -1645,16 +1642,10 @@ function startKick(w: World, f: Fighter): void {
   w.emit({ t: 'kick', f: f.id, air: f.airKick });
 }
 
-// ------------------------------------------------------------------ blocking (hold PUNCH, BLOCK in constants.ts)
+// ------------------------------------------------------------------ blocking (hold BLOCK, BLOCK in constants.ts)
 
-/** Can the active weapon guard? Fists and melee weapons; with a gun / throwable / medkit, holding attack aims or uses it. */
-function guardWeapon(f: Fighter): boolean {
-  const d = activeWeapon(f);
-  return !d.gun && !d.throw && !d.gadget && !d.powerup;
-}
-
-/** Per tick: guard meter regeneration, blockstun / parry timers, and how long PUNCH has been held this press. */
-function updateGuard(f: Fighter, inp: Intent, e: Edges, dt: number): void {
+/** Per tick: guard meter regeneration, blockstun / parry timers, and the end of a BLOCK press. */
+function updateGuard(f: Fighter, inp: Intent, dt: number): void {
   if (f.state !== 'block') {
     f.blockStun = 0;
     f.parryT = 0;
@@ -1664,22 +1655,17 @@ function updateGuard(f: Fighter, inp: Intent, e: Edges, dt: number): void {
   }
   if (f.guardWait > 0) f.guardWait -= dt;
   else if (f.guard < BLOCK.max) f.guard = Math.min(BLOCK.max, f.guard + BLOCK.regen * dt);
-  if (!inp.attack) {
-    f.guardHold = 0;
-    f.guardUsed = false;
-  } else if (e.attackP) {
-    // a press that throws a prop / a grabbed enemy, or starts aiming, never turns into a guard
-    const s = f.state;
-    f.guardHold = guardWeapon(f) && f.carry < 0 && s !== 'grabbing' && s !== 'grabbed' && s !== 'aim' ? 0 : -1;
-  } else if (f.guardHold >= 0) {
-    f.guardHold = guardWeapon(f) && f.carry < 0 ? f.guardHold + dt : -1;
-  }
+  if (!inp.block) f.guardUsed = false;
 }
 
-/** Free to raise the guard: standing / crouching / airborne, or in a swing's windup (cancelled) or recovery. */
+/**
+ * Free to raise the guard: standing / crouching / airborne, aiming (not while cooking a grenade), or in a swing's
+ * windup (cancelled) or recovery. Never while carrying something, and never for a shadow clone (they cannot guard).
+ */
 function readyToGuard(f: Fighter): boolean {
-  if (f.carry >= 0 || !guardWeapon(f)) return false;
+  if (f.carry >= 0 || f.master >= 0) return false;
   if (f.state === 'normal' || f.state === 'crouch') return true;
+  if (f.state === 'aim') return f.cook < 0;
   if (f.state === 'melee') {
     const m = meleeStats(f);
     const hit = m.combo[Math.min(f.combo, m.combo.length - 1)];
@@ -1690,6 +1676,13 @@ function readyToGuard(f: Fighter): boolean {
 }
 
 function enterBlock(w: World, f: Fighter): void {
+  if (f.state === 'aim') {
+    // the aim is dropped (nothing is fired or thrown): the weapon is lowered behind the guard
+    f.aimHeld = false;
+    f.aimEndTime = w.time;
+    f.pendingShot = 0;
+    f.crouchAim = false;
+  }
   if (f.flying) {
     f.flying = false;
     f.flyHold = false;
@@ -1715,14 +1708,15 @@ function leaveBlock(w: World, f: Fighter): void {
 
 /**
  * Guarding: no walking (left / right only turn around), Down crouches behind the guard, gravity still applies.
- * Letting go of PUNCH drops it at once (unless held in blockstun); jump, kick and interact act as from 'normal'
- * (heroes' ability / ability 2 / super come through heroButtons + canAct).
+ * Letting go of BLOCK drops it at once (unless held in blockstun); PUNCH does nothing meanwhile; jump, kick and
+ * interact act as from 'normal' (heroes' ability / ability 2 / super come through heroButtons + canAct).
  */
 function stBlock(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
   const stunned = f.blockStun > 0;
-  if (!stunned && (!inp.attack || f.carry >= 0 || !guardWeapon(f))) {
+  if (!stunned && (!inp.block || f.carry >= 0 || f.master >= 0)) {
+    // let go: this tick is already a normal one (a punch pressed as BLOCK is released comes out at once)
     leaveBlock(w, f);
-    integrate(w, f, dt);
+    stNormal(w, f, inp, e, dt);
     return;
   }
   if (!stunned) {

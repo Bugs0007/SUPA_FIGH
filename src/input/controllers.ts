@@ -39,6 +39,7 @@ export class KeyboardController implements Controller {
     // no jump key on the keyboard: Up is the jump button (the sim derives it, D50)
     o.jump = false;
     o.attack = this.held('attack');
+    o.block = this.held('block');
     o.kick = this.held('kick');
     o.interact = this.held('interact');
     o.cycle = this.held('cycle');
@@ -64,7 +65,7 @@ export class MergedController implements Controller {
   poll(): Intent {
     const o = this.out;
     o.moveX = o.moveY = 0;
-    o.jump = o.attack = o.kick = o.interact = o.cycle = o.gadget = o.ability = false;
+    o.jump = o.attack = o.block = o.kick = o.interact = o.cycle = o.gadget = o.ability = false;
     for (const p of this.parts) {
       const i = p.poll();
       if (Math.abs(i.moveX) > Math.abs(o.moveX)) o.moveX = i.moveX;
@@ -76,6 +77,7 @@ export class MergedController implements Controller {
       o.cycle ||= i.cycle;
       o.gadget ||= i.gadget;
       o.ability ||= i.ability;
+      o.block ||= i.block;
     }
     return o;
   }

@@ -51,7 +51,8 @@ export class RoundRecording {
         (it.interact ? 8 : 0) |
         (it.cycle ? 16 : 0) |
         (it.gadget ? 32 : 0) |
-        (it.ability ? 64 : 0);
+        (it.ability ? 64 : 0) |
+        (it.block ? 128 : 0);
       this.data.push(it.moveX, it.moveY, b);
     }
     this.ticks++;
@@ -73,6 +74,7 @@ export class RoundRecording {
       o.cycle = (b & 16) !== 0;
       o.gadget = (b & 32) !== 0;
       o.ability = (b & 64) !== 0;
+      o.block = (b & 128) !== 0;
     }
     return this.data[base];
   }

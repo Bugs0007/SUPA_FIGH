@@ -71,12 +71,11 @@ export const THROW_SPEED_Y = -170;
 export const FALL_DAMAGE_SPEED = 470; // vy above this on landing hurts (thrown bodies)
 
 /**
- * Blocking: hold PUNCH (fists / melee weapon) to raise a guard. Frontal blockable hits deal chip damage, push
- * back a little and drain the guard meter instead of stunning; an empty meter is a guard break.
+ * Blocking: hold the BLOCK button (its own button, any weapon in hand) to raise a guard at once. Frontal blockable
+ * hits deal chip damage, push back a little and drain the guard meter instead of stunning; an empty meter is a
+ * guard break. Shadow clones never guard.
  */
 export const BLOCK = {
-  /** seconds PUNCH must be held before the guard comes up (a tap still punches) */
-  hold: 0.15,
   /** px of tolerance for "from the front" (attacker / hit point slightly behind the centre still counts) */
   frontTol: 2,
   /** chip damage fraction: ordinary hits / hero abilities, supers and explosions */

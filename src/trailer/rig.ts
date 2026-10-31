@@ -114,7 +114,7 @@ export class TrailerRig {
       if (!inp || !f) continue;
       if (p.idle) {
         inp.moveX = inp.moveY = 0;
-        inp.jump = inp.attack = inp.kick = inp.interact = inp.ability = inp.cycle = inp.gadget = false;
+        inp.jump = inp.attack = inp.kick = inp.interact = inp.ability = inp.cycle = inp.gadget = inp.block = false;
       }
       if (p.face !== undefined) {
         const e = w.fighters[p.face];

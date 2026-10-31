@@ -347,7 +347,7 @@ function orbPower(f: Fighter): OrbPower {
  * `f`'s orb lands on `o`: blasted along the dash direction with a little lift (a downward strike on a grounded
  * victim pops them up instead of driving them into the floor); Chidori's shock spreads. True if it connected.
  */
-function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, x: number, y: number, burst = true): boolean {
+function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, x: number, y: number): boolean {
   const lift = d.knockY * (p.dir.y < 0 ? 1 + p.dir.y : 1);
   let kbY = p.dir.y * d.knockX + lift;
   if (o.grounded) kbY = Math.min(kbY, d.knockY);
@@ -365,7 +365,7 @@ function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, 
     y,
   });
   if (connected) {
-    if (burst) w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x, y });
+    w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x, y });
     if (d.spread && !hitWasBlocked()) chidoriShock(w, f, o, d, p); // (a guard stops the shock too)
   }
   return connected;
@@ -373,8 +373,8 @@ function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, 
 
 /**
  * Two orbs meeting (Rasengan vs Chidori, or either against itself) settle in one place once every fighter has
- * moved this tick, so the outcome never depends on fighter order: both dashes end and BOTH fighters take the
- * other's full hit (each from its owner's numbers, read before either lands).
+ * moved this tick, so the outcome never depends on fighter order: both dashes end and both fighters get the SAME
+ * clash hit (clashHit), from both owners' numbers read before either lands.
  */
 export function resolveOrbClashes(w: World): void {
   const fs = w.fighters;
@@ -399,16 +399,81 @@ export function resolveOrbClashes(w: World): void {
         f.vy = 0;
       }
       w.emit({ t: 'clash', a: a.id, b: b.id, x, y });
-      orbStrike(w, a, b, da, pa, x, y, false);
-      orbStrike(w, b, a, db, pb, x, y, false);
+      const hit = clashHit(da, pa, db, pb);
+      clashStrike(w, a, b, hit, x, y);
+      clashStrike(w, b, a, hit, x, y);
       break; // a's move is over
     }
   }
 }
 
-/** How many fighters Chidori's shock reaches, and how far from the victim, at a form level. */
+/** One clash's outcome, the same for both fighters. */
+interface ClashHit {
+  damage: number;
+  /** knockback away from the other fighter, and the lift (negative = up) */
+  knock: number;
+  lift: number;
+  stun: number;
+  knockdown: boolean;
+}
+
+/**
+ * The shared outcome of two orbs meeting (D81, made symmetric): both take the average of the two orbs' damage (each
+ * scaled by its owner's form), both are blown apart by the stronger orb's knockback (its knockX / knockY after its
+ * owner's form multiplier, the stronger = the larger hypot), and both get the longer stun with the same rule as a
+ * hit (a stun of a second or more holds them dazed in place, a shorter one is a knockdown). Order-independent.
+ */
+function clashHit(da: DashStats, pa: OrbPower, db: DashStats, pb: OrbPower): ClashHit {
+  const ka = Math.hypot(da.knockX, da.knockY) * pa.m.knock;
+  const kb = Math.hypot(db.knockX, db.knockY) * pb.m.knock;
+  const [d, p] = ka >= kb ? [da, pa] : [db, pb];
+  const stun = Math.max(da.stun, db.stun);
+  return {
+    damage: (da.damage * pa.m.dmg + db.damage * pb.m.dmg) / 2,
+    knock: d.knockX * p.m.knock,
+    lift: d.knockY * p.m.knock,
+    stun,
+    knockdown: stun < 1,
+  };
+}
+
+/**
+ * `o` (the other fighter) clashed with `f`: `f` is blown away from `o` along the line between their body centres
+ * (a grounded fighter is popped up rather than driven into the floor), credited to `o`. No Chidori shock: a clash is
+ * not a hit.
+ */
+function clashStrike(w: World, f: Fighter, o: Fighter, c: ClashHit, x: number, y: number): void {
+  let dx = f.x - o.x;
+  let dy = f.y - f.h / 2 - (o.y - o.h / 2);
+  const len = Math.hypot(dx, dy);
+  if (len < 1e-6) {
+    // on top of each other: straight back from where f was dashing
+    const d = dashDir(f);
+    dx = -d.x;
+    dy = -d.y;
+  } else {
+    dx /= len;
+    dy /= len;
+  }
+  let kbY = dy * c.knock + c.lift;
+  if (f.grounded) kbY = Math.min(kbY, c.lift);
+  applyHit(w, f, {
+    damage: c.damage,
+    kbX: dx * c.knock,
+    kbY,
+    attacker: o.id,
+    weapon: baseWeaponId(baseAbility(o)!),
+    kind: 'melee',
+    stun: c.stun,
+    knockdown: c.knockdown,
+    x,
+    y,
+  });
+}
+
+/** How many fighters Chidori's shock reaches (at most `maxCount`), and how far from the victim, at a form level. */
 export function chidoriReach(d: NonNullable<NonNullable<BaseAbility['dash']>['spread']>, level: number): { count: number; radius: number } {
-  return { count: d.count + d.countPerLevel * level, radius: d.radius + d.radiusPerLevel * level };
+  return { count: Math.min(d.maxCount, d.count + d.countPerLevel * level), radius: d.radius + d.radiusPerLevel * level };
 }
 
 /** The shock arcs from the stunned victim to the nearest enemies around them: they take part of the hit and the same stun. */

@@ -8,7 +8,7 @@ export interface Intent {
   /** -1 (up) .. 1 (down). Also sweeps the aim angle while attack is held. */
   moveY: number;
   jump: boolean;
-  /** hold = aim (guns) / swing (melee) */
+  /** tap = punch / swing (melee); hold = aim (guns, throwables) */
   attack: boolean;
   kick: boolean;
   /** pick up / swap weapon, grab enemy, pick up prop */
@@ -17,12 +17,14 @@ export interface Intent {
   cycle: boolean;
   /** use the gadget slot directly (medkit) without switching to it */
   gadget: boolean;
-  /** hero ability (reserved for M9 hero powers; does nothing yet) */
+  /** hero ability 1 (the kick button is ability 2, both together the super) */
   ability: boolean;
+  /** hold = guard (BLOCK in constants.ts); the first moments of a press are a perfect block */
+  block: boolean;
 }
 
 export function emptyIntent(): Intent {
-  return { moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false };
+  return { moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false, block: false };
 }
 
 export function copyIntent(dst: Intent, src: Intent): Intent {
@@ -35,10 +37,11 @@ export function copyIntent(dst: Intent, src: Intent): Intent {
   dst.cycle = src.cycle;
   dst.gadget = src.gadget;
   dst.ability = src.ability;
+  dst.block = src.block;
   return dst;
 }
 
-/** Compact encoding (for replays/netcode): 7 button bits + two 4-bit quantized axes. */
+/** Compact encoding (for replays/netcode): 8 button bits + two 4-bit quantized axes (16 bits). */
 export function packIntent(i: Intent): number {
   const ax = Math.round((i.moveX + 1) * 7) & 15;
   const ay = Math.round((i.moveY + 1) * 7) & 15;
@@ -49,7 +52,8 @@ export function packIntent(i: Intent): number {
     (i.interact ? 8 : 0) |
     (i.cycle ? 16 : 0) |
     (i.gadget ? 32 : 0) |
-    (i.ability ? 64 : 0);
+    (i.ability ? 64 : 0) |
+    (i.block ? 128 : 0);
   return (b << 8) | (ay << 4) | ax;
 }
 
@@ -64,5 +68,6 @@ export function unpackIntent(v: number, out: Intent = emptyIntent()): Intent {
   out.cycle = (b & 16) !== 0;
   out.gadget = (b & 32) !== 0;
   out.ability = (b & 64) !== 0;
+  out.block = (b & 128) !== 0;
   return out;
 }

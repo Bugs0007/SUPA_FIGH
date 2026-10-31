@@ -49,7 +49,7 @@ describe('snapshot / restore (D70)', () => {
     const s = m.snapshot();
     const json = JSON.stringify(s);
     expect(JSON.stringify(JSON.parse(json))).toBe(json);
-    m.step(m.world.fighters.map(() => ({ moveX: 1, moveY: 0, jump: true, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false })));
+    m.step(m.world.fighters.map(() => ({ moveX: 1, moveY: 0, jump: true, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false, block: false })));
     expect(JSON.stringify(s)).toBe(json); // stepping the original did not touch the snapshot
     expect(clonePlain(s)).toEqual(s);
   });
@@ -114,7 +114,7 @@ describe('snapshot / restore (D70)', () => {
 
   it('keeps simulation time (DT) consistent after restore', () => {
     const m = new Match(config('test', 'brawl'));
-    for (let i = 0; i < 90; i++) m.step(m.world.fighters.map(() => ({ moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false })));
+    for (let i = 0; i < 90; i++) m.step(m.world.fighters.map(() => ({ moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false, block: false })));
     const r = new Match(config('test', 'brawl'));
     r.restore(m.snapshot());
     expect(r.world.tick).toBe(90);

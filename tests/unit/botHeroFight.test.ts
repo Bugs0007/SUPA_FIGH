@@ -146,7 +146,7 @@ describe('bots beat a guard instead of punching into it', () => {
   function vsGuard(bot: FighterSpawn, seed: number): { punches: number; grabbed: boolean; ability: boolean } {
     const w = duel(bot, spec('blocker'), 100, 118);
     const [f, b] = w.fighters;
-    for (let t = 0; t < 20; t++) w.step([intent(), intent({ attack: true })]);
+    for (let t = 0; t < 20; t++) w.step([intent(), intent({ block: true })]);
     expect(b.state).toBe('block');
     w.events.length = 0;
     const ctl = new BotController(() => w, 0, { difficulty: 'hard', seed });
@@ -154,7 +154,7 @@ describe('bots beat a guard instead of punching into it', () => {
     let grabbed = false;
     let ability = false;
     // (the blocker turns to keep facing the bot: its guard is always in the way)
-    play(w, ctl, 60 * 3, () => ({ attack: true, moveX: Math.sign(f.x - b.x) }), (ev) => {
+    play(w, ctl, 60 * 3, () => ({ block: true, moveX: Math.sign(f.x - b.x) }), (ev) => {
       for (const e of ev) {
         const front = Math.sign(f.x - b.x) === b.facing;
         if (e.t === 'swing' && e.f === 0 && b.state === 'block' && front && Math.abs(b.x - f.x) < 30) punches++;

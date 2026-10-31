@@ -196,7 +196,7 @@ describe('Rasengan / Chidori clash', () => {
     return { w, ev, clashes: ev.filter((e) => e.t === 'clash') };
   }
 
-  it('Naruto vs Sasuke: both take the other full hit, in either fighter order', () => {
+  it('Naruto vs Sasuke: the same outcome for both, identical in either fighter order', () => {
     const results = [false, true].map((swap) => {
       const order = swap ? 'sasuke first' : 'naruto first';
       const { w, ev, clashes } = clash(['naruto', 'sasuke'], swap);
@@ -204,46 +204,77 @@ describe('Rasengan / Chidori clash', () => {
       const sasuke = w.fighters.find((f) => f.hero === 'sasuke')!;
       expect(naruto.id).toBe(swap ? 1 : 0);
       expect(clashes, order).toHaveLength(1);
-      // Naruto took the Chidori (2 s stun), Sasuke the Rasengan (knockdown)
-      expect(naruto.hp, order).toBe(100 - S.damage);
-      expect(sasuke.hp, order).toBe(100 - N.damage);
+      // both take the average of the two orbs' damage
+      expect(naruto.hp, order).toBeCloseTo(100 - (N.damage + S.damage) / 2, 6);
+      expect(sasuke.hp, order).toBeCloseTo(naruto.hp, 6);
       const hits = ev.filter((e) => e.t === 'hit');
       expect(hits.filter((e) => e.t === 'hit' && e.victim === naruto.id && e.weapon === 'chidori')).toHaveLength(1);
       expect(hits.filter((e) => e.t === 'hit' && e.victim === sasuke.id && e.weapon === 'rasengan')).toHaveLength(1);
-      // the dashes are over and they were pushed apart
+      // no Chidori shock on a clash
+      expect(ev.some((e) => e.t === 'arc')).toBe(false);
+      // the dashes are over
       expect(naruto.specialKind === 'rasengan' && naruto.state === 'special' && naruto.recoverAt === 0).toBe(false);
       expect(sasuke.specialKind === 'rasengan' && sasuke.state === 'special' && sasuke.recoverAt === 0).toBe(false);
       expect(naruto.swingHit).toContain(sasuke.id);
       expect(sasuke.swingHit).toContain(naruto.id);
+      // the same state, timers and (mirrored) speed for both
+      expect(naruto.state).toBe(sasuke.state);
+      expect(naruto.flinchTime).toBe(sasuke.flinchTime);
+      expect(naruto.stateTime).toBe(sasuke.stateTime);
+      expect(naruto.vx).toBeCloseTo(-sasuke.vx, 6);
+      expect(naruto.vy).toBeCloseTo(sasuke.vy, 6);
       const c = clashes[0];
       return {
         x: c.t === 'clash' ? c.x : NaN, y: c.t === 'clash' ? c.y : NaN, nx: naruto.x, sx: sasuke.x, nvx: naruto.vx, svx: sasuke.vx,
-        nState: naruto.state, sState: sasuke.state, nStun: naruto.flinchTime,
+        nvy: naruto.vy, svy: sasuke.vy, nhp: naruto.hp, shp: sasuke.hp,
+        nState: naruto.state, sState: sasuke.state, nStun: naruto.flinchTime, sStun: sasuke.flinchTime, nT: naruto.stateTime, sT: sasuke.stateTime,
       };
     });
     expect(results[0]).toEqual(results[1]);
   });
 
-  it('Naruto vs Sasuke right after the clash: stunned vs knocked down, knocked apart', () => {
+  it('Naruto vs Sasuke right after the clash: both blown apart by the Rasengan force, both dazed for the Chidori 1 s', () => {
     const w = arena(['naruto', 'sasuke'], [[120, FLOOR, 1], [300, FLOOR, -1]]);
     const [n, s] = w.fighters;
     steps(w, 50, [{ ability: true }, { ability: true }], () => n.hp < 100);
-    expect(n.state).toBe('flinch');
-    expect(n.flinchTime).toBe(S.stun);
+    for (const f of [n, s]) {
+      expect(f.state).toBe('flinch');
+      expect(f.flinchTime).toBe(S.stun);
+      // the stronger knockback (Rasengan's) and its lift, for both
+      expect(Math.abs(f.vx)).toBeCloseTo(N.knockX, 6);
+      expect(f.vy).toBeCloseTo(N.knockY, 6);
+    }
     expect(n.vx).toBeLessThan(0);
-    expect(s.state).toBe('knockdown');
     expect(s.vx).toBeGreaterThan(0);
+    // they actually fly apart (the daze does not cancel the flight), then stand there dazed until the stun is over
+    const gap0 = s.x - n.x;
+    steps(w, 20, []);
+    expect(s.x - n.x).toBeGreaterThan(gap0 + 40);
+    expect(n.state).toBe('flinch');
+    expect(s.state).toBe('flinch');
+    steps(w, Math.round(S.stun * 60) - 18, []);
+    expect(n.state).not.toBe('flinch');
+    expect(s.state).not.toBe('flinch');
   });
 
-  it('equal fighters take equal damage (Naruto vs Naruto, Sasuke vs Sasuke)', () => {
+  it('equal fighters get the same outcome (Naruto vs Naruto: both knocked down; Sasuke vs Sasuke: both dazed)', () => {
     for (const hero of ['naruto', 'sasuke']) {
-      const { w, clashes } = clash([hero, hero]);
-      const d = HEROES[hero].base.dash!;
-      expect(clashes, hero).toHaveLength(1);
-      expect(w.fighters[0].hp, hero).toBe(100 - d.damage);
-      expect(w.fighters[1].hp, hero).toBe(100 - d.damage);
-      expect(w.fighters[0].state).toBe(w.fighters[1].state);
-      expect(w.fighters[0].vx).toBeCloseTo(-w.fighters[1].vx, 6);
+      const results = [false, true].map((swap) => {
+        const { w, clashes } = clash([hero, hero], swap);
+        const d = HEROES[hero].base.dash!;
+        // (left fighter first: `swap` puts it in the second slot)
+        const [a, b] = w.fighters.slice(0, 2).sort((p, q) => p.x - q.x);
+        expect(clashes, hero).toHaveLength(1);
+        expect(a.hp, hero).toBeCloseTo(100 - d.damage, 6);
+        expect(b.hp, hero).toBeCloseTo(100 - d.damage, 6);
+        expect(a.state).toBe(hero === 'naruto' ? 'knockdown' : 'flinch');
+        expect(b.state).toBe(a.state);
+        expect(a.flinchTime).toBe(b.flinchTime);
+        expect(a.vx).toBeCloseTo(-b.vx, 6);
+        expect(a.vy).toBeCloseTo(b.vy, 6);
+        return { hp: [a.hp, b.hp], vx: [a.vx, b.vx], vy: [a.vy, b.vy], st: [a.state, b.state], x: [a.x, b.x] };
+      });
+      expect(results[0], hero).toEqual(results[1]);
     }
   });
 
@@ -254,8 +285,8 @@ describe('Rasengan / Chidori clash', () => {
     const ev = steps(w, 40, [{ ability: true }, { ability: true }]);
     const c = ev.find((e) => e.t === 'clash');
     expect(c).toBeDefined();
-    expect(n.hp).toBe(100 - S.damage);
-    expect(s.hp).toBe(100 - N.damage);
+    expect(n.hp).toBeCloseTo(100 - (N.damage + S.damage) / 2, 6);
+    expect(s.hp).toBeCloseTo(n.hp, 6);
   });
 
   it('an orb from behind is a plain hit, not a clash', () => {

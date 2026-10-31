@@ -4,7 +4,7 @@
 // keyboard player would, through Keyboard.press/release. Nothing downstream knows about touch: the match reads
 // Player 1's key bindings (rebinding still works), menus read arrows / Enter / Escape.
 //
-//   'game'  fixed 8-way arrow pad bottom-left (up = jump, hold + attack = aim), action buttons on the right
+//   'game'  fixed 8-way arrow pad bottom-left (up = jump, hold + attack = aim), action buttons on the right (BLOCK: hold)
 //   'menu'  D-pad + OK + BACK (auto-repeat on the arrows)
 //   'skip'  one big button (instant replays: tap to skip)
 //   'off'   nothing (boot, trailer)
@@ -36,7 +36,8 @@ const GAME_BUTTONS: ButtonDef[] = [
   // the far right column: the same keys as the arrow pad's up / down, for a thumb that stays on the right
   { id: 'jump', label: 'JUMP', actions: ['up'], cls: 'b-jump' },
   { id: 'crouch', label: 'CROUCH', actions: ['down'], cls: 'b-crouch' },
-  { id: 'attack', label: 'ATK', sub: 'HOLD=BLOCK', actions: ['attack'], cls: 'b-attack' },
+  { id: 'attack', label: 'ATK', actions: ['attack'], cls: 'b-attack' },
+  { id: 'block', label: 'BLOCK', actions: ['block'], cls: 'b-block' },
   { id: 'kick', label: 'KICK', actions: ['kick'], cls: 'b-kick' },
   { id: 'ability', label: 'ABIL', actions: ['ability'], cls: 'b-ability', hero: true },
   { id: 'super', label: 'SUPER', actions: ['ability', 'kick'], cls: 'b-super', hero: true },
@@ -75,6 +76,8 @@ html.touch,html.touch *,#touch,#touch *{-webkit-user-select:none;user-select:non
 .b-crouch{right:calc(var(--u)*2 + var(--sr,0px));bottom:calc(var(--u)*3 + var(--sb,0px));width:calc(var(--u)*12);height:calc(var(--u)*12);background:rgba(150,110,220,.5)!important;font-size:calc(var(--u)*1.6)!important}
 .b-attack{right:calc(var(--u)*15 + var(--sr,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*14);height:calc(var(--u)*14);background:rgba(234,74,74,.5)!important;font-size:calc(var(--u)*2.6)!important}
 .b-kick{right:calc(var(--u)*30 + var(--sr,0px));bottom:calc(var(--u)*3 + var(--sb,0px));width:calc(var(--u)*11);height:calc(var(--u)*11)}
+/* BLOCK: above KICK / SUPER, clear of ABIL and MED (x 30..40.5, y 28..38.5 in --u from the bottom-right corner) */
+.b-block{right:calc(var(--u)*30 + var(--sr,0px));bottom:calc(var(--u)*28 + var(--sb,0px));width:calc(var(--u)*10.5);height:calc(var(--u)*10.5);background:rgba(120,170,230,.45)!important;font-size:calc(var(--u)*1.8)!important}
 .b-ability{right:calc(var(--u)*17 + var(--sr,0px));bottom:calc(var(--u)*20 + var(--sb,0px));width:calc(var(--u)*11);height:calc(var(--u)*11);background:rgba(74,138,240,.5)!important}
 .b-super{right:calc(var(--u)*30 + var(--sr,0px));bottom:calc(var(--u)*17 + var(--sb,0px));width:calc(var(--u)*9);height:calc(var(--u)*9);background:rgba(248,200,64,.45)!important;font-size:calc(var(--u)*1.6)!important}
 .b-grab{right:calc(var(--u)*43 + var(--sr,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*9);height:calc(var(--u)*9);font-size:calc(var(--u)*1.7)!important}

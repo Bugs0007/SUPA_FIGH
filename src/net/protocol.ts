@@ -11,7 +11,7 @@ import type { GameMode, MatchConfig, MatchEvent } from '../sim/match';
 import { MODIFIERS } from '../sim/data/modifiers';
 import type { MatchRender, RenderSnapshot } from './renderState';
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 /** most fighters in one match (humans + bots) */
 export const MAX_FIGHTERS = 10;
 /** local players one device may claim */
@@ -253,8 +253,8 @@ export function parseClientMsg(text: string): ClientMsg | null {
     case 'in': {
       const slot = int(raw.slot, 0, 63);
       const seq = int(raw.seq, 0, 0x7fffffff);
-      const v = int(raw.v, 0, 0x7fff);
-      const e = int(raw.e, 0, 0x7fff);
+      const v = int(raw.v, 0, 0xffff);
+      const e = int(raw.e, 0, 0xffff);
       if (slot === null || seq === null || v === null || e === null) return null;
       const msg: ClientMsg = { t: 'in', slot, seq, v, e };
       if (raw.tick !== undefined) {
