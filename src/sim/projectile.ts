@@ -1,6 +1,7 @@
-import { applyHit, computeDamage, hitWasBlocked } from './combat';
+import { applyHit, computeDamage, hitWasBlocked, sameTeam } from './combat';
 import { DT } from './constants';
 import type { ExplosionStats, ProjectileKind } from './data/weapons';
+import type { Fighter } from './fighter';
 import { explode } from './explosion';
 import { ignite, igniteTile, isFlammableTile, spawnFire } from './fire';
 import { segmentAabb } from './physics';
@@ -36,6 +37,12 @@ export interface Bullet {
   ignite: number;
   /** hit radius around fighters/props (energy orbs); 0 = a point */
   size: number;
+  /**
+   * Caliber of a hero's ranged attack (sim/clash.ts): tier 2 = super, 1 = ability, 0 = an ordinary weapon (never
+   * clashes); `form` = the caster's form level when it was cast.
+   */
+  tier: number;
+  form: number;
 }
 
 export interface BulletSpawn {
@@ -58,6 +65,8 @@ export interface BulletSpawn {
   explosion?: ExplosionStats | null;
   ignite?: number;
   size?: number;
+  tier?: number;
+  form?: number;
 }
 
 export function newBullet(): Bullet {
@@ -88,6 +97,8 @@ export function newBullet(): Bullet {
     explosion: null,
     ignite: 0,
     size: 0,
+    tier: 0,
+    form: 0,
   };
 }
 
@@ -116,6 +127,8 @@ export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
   b.explosion = s.explosion ?? null;
   b.ignite = s.ignite ?? 0;
   b.size = s.size ?? 0;
+  b.tier = s.tier ?? 0;
+  b.form = s.form ?? 0;
   return b;
 }
 
@@ -124,6 +137,13 @@ const SOLID_HITTERS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>(['fla
 
 function burst(w: World, b: Bullet, x: number, y: number): void {
   if (b.explosion) explode(w, x - Math.sign(b.vx) * 2, y - Math.sign(b.vy) * 2, b.explosion, b.owner, b.weapon);
+}
+
+/** Blast-only projectiles (supers) fly through friends, the owner's clones and corpses: only a live enemy sets them off. */
+function blastTarget(w: World, b: Bullet, f: Fighter): boolean {
+  if (!f.alive || (b.owner >= 0 && f.master === b.owner)) return false;
+  const owner = b.owner >= 0 ? w.fighters[b.owner] : undefined;
+  return !owner || w.settings.friendlyFire || !sameTeam(owner, f);
 }
 
 /** Flames and flares light up what they land on. */
@@ -172,6 +192,7 @@ export function updateBullets(w: World): void {
         if (f.id === b.owner && !b.canHitOwner) continue;
         if (b.hitIds.includes(f.id)) continue;
         if (f.alive && f.invuln > 0) continue;
+        if (b.explosion?.blastOnly && !blastTarget(w, b, f)) continue;
         const r = b.size;
         const t = segmentAabb(b.x, b.y, nx, ny, f.x - f.w / 2 - r, f.y - f.h - r, f.x + f.w / 2 + r, f.y + r);
         if (t >= 0 && t < bestT) {
@@ -275,6 +296,14 @@ export function updateBullets(w: World): void {
         const f = w.fighters[bestF];
         const hx = b.x + (nx - b.x) * bestT;
         const hy = b.y + (ny - b.y) * bestT;
+        if (b.explosion?.blastOnly) {
+          // a super: no separate contact damage, it goes off on the body it touched (the blast is the whole hit)
+          b.x = hx;
+          b.y = hy;
+          b.active = false;
+          explode(w, Math.max(f.x - f.w / 2, Math.min(f.x + f.w / 2, hx)), Math.max(f.y - f.h, Math.min(f.y, hy)), b.explosion, b.owner, b.weapon);
+          break;
+        }
         const speed = Math.hypot(b.vx, b.vy) || 1;
         const dist = b.traveled + segLen * bestT;
         const dmg = computeDamage({ base: b.damage, falloff: b.falloff, distFrac: dist / b.range });

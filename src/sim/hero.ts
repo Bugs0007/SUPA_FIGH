@@ -14,14 +14,17 @@ import {
   GENERIC_DURATION,
   heroDef,
   maxLevel,
+  SUPER_AREA,
   type AbilityDefinition,
   type BaseAbility,
   type BeamStats,
   type BlinkStats,
   type SecondAbility,
   type StretchStats,
+  type SuperAbility,
 } from './data/heroes';
-import { weaponDef } from './data/weapons';
+import { weaponDef, type ExplosionStats } from './data/weapons';
+import { areaFrac, COVER, explode, lineBlocked } from './explosion';
 import type { Fighter } from './fighter';
 import { segmentAabb } from './physics';
 import { damageProp, pushProp } from './prop';
@@ -529,6 +532,44 @@ export function pistolHits(
   return { len, wall };
 }
 
+/**
+ * Luffy's giant fist lands (full reach, or the wall that stopped it) at (x, y): a shockwave of `radius` px hits every
+ * enemy around it that the arm itself has not hit yet, with the super area falloff (SUPER_AREA) and wall cover.
+ */
+export function fistShock(w: World, f: Fighter, s: StretchStats, x: number, y: number, radius: number, weapon: string): void {
+  const m = meleeMuls(f);
+  w.emit({ t: 'shockwave', f: f.id, x, y, radius });
+  for (const p of w.props) {
+    if (!p.active || f.swingProps.includes(p.id)) continue;
+    if (Math.hypot(p.x - x, p.y - p.h / 2 - y) - Math.max(p.w, p.h) / 2 >= radius) continue;
+    f.swingProps.push(p.id);
+    pushProp(p, Math.sign(p.x - x || f.facing) * s.knockX * 0.6 * m.knock, -100);
+    damageProp(w, p, s.damage * m.dmg * SUPER_AREA.edge, f.id);
+  }
+  for (const o of w.fighters) {
+    if (!isEnemy(w, f, o) || f.swingHit.includes(o.id)) continue;
+    const cy = o.y - o.h / 2;
+    const d = Math.max(0, Math.hypot(o.x - x, cy - y) - 6);
+    if (d >= radius) continue;
+    const share = areaFrac(d / radius, SUPER_AREA.core, SUPER_AREA.edge) * (lineBlocked(w, x, y, o.x, cy) ? COVER : 1);
+    f.swingHit.push(o.id);
+    const dir = Math.sign(o.x - x) || f.facing;
+    const connected = applyHit(w, o, {
+      damage: s.damage * m.dmg * share,
+      kbX: dir * s.knockX * m.knock * (0.35 + 0.65 * share),
+      kbY: s.knockY * m.knock,
+      attacker: f.id,
+      weapon,
+      kind: 'melee',
+      stun: 0.3,
+      knockdown: true,
+      x: o.x - dir * (o.w / 2),
+      y: cy,
+    });
+    if (connected) w.emit({ t: 'heroFx', fx: 'steam', heavy: true, x: o.x - dir * (o.w / 2), y: cy });
+  }
+}
+
 /** Reach of a stretch move (out / hold / back) at time t. */
 export function stretchAt(s: StretchStats, t: number): number {
   if (t < s.out) return s.range * (t / s.out);
@@ -583,6 +624,31 @@ export function gatlingHit(w: World, f: Fighter, g: NonNullable<SecondAbility['g
 export function beamPower(b: BeamStats, charge: number): number {
   if (b.maxCharge <= b.minCharge) return 1;
   return Math.max(0, Math.min(1, (charge - b.minCharge) / (b.maxCharge - b.minCharge)));
+}
+
+/**
+ * The beam a fighter is firing right now (Kamehameha, or a super beam): its stats, half thickness, damage (before
+ * the form multiplier), knockback and reach at this moment (grown, before walls). null = not firing a beam.
+ */
+export function beamNow(f: Fighter): { b: BeamStats; isSuper: boolean; half: number; dmg: number; knock: number; len: number; active: boolean } | null {
+  if (f.state !== 'special' || (f.specialKind !== 'beam' && f.specialKind !== 'superBeam')) return null;
+  const isSuper = f.specialKind === 'superBeam';
+  const h = heroDef(f.hero);
+  const sb = isSuper ? h?.super.beam : undefined;
+  const b = isSuper ? sb : h?.second.beam;
+  if (!b) return null;
+  const lvl = Math.max(0, f.powerLevel - 1);
+  const pw = isSuper ? 1 : beamPower(b, f.charge);
+  const t = f.stateTime;
+  return {
+    b,
+    isSuper,
+    half: sb ? sb.width[0] + sb.widthPerLevel * lvl : b.width[0] + (b.width[1] - b.width[0]) * pw,
+    dmg: sb ? sb.damage[0] + sb.damagePerLevel * lvl : b.damage[0] + (b.damage[1] - b.damage[0]) * pw,
+    knock: b.knock[0] + (b.knock[1] - b.knock[0]) * pw,
+    len: t < b.grow ? b.range * (t / b.grow) : b.range,
+    active: t < b.grow + b.hold,
+  };
 }
 
 /** Origin of a beam (between Goku's palms). */
@@ -685,7 +751,7 @@ export function fireJutsu(w: World, f: Fighter): void {
   w.spawnBullet({ x, y, ox: x, oy: y, vx: dx * s.speed, vy: dy * s.speed,
     owner: f.id, weapon: f.hero + ':second', damage, range: s.range, falloff: 1,
     knock: 150 * m.knock, ricochet: false, pierce: 0, kind: 'ki', gravity: 0, size,
-    ignite: s.ignite,
+    ignite: s.ignite, tier: 1, form: level,
     explosion: { radius: s.radius + level * s.radiusPerLevel, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18, fire: s.fire + s.firePerLevel * level, ignite: s.ignite },
   });
   w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.8 + level * 0.2 });
@@ -698,7 +764,48 @@ function scorchGround(w: World, o: Fighter, patches: number, owner: number): voi
   for (let i = 0; i < patches; i++) spawnFire(w, o.x + w.rng.range(-5, 5), o.y - 2, w.rng.range(-40, 40), w.rng.range(-90, -30), owner, true);
 }
 
-export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/heroes').SuperAbility['bomb']>, level: number): void {
+/** The area blast of a bomb super at a form level: one hit per fighter, full damage in the core (SUPER_AREA). */
+export function superBlast(f: Fighter, b: NonNullable<SuperAbility['bomb']>, level: number): ExplosionStats {
+  const l = Math.max(1, level) - 1;
+  return {
+    radius: b.radius + b.radiusPerLevel * l,
+    damage: (b.damage + b.damagePerLevel * l) * meleeMuls(f).dmg,
+    knock: 420 + 40 * l,
+    breakRadius: 12 + 4 * l,
+    shake: 0.5 + 0.1 * l,
+    core: SUPER_AREA.core,
+    edge: SUPER_AREA.edge,
+    blastOnly: true,
+    spareOwner: true,
+  };
+}
+
+/**
+ * A super leaves from well ahead of the hero (the Susanoo bow, Kurama's mouth, the orb overhead). Whoever stands in
+ * between (from the hero's body to that point, feet to launch height) or a wall there sets it off at once, so it
+ * works at point-blank: returns the nearest such contact point, null when the way is clear.
+ */
+export function launchBlock(w: World, f: Fighter, sx: number, sy: number, size: number): { x: number; y: number } | null {
+  const lo = Math.min(f.x, sx), hi = Math.max(f.x, sx);
+  const top = Math.min(sy, f.y - f.h) - size;
+  let best: { x: number; y: number } | null = null;
+  let bestD = Infinity;
+  for (const o of w.fighters) {
+    if (!isEnemy(w, f, o) || o.invuln > 0) continue;
+    if (o.x + o.w / 2 < lo || o.x - o.w / 2 > hi || o.y < top || o.y - o.h > f.y) continue;
+    const d = Math.abs(o.x - f.x);
+    if (d >= bestD) continue;
+    bestD = d;
+    best = { x: Math.max(lo, Math.min(hi, o.x - f.facing * (o.w / 2))), y: Math.max(top, o.y - o.h / 2) };
+  }
+  // a wall between the chest and the launch point
+  const cy = f.y - SHOULDER_Y_STAND - 3;
+  const wall = w.map.raycastSolid(f.x, cy, sx, sy);
+  if (wall && wall.t > 0 && Math.abs(wall.x - f.x) < bestD) best = { x: wall.x - f.facing * 2, y: wall.y };
+  return best;
+}
+
+export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb']>, level: number): void {
   const l = Math.max(1, level) - 1;
   const size = b.size + b.sizePerLevel * l;
   const spirit = b.kind === 'ki';
@@ -708,6 +815,16 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/her
   const sx = f.x + f.facing * (kurama ? 53 : archer ? 52*avatarScale : spirit ? size + 12 : 8);
   const sy = f.y - (kurama ? 27 : archer ? 26*avatarScale : SHOULDER_Y_STAND + 2);
   const m = meleeMuls(f);
+  const blast = superBlast(f, b, level);
+  const weapon = f.hero + ':super';
+  f.vx -= f.facing * 60;
+  w.emit({ t: 'special', f: f.id, power: f.hero, x: sx, y: sy, scale: 1 + l * 0.5 });
+  // enemies ganging up on the hero (inside the launch zone) take it at once
+  const close = launchBlock(w, f, sx, sy, size);
+  if (close) {
+    explode(w, close.x, close.y, blast, f.id, weapon);
+    return;
+  }
   // aimed when the move started (manual with Up / Down, else locked onto the enemy being faced); the shot leaves the
   // bow / mouth / hand, so it re-aims from there at where the locked enemy is by now
   const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
@@ -720,8 +837,9 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/her
     ox: sx,
     oy: sy,
     owner: f.id,
-    weapon: f.hero + ':super',
-    damage: (b.damage + b.damagePerLevel * l) * m.dmg,
+    weapon,
+    // (only props feel the contact damage: on a fighter the blast is the whole hit)
+    damage: blast.damage,
     range: b.range ?? 320,
     falloff: 1,
     knock: 300 * m.knock,
@@ -730,10 +848,10 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/her
     kind: b.kind ?? 'chakra',
     gravity: 0,
     size,
-    explosion: { radius: b.radius + b.radiusPerLevel * l, damage: (b.damage * 0.8 + b.damagePerLevel * l) * m.dmg, knock: 420 + 40 * l, breakRadius: 12 + 4 * l, shake: 0.5 + 0.1 * l },
+    explosion: blast,
+    tier: 2,
+    form: level,
   });
-  f.vx -= f.facing * 60;
-  w.emit({ t: 'special', f: f.id, power: f.hero, x: sx, y: sy, scale: 1 + l * 0.5 });
 }
 
 // ------------------------------------------------------------------ instant transmission (Goku)
