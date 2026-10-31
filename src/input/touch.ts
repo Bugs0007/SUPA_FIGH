@@ -28,13 +28,15 @@ interface ButtonDef {
   repeat?: boolean;
   /** tapped (down + up), not held */
   tap?: boolean;
+  /** small second line under the label */
+  sub?: string;
 }
 
 const GAME_BUTTONS: ButtonDef[] = [
   // the far right column: the same keys as the arrow pad's up / down, for a thumb that stays on the right
   { id: 'jump', label: 'JUMP', actions: ['up'], cls: 'b-jump' },
   { id: 'crouch', label: 'CROUCH', actions: ['down'], cls: 'b-crouch' },
-  { id: 'attack', label: 'ATK', actions: ['attack'], cls: 'b-attack' },
+  { id: 'attack', label: 'ATK', sub: 'HOLD=BLOCK', actions: ['attack'], cls: 'b-attack' },
   { id: 'kick', label: 'KICK', actions: ['kick'], cls: 'b-kick' },
   { id: 'ability', label: 'ABIL', actions: ['ability'], cls: 'b-ability', hero: true },
   { id: 'super', label: 'SUPER', actions: ['ability', 'kick'], cls: 'b-super', hero: true },
@@ -64,6 +66,8 @@ html.touch,html.touch *,#touch,#touch *{-webkit-user-select:none;user-select:non
   background:rgba(20,15,30,.46);border:2px solid rgba(255,255,255,.4);font-weight:bold;letter-spacing:0;font-size:calc(var(--u)*2.3);
   text-shadow:0 1px 2px #000;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 #touch .tb.on{background:rgba(248,200,64,.62);border-color:#fff}
+#touch .tb.sub{flex-direction:column;line-height:1.05}
+#touch .tb small{font-size:calc(var(--u)*1.25);opacity:.85;font-weight:bold}
 #touch[data-mode=menu] .g,#touch[data-mode=game] .m{display:none}
 #touch:not([data-hero=on]) .hero{display:none}
 /* game buttons: offsets from the bottom-right corner, in units of the screen height (--u = 1% of the short side) */
@@ -240,8 +244,13 @@ class TouchUI {
 
   private button(b: ButtonDef, group: 'g' | 'm'): HTMLDivElement {
     const el = document.createElement('div');
-    el.className = `tb ${group} ${b.cls}${b.hero ? ' hero' : ''}`;
+    el.className = `tb ${group} ${b.cls}${b.hero ? ' hero' : ''}${b.sub ? ' sub' : ''}`;
     el.textContent = b.label;
+    if (b.sub) {
+      const s = document.createElement('small');
+      s.textContent = b.sub;
+      el.appendChild(s);
+    }
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       capture(el, e.pointerId);

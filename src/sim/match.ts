@@ -384,6 +384,8 @@ export class Match {
       const e = w.events[i];
       if (e.t === 'hit' && !e.corpse && e.attacker >= 0 && e.attacker !== e.victim) {
         this.stats[e.attacker].damage += e.damage;
+      } else if (e.t === 'block' && e.attacker >= 0 && e.attacker !== e.victim) {
+        this.stats[e.attacker].damage += e.chip; // chip damage through a guard
       } else if (e.t === 'kill') {
         this.stats[e.victim].deaths++;
         if (e.killer >= 0 && e.killer !== e.victim) {

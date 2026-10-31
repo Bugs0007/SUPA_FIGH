@@ -441,6 +441,41 @@ export class Fx {
     }
   }
 
+  /** Blocked hit: a pixel shield arc in front of the blocker (dir = side the hit came from) + a few sparks. */
+  shield(x: number, y: number, dir: number, tint: number, big = false): void {
+    const s = big ? 1.5 : 1;
+    this.spawn({ frame: 'shield', x, y, life: big ? 0.16 : 0.11, s0: s, s1: s * 1.15, rot: dir < 0 ? Math.PI : 0, a0: 1, a1: 0.2, tint, add: true, depth: 63 });
+    this.sparks(x, y, dir, -0.4, big ? 6 : 3, tint, big ? 170 : 120);
+  }
+
+  /** Parry: a bright gold flash ring. */
+  flashRing(x: number, y: number, tint: number): void {
+    this.spawn({ frame: 'glow', x, y, life: 0.12, s0: 1.2, s1: 2, a0: 0.9, a1: 0, tint, add: true, depth: 64 });
+    this.spawn({ frame: 'ring', x, y, life: 0.24, s0: 0.25, s1: 1.1, a0: 1, a1: 0, tint, depth: 64 });
+  }
+
+  /** Guard break: the guard shatters into tinted pixel shards. */
+  guardShards(x: number, y: number, n: number, tint: number): void {
+    for (let i = 0; i < n; i++) {
+      this.spawn({
+        frame: i % 3 === 0 ? 'p2' : 'p1',
+        x: x + rnd(-5, 5),
+        y: y + rnd(-7, 7),
+        vx: rnd(-140, 140),
+        vy: rnd(-170, -30),
+        g: 650,
+        life: rnd(0.35, 0.7),
+        vr: rnd(-15, 15),
+        a0: 1,
+        a1: 0.3,
+        tint: i % 2 === 0 ? tint : 0xffffff,
+        collide: true,
+        bounce: 0.3,
+        depth: 62,
+      });
+    }
+  }
+
   hitStar(x: number, y: number, big: boolean): void {
     this.spawn({ frame: 'star', x, y, life: big ? 0.12 : 0.08, s0: big ? 1.6 : 1, s1: 0.4, rot: Math.random() * 3, add: true, depth: 63 });
   }

@@ -134,6 +134,15 @@ const DEFS: FxDef[] = [
     },
   },
   {
+    // blocked hit: a pixel shield arc bulging forward (+x), tinted at spawn
+    name: 'shield',
+    w: 5,
+    h: 13,
+    paint: (pc, x, y) => {
+      pc.ascii(x, y, ['WW...', '.WW..', '..WW.', '...W.', '...WW', '....W', '....W', '....W', '...WW', '...W.', '..WW.', '.WW..', 'WW...'], { W: P.white });
+    },
+  },
+  {
     name: 'arrow',
     w: 7,
     h: 7,

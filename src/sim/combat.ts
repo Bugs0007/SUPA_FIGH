@@ -1,4 +1,5 @@
-import { LAST_HIT_CREDIT } from './constants';
+import { BLOCK, LAST_HIT_CREDIT } from './constants';
+import { heroAttackLabel } from './data/heroes';
 import type { HitKind } from './events';
 import type { Fighter } from './fighter';
 import { absorbForm, dismissClone, superGuard } from './hero';
@@ -52,14 +53,92 @@ export function sameTeam(a: { id: number; team: number }, b: { id: number; team:
   return teamKey(a) === teamKey(b);
 }
 
+// ------------------------------------------------------------------ blocking (hold PUNCH, BLOCK in constants.ts)
+
+/** Hit kinds a raised guard stops (from the front). Fire, drain, hazards, falls, splats, bodyslams, grabs and throws go through. */
+const BLOCKABLE: readonly HitKind[] = ['melee', 'kick', 'bullet', 'explosion'];
+
+let blockedLast = false;
+
+/** Did the last applyHit() land on a raised guard (it returns true then too: the attack was stopped)? */
+export function hitWasBlocked(): boolean {
+  return blockedLast;
+}
+
+/** Hero abilities and supers (any hero move id except the '<hero>:combo' punches) and explosions hit a guard harder. */
+export function heavyOnGuard(hit: Pick<Hit, 'kind' | 'weapon'>): boolean {
+  if (hit.kind === 'explosion') return true;
+  if (hit.weapon.endsWith(':combo')) return false;
+  return heroAttackLabel(hit.weapon) !== null;
+}
+
 /**
- * Apply a hit to a fighter (alive or corpse). Returns true if it connected.
- * Handles friendly fire, i-frames, kill credit, knockback and hit reactions.
+ * Is the hit coming from the side the victim faces? `srcX` = where it comes from (the striker for melee, the
+ * impact point for bullets); without one the knockback tells: a hit that shoves you backwards came from the front.
+ */
+function fromFront(v: Fighter, hit: Hit, srcX: number | undefined): boolean {
+  if (srcX !== undefined) return (srcX - v.x) * v.facing >= -BLOCK.frontTol;
+  return hit.kbX * v.facing < 0;
+}
+
+/**
+ * A frontal hit on a raised guard: a perfect block (parry) costs nothing and staggers a close melee attacker;
+ * otherwise chip damage, a small pushback, blockstun and guard meter drain. Returns false when the meter runs
+ * out (GUARD BREAK): the caller then lands the hit in full.
+ */
+function guardHit(w: World, v: Fighter, hit: Hit, dmg: number, striker: Fighter | undefined): boolean {
+  const hx = hit.x ?? v.x + v.facing * (v.w / 2);
+  const hy = hit.y ?? v.y - v.h / 2;
+  if (v.parryT > 0) {
+    v.vx += hit.kbX * BLOCK.pushback * v.knockMul;
+    const melee = hit.kind === 'melee' || hit.kind === 'kick';
+    if (melee && striker && striker !== v && striker.alive && !superGuard(striker) && Math.abs(striker.x - v.x) <= BLOCK.parryRange) {
+      w.releaseGrab(striker);
+      const left = striker.state === 'flinch' ? striker.flinchTime - striker.stateTime : 0;
+      striker.state = 'flinch';
+      striker.stateTime = 0;
+      striker.flinchTime = Math.max(BLOCK.parryStagger, left);
+      striker.vx *= 0.2;
+    }
+    w.emit({ t: 'parry', victim: v.id, attacker: hit.attacker, x: hx, y: hy });
+    return true;
+  }
+  const heavy = heavyOnGuard(hit);
+  v.guard -= dmg * (heavy ? BLOCK.costHeavy : hit.kind === 'kick' ? BLOCK.costKick : BLOCK.cost);
+  v.guardWait = BLOCK.regenDelay;
+  if (v.guard <= 0) {
+    v.guard = BLOCK.breakRefill;
+    w.emit({ t: 'guardBreak', victim: v.id, x: v.x, y: v.y - v.h / 2 });
+    return false;
+  }
+  v.vx += hit.kbX * BLOCK.pushback * v.knockMul;
+  v.blockStun = Math.max(v.blockStun, Math.min(BLOCK.stunMax, BLOCK.stunBase + BLOCK.stunPerDamage * dmg));
+  const chip = Math.round(dmg * (heavy ? BLOCK.chipHeavy : BLOCK.chip) * 10) / 10;
+  w.emit({ t: 'block', victim: v.id, attacker: hit.attacker, x: hx, y: hy, chip });
+  if (chip > 0) {
+    v.hp -= absorbForm(w, v, chip, hit.kind);
+    const attacker = hit.attacker >= 0 ? w.fighters[hit.attacker] : undefined;
+    if (attacker && attacker !== v) {
+      v.lastAttacker = attacker.id;
+      v.lastWeapon = hit.weapon;
+      v.lastHitTime = w.time;
+    }
+    if (v.hp <= 0) killFighter(w, v, hit);
+  }
+  return true;
+}
+
+/**
+ * Apply a hit to a fighter (alive or corpse). Returns true if it connected (a blocked hit counts: see
+ * hitWasBlocked()). Handles friendly fire, i-frames, blocking, kill credit, knockback and hit reactions.
  */
 export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
+  blockedLast = false;
   if (v.gone) return false;
   // Supers cannot be cancelled by damage, stun, knockback, or burning (even ignoreInvuln hits).
   if (superGuard(v)) return false;
+  // who the hit physically comes from (a shadow clone, not the master it is credited to): blocking / parries
+  const striker = hit.attacker >= 0 ? w.fighters[hit.attacker] : undefined;
   // a shadow clone's hits (and kills) count for its master
   if (hit.attacker >= 0) {
     const a = w.fighters[hit.attacker];
@@ -101,6 +180,23 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
 
   let dmg = Math.max(0, hit.damage);
   if (w.mods.has('glassJaw') && hit.kind !== 'drain') dmg *= 3;
+  if (v.state === 'block' && BLOCKABLE.includes(hit.kind)) {
+    const melee = hit.kind === 'melee' || hit.kind === 'kick';
+    const srcX = melee && striker ? striker.x : hit.kind === 'explosion' ? undefined : (hit.x ?? striker?.x);
+    if (fromFront(v, hit, srcX)) {
+      if (guardHit(w, v, hit, dmg, striker)) {
+        blockedLast = true;
+        return true;
+      }
+      // GUARD BREAK: this hit lands in full, then a long stun (no knockdown: they stand there dazed)
+      hit = { ...hit, stun: Math.max(hit.stun ?? 0, BLOCK.breakStun), knockdown: false };
+    }
+    // hit from behind (or a broken guard): the guard drops
+    v.state = 'normal';
+    v.stateTime = 0;
+    v.blockStun = 0;
+    v.parryT = 0;
+  }
   const dealt = dmg;
   dmg = absorbForm(w, v, dmg, hit.kind);
   v.hp -= dmg;

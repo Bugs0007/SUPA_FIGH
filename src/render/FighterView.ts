@@ -2,10 +2,10 @@ import { formLevel } from './formLevel';
 import Phaser from 'phaser';
 import type { Appearance } from '../art/appearance';
 import { Art } from '../art';
-import { ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD, type FighterTextures } from '../art/fighterArt';
+import { ARM_GUARD, ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD, type FighterTextures } from '../art/fighterArt';
 import { formCount, formLook } from '../art/heroArt';
 import { animFor, EXTERNAL_SHEETS, sheetFrame, type ExternalSheetDef } from '../art/externalSheets';
-import { ARM_LONG, ARM_SHORT, ROLL_TIME } from '../sim/constants';
+import { ARM_LONG, ARM_SHORT, FIGHTER_CROUCH_H, ROLL_TIME } from '../sim/constants';
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
 import { baseAbility, formLayers, usesAmaterasu } from '../sim/hero';
@@ -214,7 +214,8 @@ export class FighterView {
     const y = lerp(f.py, f.y, alpha);
     this.root.setVisible(true);
 
-    if (f.hp < this.lastHp) this.onHit();
+    // (chip damage through a raised guard does not flash the body: the shield flash shows it)
+    if (f.hp < this.lastHp && f.state !== 'block') this.onHit();
     this.lastHp = f.hp;
     this.hpTrail = this.hpTrail > f.hp ? Math.max(f.hp, this.hpTrail - dt * 60) : f.hp;
     if (this.sheet) {
@@ -234,6 +235,8 @@ export class FighterView {
     let weaponAngle: number | null = null;
     let headFrame: number = HEAD.NORMAL;
     let hideArms = false;
+    /** blocking: bent guard arm frames instead of straight ones */
+    let guardArms = false;
     let bodyRot = 0;
     const def = activeWeapon(f);
     const isGun = !!def.gun;
@@ -607,6 +610,15 @@ export class FighterView {
         }
         break;
       }
+      case 'block':
+        // forearms up in front of the face / chest, knees bent (crouching guard: the crouch frame)
+        frame = f.h <= FIGHTER_CROUCH_H ? BF.CROUCH : BF.GUARD;
+        guardArms = true;
+        front = -0.9;
+        back = -0.6;
+        // rocks back a touch while a blocked hit is absorbed
+        leanTarget = f.blockStun > 0 ? -0.1 : 0.03;
+        break;
       case 'kick':
         frame = f.airKick ? BF.AIRKICK : BF.KICK;
         front = f.airKick ? -0.4 : 2.3;
@@ -766,8 +778,8 @@ export class FighterView {
     const [sx, sy] = this.fp(meta.shX, meta.shY);
     const [bsx, bsy] = this.fp(meta.bshX, meta.bshY);
     if (armsVisible) {
-      this.frontArm.setPosition(sx, sy).setFrame(armFrame(front, frontLen));
-      this.backArm.setPosition(bsx, bsy).setFrame(armFrame(back, backLen));
+      this.frontArm.setPosition(sx, sy).setFrame(guardArms ? ARM_GUARD : armFrame(front, frontLen));
+      this.backArm.setPosition(bsx, bsy).setFrame(guardArms ? ARM_GUARD + 1 : armFrame(back, backLen));
     }
 
     // held weapon
@@ -783,8 +795,9 @@ export class FighterView {
         .setVisible(true)
         .setTexture(wf.key, wf.frame)
         .setOrigin((wf.gripX + 0.5) / wf.w, (wf.gripY + 0.5) / wf.h)
-        .setPosition(sx + Math.cos(ang) * len, sy + Math.sin(ang) * len)
-        .setRotation(ang);
+        // guarding: the weapon is held up across the body in the raised fist
+        .setPosition(guardArms ? sx + 5 : sx + Math.cos(ang) * len, guardArms ? sy - 3 : sy + Math.sin(ang) * len)
+        .setRotation(guardArms ? -1.3 : ang);
     } else {
       this.weapon.setVisible(false);
     }

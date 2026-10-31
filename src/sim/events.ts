@@ -102,4 +102,8 @@ export type SimEvent =
   | { t: 'flyStart'; f: number; x: number; y: number }
   | { t: 'flyEnd'; f: number; x: number; y: number; empty: boolean }
   | { t: 'rasengan'; f: number; phase: 'form' | 'dash' }
-  | { t: 'rocket'; f: number; x: number; y: number };
+  | { t: 'rocket'; f: number; x: number; y: number }
+  // blocking (hold PUNCH): a blocked hit (chip = damage taken through the guard), a perfect block, a guard break
+  | { t: 'block'; victim: number; attacker: number; x: number; y: number; chip: number }
+  | { t: 'parry'; victim: number; attacker: number; x: number; y: number }
+  | { t: 'guardBreak'; victim: number; x: number; y: number };

@@ -70,6 +70,47 @@ export const THROW_SPEED_X = 330;
 export const THROW_SPEED_Y = -170;
 export const FALL_DAMAGE_SPEED = 470; // vy above this on landing hurts (thrown bodies)
 
+/**
+ * Blocking: hold PUNCH (fists / melee weapon) to raise a guard. Frontal blockable hits deal chip damage, push
+ * back a little and drain the guard meter instead of stunning; an empty meter is a guard break.
+ */
+export const BLOCK = {
+  /** seconds PUNCH must be held before the guard comes up (a tap still punches) */
+  hold: 0.15,
+  /** px of tolerance for "from the front" (attacker / hit point slightly behind the centre still counts) */
+  frontTol: 2,
+  /** chip damage fraction: ordinary hits / hero abilities, supers and explosions */
+  chip: 0.15,
+  chipHeavy: 0.3,
+  /** knockback multiplier of a blocked hit (horizontal only: no vertical pop) */
+  pushback: 0.25,
+  /** blockstun: base + per point of damage, capped (the guard cannot be dropped meanwhile) */
+  stunBase: 0.12,
+  stunPerDamage: 0.006,
+  stunMax: 0.35,
+  /** guard meter */
+  max: 100,
+  /** meter cost per point of damage: ordinary / heavy (hero abilities, supers, explosions) / kicks */
+  cost: 1,
+  costHeavy: 1.8,
+  costKick: 2,
+  /** regeneration per second, once nothing was blocked for regenDelay seconds */
+  regen: 25,
+  regenDelay: 1,
+  /** guard break: flinch seconds and the meter value it refills to */
+  breakStun: 1.2,
+  breakRefill: 50,
+  /** perfect block: window after the guard came up, attacker stagger seconds and reach */
+  parryWindow: 0.12,
+  parryStagger: 0.45,
+  parryRange: 40,
+  /** horizontal decay (px/s^2) of a guard in the air, and of the pushback slide during blockstun */
+  airDecel: 300,
+  pushDecel: 600,
+  /** the meter flashes red below this */
+  low: 30,
+} as const;
+
 // Items
 export const ITEM_PICKUP_RANGE = 12;
 export const CORPSE_FRICTION = 0.86;

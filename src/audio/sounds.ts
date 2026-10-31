@@ -23,6 +23,22 @@ export const SOUNDS: Record<string, SfxDef> = {
     { wave: 'noise', freq: 1400, slide: -3, decay: 0.07, lowpass: 0.5, volume: 0.45 },
     { wave: 'sine', freq: 160, slide: -3, decay: 0.1, volume: 0.6 },
   ],
+  // blocking: a dull thud on the guard, a bright ting for a perfect block, a crash when the guard breaks
+  block: [
+    { wave: 'noise', freq: 600, slide: -2, decay: 0.06, lowpass: 0.3, volume: 0.4 },
+    { wave: 'sine', freq: 190, slide: -1.5, decay: 0.08, volume: 0.45 },
+    { wave: 'square', freq: 900, slide: -2, decay: 0.02, duty: 0.3, volume: 0.07 },
+  ],
+  parry: [
+    { wave: 'sine', freq: 1900, slide: 0.3, decay: 0.26, vibDepth: 0.02, vibSpeed: 30, volume: 0.24 },
+    { wave: 'sine', freq: 2850, decay: 0.18, delay: 0.01, volume: 0.14 },
+    { wave: 'noise', freq: 5200, highpass: 0.6, decay: 0.04, volume: 0.15 },
+  ],
+  guardBreak: [
+    { wave: 'noise', freq: 1200, slide: -1.5, punch: 0.8, decay: 0.35, lowpass: 0.6, volume: 0.6 },
+    { wave: 'noise', freq: 5000, highpass: 0.6, decay: 0.3, tremolo: 30, delay: 0.02, volume: 0.28 },
+    { wave: 'sine', freq: 210, slide: -2.5, decay: 0.25, volume: 0.6 },
+  ],
   kick: [
     { wave: 'noise', freq: 900, slide: -3, decay: 0.1, lowpass: 0.4, volume: 0.5 },
     { wave: 'sine', freq: 120, slide: -3, decay: 0.16, volume: 0.8, punch: 0.3, sustain: 0.02 },

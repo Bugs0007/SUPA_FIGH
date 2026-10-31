@@ -221,13 +221,13 @@ export class TitleScene extends Phaser.Scene {
   private controlLines(i: number): string[] {
     const dev = inputDevice.current;
     if (i === 0 && dev === 'touch')
-      return ['STICK: MOVE / UP: JUMP', 'ATK / KICK / GRAB', 'SUPER: BOTH ABILITIES'];
+      return ['STICK: MOVE / UP: JUMP', 'ATK (HOLD=BLOCK) / KICK / GRAB', 'SUPER: BOTH ABILITIES'];
     if (i === 0 && (dev === 'ps' || dev === 'xbox')) {
       const b = padBinds[0], n = (a: keyof typeof b) => padLabel(b[a][0] ?? 0, inputDevice.pad).replace(' / ', '/');
-      return ['MOVE: LEFT STICK', 'JUMP ' + n('jump') + ' / ATTACK ' + n('attack'), 'ABILITY ' + n('ability') + ' / KICK ' + n('kick')];
+      return ['MOVE: LEFT STICK / JUMP ' + n('jump'), 'PUNCH ' + n('attack') + ' (HOLD=BLOCK)', 'ABILITY ' + n('ability') + ' / KICK ' + n('kick')];
     }
     const b = keyboardBinds[i], key = (a: Action) => b[a].slice(0, 1).map(keyLabel).join('/');
-    return ['MOVE ' + key('left') + '/' + key('right') + ' / JUMP ' + key('up'), 'ATTACK ' + key('attack') + ' / GRAB ' + key('interact'), 'ABILITY ' + key('ability') + ' / KICK ' + key('kick')];
+    return ['MOVE ' + key('left') + '/' + key('right') + ' / JUMP ' + key('up'), 'PUNCH ' + key('attack') + ' (HOLD=BLOCK) / GRAB ' + key('interact'), 'ABILITY ' + key('ability') + ' / KICK ' + key('kick')];
   }
   private deviceName(i: number): string {
     const dev = inputDevice.current;
