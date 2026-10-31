@@ -574,7 +574,7 @@ export class WorldRenderer {
     if (dt <= 0) return;
     const w = this.world;
     for (const p of w.fires) {
-      if (!p.active) continue;
+      if (!p.active || p.black) continue; // (Amaterasu's black patches are drawn by HeroFx)
       const life = Math.min(1, p.life / 1.2);
       for (let i = emitCount(14 * life, dt); i > 0; i--) this.fx.flame(p.x, p.y - 1, 0.6 + 0.5 * life);
     }

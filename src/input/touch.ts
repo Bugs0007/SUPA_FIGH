@@ -31,6 +31,9 @@ interface ButtonDef {
 }
 
 const GAME_BUTTONS: ButtonDef[] = [
+  // the far right column: the same keys as the arrow pad's up / down, for a thumb that stays on the right
+  { id: 'jump', label: 'JUMP', actions: ['up'], cls: 'b-jump' },
+  { id: 'crouch', label: 'CROUCH', actions: ['down'], cls: 'b-crouch' },
   { id: 'attack', label: 'ATK', actions: ['attack'], cls: 'b-attack' },
   { id: 'kick', label: 'KICK', actions: ['kick'], cls: 'b-kick' },
   { id: 'ability', label: 'ABIL', actions: ['ability'], cls: 'b-ability', hero: true },
@@ -54,6 +57,9 @@ const CSS = `
 #touch{position:fixed;inset:0;z-index:10;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;
   --u:min(1vw,1.78vh);font-family:monospace;color:#fff}
 #touch[data-mode=off]{display:none}
+/* nothing on a phone is text to select: a double tap or a held finger must never start a selection (or its magnifier) */
+html.touch,html.touch *,#touch,#touch *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-user-drag:none}
+#touch *{touch-action:none}
 #touch .tb{position:absolute;display:flex;align-items:center;justify-content:center;border-radius:50%;pointer-events:auto;touch-action:none;
   background:rgba(20,15,30,.46);border:2px solid rgba(255,255,255,.4);font-weight:bold;letter-spacing:0;font-size:calc(var(--u)*2.3);
   text-shadow:0 1px 2px #000;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -61,13 +67,15 @@ const CSS = `
 #touch[data-mode=menu] .g,#touch[data-mode=game] .m{display:none}
 #touch:not([data-hero=on]) .hero{display:none}
 /* game buttons: offsets from the bottom-right corner, in units of the screen height (--u = 1% of the short side) */
-.b-attack{right:calc(var(--u)*2 + var(--sr,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*14);height:calc(var(--u)*14);background:rgba(234,74,74,.5)!important;font-size:calc(var(--u)*2.6)!important}
-.b-kick{right:calc(var(--u)*17 + var(--sr,0px));bottom:calc(var(--u)*3 + var(--sb,0px));width:calc(var(--u)*11);height:calc(var(--u)*11)}
-.b-ability{right:calc(var(--u)*4 + var(--sr,0px));bottom:calc(var(--u)*20 + var(--sb,0px));width:calc(var(--u)*11);height:calc(var(--u)*11);background:rgba(74,138,240,.5)!important}
-.b-super{right:calc(var(--u)*17 + var(--sr,0px));bottom:calc(var(--u)*17 + var(--sb,0px));width:calc(var(--u)*9);height:calc(var(--u)*9);background:rgba(248,200,64,.45)!important;font-size:calc(var(--u)*1.6)!important}
-.b-grab{right:calc(var(--u)*30 + var(--sr,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*9);height:calc(var(--u)*9);font-size:calc(var(--u)*1.7)!important}
-.b-swap{right:calc(var(--u)*29 + var(--sr,0px));bottom:calc(var(--u)*15 + var(--sb,0px));width:calc(var(--u)*8.5);height:calc(var(--u)*8.5);font-size:calc(var(--u)*1.7)!important}
-.b-med{right:calc(var(--u)*4 + var(--sr,0px));bottom:calc(var(--u)*33 + var(--sb,0px));width:calc(var(--u)*8);height:calc(var(--u)*8);background:rgba(90,200,90,.4)!important;font-size:calc(var(--u)*1.7)!important}
+.b-jump{right:calc(var(--u)*2 + var(--sr,0px));bottom:calc(var(--u)*17 + var(--sb,0px));width:calc(var(--u)*12);height:calc(var(--u)*12);background:rgba(90,200,90,.5)!important;font-size:calc(var(--u)*2.1)!important}
+.b-crouch{right:calc(var(--u)*2 + var(--sr,0px));bottom:calc(var(--u)*3 + var(--sb,0px));width:calc(var(--u)*12);height:calc(var(--u)*12);background:rgba(150,110,220,.5)!important;font-size:calc(var(--u)*1.6)!important}
+.b-attack{right:calc(var(--u)*15 + var(--sr,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*14);height:calc(var(--u)*14);background:rgba(234,74,74,.5)!important;font-size:calc(var(--u)*2.6)!important}
+.b-kick{right:calc(var(--u)*30 + var(--sr,0px));bottom:calc(var(--u)*3 + var(--sb,0px));width:calc(var(--u)*11);height:calc(var(--u)*11)}
+.b-ability{right:calc(var(--u)*17 + var(--sr,0px));bottom:calc(var(--u)*20 + var(--sb,0px));width:calc(var(--u)*11);height:calc(var(--u)*11);background:rgba(74,138,240,.5)!important}
+.b-super{right:calc(var(--u)*30 + var(--sr,0px));bottom:calc(var(--u)*17 + var(--sb,0px));width:calc(var(--u)*9);height:calc(var(--u)*9);background:rgba(248,200,64,.45)!important;font-size:calc(var(--u)*1.6)!important}
+.b-grab{right:calc(var(--u)*43 + var(--sr,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*9);height:calc(var(--u)*9);font-size:calc(var(--u)*1.7)!important}
+.b-swap{right:calc(var(--u)*42 + var(--sr,0px));bottom:calc(var(--u)*15 + var(--sb,0px));width:calc(var(--u)*8.5);height:calc(var(--u)*8.5);font-size:calc(var(--u)*1.7)!important}
+.b-med{right:calc(var(--u)*17 + var(--sr,0px));bottom:calc(var(--u)*33 + var(--sb,0px));width:calc(var(--u)*8);height:calc(var(--u)*8);background:rgba(90,200,90,.4)!important;font-size:calc(var(--u)*1.7)!important}
 .b-pause{right:calc(var(--u)*2 + var(--sr,0px));top:calc(var(--u)*2 + var(--st,0px));width:calc(var(--u)*6.5);height:calc(var(--u)*6.5);border-radius:20%}
 /* the 8-way arrow pad: one round touch area, the thumb slides between the arrows */
 #touch .pad{position:absolute;left:calc(var(--u)*3 + var(--sl,0px));bottom:calc(var(--u)*4 + var(--sb,0px));width:calc(var(--u)*25);height:calc(var(--u)*25);
@@ -129,6 +137,23 @@ class TouchUI {
   private padId: number | null = null;
   private dirs = { left: false, right: false, up: false, down: false };
   private timers = new Map<string, number>();
+  /** how many fingers / buttons hold each key right now (JUMP and the pad's up arrow press the same key) */
+  private refs = new Map<string, number>();
+
+  private press(code: string): void {
+    const n = (this.refs.get(code) ?? 0) + 1;
+    this.refs.set(code, n);
+    if (n === 1) keyboard.press(code);
+  }
+
+  private release(code: string): void {
+    const n = (this.refs.get(code) ?? 0) - 1;
+    if (n > 0) this.refs.set(code, n);
+    else {
+      this.refs.delete(code);
+      keyboard.release(code);
+    }
+  }
 
   attach(): void {
     if (this.root) return;
@@ -162,9 +187,31 @@ class TouchUI {
     for (const b of MENU_BUTTONS) root.appendChild(this.button(b, 'm'));
     document.body.appendChild(root);
 
-    // iOS: block the page's own gestures (pinch, double-tap zoom, rubber-band scroll)
-    document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-    document.addEventListener('gesturestart', (e) => e.preventDefault());
+    // The browser's own gestures must never reach the game: double-tap zoom and its magnifier loupe, press-and-hold
+    // text selection, the context menu, pinch and rubber-band scroll. Calling preventDefault on the touch events of
+    // the overlay (the buttons and the pad are DOM, not canvas) is what stops them on Android and iOS alike; the
+    // buttons themselves run on pointer events, which this does not cancel.
+    const stop = (e: Event) => {
+      if (e.cancelable) e.preventDefault();
+    };
+    for (const t of ['touchstart', 'touchend', 'touchcancel']) root.addEventListener(t, stop, { passive: false });
+    document.addEventListener('touchmove', stop, { passive: false });
+    for (const t of ['gesturestart', 'gesturechange', 'gestureend', 'dblclick', 'selectstart', 'dragstart', 'contextmenu']) document.addEventListener(t, stop);
+    // a second tap shortly after the first, anywhere (the canvas included): no double-tap zoom
+    let lastTap = 0;
+    document.addEventListener(
+      'touchend',
+      (e) => {
+        const now = e.timeStamp;
+        if (now - lastTap < 400) stop(e);
+        lastTap = now;
+      },
+      { passive: false },
+    );
+    document.addEventListener('selectionchange', () => {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) sel.removeAllRanges();
+    });
     // a lifted finger we never heard about must not leave a key stuck
     window.addEventListener('blur', () => this.releaseAll());
     document.addEventListener('visibilitychange', () => {
@@ -224,19 +271,20 @@ class TouchUI {
   private down(b: ButtonDef): void {
     if (b.tap) {
       // a tap = down now, up a moment later (so the game sees a clean edge even from a 1-frame touch)
-      for (const c of this.codesOf(b)) keyboard.press(c);
-      window.setTimeout(() => this.codesOf(b).forEach((c) => keyboard.release(c)), 70);
+      for (const c of this.codesOf(b)) this.press(c);
+      window.setTimeout(() => this.codesOf(b).forEach((c) => this.release(c)), 70);
       return;
     }
     const codes = this.codesOf(b);
     this.held.set(b.id, codes.length);
     this.holdCodes.set(b.id, codes);
-    for (const c of codes) keyboard.press(c);
+    for (const c of codes) this.press(c);
     if (b.repeat) {
       const pulse = () => {
         for (const c of codes) {
-          keyboard.release(c);
-          keyboard.press(c);
+          // a fresh key edge for auto-repeat (menus only: nothing else holds these keys)
+          this.release(c);
+          this.press(c);
         }
       };
       const t = window.setTimeout(() => {
@@ -254,7 +302,7 @@ class TouchUI {
     const codes = this.holdCodes.get(b.id);
     this.holdCodes.delete(b.id);
     this.held.delete(b.id);
-    if (codes) for (const c of codes) keyboard.release(c);
+    if (codes) for (const c of codes) this.release(c);
     const d = this.delays.get(b.id);
     if (d !== undefined) window.clearTimeout(d);
     const t = this.timers.get(b.id);
@@ -264,7 +312,8 @@ class TouchUI {
   }
 
   private releaseAll(): void {
-    for (const [, codes] of this.holdCodes) for (const c of codes) keyboard.release(c);
+    for (const code of this.refs.keys()) keyboard.release(code);
+    this.refs.clear();
     this.holdCodes.clear();
     this.held.clear();
     for (const t of this.delays.values()) window.clearTimeout(t);
@@ -328,8 +377,8 @@ class TouchUI {
       if (next[a] === this.dirs[a]) continue;
       this.dirs[a] = next[a];
       for (const c of keyboardBinds[0][a].slice(0, 1)) {
-        if (next[a]) keyboard.press(c);
-        else keyboard.release(c);
+        if (next[a]) this.press(c);
+        else this.release(c);
       }
     }
   }

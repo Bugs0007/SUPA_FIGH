@@ -11,7 +11,7 @@ type G=Phaser.GameObjects.Graphics;
 /** Draw the same anticipation, contact window and recovery that the melee hitbox uses. */
 export class HeroComboArt {
   private avatar:AvatarArt;
-  constructor(private back:G,private front:G,private luffy:LuffyAbilityArt){this.avatar=new AvatarArt(back,front);}
+  constructor(back:G,private front:G,private luffy:LuffyAbilityArt){this.avatar=new AvatarArt(back,front);}
 
   draw(v:FighterView,x:number,y:number,time:number):boolean{
     const f=v.fighter,lv=formLevel(f),h=heroDef(f.hero);
@@ -28,30 +28,26 @@ export class HeroComboArt {
       return true;
     }
     if(f.hero==='sasuke'&&lv>=3){
+      // Susanoo throws the punch: a spectral arm from above the fighter's shoulder, in the same pixels as everything else.
       if(opacity>.02){
-        this.avatar.susanoo(x-side*4,y,side,lv,opacity*.45,time,'guard');
-        const r=lv===4?4.5:3.5,hx=x+side*(reach-r)*extension;
-        this.avatar.arm(this.front,x-side*6,y-27,x+side*(reach*.4)*extension,y-(upper?28:20),hx,handY,side,r,false,opacity);
-        this.strokes(hx,handY,side,reach,0xd9b5ff,opacity);
+        const hx=x+side*(reach-3)*extension,hy=handY-3;
+        this.avatar.arm(this.front,{kind:'susanoo',s:[x-side*4,y-23],e:this.elbow(x-side*4,y-23,hx,hy,upper?-9:-5),h:[hx,hy],d:side,thick:lv===4?7:5},opacity);
+        this.streaks(hx,hy,side,reach,0xd8ccff,opacity);
       }
       return true;
     }
     if(f.hero==='naruto'&&lv===4){
-      const r=4,hx=x+side*(reach-r)*extension;
-      this.avatar.arm(this.front,x-side*5,y-12,x+side*reach*.35*extension,y-(upper?24:21),hx,handY,side,r,true,opacity);
-      // The second chakra hand winds back while the leading hand strikes.
-      this.avatar.arm(this.back,x-side*5,y-13,x-side*17,y-25,x-side*10,y-21,side,3,true,opacity*.45);
-      this.strokes(hx,handY,side,reach,0xffe89b,opacity);
+      // Kurama's chakra: a gold arm with a clawed fist, and the other arm drawing back behind the fighter.
+      const hx=x+side*(reach-3)*extension,hy=handY-1;
+      this.avatar.arm(this.front,{kind:'kurama',s:[x-side*4,y-21],e:this.elbow(x-side*4,y-21,hx,hy,upper?-8:-4),h:[hx,hy],d:side,thick:5},opacity);
+      this.streaks(hx,hy,side,reach,0xffe89b,opacity);
       return true;
     }
     if(f.hero==='naruto'&&lv>0){
-      const hx=x+side*(reach-2)*extension,hy=y-(finisher?10:14);
-      const dark=lv===3?0x361524:0x721529,red=lv===3?0x952a43:0xe03740;
-      this.front.lineStyle(5,dark,opacity*.9).strokePoints([{x:x-side*3,y:y-10},{x:x+side*5,y:y-19},{x:hx,y:hy}],false);
-      this.front.lineStyle(3,red,opacity*.85).strokePoints([{x:x-side*3,y:y-10},{x:x+side*5,y:y-19},{x:hx,y:hy}],false);
-      for(let i=-1;i<=1;i++)this.front.lineStyle(1,lv===3?0xe9d5b4:0xffb0a1,opacity)
-        .lineBetween(hx-side*2,hy+i*2,hx+side*2,hy+i*2-1);
-      this.strokes(hx,hy,side,reach,red,opacity);
+      // The red chakra cloaks grow a smaller clawed arm.
+      const hx=x+side*(reach-3)*extension,hy=handY;
+      this.avatar.arm(this.front,{kind:'claw',s:[x-side*3,y-17],e:this.elbow(x-side*3,y-17,hx,hy,upper?-6:-3),h:[hx,hy],d:side,thick:lv===1?3:4},opacity);
+      this.streaks(hx,hy,side,reach,lv===3?0xd8483f:0xff6a62,opacity);
       return true;
     }
     if(f.hero==='goku'&&lv>0){
@@ -71,6 +67,20 @@ export class HeroComboArt {
       return true;
     }
     return false;
+  }
+
+  /** The elbow of a punching arm: halfway along, pushed up (negative) or down so the arm bends instead of being a ruler. */
+  private elbow(sx:number,sy:number,hx:number,hy:number,bend:number):[number,number]{
+    return [Math.round((sx+hx)/2),Math.round((sy+hy)/2+bend)];
+  }
+
+  /** Whoosh marks behind the fist: a few dashes on whole pixels. */
+  private streaks(x:number,y:number,d:number,reach:number,color:number,alpha:number):void{
+    const len=Math.min(15,Math.round(reach*.5));
+    for(const [dy,l,gap] of [[-4,len*.7,2],[0,len,3],[4,len*.6,1]] as const){
+      const x0=Math.round(x-d*(gap+8)),w=Math.max(2,Math.round(l));
+      this.front.fillStyle(color,alpha*.7).fillRect(d>0?x0-w:x0,Math.round(y+dy),w,1);
+    }
   }
 
   private strokes(x:number,y:number,d:number,reach:number,color:number,alpha:number):void{

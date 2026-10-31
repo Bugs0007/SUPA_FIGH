@@ -17,6 +17,8 @@ export interface ExplosionStats {
   breakRadius: number;
   /** burning patches scattered around (0 = none) */
   fire?: number;
+  /** fighters caught in the blast burn for this many seconds (0 / absent = no) */
+  ignite?: number;
   /** camera trauma (render only) */
   shake: number;
 }

@@ -625,3 +625,33 @@ largest per-frame jump on screen stays under 3 / 3 / 6.3 px. Hero abilities run 
 **Setting:** `LAN PREDICTION` in Settings (default on), `?predict=0|1` overrides it. **Found on the way:** the network
 simulator could reorder frames with real timers (separate `setTimeout`s of nearly equal length are not ordered); `NetSim`
 now drains a FIFO queue, with a regression test.
+
+### D78 — Susanoo, Kurama and the punching arms are pixel art
+The first versions of these were drawn with vector polygons and thick anti-aliased strokes, in dozens of translucent layers,
+at 3-5 times a fighter's height: smooth facets next to 10 x 22 px sprites. They are now sprites built with the same rules as
+the fighters (`art/pixelRaster.ts`, `art/avatarSprites.ts`): shapes are rasterized on pixel centres into a grid of material
+ids, then baked (light from the top-left: lit top / left edges, a highlight on the corner, shaded bottom / right edges; four
+flat tones per material; a 1 px dark outline; parts cut apart by a 1 px dark rim) into horizontal runs that `AvatarArt` paints
+with `fillRect` on whole pixels. Nothing inside a sprite is translucent; the sprite fades as one. Susanoo (Mangekyo: ribs,
+Perfect: breastplate, gold crown and feathered wings) is a ~60 px bust with a horned helmet, beaked mask, plated pauldrons, a
+bow drawn in four stages and a three-frame flickering hem; the bowstring and nocked arrow are single-pixel lines over it.
+Kurama is a gold fox bust with nine tails (each a rimmed plume) and fangs, ~1.8 fighters tall, the mouth where the Bijudama
+launches. The arms (Susanoo violet, Kurama gold, red chakra for Naruto's first three forms) are rasterized per frame in world
+coordinates: upper arm, forearm with bands and a bracer, elbow plate, shoulder guard, a fist with knuckles, thumb and claws; the
+elbow bends with the windup, and the whoosh marks are whole-pixel dashes. `tests/unit/pixelArt.test.ts` checks the rules (no
+fractional coordinates, a palette, nothing clipped by its canvas, mirroring, determinism). Found on the way: Naruto's Kurama arms
+were not drawn while the bomb flew off (an early return), which `heroVisuals.spec.ts` had caught; fixed.
+
+### D79 — Sasuke rebalance
+Chidori: the victim is stunned for 2 s (`dash.stun`: a stun of a second or more holds the victim in `flinch` instead of knocking
+them down, and `applyHit` never lets a later, shorter stun cut a longer one short), and the shock arcs from the victim to the
+nearest other enemies within a distance that grows with the form (`dash.spread`: count 1 + form, radius 40 + 14 x form px, half
+damage, same stun; allies and Sasuke's own clones are skipped). Fireball: size 9 + 2.4 per form (was 5 + 0.6), a bigger blast,
+2.5 s of burning for everyone in it (`ExplosionStats.ignite`), burning patches scattered by the blast (`fire`), and a bullet that
+carries `ignite` now lights the wooden tiles it lands on (`scorch`). Amaterasu: burns the nearest 3 enemies (4 in the top form)
+within 240 px (290), leaves black fire patches (`FirePatch.black`, drawn dark by HeroFx) and lights wooden tiles around each victim.
+Ultimates: `aimUltimate` locks onto the nearest enemy in front (cone, range, clear view, never allies / own clones) when the move
+starts, `Fighter.lockOn` remembers it (shown by a bracket), and `fireBomb` re-aims at it from the bow / mouth / hand with a lead on
+its movement; Up / Down held at the start still aims by hand. It applies to every hero with a bomb ultimate (Sasuke, Goku, Naruto):
+none of them flies over or under an enemy it is facing any more. `lockOn`, `flinchTime` and `FirePatch.black` are part of the
+network render state. All numbers are in `data/heroes.ts`; `tests/unit/sasukeBalance.test.ts` pins them (per form).

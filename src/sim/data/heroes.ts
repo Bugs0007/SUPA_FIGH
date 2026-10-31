@@ -30,7 +30,24 @@ export interface BaseAbility {
    * Rasengan: a gravity-free dash. A tap dashes for `time`; HOLDING the ability button keeps the dash going
    * (up to `maxTime`) until it hits someone, a wall, or the button is released.
    */
-  dash?: { windup: number; time: number; maxTime: number; speed: number; recover: number; damage: number; knockX: number; knockY: number; stun: number; radius: number };
+  dash?: {
+    windup: number;
+    time: number;
+    maxTime: number;
+    speed: number;
+    recover: number;
+    damage: number;
+    knockX: number;
+    knockY: number;
+    /** seconds the victim is stunned (a stun of a second or more holds them in place instead of knocking them down) */
+    stun: number;
+    radius: number;
+    /**
+     * Chidori: the shock arcs from the victim to the nearest other enemies, which are stunned too. The number of
+     * fighters and the distance grow with the form level; `damageFrac` is the share of the hit's damage they take.
+     */
+    spread?: { count: number; countPerLevel: number; radius: number; radiusPerLevel: number; damageFrac: number };
+  };
   /** Gum-Gum Pistol: a stretching arm that hits, grabs (walls, ceilings, platforms, ladders) and pulls / swings */
   stretch?: StretchStats;
   /** Instant transmission: teleport up to `range` px (8 directions); lands a short strike on arrival */
@@ -109,9 +126,25 @@ export interface SecondAbility {
   clones?: { count: number; perLevel: number; finalCount: number; hpFrac: number };
   /** flurry of stretched punches: duration, seconds between punches, reach, per-hit damage, re-hit delay */
   gatling?: { time: number; every: number; range: number; damage: number; knockX: number; rehit: number; finalKnock: number };
-  fireball?: { windup: number; recover: number; speed: number; range: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; ignite: number };
+  /** `radius` is the blast, `fire` burning patches it scatters (it also sets fighters in the blast alight for `ignite` s) */
+  fireball?: { windup: number; recover: number; speed: number; range: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; ignite: number; fire: number; firePerLevel: number };
   /** Higher forms replace the projectile with a line-of-sight eye jutsu. Range is in world pixels. */
-  amaterasu?: { minLevel: number; range: number; windup: number; recover: number; damage: number; duration: number; dps: number; aimDot: number };
+  amaterasu?: {
+    minLevel: number;
+    /** range and number of enemies at `minLevel`; both grow by `...PerLevel` for every form above it */
+    range: number;
+    rangePerLevel: number;
+    targets: number;
+    targetsPerLevel: number;
+    windup: number;
+    recover: number;
+    damage: number;
+    duration: number;
+    dps: number;
+    aimDot: number;
+    /** black flame patches left on the ground under each victim (they burn wood, crates and whoever steps in) */
+    patches: number;
+  };
 }
 
 /** The super move (both abilities at once, transformed only). */
@@ -222,16 +255,16 @@ export const HEROES: Record<string, HeroDefinition> = {
     comboName: 'UCHIHA COMBO', combo: heroCombo('ki'),
     base: {
       kind: 'rasengan', weapon: 'chidori', name: 'CHIDORI',
-      desc: 'LIGHTNING PALM DASH. HOLD TO EXTEND THE CHARGE; TWO USES BEFORE RECHARGING.',
+      desc: 'LIGHTNING PALM DASH. STUNS FOR 2 SECONDS AND ARCS TO NEARBY ENEMIES (MORE IN HIGHER FORMS). HOLD TO EXTEND; TWO USES.',
       cooldown: 0.4, charges: { max: 2, recharge: 2.8 },
-      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 360, recover: 0.22, damage: 14, knockX: 300, knockY: -130, stun: 0.3, radius: 6 },
+      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 360, recover: 0.22, damage: 14, knockX: 140, knockY: -60, stun: 2, radius: 6, spread: { count: 1, countPerLevel: 1, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
     },
     second: {
       kind: 'fireball', name: 'FIRE STYLE: FIREBALL',
-      desc: 'FIREBALL. FROM MANGEKYO: AMATERASU IGNITES A VISIBLE ENEMY WITHIN 240 PX. UP / DOWN TO AIM.',
+      desc: 'BIG FIREBALL THAT BURNS THE ARENA. FROM MANGEKYO: AMATERASU BURNS 3 ENEMIES (4 AT THE TOP FORM). UP / DOWN TO AIM.',
       cooldown: 3.8,
-      fireball: { windup: 0.28, recover: 0.2, speed: 240, range: 300, size: 5, sizePerLevel: 0.6, damage: 10, damagePerLevel: 2, radius: 18, ignite: 1.5 },
-      amaterasu: { minLevel: 3, range: 240, windup: 0.36, recover: 0.22, damage: 8, duration: 3, dps: 6, aimDot: 0.7 },
+      fireball: { windup: 0.28, recover: 0.2, speed: 240, range: 300, size: 9, sizePerLevel: 2.4, damage: 12, damagePerLevel: 2, radius: 28, radiusPerLevel: 6, ignite: 2.5, fire: 3, firePerLevel: 1 },
+      amaterasu: { minLevel: 3, range: 240, rangePerLevel: 50, targets: 3, targetsPerLevel: 1, windup: 0.36, recover: 0.22, damage: 8, duration: 3, dps: 6, aimDot: 0.7, patches: 2 },
     },
     super: {
       kind: 'bomb', names: ['CHIDORI SHARP SPEAR', 'ONYX CHIDORI SPEAR', 'SUSANOO ARROW', "INDRA'S ARROW"],

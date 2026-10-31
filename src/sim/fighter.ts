@@ -87,6 +87,7 @@ import {
   fireJutsu,
   superGuard,
   usesAmaterasu,
+  aimUltimate,
   gatlingHit,
   grabProbe,
   gripTarget,
@@ -269,6 +270,8 @@ export interface Fighter extends Body {
   /** seconds the special has been charged (-1 = not charging) */
   charge: number;
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
+  /** the enemy an ultimate is locked onto (-1 = none) */
+  lockOn: number;
   specialKind: '' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
@@ -430,6 +433,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     specialCd: 0,
     charge: -1,
     specialKind: '',
+    lockOn: -1,
     stretchLen: 0,
     stretchAngle: 0,
     baseCd: 0,
@@ -1708,7 +1712,7 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
   f.specialCd = sp.cooldown;
   if (sp.kind === 'bomb') f.charge = 0; // Reset the idle sentinel so the charging orb is visible.
   if (sp.kind === 'fist') f.stretchAngle = inp.moveY < -0.5 ? (sp.fist?.upAngle ?? -0.5) : inp.moveY > 0.5 && !f.grounded ? (sp.fist?.downAngle ?? 0.5) : 0;
-  if (sp.kind === 'bomb' && sp.bomb?.kind === 'ki') f.stretchAngle = aimAngle(f, inp);
+  if (sp.kind === 'bomb') aimUltimate(w, f, inp.moveY, sp.bomb?.kind, sp.bomb?.range ?? 550, 0.45);
   w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });
 }
 
@@ -2044,6 +2048,7 @@ function stBlink(w: World, f: Fighter, dt: number): void {
 
 function endSpecial(w: World, f: Fighter): void {
   f.specialKind = '';
+  f.lockOn = -1;
   f.stretchLen = 0;
   f.grip = '';
   f.armReach = 0;

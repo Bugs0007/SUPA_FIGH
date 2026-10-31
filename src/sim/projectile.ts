@@ -128,9 +128,10 @@ function burst(w: World, b: Bullet, x: number, y: number): void {
 
 /** Flames and flares light up what they land on. */
 function scorch(w: World, b: Bullet, x: number, y: number, tx: number, ty: number): void {
-  if (b.kind !== 'flame' && b.kind !== 'flare') return;
+  // (a fire jutsu is a ki projectile that carries `ignite`: it lights what it lands on as well)
+  if (b.kind !== 'flame' && b.kind !== 'flare' && b.ignite <= 0) return;
   if (isFlammableTile(w.map.get(tx, ty))) igniteTile(w, tx, ty, b.owner);
-  const chance = b.kind === 'flare' ? 1 : 0.06;
+  const chance = b.kind === 'flare' || b.ignite > 0 ? 1 : 0.06;
   if (w.rng.chance(chance)) spawnFire(w, x - Math.sign(b.vx) * 3, y - 3, -b.vx * 0.05, -40, b.owner);
 }
 

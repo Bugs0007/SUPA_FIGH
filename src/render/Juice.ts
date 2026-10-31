@@ -458,13 +458,24 @@ export class Juice {
         break;
       }
       case 'amaterasu':
-        this.sfx('amaterasu', e.x, .9);
+        if (e.index === 0) this.sfx('amaterasu', e.x, .9);
         if (e.target < 0) this.r.floatText(w.fighters[e.f].x,w.fighters[e.f].y-31,'NO CLEAR TARGET',0xb797db);
         else {
           fx.spawn({frame:'glowBig',x:e.x,y:e.y,life:.18,s0:.8,s1:2,a0:.6,a1:0,tint:0x9d6ccf,depth:56});
-          this.cam.addTrauma(.12);
+          if (e.index === 0) this.cam.addTrauma(.12);
         }
         break;
+      case 'arc': {
+        // Chidori's shock jumping to the next enemy: a jagged line of sparks and a flash where it lands
+        const n = 9;
+        for (let i = 0; i <= n; i++) {
+          const t = i / n, j = i === 0 || i === n ? 0 : 4;
+          fx.spawn({frame:'p1',x:e.x0+(e.x1-e.x0)*t+(Math.random()-.5)*j*2,y:e.y0+(e.y1-e.y0)*t+(Math.random()-.5)*j*2,life:.16,s0:1.6,s1:1,a0:1,a1:0,tint:i%2?0xe8f8ff:0x83ccff,add:true,depth:64});
+        }
+        fx.spawn({frame:'ring',x:e.x1,y:e.y1,life:.22,s0:.3,s1:1.8,a0:1,a1:0,tint:0x83ccff,depth:64});
+        this.sfx('impact', e.x1, .7);
+        break;
+      }
       case 'chargeStart':
         this.sfx('kiCharge', w.fighters[e.f].x, 0.8);
         break;

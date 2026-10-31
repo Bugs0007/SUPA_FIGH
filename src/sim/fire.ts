@@ -17,6 +17,8 @@ export interface FirePatch extends Body {
   owner: number;
   px: number;
   py: number;
+  /** Amaterasu's black flames: same rules as any fire, drawn dark */
+  black: boolean;
 }
 
 export interface BurningTile {
@@ -32,7 +34,7 @@ export function isFlammableTile(kind: number): boolean {
   return kind === TK.WOOD || kind === TK.PLAT_WOOD;
 }
 
-export function spawnFire(w: World, x: number, y: number, vx: number, vy: number, owner: number): FirePatch | null {
+export function spawnFire(w: World, x: number, y: number, vx: number, vy: number, owner: number, black = false): FirePatch | null {
   let p: FirePatch | null = null;
   for (const c of w.fires) {
     if (!c.active) {
@@ -42,7 +44,7 @@ export function spawnFire(w: World, x: number, y: number, vx: number, vy: number
   }
   if (!p) {
     if (w.fires.length >= FIRE.maxPatches) return null;
-    p = { active: false, life: 0, max: 1, owner: -1, x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, w: 6, h: 4, grounded: false };
+    p = { active: false, life: 0, max: 1, owner: -1, x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, w: 6, h: 4, grounded: false, black: false };
     w.fires.push(p);
   }
   p.active = true;
@@ -52,6 +54,7 @@ export function spawnFire(w: World, x: number, y: number, vx: number, vy: number
   p.vy = vy;
   p.grounded = false;
   p.owner = owner;
+  p.black = black;
   p.max = p.life = w.rng.range(FIRE.patchLife[0], FIRE.patchLife[1]);
   return p;
 }

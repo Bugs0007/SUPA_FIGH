@@ -346,3 +346,11 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [ ] `npm run host -- --https` with mkcert certificates: the https address works on phones that trust the CA; gamepads and
       the screen wake-lock work there (they may not over plain http, which is expected).
 - [ ] A gamepad on the host laptop plays in a LAN match (the host computer is a secure context via localhost).
+
+## Post-M14 — pixel-art spirits, phone controls, Sasuke rebalance (D78, D79)
+- [x] Susanoo, Kurama and the Susanoo / Kurama / chakra punching arms redrawn as pixel art (`art/pixelRaster.ts`, `art/avatarSprites.ts`); preview tool `scripts/spriteSheet.ts`
+- [x] Phones: JUMP and CROUCH buttons on the far right (the other right-hand buttons moved left), the pad and a button can share a key, and the browser's double-tap zoom / magnifier / text selection are blocked on the overlay
+- [x] Sasuke: Chidori stuns 2 s and arcs to nearby enemies (more with each form), a bigger fireball per form, Amaterasu burns 3 -> 4 enemies with growing range, fire and Amaterasu burn the arena, and ultimates lock onto the enemy being faced (Sasuke, Goku, Naruto)
+- [x] Fixed: Kurama's chakra arms vanished while the Tailed Beast Bomb flew off
+- [x] Tests: 509 unit (+ pixelArt, sasukeBalance) and 78 e2e (+ touchcontrols)
+- [ ] Play-test on a phone: JUMP / CROUCH reach, no zoom on rapid taps; Chidori stun feel, Amaterasu with 3-4 enemies, ultimate lock-on at different heights

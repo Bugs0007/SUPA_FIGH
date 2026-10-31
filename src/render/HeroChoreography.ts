@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import { armFrame, BF, FRAME_META, type FighterTextures } from '../art/fighterArt';
 import { moveLook } from '../art/heroMoves';
 import { formFx } from '../art/heroArt';
+import { armSprite } from '../art/avatarSprites';
 import { hexToNum } from '../art/palette';
+import { paintRuns } from '../art/pixelRaster';
 import type { FighterView } from './FighterView';
 import { formLevel } from './formLevel';
 
@@ -84,17 +86,11 @@ export class HeroChoreography {
 
   /** Solid, outlined chakra forearms and cupped palms, above the body but below the orb. */
   kuramaArms(x: number, y: number, ox: number, oy: number, radius: number, alpha = 1): void {
-    for (const side of [-1, 1]) {
-      const hx = ox + side * (radius + 3);
-      const points: [number, number, number, number, number, number, number, number] = [x + side * 5, y - 11, x + side * 28, y - 35, ox + side * (radius + 17), oy - 21, hx, oy];
-      this.curve(this.front, points, 0x59351c, 7, alpha * .9);
-      this.curve(this.front, points, 0xf6ba35, 5, alpha);
-      this.curve(this.front, points, 0xffed9d, 2, alpha * .9);
-      this.front.fillStyle(0x59351c, alpha).fillRect(Math.round(hx) - 3, Math.round(oy) - 5, 6, 11);
-      this.front.fillStyle(0xffd559, alpha).fillRect(Math.round(hx) - 2, Math.round(oy) - 4, 4, 9);
-      // Inward fingers cup the sphere; a dark wrist seal anchors each hand.
-      for (const finger of [-3, 0, 3]) this.front.fillStyle(0xffefa5, alpha).fillRect(Math.round(hx - side * 3) - 1, Math.round(oy) + finger, 3, 2);
-      this.front.fillStyle(0x704321, alpha).fillRect(Math.round(hx) - 1, Math.round(oy) + 3, 2, 2);
+    // two gold chakra arms rise from the shoulders and cup the sphere, fingers turned in (pixel art, like the punches)
+    for (const side of [-1, 1] as const) {
+      const hx = ox + side * (radius + 4);
+      const arm = armSprite({ kind: 'kurama', s: [x + side * 5, y - 14], e: [Math.round(x + side * 26), Math.round(y - 33)], h: [Math.round(hx), Math.round(oy)], d: -side as 1 | -1, thick: 7 });
+      paintRuns(this.front, arm.baked, arm.ox, arm.oy, false, alpha);
     }
   }
 

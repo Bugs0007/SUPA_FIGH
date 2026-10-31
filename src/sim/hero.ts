@@ -24,7 +24,7 @@ import { weaponDef } from './data/weapons';
 import type { Fighter } from './fighter';
 import { segmentAabb } from './physics';
 import { damageProp, pushProp } from './prop';
-import { ignite } from './fire';
+import { ignite, igniteTile, spawnFire } from './fire';
 import type { World } from './world';
 
 // ------------------------------------------------------------------ transformation state
@@ -52,26 +52,104 @@ export function usesAmaterasu(f: Fighter): boolean {
   return !!a && transformed(f) && f.powerLevel >= a.minLevel;
 }
 
-/** One visible enemy in the aimed direction; solid geometry always blocks the eye jutsu. */
-export function amaterasuTarget(w: World, f: Fighter): Fighter | null {
+/** An enemy of `f` that a move may pick on: not a friend (unless friendly fire), not the fighter's own clones. */
+function isEnemy(w: World, f: Fighter, o: Fighter): boolean {
+  if (o === f || !o.alive || o.gone || (!w.settings.friendlyFire && sameTeam(f, o))) return false;
+  if (o.master === f.id || (f.master >= 0 && (o.id === f.master || o.master === f.master))) return false;
+  return true;
+}
+
+/** Is there open space (no solid tile) between two points? */
+function clearView(w: World, x0: number, y0: number, x1: number, y1: number): boolean {
+  let blocked = false;
+  w.map.traverse(x0, y0, x1, y1, (tx, ty) => {
+    if (!w.map.def(tx, ty).solid) return false;
+    blocked = true;
+    return true;
+  });
+  return !blocked;
+}
+
+/** How far Amaterasu reaches and how many enemies it burns at the caster's current form. */
+export function amaterasuReach(f: Fighter): { range: number; count: number } {
   const a = heroDef(f.hero)?.second.amaterasu;
-  if (!a) return null;
+  if (!a) return { range: 0, count: 0 };
+  const extra = Math.max(0, (f.power === 'hero' ? f.powerLevel : 0) - a.minLevel);
+  return { range: a.range + a.rangePerLevel * extra, count: a.targets + a.targetsPerLevel * extra };
+}
+
+/** The visible enemies in the aimed direction, nearest first, as many as this form's Amaterasu can burn; solid geometry always blocks the eye jutsu. */
+export function amaterasuTargets(w: World, f: Fighter): Fighter[] {
+  const a = heroDef(f.hero)?.second.amaterasu;
+  if (!a) return [];
+  const { range, count } = amaterasuReach(f);
   const sx = f.x, sy = f.y - SHOULDER_Y_STAND - 3;
   const dx = f.facing * Math.cos(f.stretchAngle), dy = Math.sin(f.stretchAngle);
-  let nearest: Fighter | null = null, distance = a.range + .001;
+  const seen: { o: Fighter; dist: number }[] = [];
   for (const o of w.fighters) {
-    if (o === f || !o.alive || o.gone || (!w.settings.friendlyFire && sameTeam(f,o))) continue;
-    if (o.master === f.id || (f.master >= 0 && (o.id === f.master || o.master === f.master))) continue;
-    const ox = o.x-sx, oy = o.y-o.h*.5-sy, dist = Math.hypot(ox,oy);
-    if (dist > distance || (dist > 1 && (ox*dx+oy*dy)/dist < a.aimDot)) continue;
-    let blocked = false;
-    w.map.traverse(sx,sy,o.x,o.y-o.h*.5,(tx,ty)=>{
-      if (!w.map.def(tx,ty).solid) return false;
-      blocked = true; return true;
-    });
-    if (!blocked) { nearest=o; distance=dist; }
+    if (!isEnemy(w, f, o)) continue;
+    const ox = o.x - sx, oy = o.y - o.h * .5 - sy, dist = Math.hypot(ox, oy);
+    if (dist > range + .001 || (dist > 1 && (ox * dx + oy * dy) / dist < a.aimDot)) continue;
+    if (clearView(w, sx, sy, o.x, o.y - o.h * .5)) seen.push({ o, dist });
   }
-  return nearest;
+  return seen.sort((p, q) => p.dist - q.dist).slice(0, count).map((s) => s.o);
+}
+
+/** The nearest enemy Amaterasu would burn (null when nobody is in sight). */
+export function amaterasuTarget(w: World, f: Fighter): Fighter | null {
+  return amaterasuTargets(w, f)[0] ?? null;
+}
+
+// ------------------------------------------------------------------ locking an ultimate onto an enemy
+
+/** widest angle from straight ahead (radians) at which an ultimate locks onto an enemy */
+const LOCK_CONE = 0.95;
+
+/**
+ * The enemy an ultimate locks onto when it starts: the nearest one in front of the fighter (within `range`, inside a
+ * cone around the facing direction) that is in clear view. null = nobody to lock onto.
+ */
+export function ultimateTarget(w: World, f: Fighter, range: number): Fighter | null {
+  const sx = f.x, sy = f.y - SHOULDER_Y_STAND - 3;
+  let best: Fighter | null = null;
+  let bestDist = range;
+  for (const o of w.fighters) {
+    if (!isEnemy(w, f, o)) continue;
+    const dx = (o.x - sx) * f.facing;
+    const dy = o.y - o.h * .5 - sy;
+    if (dx < 4) continue; // behind or beside
+    const dist = Math.hypot(dx, dy);
+    if (dist > bestDist || Math.abs(Math.atan2(dy, dx)) > LOCK_CONE) continue;
+    if (!clearView(w, sx, sy, o.x, o.y - o.h * .5)) continue;
+    best = o;
+    bestDist = dist;
+  }
+  return best;
+}
+
+/**
+ * Where to aim (facing-local angle, + = down) from (sx, sy) to hit `o` with a projectile of `speed`: at where they will
+ * be when it arrives, leading by most of their speed.
+ */
+export function leadAngle(f: Fighter, sx: number, sy: number, o: Fighter, speed: number): number {
+  const cx = o.x, cy = o.y - o.h * .5;
+  const t = Math.hypot(cx - sx, cy - sy) / speed;
+  const ax = cx + o.vx * t * 0.6, ay = cy + o.vy * t * 0.35;
+  return Math.max(-1.2, Math.min(1.2, Math.atan2(ay - sy, Math.max(4, (ax - sx) * f.facing))));
+}
+
+/** Set the ultimate's aim as it starts: manual with Up / Down held, otherwise locked onto the enemy being faced. */
+export function aimUltimate(w: World, f: Fighter, moveY: number, kind: 'chakra' | 'ki' | undefined, range: number, manual: number): void {
+  f.lockOn = -1;
+  if (Math.abs(moveY) > 0.5) {
+    f.stretchAngle = kind === 'ki' ? (moveY < 0 ? -manual : f.grounded ? 0 : manual) : 0;
+    return;
+  }
+  const target = ultimateTarget(w, f, range);
+  f.stretchAngle = 0;
+  if (!target) return;
+  f.lockOn = target.id;
+  f.stretchAngle = leadAngle(f, f.x, f.y - SHOULDER_Y_STAND - 3, target, 430);
 }
 
 /** Name of the current form ('' when not powered). */
@@ -190,6 +268,43 @@ export function rasenganPoint(f: Fighter): { x: number; y: number } {
   return { x: f.x + f.facing * (f.w / 2 + 4), y: f.y - SHOULDER_Y_STAND + 1 };
 }
 
+/** How many fighters Chidori's shock reaches, and how far from the victim, at a form level. */
+export function chidoriReach(d: NonNullable<NonNullable<BaseAbility['dash']>['spread']>, level: number): { count: number; radius: number } {
+  return { count: d.count + d.countPerLevel * level, radius: d.radius + d.radiusPerLevel * level };
+}
+
+/** The shock arcs from the stunned victim to the nearest enemies around them: they take part of the hit and the same stun. */
+function chidoriShock(w: World, f: Fighter, victim: Fighter, d: NonNullable<BaseAbility['dash']>): void {
+  const reach = chidoriReach(d.spread!, f.power === 'hero' ? f.powerLevel : 0);
+  const m = meleeMuls(f);
+  const vx = victim.x;
+  const vy = victim.y - victim.h * 0.5;
+  const near: { o: Fighter; dist: number }[] = [];
+  for (const o of w.fighters) {
+    if (o === f || o === victim || !o.alive || o.gone || !isEnemy(w, f, o)) continue;
+    const dist = Math.hypot(o.x - vx, o.y - o.h * 0.5 - vy);
+    if (dist <= reach.radius) near.push({ o, dist });
+  }
+  near.sort((a, b) => a.dist - b.dist);
+  for (const { o } of near.slice(0, reach.count)) {
+    const connected = applyHit(w, o, {
+      damage: d.damage * m.dmg * d.spread!.damageFrac,
+      kbX: Math.sign(o.x - vx || f.facing) * 90 * m.knock,
+      kbY: -50,
+      attacker: f.id,
+      weapon: baseWeaponId(baseAbility(f)!),
+      kind: 'melee',
+      stun: d.stun,
+      x: o.x,
+      y: o.y - o.h * 0.5,
+    });
+    if (connected) {
+      w.emit({ t: 'arc', f: f.id, x0: vx, y0: vy, x1: o.x, y1: o.y - o.h * 0.5 });
+      w.emit({ t: 'heroFx', fx: 'ki', heavy: false, x: o.x, y: o.y - o.h * 0.5 });
+    }
+  }
+}
+
 /** Rasengan contact: the first fighter the orb touches is blasted away. Props get shoved. True on a hit. */
 export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['dash']>): boolean {
   const { x: hx, y: hy } = rasenganPoint(f);
@@ -219,12 +334,14 @@ export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['da
       weapon: baseWeaponId(baseAbility(f)!),
       kind: 'melee',
       stun: d.stun,
-      knockdown: true,
+      // a stun of a second or more holds the victim in place; a short one still knocks them down
+      knockdown: d.stun < 1,
       x: hx,
       y: hy,
     });
     if (connected) {
       w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x: hx, y: hy });
+      if (d.spread) chidoriShock(w, f, o, d);
       return true;
     }
   }
@@ -435,15 +552,17 @@ export function fireJutsu(w: World, f: Fighter): void {
   const level = f.power === 'hero' ? f.powerLevel : 0;
   if (usesAmaterasu(f)) {
     const a = heroDef(f.hero)!.second.amaterasu!;
-    const target = amaterasuTarget(w,f);
-    let connected = false;
-    if (target) {
-      connected = applyHit(w,target,{ damage:a.damage*meleeMuls(f).dmg,kbX:0,kbY:0,
+    const targets = amaterasuTargets(w,f);
+    let index = 0;
+    for (const target of targets) {
+      const connected = applyHit(w,target,{ damage:a.damage*meleeMuls(f).dmg,kbX:0,kbY:0,
         attacker:f.id,weapon:'amaterasu',kind:'fire',x:target.x,y:target.y-target.h*.5 });
-      if (connected) ignite(w,target,a.duration,f.id,'amaterasu');
+      if (!connected) continue;
+      ignite(w,target,a.duration,f.id,'amaterasu');
+      scorchGround(w,target,a.patches,f.id);
+      w.emit({t:'amaterasu',f:f.id,target:target.id,x:target.x,y:target.y-target.h*.5,index:index++});
     }
-    w.emit({t:'amaterasu',f:f.id,target:connected?target!.id:-1,
-      x:target?.x??f.x+f.facing*a.range,y:target?target.y-target.h*.5:f.y-18});
+    if (index === 0) w.emit({t:'amaterasu',f:f.id,target:-1,x:f.x+f.facing*amaterasuReach(f).range,y:f.y-18,index:0});
     return;
   }
   const size = s.size + s.sizePerLevel * level;
@@ -455,9 +574,16 @@ export function fireJutsu(w: World, f: Fighter): void {
     owner: f.id, weapon: f.hero + ':second', damage, range: s.range, falloff: 1,
     knock: 150 * m.knock, ricochet: false, pierce: 0, kind: 'ki', gravity: 0, size,
     ignite: s.ignite,
-    explosion: { radius: s.radius + level * 2, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18 },
+    explosion: { radius: s.radius + level * s.radiusPerLevel, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18, fire: s.fire + s.firePerLevel * level, ignite: s.ignite },
   });
-  w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.6 + level * 0.15 });
+  w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.8 + level * 0.2 });
+}
+
+/** Black flames spill from a victim onto the ground: wooden tiles beside them catch, and patches burn crates and whoever steps in. */
+function scorchGround(w: World, o: Fighter, patches: number, owner: number): void {
+  const tx = Math.floor(o.x / TILE), ty = Math.floor((o.y + 1) / TILE);
+  for (let dx = -1; dx <= 1; dx++) igniteTile(w, tx + dx, ty, owner);
+  for (let i = 0; i < patches; i++) spawnFire(w, o.x + w.rng.range(-5, 5), o.y - 2, w.rng.range(-40, 40), w.rng.range(-90, -30), owner, true);
 }
 
 export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/heroes').SuperAbility['bomb']>, level: number): void {
@@ -470,11 +596,15 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/her
   const sx = f.x + f.facing * (kurama ? 53 : archer ? 52*avatarScale : spirit ? size + 12 : 8);
   const sy = f.y - (kurama ? 27 : archer ? 26*avatarScale : SHOULDER_Y_STAND + 2);
   const m = meleeMuls(f);
+  // aimed when the move started (manual with Up / Down, else locked onto the enemy being faced); the shot leaves the
+  // bow / mouth / hand, so it re-aims from there at where the locked enemy is by now
+  const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
+  const angle = target && target.alive && !target.gone ? leadAngle(f, sx, sy, target, b.speed) : f.stretchAngle;
   w.spawnBullet({
     x: sx,
     y: sy,
-    vx: f.facing * b.speed * (spirit ? Math.cos(f.stretchAngle) : 1),
-    vy: spirit ? Math.sin(f.stretchAngle) * b.speed : 0,
+    vx: f.facing * b.speed * Math.cos(angle),
+    vy: Math.sin(angle) * b.speed,
     ox: sx,
     oy: sy,
     owner: f.id,

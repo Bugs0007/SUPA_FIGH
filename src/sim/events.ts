@@ -87,7 +87,10 @@ export type SimEvent =
   | { t: 'superStart'; f: number; name: string; level: number }
   | { t: 'beam'; f: number; power: number; super: boolean }
   | { t: 'chargeStart'; f: number }
-  | { t: 'amaterasu'; f: number; target: number; x: number; y: number }
+  /** one per burned enemy (index 0 plays the sound); target = -1: nobody in sight */
+  | { t: 'amaterasu'; f: number; target: number; x: number; y: number; index: number }
+  /** Chidori's shock jumping from one stunned enemy to the next */
+  | { t: 'arc'; f: number; x0: number; y0: number; x1: number; y1: number }
   | { t: 'stretch'; f: number }
   | { t: 'clone'; f: number; x: number; y: number; facing: number; id: number }
   | { t: 'cloneGone'; x: number; y: number }

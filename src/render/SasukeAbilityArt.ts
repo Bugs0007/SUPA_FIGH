@@ -66,7 +66,7 @@ export class SasukeAbilityArt {
     else if (f.specialKind === 'bomb') {
       const strength = f.charge === -2 ? Math.max(0, 1 - (f.stateTime - HEROES.sasuke.super.bomb!.windup) / .3) : Math.min(1, f.charge + .35);
       if (lv >= 3)
-        this.avatar.susanoo(x,y,d,lv,strength,time,'bow',f.charge);
+        this.avatar.susanoo(x,y,d,lv,strength,time,f.charge);
       if (f.charge === -2)
         return;
       if(lv>=3)return;

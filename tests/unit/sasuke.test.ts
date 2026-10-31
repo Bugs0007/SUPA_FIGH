@@ -75,7 +75,7 @@ describe('Sasuke', () => {
     expect(b).toBeDefined();
     expect(b!.vy).toBeLessThan(0);
     expect(b!.ignite).toBe(HEROES.sasuke.second.fireball!.ignite);
-    expect(b!.size).toBe(5);
+    expect(b!.size).toBe(HEROES.sasuke.second.fireball!.size);
   });
 
   it('the base form cannot use the transformed super', () => {

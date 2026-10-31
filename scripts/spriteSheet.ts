@@ -1,0 +1,111 @@
+// Art tool: render the baked Susanoo / Kurama / arm sprites to a PNG, scaled up, so they can be looked at big.
+// usage: npx vite-node scripts/spriteSheet.ts <out.png> <susanoo|kurama|arms>
+import { writeFileSync } from 'node:fs';
+import { deflateSync } from 'node:zlib';
+import { armSprite, kuramaSprite, susanooSprite, type ArmKind } from '../src/art/avatarSprites';
+import type { Baked } from '../src/art/pixelRaster';
+
+const [out, sheet = 'susanoo'] = process.argv.slice(2);
+const SCALE = 6;
+const BG = 0x171e30;
+
+interface Item {
+  baked: Baked;
+  ox: number;
+  oy: number;
+}
+const items: Item[] = [];
+let cursorX = 4;
+const place = (b: Baked, ox = 0, oy = 0) => {
+  items.push({ baked: b, ox: cursorX + ox, oy: 4 + oy });
+  cursorX += b.w + 4;
+};
+if (sheet === 'susanoo') {
+  place(susanooSprite(3, 0, 0));
+  place(susanooSprite(3, 3, 1));
+  place(susanooSprite(4, 0, 0));
+  place(susanooSprite(4, 3, 1));
+} else if (sheet === 'kurama') {
+  place(kuramaSprite(0));
+  place(kuramaSprite(1));
+} else {
+  // arms at several extensions, three kinds, jab and uppercut
+  let row = 0;
+  for (const kind of ['susanoo', 'kurama', 'claw'] as ArmKind[]) {
+    cursorX = 4;
+    for (const ext of [0.2, 0.5, 0.8, 1]) {
+      for (const up of [false, true]) {
+        const reach = 36;
+        const sx = 20;
+        const sy = 24;
+        const hx = sx + reach * ext;
+        const hy = up ? 16 : 20;
+        const mid = [(sx + hx) / 2, (sy + hy) / 2 + (up ? -9 : -5)] as [number, number];
+        const a = armSprite({ kind, s: [sx, sy], e: [Math.round(mid[0]), Math.round(mid[1])], h: [Math.round(hx), hy], d: 1, thick: kind === 'claw' ? 5 : 7 });
+        items.push({ baked: a.baked, ox: cursorX + a.ox, oy: 4 + row * 60 + a.oy });
+        cursorX += 56;
+      }
+    }
+    row++;
+  }
+}
+const W = Math.max(...items.map((i) => i.ox + i.baked.w)) + 4;
+const H = Math.max(...items.map((i) => i.oy + i.baked.h)) + 4;
+const px = new Uint8Array(W * H * 3);
+for (let i = 0; i < W * H; i++) {
+  px[i * 3] = (BG >> 16) & 255;
+  px[i * 3 + 1] = (BG >> 8) & 255;
+  px[i * 3 + 2] = BG & 255;
+}
+for (const it of items) {
+  for (const r of it.baked.runs) {
+    for (let k = 0; k < r.w; k++) {
+      const x = it.ox + r.x + k;
+      const y = it.oy + r.y;
+      if (x < 0 || y < 0 || x >= W || y >= H) continue;
+      const o = (y * W + x) * 3;
+      px[o] = (r.c >> 16) & 255;
+      px[o + 1] = (r.c >> 8) & 255;
+      px[o + 2] = r.c & 255;
+    }
+  }
+}
+// scale up and encode a PNG
+const SW = W * SCALE;
+const SH = H * SCALE;
+const raw = Buffer.alloc((SW * 3 + 1) * SH);
+for (let y = 0; y < SH; y++) {
+  raw[y * (SW * 3 + 1)] = 0;
+  for (let x = 0; x < SW; x++) {
+    const o = ((Math.floor(y / SCALE) * W) + Math.floor(x / SCALE)) * 3;
+    const d = y * (SW * 3 + 1) + 1 + x * 3;
+    raw[d] = px[o];
+    raw[d + 1] = px[o + 1];
+    raw[d + 2] = px[o + 2];
+  }
+}
+const crcTable = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+const crc = (buf: Buffer) => {
+  let c = 0xffffffff;
+  for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+};
+const chunk = (type: string, data: Buffer) => {
+  const len = Buffer.alloc(4);
+  len.writeUInt32BE(data.length);
+  const td = Buffer.concat([Buffer.from(type), data]);
+  const c = Buffer.alloc(4);
+  c.writeUInt32BE(crc(td));
+  return Buffer.concat([len, td, c]);
+};
+const ihdr = Buffer.alloc(13);
+ihdr.writeUInt32BE(SW, 0);
+ihdr.writeUInt32BE(SH, 4);
+ihdr[8] = 8;
+ihdr[9] = 2;
+writeFileSync(out, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
+console.log('wrote', out, W, 'x', H, 'sprites', items.length);

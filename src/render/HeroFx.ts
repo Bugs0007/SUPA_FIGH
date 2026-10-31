@@ -211,11 +211,45 @@ export class HeroFx {
     }
   }
 
+  /** Blue-white arcs flickering over a stunned fighter (a new pattern ~18 times a second, whole pixels only). */
+  private stunSparks(x: number, y: number, f: Fighter, time: number): void {
+    const step = Math.floor(time * 18);
+    const h = (n: number) => Math.abs(Math.sin(n * 12.9898 + step * 78.233) * 43758.5453) % 1;
+    const g = this.front;
+    for (let i = 0; i < 8; i++) {
+      let px = Math.round(x + (h(i) - 0.5) * (f.w + 10));
+      let py = Math.round(y - 2 - h(i + 9) * (f.h - 2));
+      g.fillStyle(i % 2 ? 0xe8f8ff : 0x83ccff, 1);
+      for (let k = 0; k < 3; k++) {
+        g.fillRect(px, py, 1, 2);
+        px += h(i * 5 + k + 20) < 0.5 ? -1 : 1;
+        py += 2;
+      }
+    }
+  }
+
+  /** Four corner brackets around the enemy an ultimate has locked onto. */
+  private lockReticle(f: Fighter, alpha: number, time: number): void {
+    const t = this.world.fighters[f.lockOn];
+    if (!t || !t.alive || t.gone) return;
+    const x = Math.round(lerp(t.px, t.x, alpha));
+    const y = Math.round(lerp(t.py, t.y, alpha));
+    const pulse = Math.floor(time * 10) % 2;
+    const l = x - 9 - pulse, r = x + 9 + pulse, top = y - t.h - 3 - pulse, b = y + 3 + pulse;
+    const g = this.front;
+    g.fillStyle(pulse ? 0xffffff : 0xff4d4d, 1);
+    for (const [cx, cy, dx, dy] of [[l, top, 1, 1], [r, top, -1, 1], [l, b, 1, -1], [r, b, -1, -1]] as const) {
+      g.fillRect(dx > 0 ? cx : cx - 3, cy, 4, 1);
+      g.fillRect(cx, dy > 0 ? cy : cy - 3, 1, 4);
+    }
+  }
+
   sync(alpha: number, dt: number, time: number): void {
     this.back.clear();
     this.front.clear();
     this.orbs.clear();
     this.choreography.begin(dt);
+    for (const p of this.world.fires) if (p.active && p.black) drawBlackFlames(this.orbs, p.x, p.y + 1, 10, 12, time + p.max, Math.min(1, p.life / 0.8));
     for (const v of this.views) {
       const f = v.fighter;
       if (f.gone) continue;
@@ -223,6 +257,9 @@ export class HeroFx {
       const y = lerp(f.py, f.y, alpha);
       if(f.burn>0&&f.burnStyle==='amaterasu')drawBlackFlames(this.orbs,x,y,f.w,f.h,time);
       if (!f.alive) continue;
+      // a long stun (Chidori's shock) crackles around the victim; an ultimate shows who it has locked onto
+      if (f.state === 'flinch' && f.flinchTime >= 1) this.stunSparks(x, y, f, time);
+      if (f.lockOn >= 0 && f.state === 'special') this.lockReticle(f, alpha, time);
       const comboDrawn=this.comboArt.draw(v,x,y,time);
       if(superGuard(f)){
         // Vertical chakra sparks indicate protection without hiding the fighter or adding orbiting balls.
@@ -508,6 +545,10 @@ export class HeroFx {
         this.disc(this.orbs,cx,cy,r,0x211427);
         this.disc(this.orbs,cx-r*.25,cy-r*.25,r*.32,0xe5a6ca,.65);
         this.choreography.kuramaArms(x,y,cx,cy,r,fade*.85);
+      } else {
+        // released: the arms swing forward with the orb and fade with the avatar
+        const elapsed=f.stateTime-b.windup;
+        if(elapsed>=0&&fade>0)this.choreography.kuramaArms(x,y,x+f.facing*(8+elapsed*70),y-SHOULDER_Y_STAND-2,5,fade);
       }
       return;
     }

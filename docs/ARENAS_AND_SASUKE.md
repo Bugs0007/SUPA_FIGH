@@ -24,13 +24,15 @@ Select Sasuke after Goku on the main menu or in the fighter creator. Online figh
 
 | Action | Move |
 | --- | --- |
-| Ability 1 (default P1 **B**) | **Chidori**: blue lightning in every form, with synthesized electric bird chirps; two charges, each restored in 2.8 seconds. Hold to extend the dash up to 0.85 seconds. |
-| Ability 2 (default P1 **H**) | **Fire Style: Fireball** in base / Sharingan / Curse Mark. **Amaterasu** from Mangekyo onward: black flames appear directly on a visible enemy within 240 pixels. Aim up, or down while airborne. 3.8-second cooldown. |
-| Both ability buttons, transformed | **Chidori Sharp Spear → Onyx Chidori Spear → Susanoo Arrow → Indra's Arrow**. Aimable explosive projectiles, stronger and larger in each form. 9-second cooldown. |
+| Ability 1 (default P1 **B**) | **Chidori**: blue lightning in every form, with synthesized electric bird chirps; two charges, each restored in 2.8 seconds. Hold to extend the dash up to 0.85 seconds. The victim is **stunned for 2 seconds** (held in place, not knocked down) and the shock **arcs to the nearest other enemies around them**, who are stunned too: 1 extra enemy within 40 px in the base form, +1 enemy and +14 px for every form up to 5 enemies within 96 px. They take half the damage. |
+| Ability 2 (default P1 **H**) | **Fire Style: Fireball** in base / Sharingan / Curse Mark: a big fireball (radius 9 px in the base form, 11.4 and 13.8 in the next two) that burns whoever it hits, sets everyone in its blast alight, scatters burning patches and lights wooden tiles and crates. **Amaterasu** from Mangekyo onward: black flames appear directly on up to **3 visible enemies** (4 in the top form) within 240 pixels (290 in the top form). Aim up, or down while airborne. 3.8-second cooldown. |
+| Both ability buttons, transformed | **Chidori Sharp Spear → Onyx Chidori Spear → Susanoo Arrow → Indra's Arrow**. Explosive projectiles, stronger and larger in each form. 9-second cooldown. They **lock onto the enemy you are facing** when the move starts (see below); hold Up / Down to aim by hand instead. |
 
 Power orbs progress through **Sharingan → Curse Mark → Mangekyo Sharingan → Rinnegan / Perfect Susanoo**. The final form can fly by holding Up. The last two supers summon an armored spectral archer, with a horned mask, articulated hands, shoulder plates, layered chest armor and a drawn bow. The final version gains segmented feathered wings. Its released arrow starts at the avatar's bow.
 
-Amaterasu chooses the nearest opponent in the aimed direction **at the end** of its 0.36-second eye-cast. Solid tiles block it, allies are excluded, and roll invulnerability can avoid it. Starting values: 240-pixel range (15 tiles), 8 initial damage before form multipliers, 3 seconds of black flames at 6 DPS. It creates no travelling projectile and does not spread by contact. The existing rolling / water burn rules still apply. All these numbers live in `HEROES.sasuke.second.amaterasu`.
+Amaterasu chooses the nearest opponents in the aimed direction **at the end** of its 0.36-second eye-cast: as many as the form allows (3, then 4), within its range (240 px, then 290). Solid tiles block it, allies are excluded, and roll invulnerability can avoid it. Each victim takes 8 initial damage before form multipliers and 3 seconds of black flames at 6 DPS, and black fire patches are left on the ground under them: they ignite wooden tiles beside them, burn crates and set anyone who steps in alight. It creates no travelling projectile and does not spread by contact. The existing rolling / water burn rules still apply. All these numbers live in `HEROES.sasuke.second.amaterasu`.
+
+**Ultimate lock-on** (Sasuke, Goku and Naruto): when an ultimate starts it locks onto the nearest enemy in front of the fighter (within the ultimate's range, inside a cone of about 55 degrees around the facing direction, in clear view; allies and your own clones are never chosen). A red-and-white bracket marks the chosen enemy during the wind-up, and the shot is aimed from the bow / mouth / hand at where that enemy will be when it arrives (leading their movement), so it no longer flies over or under them. Holding Up or Down when the ultimate starts still aims by hand; with nobody to lock onto it flies straight.
 
 ## Ultimate protection and transformed combos
 
@@ -54,7 +56,8 @@ Sasuke has an open grey collar, purple rope sash, dark trousers, arm guards, Kus
 - All Sasuke combat numbers, names and form multipliers: `src/sim/data/heroes.ts`, under `HEROES.sasuke`.
 - Costume and form palettes: `src/art/heroArt.ts`, under `HERO_ART.sasuke`.
 - Lightning, fireball and Susanoo choreography: `src/render/SasukeAbilityArt.ts`.
-- Detailed Susanoo / Kurama anatomy: `src/render/AvatarArt.ts`; transformed punches: `src/render/HeroComboArt.ts`.
+- Susanoo, Kurama and the spectral / chakra arms are pixel-art sprites built with `src/art/pixelRaster.ts` (a 1-pixel-grid rasterizer: flat tones, outline, plate rims) in `src/art/avatarSprites.ts`; `src/render/AvatarArt.ts` paints them and `src/render/HeroComboArt.ts` throws the transformed punches with them. Preview them big with `npx vite-node scripts/spriteSheet.ts out.png susanoo|kurama|arms`.
+- Chidori's stun, spread and the fireball / Amaterasu numbers: `HEROES.sasuke.base.dash` (`stun`, `spread`) and `HEROES.sasuke.second` (`fireball`, `amaterasu`).
 - Chidori sound layers: `src/audio/sounds.ts`, `chidori` and `chidoriDash`.
 - New arena routes and gimmicks: `src/sim/map/maps/expansion.ts`.
 - Arena architecture / landmarks: `src/art/arenaArt.ts`; full previews: `src/art/mapPreview.ts`.

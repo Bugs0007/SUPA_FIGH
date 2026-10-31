@@ -37,7 +37,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
   ['charge', 'n'], ['specialKind', 's'], ['stretchLen', 'n'], ['stretchAngle', 'n'], ['baseCd', 'n'], ['baseUsed', 'n'],
   ['baseRecharge', 'n'], ['secondCd', 'n'], ['beamWidth', 'n'], ['flying', 'b'], ['anchorX', 'n'], ['anchorY', 'n'],
   ['recoverAt', 'n'], ['cloneCount', 'n'], ['cloneForm', 'n'], ['wallDir', 'n'], ['armReach', 'n'], ['armBack', 'b'],
-  ['ropeLen', 'n'], ['grip', 's'],
+  ['ropeLen', 'n'], ['grip', 's'], ['lockOn', 'n'], ['flinchTime', 'n'],
 ];
 
 /** Fighter fields both sides already have (they come from the spec the match was built with). */
@@ -58,7 +58,7 @@ export const PROP_SPEC: Spec<Prop> = [
 ];
 export const FIRE_SPEC: Spec<FirePatch> = [
   ['x', 'n'], ['y', 'n'], ['vx', 'n'], ['vy', 'n'], ['w', 'n'], ['h', 'n'], ['life', 'n'], ['max', 'n'], ['owner', 'n'],
-  ['grounded', 'b'],
+  ['grounded', 'b'], ['black', 'b'],
 ];
 
 // movers / hazards / zones / cannons: the sim objects hold a `def` that both sides rebuild from the map
@@ -216,7 +216,7 @@ export function applyWorld(w: World, s: RenderSnapshot, prev?: PrevPositions): v
     return p;
   });
   w.fires = s.fires.map((row) => {
-    const p: FirePatch = { active: true, life: 0, max: 1, owner: -1, x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, w: 6, h: 4, grounded: false };
+    const p: FirePatch = { active: true, life: 0, max: 1, owner: -1, x: 0, y: 0, px: 0, py: 0, vx: 0, vy: 0, w: 6, h: 4, grounded: false, black: false };
     decodeRow(p, FIRE_SPEC, row);
     p.px = p.x;
     p.py = p.y;

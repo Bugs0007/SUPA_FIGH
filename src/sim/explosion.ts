@@ -1,7 +1,7 @@
 import { applyHit } from './combat';
 import { TILE } from './constants';
 import type { ExplosionStats } from './data/weapons';
-import { isFlammableTile, spawnFire } from './fire';
+import { ignite, isFlammableTile, spawnFire } from './fire';
 import { TK } from './map/tiles';
 import { damageProp, pushProp } from './prop';
 import type { World } from './world';
@@ -76,6 +76,8 @@ export function explode(w: World, x: number, y: number, ex: ExplosionStats, owne
       x: f.x,
       y: cy,
     });
+    // anyone the blast reaches catches fire; the nearer to the centre, the longer they burn
+    if (ex.ignite) ignite(w, f, ex.ignite * (0.5 + 0.5 * k), owner);
   }
 
   for (const it of w.items) {
