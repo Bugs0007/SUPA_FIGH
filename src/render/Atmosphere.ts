@@ -17,7 +17,7 @@ export class Atmosphere {
 
   constructor(private scene: Phaser.Scene, private world: World) {
     const map = world.map;
-    this.accent = ({ leaf: 0xffe4ac, ship: 0xc8efff, docks: 0xffbf8d, factory: 0xff9954, lab: 0x67e8cf, alien: 0xad9aff, mine: 0xd4bb94 } as Record<string, number>)[world.def.theme] ?? 0xa6bbee;
+    this.accent = ({ leaf: 0xffe4ac, valley: 0x9de1d6, citadel: 0xffdfaa, neon: 0x85dff4, ship: 0xc8efff, docks: 0xffbf8d, factory: 0xff9954, lab: 0x67e8cf, alien: 0xad9aff, mine: 0xd4bb94 } as Record<string, number>)[world.def.theme] ?? 0xa6bbee;
     this.architecture = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0).setDepth(19);
     this.surfaces = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0).setDepth(20.5);
     this.contact = scene.add.graphics().setDepth(31);
@@ -99,7 +99,7 @@ export class Atmosphere {
       const level = formLevel(f);
       const charged = f.state === 'special';
       if (level > 0 || charged || f.burn > 0) {
-        const color = f.burn > 0 ? 0xff9855 : level > 0 ? hexToNum(formFx(f.hero, level).aura[0]) : f.hero === 'luffy' ? 0xffc5a0 : 0x75cfff;
+        const color = f.burn > 0 ? f.burnStyle==='amaterasu'?0x9e66c5:0xff9855 : level > 0 ? hexToNum(formFx(f.hero, level).aura[0]) : f.hero === 'luffy' ? 0xffc5a0 : 0x75cfff;
         light.setVisible(true).setPosition(x, y - 12).setTint(color).setScale(1.8 + level * 0.25).setAlpha((charged ? 0.26 : 0.14) + Math.sin(time * 6 + i) * 0.025);
       }
     });
@@ -108,6 +108,24 @@ export class Atmosphere {
     this.dust.clear();
     const map = w.map;
     const view = this.scene.cameras.main.worldView;
+    if (w.def.theme === 'valley') {
+      // Falling water catches light behind the fighters, with mist at the foot of the falls.
+      for (let i=0;i<28;i++) {
+        const x=map.pxW*.5-29+hash2(i,0)*58;
+        const y=(hash2(i,1)*map.pxH+time*(75+hash2(i,2)*50))%(map.pxH-64);
+        this.dust.fillStyle(0xd5f5e8,.24).fillRect(Math.round(x),Math.round(y),1,6+hash2(i,3)*8);
+      }
+      for(let i=0;i<12;i++)this.dust.fillStyle(0xc1f0e4,.1).fillEllipse(map.pxW*.5+Math.sin(time*.7+i)*65,map.pxH-67-Math.sin(time+i)*7,24,5);
+    } else if (w.def.theme === 'citadel') {
+      const zone=w.gimmicks.gravity[0];
+      if(zone){
+        for(let i=0;i<16;i++){
+          const h=zone.b-zone.t;
+          const x=zone.l+hash2(i,7)*(zone.r-zone.l),y=zone.t+((hash2(i,8)*h-time*24)%h+h)%h;
+          this.dust.fillStyle(0xe6d3a4,.38).fillRect(Math.round(x),Math.round(y),1,4);
+        }
+      }
+    }
     for (let i = 0; i < 44; i++) {
       const x = ((hash2(i, 1, 87) * map.pxW + time * (2 + hash2(i, 2) * 4)) % map.pxW);
       const y = ((hash2(i, 3, 87) * map.pxH - time * (2 + hash2(i, 4) * 4)) % map.pxH + map.pxH) % map.pxH;

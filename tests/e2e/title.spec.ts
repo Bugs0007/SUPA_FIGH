@@ -20,6 +20,30 @@ function collectErrors(page: Page): string[] {
 const onScene = (page: Page, key: string) =>
   page.waitForFunction((k) => (window as unknown as { __GAME__?: Handle }).__GAME__?.scene().includes(k), key);
 
+test('Sasuke and a new arena can be chosen from the title, including the full preview click targets', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?timer=1');
+  await onScene(page, 'title');
+  // The existing focus order is unchanged. P1 fighter is seven rows above the action buttons.
+  await press(page, 'ArrowUp', 7);
+  await press(page, 'ArrowRight', 4);
+  // Clicking the left half of the painting browses backward: test -> random -> neon -> citadel -> valley.
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.click(200, 330);
+    await page.waitForTimeout(80);
+  }
+  await page.screenshot({ path: 'tests/e2e/screenshots/title-sasuke-valley.png' });
+  // The whole button rectangle is clickable, including its blank right side.
+  await page.mouse.click(330, 640);
+  await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 10);
+  const picked = await page.evaluate(() => {
+    const m = (window as unknown as { __GAME__: Handle }).__GAME__.match()!;
+    return { map: m.cfg.mapId, hero: m.world.fighters[0].hero };
+  });
+  expect(picked).toEqual({ map: 'valley', hero: 'sasuke' });
+  expect(errors).toEqual([]);
+});
+
 async function press(page: Page, key: string, times = 1): Promise<void> {
   for (let i = 0; i < times; i++) {
     await page.keyboard.press(key);

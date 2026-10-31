@@ -12,6 +12,7 @@ import { testArena } from './testArena';
 import { leafForest } from './leaf';
 import { grandLineShip } from './ship';
 import { alienPlanet } from './alien';
+import { valley, citadel, neon } from './expansion';
 
 export const MAP_LIST: MapDef[] = [
   testArena,
@@ -28,6 +29,9 @@ export const MAP_LIST: MapDef[] = [
   leafForest,
   grandLineShip,
   alienPlanet,
+  valley,
+  citadel,
+  neon,
 ];
 
 export const MAPS: Record<string, MapDef> = Object.fromEntries(MAP_LIST.map((m) => [m.id, m]));

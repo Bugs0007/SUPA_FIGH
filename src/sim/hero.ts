@@ -6,6 +6,7 @@ import { applyHit, sameTeam } from './combat';
 import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from './constants';
 import {
   cloneSpec,
+  baseWeaponId,
   FORM_BYPASS,
   FORM_HP,
   GENERIC_BOOST,
@@ -23,6 +24,7 @@ import { weaponDef } from './data/weapons';
 import type { Fighter } from './fighter';
 import { segmentAabb } from './physics';
 import { damageProp, pushProp } from './prop';
+import { ignite } from './fire';
 import type { World } from './world';
 
 // ------------------------------------------------------------------ transformation state
@@ -37,6 +39,39 @@ export function ability(f: Fighter): AbilityDefinition | null {
 /** Fully transformed hero (super available, form looks). */
 export function transformed(f: Fighter): boolean {
   return f.power === 'hero' && f.powerLevel > 0;
+}
+
+/** Ultimate protection is derived from the move, so it cannot leak into a later action. */
+export function superGuard(f: Fighter): boolean {
+  return f.alive && transformed(f) && f.state === 'special' &&
+    ['bomb', 'superFist', 'superCharge', 'superBeam'].includes(f.specialKind);
+}
+
+export function usesAmaterasu(f: Fighter): boolean {
+  const a = heroDef(f.hero)?.second.amaterasu;
+  return !!a && transformed(f) && f.powerLevel >= a.minLevel;
+}
+
+/** One visible enemy in the aimed direction; solid geometry always blocks the eye jutsu. */
+export function amaterasuTarget(w: World, f: Fighter): Fighter | null {
+  const a = heroDef(f.hero)?.second.amaterasu;
+  if (!a) return null;
+  const sx = f.x, sy = f.y - SHOULDER_Y_STAND - 3;
+  const dx = f.facing * Math.cos(f.stretchAngle), dy = Math.sin(f.stretchAngle);
+  let nearest: Fighter | null = null, distance = a.range + .001;
+  for (const o of w.fighters) {
+    if (o === f || !o.alive || o.gone || (!w.settings.friendlyFire && sameTeam(f,o))) continue;
+    if (o.master === f.id || (f.master >= 0 && (o.id === f.master || o.master === f.master))) continue;
+    const ox = o.x-sx, oy = o.y-o.h*.5-sy, dist = Math.hypot(ox,oy);
+    if (dist > distance || (dist > 1 && (ox*dx+oy*dy)/dist < a.aimDot)) continue;
+    let blocked = false;
+    w.map.traverse(sx,sy,o.x,o.y-o.h*.5,(tx,ty)=>{
+      if (!w.map.def(tx,ty).solid) return false;
+      blocked = true; return true;
+    });
+    if (!blocked) { nearest=o; distance=dist; }
+  }
+  return nearest;
 }
 
 /** Name of the current form ('' when not powered). */
@@ -181,7 +216,7 @@ export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['da
       kbX: f.facing * d.knockX * m.knock,
       kbY: d.knockY * m.knock,
       attacker: f.id,
-      weapon: 'rasengan',
+      weapon: baseWeaponId(baseAbility(f)!),
       kind: 'melee',
       stun: d.stun,
       knockdown: true,
@@ -189,7 +224,7 @@ export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['da
       y: hy,
     });
     if (connected) {
-      w.emit({ t: 'heroFx', fx: 'rasengan', heavy: true, x: hx, y: hy });
+      w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x: hx, y: hy });
       return true;
     }
   }
@@ -393,12 +428,47 @@ export function beamHits(
 
 // ------------------------------------------------------------------ explosive hero balls (Naruto / Goku supers)
 
+/** Sasuke's travelling fire jutsu. Uses the normal projectile collision and burn rules. */
+export function fireJutsu(w: World, f: Fighter): void {
+  const s = secondAbility(f)?.fireball;
+  if (!s) return;
+  const level = f.power === 'hero' ? f.powerLevel : 0;
+  if (usesAmaterasu(f)) {
+    const a = heroDef(f.hero)!.second.amaterasu!;
+    const target = amaterasuTarget(w,f);
+    let connected = false;
+    if (target) {
+      connected = applyHit(w,target,{ damage:a.damage*meleeMuls(f).dmg,kbX:0,kbY:0,
+        attacker:f.id,weapon:'amaterasu',kind:'fire',x:target.x,y:target.y-target.h*.5 });
+      if (connected) ignite(w,target,a.duration,f.id,'amaterasu');
+    }
+    w.emit({t:'amaterasu',f:f.id,target:connected?target!.id:-1,
+      x:target?.x??f.x+f.facing*a.range,y:target?target.y-target.h*.5:f.y-18});
+    return;
+  }
+  const size = s.size + s.sizePerLevel * level;
+  const dx = f.facing * Math.cos(f.stretchAngle), dy = Math.sin(f.stretchAngle);
+  const x = f.x + dx * (size + 9), y = f.y - SHOULDER_Y_STAND - 3 + dy * (size + 9);
+  const m = meleeMuls(f);
+  const damage = (s.damage + s.damagePerLevel * level) * m.dmg;
+  w.spawnBullet({ x, y, ox: x, oy: y, vx: dx * s.speed, vy: dy * s.speed,
+    owner: f.id, weapon: f.hero + ':second', damage, range: s.range, falloff: 1,
+    knock: 150 * m.knock, ricochet: false, pierce: 0, kind: 'ki', gravity: 0, size,
+    ignite: s.ignite,
+    explosion: { radius: s.radius + level * 2, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18 },
+  });
+  w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.6 + level * 0.15 });
+}
+
 export function fireBomb(w: World, f: Fighter, b: NonNullable<import('./data/heroes').SuperAbility['bomb']>, level: number): void {
   const l = Math.max(1, level) - 1;
   const size = b.size + b.sizePerLevel * l;
   const spirit = b.kind === 'ki';
-  const sx = f.x + f.facing * (spirit ? size + 12 : 8);
-  const sy = f.y - SHOULDER_Y_STAND - 2;
+  const kurama = f.hero === 'naruto' && level === 4;
+  const archer = f.hero === 'sasuke' && level >= 3;
+  const avatarScale = level===4?1.28:.94;
+  const sx = f.x + f.facing * (kurama ? 53 : archer ? 52*avatarScale : spirit ? size + 12 : 8);
+  const sy = f.y - (kurama ? 27 : archer ? 26*avatarScale : SHOULDER_Y_STAND + 2);
   const m = meleeMuls(f);
   w.spawnBullet({
     x: sx,

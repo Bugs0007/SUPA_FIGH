@@ -87,6 +87,7 @@ export type SimEvent =
   | { t: 'superStart'; f: number; name: string; level: number }
   | { t: 'beam'; f: number; power: number; super: boolean }
   | { t: 'chargeStart'; f: number }
+  | { t: 'amaterasu'; f: number; target: number; x: number; y: number }
   | { t: 'stretch'; f: number }
   | { t: 'clone'; f: number; x: number; y: number; facing: number; id: number }
   | { t: 'cloneGone'; x: number; y: number }

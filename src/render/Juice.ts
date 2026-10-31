@@ -457,6 +457,14 @@ export class Juice {
         this.hitstop = Math.max(this.hitstop, e.super ? 0.1 : 0.04);
         break;
       }
+      case 'amaterasu':
+        this.sfx('amaterasu', e.x, .9);
+        if (e.target < 0) this.r.floatText(w.fighters[e.f].x,w.fighters[e.f].y-31,'NO CLEAR TARGET',0xb797db);
+        else {
+          fx.spawn({frame:'glowBig',x:e.x,y:e.y,life:.18,s0:.8,s1:2,a0:.6,a1:0,tint:0x9d6ccf,depth:56});
+          this.cam.addTrauma(.12);
+        }
+        break;
       case 'chargeStart':
         this.sfx('kiCharge', w.fighters[e.f].x, 0.8);
         break;
@@ -522,8 +530,9 @@ export class Juice {
         break;
       case 'rasengan': {
         const f = w.fighters[e.f];
-        if (e.phase === 'form') this.sfx('rasengan', f.x, 0.9);
+        if (e.phase === 'form') this.sfx(f.hero === 'sasuke' ? 'chidori' : 'rasengan', f.x, 0.9, 1);
         else {
+          if (f.hero === 'sasuke') this.sfx('chidoriDash', f.x, .9);
           this.sfx('swing', f.x, 0.9, 0.6);
           fx.dust(f.x, f.y, 2, 40);
         }

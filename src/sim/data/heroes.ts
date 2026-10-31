@@ -15,6 +15,8 @@ import type { MeleeHit } from './weapons';
 export interface BaseAbility {
   kind: 'blink' | 'rasengan' | 'pistol';
   name: string;
+  /** Distinct kill-credit id when a hero shares an existing move state machine. */
+  weapon?: string;
   /** short menu description */
   desc: string;
   /** seconds between uses */
@@ -93,7 +95,7 @@ export interface BeamStats {
 
 /** ABILITY 2 (KICK button for heroes). */
 export interface SecondAbility {
-  kind: 'beam' | 'clones' | 'gatling';
+  kind: 'beam' | 'clones' | 'gatling' | 'fireball';
   name: string;
   desc: string;
   cooldown: number;
@@ -107,6 +109,9 @@ export interface SecondAbility {
   clones?: { count: number; perLevel: number; finalCount: number; hpFrac: number };
   /** flurry of stretched punches: duration, seconds between punches, reach, per-hit damage, re-hit delay */
   gatling?: { time: number; every: number; range: number; damage: number; knockX: number; rehit: number; finalKnock: number };
+  fireball?: { windup: number; recover: number; speed: number; range: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; ignite: number };
+  /** Higher forms replace the projectile with a line-of-sight eye jutsu. Range is in world pixels. */
+  amaterasu?: { minLevel: number; range: number; windup: number; recover: number; damage: number; duration: number; dps: number; aimDot: number };
 }
 
 /** The super move (both abilities at once, transformed only). */
@@ -209,6 +214,38 @@ const heroCombo = (fx: 'chakra' | 'steam' | 'ki', stretch = false): MeleeHit[] =
 ];
 
 export const HEROES: Record<string, HeroDefinition> = {
+  sasuke: {
+    id: 'sasuke', name: 'SASUKE',
+    blurb: 'SHARINGAN > CURSE MARK > MANGEKYO > RINNEGAN / PERFECT SUSANOO',
+    stats: { speed: 1.04, hp: 100 }, wallWalk: true,
+    sprintArmsBack: { base: true, levels: [1, 2, 3, 4] },
+    comboName: 'UCHIHA COMBO', combo: heroCombo('ki'),
+    base: {
+      kind: 'rasengan', weapon: 'chidori', name: 'CHIDORI',
+      desc: 'LIGHTNING PALM DASH. HOLD TO EXTEND THE CHARGE; TWO USES BEFORE RECHARGING.',
+      cooldown: 0.4, charges: { max: 2, recharge: 2.8 },
+      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 360, recover: 0.22, damage: 14, knockX: 300, knockY: -130, stun: 0.3, radius: 6 },
+    },
+    second: {
+      kind: 'fireball', name: 'FIRE STYLE: FIREBALL',
+      desc: 'FIREBALL. FROM MANGEKYO: AMATERASU IGNITES A VISIBLE ENEMY WITHIN 240 PX. UP / DOWN TO AIM.',
+      cooldown: 3.8,
+      fireball: { windup: 0.28, recover: 0.2, speed: 240, range: 300, size: 5, sizePerLevel: 0.6, damage: 10, damagePerLevel: 2, radius: 18, ignite: 1.5 },
+      amaterasu: { minLevel: 3, range: 240, windup: 0.36, recover: 0.22, damage: 8, duration: 3, dps: 6, aimDot: 0.7 },
+    },
+    super: {
+      kind: 'bomb', names: ['CHIDORI SHARP SPEAR', 'ONYX CHIDORI SPEAR', 'SUSANOO ARROW', "INDRA'S ARROW"],
+      desc: 'AIM A LIGHTNING SPEAR. HIGHER FORMS SUMMON SUSANOO TO FIRE AN EXPLOSIVE ARROW.',
+      cooldown: 9,
+      bomb: { windup: 0.65, speed: 430, size: 4, sizePerLevel: 1.2, damage: 22, damagePerLevel: 7, radius: 24, radiusPerLevel: 10, range: 550, kind: 'ki' },
+    },
+    forms: [
+      { name: 'SHARINGAN', speedMul: 1.12, damageMul: 1.15, knockMul: 1.1, reach: 1 },
+      { name: 'CURSE MARK', speedMul: 1.17, damageMul: 1.3, knockMul: 1.2, reach: 2 },
+      { name: 'MANGEKYO SHARINGAN', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 14 },
+      { name: 'RINNEGAN / PERFECT SUSANOO', speedMul: 1.25, damageMul: 1.6, knockMul: 1.4, reach: 22, flies: true },
+    ],
+  },
   naruto: {
     id: 'naruto',
     name: 'NARUTO',
@@ -243,7 +280,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       { name: 'ONE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.15, knockMul: 1.1, reach: 0 },
       { name: 'FOUR-TAIL CLOAK', speedMul: 1.15, damageMul: 1.3, knockMul: 1.2, reach: 1 },
       { name: 'SIX-TAIL FORM', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 1 },
-      { name: 'KURAMA MODE', speedMul: 1.28, damageMul: 1.6, knockMul: 1.4, reach: 2, flies: true },
+      { name: 'KURAMA MODE', speedMul: 1.28, damageMul: 1.6, knockMul: 1.4, reach: 18, flies: true },
     ],
   },
   luffy: {
@@ -293,10 +330,10 @@ export const HEROES: Record<string, HeroDefinition> = {
       fist: { range: 150, out: 0.16, hold: 0.12, back: 0.14, damage: 18, knockX: 420, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 8 },
     },
     forms: [
-      { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 3 },
-      { name: 'GEAR THIRD', speedMul: 1.15, damageMul: 1.4, knockMul: 1.35, reach: 6 },
-      { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.55, knockMul: 1.45, reach: 6 },
-      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.7, knockMul: 1.6, reach: 8, flies: true },
+      { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 4 },
+      { name: 'GEAR THIRD', speedMul: 1.15, damageMul: 1.4, knockMul: 1.35, reach: 8 },
+      { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.55, knockMul: 1.45, reach: 12 },
+      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.7, knockMul: 1.6, reach: 16, flies: true },
     ],
   },
   goku: {
@@ -329,16 +366,16 @@ export const HEROES: Record<string, HeroDefinition> = {
       bomb: { windup: 0.95, speed: 260, size: 18, sizePerLevel: 6, damage: 24, damagePerLevel: 8, radius: 45, radiusPerLevel: 12, range: 520, kind: 'ki' },
     },
     forms: [
-      { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.25, knockMul: 1.25, reach: 1 },
-      { name: 'SUPER SAIYAN 2', speedMul: 1.2, damageMul: 1.4, knockMul: 1.35, reach: 1 },
-      { name: 'SUPER SAIYAN 3', speedMul: 1.2, damageMul: 1.55, knockMul: 1.45, reach: 2 },
-      { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.7, knockMul: 1.55, reach: 2, flies: true },
+      { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.25, knockMul: 1.25, reach: 3 },
+      { name: 'SUPER SAIYAN 2', speedMul: 1.2, damageMul: 1.4, knockMul: 1.35, reach: 5 },
+      { name: 'SUPER SAIYAN 3', speedMul: 1.2, damageMul: 1.55, knockMul: 1.45, reach: 8 },
+      { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.7, knockMul: 1.55, reach: 12, flies: true },
     ],
   },
 };
 
 /** '' = the regular scrapyard fighter. Order of the select screen. */
-export const HERO_ORDER = ['', 'naruto', 'luffy', 'goku'] as const;
+export const HERO_ORDER = ['', 'naruto', 'luffy', 'goku', 'sasuke'] as const;
 
 export function heroDef(id: string | undefined): HeroDefinition | null {
   return id ? (HEROES[id] ?? null) : null;
@@ -364,6 +401,7 @@ export function superFistFor(hero: string, level: number): StretchStats | null {
 
 /** Kill-feed weapon ids of hero moves: '<hero>:combo', 'rasengan', 'gumgum', 'clone', '<hero>:second', '<hero>:super'. */
 export function heroAttackLabel(id: string): string | null {
+  if (id === 'amaterasu') return 'AMATERASU';
   if (id === 'clone') return 'SHADOW CLONE';
   for (const h of Object.values(HEROES)) {
     if (id === baseWeaponId(h.base)) return h.base.name;
@@ -376,7 +414,7 @@ export function heroAttackLabel(id: string): string | null {
 
 /** Kill-credit weapon id of a base ability ('rasengan', 'gumgum', 'blink'). */
 export function baseWeaponId(b: BaseAbility): string {
-  return b.kind === 'pistol' ? 'gumgum' : b.kind;
+  return b.weapon ?? (b.kind === 'pistol' ? 'gumgum' : b.kind);
 }
 
 /** Shadow clones a hero's ability 2 makes at a form level (0 = base form) and whether they copy full health. */

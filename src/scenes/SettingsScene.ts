@@ -20,6 +20,7 @@ const ROWS: Row[] = [
   { label: 'GORE', key: 'gore', kind: 'bool' },
   { label: 'DAMAGE NUMBERS', key: 'damageNumbers', kind: 'bool' },
   { label: 'INSTANT REPLAYS', key: 'replays', kind: 'bool' },
+  { label: 'LAN PREDICTION', key: 'netPrediction', kind: 'bool' },
   { label: 'FULLSCREEN', key: 'fullscreen', kind: 'bool' },
   { label: 'BACK', kind: 'back' },
 ];

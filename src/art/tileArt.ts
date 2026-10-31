@@ -4,6 +4,7 @@ import { TK } from '../sim/map/tiles';
 import type { TileMap } from '../sim/map/tilemap';
 import { hash2, PixelCanvas } from './canvas';
 import { mix, P, shade } from './palette';
+import { ARENA_COLORS } from './arenaArt';
 
 // Autotiled tileset: one row per tile kind, 16 variants per row indexed by a 4-bit neighbor mask
 // (1 = up, 2 = right, 4 = down, 8 = left: set when that neighbor "connects").
@@ -38,6 +39,9 @@ export const THEMES: Record<string, ThemeColors> = {
   leaf: { back: '#4a3424', backSeam: '#3c2a1c', sky0: '#5aa0e0', sky1: '#a8d8f8' },
   ship: { back: '#3e2a1c', backSeam: '#321f14', sky0: '#4a90d8', sky1: '#a8d8f0' },
   alien: { back: '#2a1838', backSeam: '#20102c', sky0: '#1a0a3a', sky1: '#4a2a7a' },
+  valley: { back:'#2d514c',backSeam:'#203c3d',sky0:'#598b9d',sky1:'#c0dfd1' },
+  citadel: { back:'#516277',backSeam:'#3b4d62',sky0:'#728fac',sky1:'#dee4d0' },
+  neon: { back:'#252340',backSeam:'#181a31',sky0:'#12152f',sky1:'#543474' },
 };
 
 type Painter = (pc: PixelCanvas, ox: number, oy: number, mask: number, seed: number) => void;
@@ -510,6 +514,11 @@ export function bakeTiles(scene: Phaser.Scene, theme: string): string {
       const ox = mask * TILE;
       const oy = kind * TILE;
       painter(pc, ox, oy, mask, kind * 31 + mask);
+      const tint=ARENA_COLORS[theme]?.[0]??'#85a4bb';
+      if(kind!==TK.EMPTY&&kind!==TK.GLASS&&kind!==TK.LADDER&&kind!==TK.WATER){
+        for(let yy=0;yy<TILE;yy++)for(let xx=0;xx<TILE;xx++)if(pc.alphaAt(ox+xx,oy+yy))pc.light(ox+xx,oy+yy,tint,kind===TK.DIRT?.18:.075);
+        if(!up(mask)&&['leaf','valley','citadel','alien'].includes(theme))pc.rect(ox+1,oy+1,14,1,tint);
+      }
       if (kind === TK.WATER || kind === TK.LADDER || kind === TK.GLASS) continue;
       const platform = kind === TK.PLAT_WOOD || kind === TK.PLAT_METAL;
       // A bevel across exposed faces; interiors stay continuous across tile boundaries.

@@ -124,7 +124,7 @@ export class Puppet {
       const s = Math.sin((k / 6) * Math.PI * 2);
       fa = Math.PI / 2 - s * 1.05 - 0.25;
       ba = Math.PI / 2 + s * 1.05 - 0.25;
-      if (this.hero === 'naruto') {
+      if (this.hero === 'naruto' || this.hero === 'sasuke') {
         // the anime run: arms floating straight back
         fa = Math.PI + 0.3;
         ba = Math.PI + 0.12;
@@ -173,6 +173,21 @@ export class Puppet {
           ba = 1.9;
           fl = 1;
           if (c < 0.3) disc(g, 28, -14, 2 + Math.round(c * 8), 0xfff8c0);
+        }
+      } else if (this.hero === 'sasuke') {
+        const forming = a < .8;
+        frame = forming ? BF.WINDUP : BF.CROSS;
+        fa = forming ? .7 : 0;
+        ba = 2.4;
+        fl = 1;
+        if (a < 1.5) {
+          const hx = forming ? 7 : 12, hy = -14;
+          for (let i = 0; i < 8; i++) {
+            const angle = i * Math.PI / 4 + Math.sin(a * 25 + i) * .25;
+            const len = forming ? 3 + a * 7 : 9;
+            g.lineStyle(1, i % 2 ? 0x84ceff : 0xe6faff);
+            g.beginPath().moveTo(hx,hy).lineTo(hx+Math.cos(angle)*len*.45,hy+Math.sin(angle)*len*.45+2).lineTo(hx+Math.cos(angle)*len,hy+Math.sin(angle)*len).strokePath();
+          }
         }
       } else if (this.hero === 'naruto') {
         const forming = a < 0.9;

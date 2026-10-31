@@ -53,8 +53,13 @@ export function resetPadBinds(slot: number): void {
 }
 
 function pads(): (Gamepad | null)[] {
-  if (typeof navigator === 'undefined' || !navigator.getGamepads) return [];
-  return Array.from(navigator.getGamepads());
+  // the Gamepad API only exists in secure contexts (https / localhost): over plain http on a LAN address there are no pads
+  if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return [];
+  try {
+    return Array.from(navigator.getGamepads());
+  } catch {
+    return []; // some browsers throw a SecurityError instead
+  }
 }
 
 /** Connected pads in slot order (index = slot). */

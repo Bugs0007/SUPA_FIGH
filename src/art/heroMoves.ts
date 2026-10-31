@@ -13,6 +13,13 @@ export interface HeroMoveLook {
 const look = (name: string, core: number, rim: number, spark: number, extras: Partial<HeroMoveLook> = {}): HeroMoveLook => ({ name, core, rim, spark, helpers: 0, shapingArms: 0, lightning: 0, rubber: 'plain', ...extras });
 
 export const HERO_MOVES: Record<string, readonly HeroMoveLook[]> = {
+  sasuke: [
+    look('CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 2 }),
+    look('SHARINGAN CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 3 }),
+    look('CURSE MARK CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 4 }),
+    look('MANGEKYO CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 4 }),
+    look('SIX PATHS CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 5 }),
+  ],
   naruto: [
     look('RASENGAN', 0x8ddcff, 0x357be8, 0xe2f8ff),
     look('TAIL + CLONE RASENGAN', 0x8ddcff, 0xb92545, 0xff9d82, { helpers: 2, shapingArms: 1 }),

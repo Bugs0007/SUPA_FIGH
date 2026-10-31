@@ -6,10 +6,10 @@ export const HAT_STYLES = ['none', 'cap', 'beanie', 'tophat', 'helmet', 'bandana
 export const TOP_STYLES = ['tshirt', 'jacket', 'suit', 'hoodie', 'tank', 'vest'] as const;
 
 // Hero parts (M9, art/heroArt.ts). Not in the random/creator lists above.
-export type HairStyle = (typeof HAIR_STYLES)[number] | 'ninja' | 'saiyan' | 'saiyan2' | 'saiyan3' | 'wild' | 'fox';
+export type HairStyle = (typeof HAIR_STYLES)[number] | 'ninja' | 'saiyan' | 'saiyan2' | 'saiyan3' | 'wild' | 'fox' | 'uchiha';
 export type FaceStyle = (typeof FACE_STYLES)[number] | 'whiskers' | 'foxeyes' | 'scar';
 export type HatStyle = (typeof HAT_STYLES)[number] | 'strawhat' | 'headband';
-export type TopStyle = (typeof TOP_STYLES)[number] | 'tracksuit' | 'openvest' | 'gi' | 'chakra' | 'boundman';
+export type TopStyle = (typeof TOP_STYLES)[number] | 'tracksuit' | 'openvest' | 'gi' | 'chakra' | 'boundman' | 'openrobe';
 
 /** Serializable look of a fighter (stored in profiles). */
 export interface Appearance {
@@ -31,9 +31,45 @@ export interface Appearance {
   /** wrist bands / sash colour (gi, heroes) */
   trim?: string;
   /** Signature anatomy and costume details; absent on custom scrappers. */
-  design?: 'naruto' | 'luffy' | 'goku';
+  design?: 'naruto' | 'luffy' | 'goku' | 'sasuke';
   /** Visual transformation level; used by the sprite baker, never by physics. */
   form?: number;
+}
+
+const HERO_HAIR = ['ninja', 'saiyan', 'saiyan2', 'saiyan3', 'wild', 'fox', 'uchiha'];
+const HERO_FACE = ['whiskers', 'foxeyes', 'scar'];
+const HERO_HAT = ['strawhat', 'headband'];
+const HERO_TOP = ['tracksuit', 'openvest', 'gi', 'chakra', 'boundman', 'openrobe'];
+const HEX = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * A look that came over the network (another player's choice) turned into a safe Appearance: every style must
+ * be a known one and every colour a #rrggbb, anything else falls back to `fallback`'s value.
+ */
+export function sanitizeAppearance(raw: Record<string, unknown>, fallback: Appearance): Appearance {
+  const style = <T extends string>(k: string, ok: readonly string[], dflt: T): T => (typeof raw[k] === 'string' && ok.includes(raw[k] as string) ? (raw[k] as T) : dflt);
+  const color = (k: string, dflt: string): string => (typeof raw[k] === 'string' && HEX.test(raw[k] as string) ? (raw[k] as string) : dflt);
+  const out: Appearance = {
+    skin: color('skin', fallback.skin),
+    hair: style('hair', [...HAIR_STYLES, ...HERO_HAIR], fallback.hair),
+    hairColor: color('hairColor', fallback.hairColor),
+    face: style('face', [...FACE_STYLES, ...HERO_FACE], fallback.face),
+    hat: style('hat', [...HAT_STYLES, ...HERO_HAT], fallback.hat),
+    hatColor: color('hatColor', fallback.hatColor),
+    top: style('top', [...TOP_STYLES, ...HERO_TOP], fallback.top),
+    topColor: color('topColor', fallback.topColor),
+    accentColor: color('accentColor', fallback.accentColor),
+    pantsColor: color('pantsColor', fallback.pantsColor),
+    shoesColor: color('shoesColor', fallback.shoesColor),
+  };
+  return out;
+}
+
+/** The look a profile sends over the network: the Appearance as flat primitives. */
+export function lookToWire(a: Appearance): Record<string, string | number | boolean> {
+  const out: Record<string, string | number | boolean> = {};
+  for (const [k, v] of Object.entries(a)) if (typeof v === 'string' || typeof v === 'number') out[k] = v;
+  return out;
 }
 
 export function appearanceKey(a: Appearance): string {

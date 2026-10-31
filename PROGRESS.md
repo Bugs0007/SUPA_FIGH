@@ -3,14 +3,17 @@
 Status legend: [x] done · [~] partial · [ ] todo
 
 ## Current state
-- **M1–M13 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
+- **M1–M14 DONE** (core, combat depth, bots, match setup, maps, spice, modes/menus/audio, balance + production
   build, anime universe expansion, M10 overhaul: crash fix, controls, hero base abilities, main menu, camera,
-  animation, map detail). Manual play-test lists under M9 and M10.
-- `npm run dev` → http://localhost:5173 · `npm test` (312 unit tests) · `npm run test:e2e` (47 Playwright tests;
+  animation, map detail, orbs / forms / flight, hero upgrades, **M14 LAN multiplayer**). Manual play-test lists under
+  M9, M10, M13 and M14. Bot hero abilities are done too: bots fly (Goku), grapple and swing (Luffy), wall-walk and
+  Rasengan-dash (Naruto) via `ai/heroMove.ts` (D68).
+- `npm run dev` → http://localhost:5173 · `npm test` (412+ unit tests) · `npm run test:e2e` (61 Playwright tests;
   in containers `PW_EXECUTABLE=/opt/pw-browsers/chromium npm run test:e2e`) · `npm run sim -- 8 8 <map> normal 1`
+  · `npm run host` (LAN multiplayer: builds, serves game + server on the LAN, prints URLs + QR; see the README)
 - Main menu: player cards (NAME: Enter to type; FIGHTER: Scrapper/Goku/Naruto/Luffy), quick-match panel (MAP incl.
-  RANDOM, PLAYERS 1/2, BOTS, BOT SKILL), buttons Quick Match / Match Setup / Controls / Settings (L, C shortcuts;
-  0–8 bots; Tab difficulty). In a match: Esc/Start = pause menu (P too unless a player has it bound).
+  RANDOM, PLAYERS 1/2, BOTS, BOT SKILL), buttons Quick Match / Match Setup / Host Game / Join Game / Controls /
+  Settings (L, C shortcuts; 0–8 bots; Tab difficulty). In a match: Esc/Start = pause menu (P too unless a player has it bound).
 - Controls: W / Up = jump (full: double/wall jumps, variable height), double-tap Down = drop through platforms,
   hero ability = B (P1) / Num1 or P (P2).
 - URLs: `/?scene=match&map=mine&bots=6&diff=hard&mode=brawl|deathmatch|koth|juggernaut|gungame|coop&chaos=1&mods=bigHeads`,
@@ -23,8 +26,10 @@ Status legend: [x] done · [~] partial · [ ] todo
    (`clones` in `sim/data/heroes.ts`), Rasengan hold length (`dash.maxTime`), grapple reach and swing feel
    (`stretch` block of Luffy's base ability), blink range / cooldown, wall-walk speed; plus camera zoom limits
    (`render/CameraDirector.ts`) and decor density (`render/Decor.ts`).
-2. Bots: Goku bots never fly and Luffy bots only use the arm as a ranged punch (no grapple / swing routes); Naruto bots
-   don't wall-walk. Clone bots follow their master and fight with the Rasengan.
+2. LAN multiplayer follow-ups (see M14): predicting more than your own fighter's movement (hit / pickup confirmation is
+   still the server's, ~100-300 ms later), instant replays online (the server could send the `RoundRecording`), spectator / late-join
+   polish, binary snapshots + delta compression if a big room on a weak router needs it, a "kick player" button, a
+   NoSleep-style wake-lock fallback over plain http.
 3. Decorations for the outdoor themes that have none yet (docks, construction) and per-map hand-placed hero props.
 4. More fighters on the character select (the hero framework + modular baker make new heroes mostly data + art).
 5. Older ideas: real low-res sprite sheets per hero via `art/externalSheets.ts` (docs/ASSETS.md); bots ride movers.
@@ -285,3 +290,59 @@ Status legend: [x] done · [~] partial · [ ] todo
   reel, release); hold at an enemy far away (no damage, a shove; arm retracts when it connects; 3 charges).
 - Goku: Instant Transmission toward an enemy, into a wall, up; jump then hold Up to fly (any form).
 
+## M14 — LAN multiplayer ✅ (D70-D76)
+Authoritative design: one Node process runs the real `Match` + bots at 60 Hz; devices send `Intent`s over a WebSocket and
+render interpolated snapshots (30 Hz, 67-100 ms buffer) on a mirror `Match`, so the renderer, Juice, HUD and camera are the
+ones local play uses. `src/sim` and `src/ai` still import nothing from Phaser or Node; shared code is `src/net/`.
+- [x] **M1 Snapshots**: `World/Match.snapshot()/restore()` (exact, round-trip tested through JSON for every mode, heroes,
+      chaos cards and gimmick maps) + the lean render codec (`net/renderState.ts`, ~3-4 KB per snapshot) with a test that
+      fails when render code reads a Fighter field the codec doesn't carry (D70-D72)
+- [x] **M2 Server** (`server/`): Session / Room / Hub / sockets, validated protocol, edge-bit controls, reconnect + bot
+      takeover, lobby grace, host hand-over; in-process and real-WebSocket tests where bot clients play a full match (D73)
+- [x] **M3 Client**: `NetClient` (auto-reconnect), `Timeline` (interpolation buffer on sim ticks), `RemoteSim`, Match scene
+      network mode (PING, connection banner, leave-room pause menu, camera frames only this device's fighters) (D74)
+- [x] **M4 Lobby**: HOST GAME / JOIN GAME, can't-connect checklist, room list, room lobby with settings / players / READY /
+      START on the menu kit; 1-2 local players per device (phones 1); device id reclaims the room (D75)
+- [x] **M5 Tooling**: `npm run host` (build + static + WS on one port, LAN URLs, QR), `--https` (mkcert), `--latency /
+      --jitter / --loss`, whole-match tests at 5 / 60 / 120 ms with loss on a fake clock, blackout test (D76)
+- [x] **M6 Docs**: README "Playing together on a LAN" (firewall, client isolation, HTTPS), this checklist
+- [x] Tests: 394 unit (336 before M14; the older "312" in this file was stale) and 60 e2e (55 before + 5: a browser plays
+      a server match; two browsers go through the real screens, a match and a forced reconnect; the can't-connect screen;
+      a match ending back into the lobby; LEAVE GAME from the pause menu).
+      Verified by hand over the machine's LAN address with the production build (two browsers: host, join, ready, start;
+      no console errors).
+- Measured: server ~0.3-0.5 ms CPU per tick for 10-15 fighters (budget 16.7 ms). Without prediction a key press showed on
+  screen after ~180 ms (good WiFi) / ~350-600 ms (60 ms each way, 5 % loss) / ~620-800 ms (120 ms, 15 %).
+- [x] **Client-side prediction** (D77, `net/predict.ts`): your own fighters run on your device ahead of the server (the real
+      fighter code in a sandbox World, controls stamped with the server tick, exact `pred` state from the server every 33 ms,
+      rewind-and-replay, smooth correction); 17 ms reaction in a real browser with 150 ms each way (423 ms without), zero
+      error on good WiFi. Setting `LAN PREDICTION` / `?predict=0`. Found + fixed on the way: NetSim could reorder frames.
+
+### Manual play-test checklist (M14): real devices on one WiFi
+Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed address; phones on the same 5 GHz WiFi.
+- [ ] A phone and a second laptop open the address (or scan the QR code). Both reach the title screen with no errors.
+- [ ] Laptop 1: HOST GAME. The room code and "JOIN AT <address>" show. Phone + laptop 2: JOIN GAME > the room appears > Enter.
+- [ ] Each device has its first player in the fighter list; laptop 2 turns PLAYER 2 on: two fighters appear for it. Phones
+      only offer one player.
+- [ ] Host changes the map / mode / bots: every device's lobby follows within a moment. A non-host can't change them.
+- [ ] Ready up on the guests, START MATCH on the host: all devices load the match together; each device's panel and camera
+      follow its own fighter(s); the PING readout in the corner is sensible (< 30 ms).
+- [ ] Everything works on a phone: arrow pad, ATK / KICK / GRAB / SWAP / ability buttons; hold-to-aim; fullscreen on first tap.
+- [ ] Play two full rounds with bots: no stutter or rubber-banding; hits, explosions, sounds and the kill feed match what
+      you see on the other devices; hero moves (Goku teleport / beams, Naruto clones, Luffy grapple) look right remotely.
+- [ ] Lag: `npm run host -- --latency 80 --jitter 40 --loss 5`: still playable; nothing teleports or freezes.
+- [ ] Prediction (with the lag option above): your fighter answers your keys at once; get hit / knocked back / grabbed and
+      check you are moved smoothly (not teleported); run past walls, ladders, moving platforms and crates; each hero's
+      moves (Goku teleport and flight, Naruto wall-walk and clones, Luffy grapple) feel right. Compare with
+      Settings > LAN PREDICTION off (or `?predict=0`).
+- [ ] Reconnect: turn a phone's WiFi off for ~5 s mid-match and back on (or reload its page): its fighter is bot-played, then
+      yours again; the AWAY mark appears for a device that drops while in the lobby.
+- [ ] Host leaves the room (LEAVE ROOM): another device becomes the host and can start the next match. Close the host's
+      browser tab mid-lobby: same.
+- [ ] A late joiner during a match arrives as a spectator and sees the whole fight.
+- [ ] After the awards screen everybody lands back in the same lobby with their fighters and can go again.
+- [ ] Firewall / isolation: from a device that can't reach the host, the CAN'T CONNECT checklist appears (block the port in
+      the host firewall, or use a guest network, to see it); ENTER retries.
+- [ ] `npm run host -- --https` with mkcert certificates: the https address works on phones that trust the CA; gamepads and
+      the screen wake-lock work there (they may not over plain http, which is expected).
+- [ ] A gamepad on the host laptop plays in a LAN match (the host computer is a secure context via localhost).

@@ -474,3 +474,154 @@ menus show; the standard-mapping buttons are named in both styles (CROSS / A...)
 Match without setup (`MergedController` = keyboard OR pad).
 **Menu kit** (`src/scenes/kit.ts`): `HintBar` (keycaps / PS and Xbox glyphs / touch pills at the bottom of every screen),
 `panel`, `rowBar`, `meter`, `toggle`. Title, Match Setup, Settings, Controls and Pause use it.
+
+### D70 — LAN multiplayer: authoritative server, not lockstep
+**Authoritative server.** One Node process steps the existing `Match` (sim + bots) at a fixed 60 Hz; clients send only
+`Intent`s and render what comes back. Lockstep was rejected: the sim is deterministic, but it only stays so while every
+peer runs bit-identical float math, bots and RNG consumption, and one slow phone would stall every player at each tick.
+A server also keeps bots in one place (they run only there), makes joining / reconnecting a matter of sending the current
+state, and lets any device be a thin viewer. LAN latency is low enough that no client-side prediction is needed for v1.
+**Rates** (starting values, tuned in M5 under simulated bad networks): snapshots at 30 Hz, an interpolation buffer of
+~2 snapshots (~70 ms, adaptive within 50-100 ms), clients render at "newest - buffer" on *sim* time (slow-mo scales it).
+**Protocol**: WebSocket (`ws`), JSON text frames with compact positional arrays (a render snapshot is ~3-4 KB, so no delta
+compression: measured with 10-15 fighters on six maps, server CPU ~0.3-0.5 ms per tick). Binary can replace JSON later
+behind the same encode / decode functions in `src/net/`. Intents are sent with sticky edge bits (a tap shorter than a
+server tick must not be lost). Shared code (protocol types, snapshot codec) lives in `src/net/` with no Phaser, DOM or Node
+imports, enforced by `tests/unit/netRender.test.ts`. Instant replays are off online in v1 (clients have no intent log).
+
+### D71 — Exact snapshots of the simulation
+`World.snapshot()/restore()` and `Match.snapshot()/restore()` (types in `sim/snapshot.ts`) turn *all* mutable sim state
+into JSON-safe plain data and back: fighters, bullets, items, props, fires, burning tiles (Map -> entries), tiles, gimmick
+state, RNG state, spawner timers, id counters, pending events, plus every Match field (scores, mode state, slow-mo, round
+index, chaos modifiers). Static data is not included: entities hold `def` references into the map / prop tables, which
+restore rebuilds from the same constructor arguments (a snapshot only restores into a World built from the same map, specs,
+settings and seed; `restore` throws on a fighter / map size mismatch). Bots are not part of a snapshot (they only run on the
+server). `tests/unit/snapshot.test.ts` proves "restore at tick T then step to N" equals the uninterrupted run, byte for
+byte as JSON, for every game mode, hero abilities, chaos cards, and maps with movers / hazards / cannons / waves. The exact
+snapshot is ~50 KB, so it is for tests, tooling and late-join keyframes; the wire uses D72.
+
+### D72 — Render state for clients (the mirror match)
+Clients never step the sim. They build a normal `Match` from the same config (a *mirror*) and overwrite it from `src/net/
+renderState.ts` frames: only the ~65 Fighter fields (plus a handful per bullet / item / prop / fire / mover / hazard) that
+the renderer, Juice, HUD, camera and audio read, 2-decimal rounded, positional arrays. Static fighter data (name, team, hero,
+master...) comes from the config; px / py come from the previous frame (`positionsOf`) so `WorldRenderer.sync(alpha)` blends
+between frames unchanged; large jumps (respawns, clones appearing) snap. Tile edits ride along as a diff against the built
+map (`map.set` queues the redraws). Out-of-play Naruto clone slots are sent as `0`. Match-level state (`MatchRender`:
+scores, stats, phase, hill, wave...) is a separate small record the server can send on change. A test scans the render,
+scene, art and audio sources and fails if they read a Fighter field the codec does not carry, so new render code cannot
+silently read stale data on a client.
+
+### D73 — The game server: rooms, sessions, controls
+`server/` (Node only; the sim and `src/net` stay environment-free) is three transport-agnostic layers plus a thin socket
+shell, so everything but `server.ts` is tested without sockets or real time. **Session** = one authoritative `Match`, a
+`BotController` per non-human fighter (including Naruto's clone slots, and any human whose device dropped), and the latest
+controls of each human; it emits a render snapshot every 2nd tick (30 Hz) with the sim / match events since the last one,
+the match-level state only when it changed (or every 10th frame), and a `wid` that bumps whenever the round's World is
+rebuilt. **Room** = host, devices ("peers", keyed by a client-chosen device id), lobby settings, claims (1-2 local players
+per device, 10 fighters max, humans first then bots), ready flags; a clock-driven `advance(ms)` steps the session in exact
+1/60 s units (accumulator scaled by `match.timeScale`, so slow-mo is shared; a backlog is dropped, never replayed).
+**Hub** = connections -> rooms: `hello` (protocol version, device id; a second connection with the same id replaces the
+first and a returning device is put straight back in its room and gets its fighters back), `create` / `join` / `list` /
+`leave`, a per-connection token bucket. **server.ts** = http + `ws` (maxPayload 8 KB, no compression), a 4 ms drift-free
+loop, ping/pong dead-peer reaping. Disconnects keep a peer's place (30 s in a lobby, the whole match while playing) and a
+fresh `BotController` plays the fighter meanwhile; `Fighter.isBot` is untouched so mode rules (co-op teams) don't change.
+**Controls** (`src/net/intentWire.ts`): `packIntent` level + sticky edge bits; the server presses an edge for exactly one
+tick, so a tap shorter than a tick still counts; a stale `seq` is ignored; a device may only drive its own fighters.
+All client input goes through `parseClientMsg`/`sanitize*` (clamped numbers, ASCII names, known ids only, size caps).
+A finished match returns the room to its lobby just before the sim would auto-restart (claims kept, readies cleared). Any
+settings change un-readies everyone, so what people agreed to is what they play.
+
+### D74 — The client side: NetClient, Timeline, RemoteSim and the Match scene
+**NetClient** (`src/net/client.ts`) wraps one WebSocket (injected, so tests use Node's `ws` or an in-process loopback):
+hello with the device id, a ping every 2 s for the PING readout, and automatic reconnects with the same id and a 250 ms-4 s
+backoff for a minute (the server hands the room and the fighters straight back). A first connection that fails ends
+quickly with the reason (the "can't connect" screen); a version mismatch is final. **Timeline** (`src/net/timeline.ts`)
+buffers snapshots and plays them back on *sim* ticks: the render clock trails the newest snapshot by 4-6 ticks (67-100 ms
+on average, longer as measured arrival jitter grows), advances at 60 x the match's slow-mo scale with a gentle
+proportional correction (0.8x-1.25x), jumps when more than 15 ticks off, and holds the last frame when the buffer runs dry
+(no extrapolation). A new World (different `wid`) flushes the old one's pending events and restarts the clock.
+**RemoteSim** (`src/net/remoteSim.ts`) owns the mirror Match and, each frame, shows frame `a` then `b` on it (so `px / py`
+are where `a` had things and the renderer's alpha blends), applies the match-level state, rebuilds the World on a new
+`wid` (`Match.rebuildWorld`) and queues the events whose snapshot the clock has passed; it also turns the local
+controllers' intents into `in` messages (`IntentSender`: level + edge bits + 250 ms heartbeat).
+**Match scene**: `MatchSceneData.net` switches it to `updateNet`: no stepping, no replays, no hit-stop (the server's clock
+never waits), the pause menu does not pause the server's match (the player stands still, RESTART becomes absent and QUIT
+leaves the room), `HudScene` shows PING and a CONNECTION LOST banner. Only this device's fighters are the camera's hard
+constraint (`CameraDirector.mustIds`, replacing "every human", D52); remote humans are framed like bots. Other players'
+looks arrive as flat primitives and pass through `sanitizeAppearance` (known styles, #rrggbb colours) before reaching the
+sprite baker.
+
+### D75 — Host / Join screens, slots and what happens when devices come and go
+The title screen gains HOST GAME and JOIN GAME (one scene, `NetLobbyScene`, key `netlobby`; connecting -> can't-connect
+checklist -> room list (join) -> room lobby). The page talks to the server it was served from (`wss?://location.host`);
+`?server=ws://ip:port` overrides it for development and the last good address is remembered (`game/netStore.ts`), as is a
+random **device id** in localStorage: it is what makes a reload or a WiFi blip land back in the same room and fighters.
+**Slots**: each device claims up to 2 local players (touch devices show only 1: phones default to one); a new arrival is given
+its first profile (name, hero, look from the title screen's player cards) automatically, player 2 and the hero picks are
+rows in the lobby. Claims keep their local index on the wire (`PeerInfo.claims` is `(SlotClaim | null)[]`). The room lists
+fighters in match order (humans by arrival, then bots) with HOST / READY / AWAY marks; the host edits map, mode, length, bots
+(count, skill, heroes), friendly fire, weapons, chaos and hero powers, everyone else sees them read-only. READY is required of
+every non-host device with a fighter; any settings change clears the readies.
+**Disconnects**: in a lobby a dropped device keeps its place (shown AWAY) for 30 s and is left out of a match started without
+it; during a match a bot plays its fighters from the moment it drops and it gets them back by reconnecting (`start` is sent
+again, `NetClient` retries by itself); if the match ended meanwhile it lands in the lobby (`room` state `lobby` ends the
+`RemoteSim`). **Host leaving**: the role passes to the next connected device in join order; an empty room is dropped after a
+minute. Late arrivals during a match join as spectators (no fighters, the camera frames everyone). The "can't connect" screen
+lists the real causes on a LAN (server not running, guest network, router client/AP isolation, firewall, using localhost).
+
+### D76 — `npm run host`, HTTPS mode and the network simulator
+`npm run host` (`server/host.ts`, run with vite-node, so no new build tooling): `vite build` through Vite's API (no `tsc`
+step: `npm run build` still type-checks), then **one process, one port** (default 8080, bound to 0.0.0.0) serving `dist/` and
+the WebSocket (`server/static.ts`: MIME types, in-memory gzip for text (the Phaser chunk is ~1.4 MB), `immutable` caching for
+hashed `/assets/`, `no-cache` for the page, GET/HEAD only, nothing outside the directory) and printing every LAN IPv4 address
+(private ranges first), a terminal QR code of the best one (`qrcode-terminal`), and the can't-join checklist. The same
+addresses go to clients in `welcome.urls`, so the lobby shows "JOIN AT ...". Options: `--port`, `--no-build`, `--speed`,
+`--https` (+ `--cert/--key`, default `certs/host.pem` and `certs/host-key.pem`, git-ignored; without them it prints the
+mkcert commands), `--latency/--jitter/--loss`.
+**Secure contexts**: over plain http on a LAN address browsers hide the Gamepad API and Wake Lock (and fullscreen /
+orientation lock on some). Nothing depends on them: the pad lookup is guarded (and try/caught), wake lock and fullscreen are
+best effort, and a phone on http gets a one-time lobby tip to set its screen timeout. `--https` serves https / wss from a
+mkcert certificate (devices must trust mkcert's root CA) and restores those APIs.
+**Network simulator** (`server/netsim.ts`, `--latency/--jitter/--loss`, or `netSim` in `startServer`): wraps both directions
+of every connection. Delay = latency + uniform jitter, delivered in order (a late frame holds back the ones behind it, like
+TCP); "loss" drops the frames the protocol is built to lose (snapshots to clients, controls to the server), and gives any
+frame a 200 ms retransmit stall with half that probability; lobby / start / end are never lost. Seeded, so a failing run
+replays. `tests/unit/badNetwork.test.ts` plays whole matches (real server logic, NetClient and RemoteSim, simulated link, fake
+clock) at 5 ms, 60 ms +-40 / 5 % and 120 ms +-80 / 15 %: every match finishes, the drawn position stays within 2 / 3 / 4 px of
+the server's at that moment, the render clock never runs backwards, the buffer stays <= 6 ticks, and pressing a key shows on
+screen after ~180 / 350 / 620 ms (that is the no-prediction latency D70 warned about: ~3 frames at WiFi speed). A 3 s
+blackout is also covered (the clock holds, frames resume in a burst, controls work again).
+
+### D77 — Client-side prediction of this device's own fighters
+**Why it works here:** the fighter code is deterministic and only needs a World around it. An experiment first: a fighter
+simulated alone in a sandbox World (`updateGimmicks`, `updateFighter` for it, then `updateItems` / `updateProps` /
+`updateFire`; no bullets, no other fighters stepped) from a snapshot matched the full server step to 0.000 px on all 13
+maps over random button-mashing. So the device runs the REAL fighter code ahead of the server (`net/predict.ts`) and draws
+its own fighters from that; everything else (hp, inventory, powers, other players, bullets, hits) is still drawn from the
+interpolated snapshots. Only `PREDICTED_FIELDS` (position, velocity, pose, aim, move-state) are taken from the prediction.
+**Exact alignment instead of guesswork:** controls are stamped with the server tick they will be applied at (`in.tick`,
+`in.wid`), the server queues them and runs input N in the step that makes tick N (`IntentSlot.applyAt`), and the
+prediction's own tick counter *is* the estimated server tick (`target = snapshot tick + RTT x 60 x timeScale + margin`,
+steered gently, re-aimed when more than 8 ticks off). Edges (taps shorter than a tick) travel with the level exactly as the
+sim sees them (`TickSampler`/`intentFor`), so the local run and the server's run use identical controls, axes quantized the
+same. A message that misses its tick is applied at once and counted (`late`); the server reports the count, the client adds
+a tick of margin (2..8, decaying after 1.5 s of quiet): a bigger lead costs nothing locally and only delays what other
+players see of your actions. A stamp for another world id (a round change in flight) is applied like a plain message.
+**Reconciliation:** after each snapshot the server sends `pred` to devices that stamp their controls: the COMPLETE fighter
+(about 2.5 KB, full precision, 30 Hz) for each of their fighters. The client rebuilds the sandbox from the snapshot of the
+same tick (`applyWorld`, so props / items / movers / tiles are the server's) plus the exact fighter, then re-runs the
+controls the server has not seen yet. Whatever differs from what was on screen (a knock-back, a hit, a pickup, a prop
+pushed by someone else) becomes a visual offset that fades with a 90 ms time constant, or snaps beyond 48 px. A fighter
+that is dead, a ghost or gone is not predicted (drawn from the server), and prediction restarts with each new World.
+Plain `in` messages still work (a client without prediction, or before the first snapshot gives it the server's clock), and
+`pred` is only sent to devices that stamp.
+**Measured** (`tests/unit/prediction.test.ts`, fake clock; `tests/e2e/netpredict.spec.ts`, real browser): first pixel of
+movement after pressing a key 33 ms (two frames) at every network quality, against 100 / 533 / 717 ms without prediction
+(good / busy / awful WiFi); in a real browser against a server adding 150 ms each way, 17 ms against 423 ms. The prediction
+for tick t equals what the server then did at tick t exactly on good WiFi, mean 0.4 px on busy WiFi (60 ms +-40, 5 % loss)
+and 5 px on a deliberately awful one (120 ms +-80, 15 % of control frames dropped, which is worse than real TCP); the
+largest per-frame jump on screen stays under 3 / 3 / 6.3 px. Hero abilities run in the sandbox too (mean difference under
+25 px with random ability spam, because their targets are other fighters the sandbox sees a moment late).
+**Setting:** `LAN PREDICTION` in Settings (default on), `?predict=0|1` overrides it. **Found on the way:** the network
+simulator could reorder frames with real timers (separate `setTimeout`s of nearly equal length are not ordered); `NetSim`
+now drains a FIFO queue, with a regression test.

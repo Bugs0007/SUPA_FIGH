@@ -29,7 +29,8 @@ import {
 } from './lobby';
 import { hint, HintBar, panel, rowBar } from './kit';
 import { inputDevice, PAD_NAMES } from '../input/devices';
-import { bindZoom, drawMinimap, fighterPreview } from './ui';
+import { bindZoom, fighterPreview } from './ui';
+import { bakeMapPreview } from '../art/mapPreview';
 
 const SLOT_COLS = ['kind', 'team', 'skill', 'look'] as const;
 const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'start', 'controls'] as const;
@@ -53,7 +54,7 @@ export class LobbyScene extends Phaser.Scene {
   private gfx!: Phaser.GameObjects.Graphics;
   private status!: Phaser.GameObjects.BitmapText;
   private t = 0;
-  private preview!: Phaser.GameObjects.Graphics;
+  private preview!: Phaser.GameObjects.Image;
   private previewMap = '';
   private blurb!: Phaser.GameObjects.BitmapText;
 
@@ -94,18 +95,18 @@ export class LobbyScene extends Phaser.Scene {
     this.bar = new HintBar(this);
     this.joinText = this.add.bitmapText(8, 330, 'sm', '').setTint(0x8d95b0);
     this.status = this.add.bitmapText(354, 48 + SETTINGS.length * 17 + 3, 'smo', '').setTint(0xea4a4a).setDepth(2);
-    this.preview = this.add.graphics();
+    this.preview = this.add.image(490,280,'__DEFAULT').setDepth(1);
     this.blurb = this.add.bitmapText(344, 330, 'sm', '').setTint(0x8d95b0);
     this.refreshPreviews();
     this.render();
   }
 
-  /** Minimap of the selected map: solids, platforms, ladders, water, spawns. */
+  /** Full textured arena, fitted without distorting its proportions. */
   private drawMapPreview(): void {
     if (this.previewMap === this.cfg.mapId) return;
     this.previewMap = this.cfg.mapId;
-    drawMinimap(this.preview.clear(), this.cfg.mapId, 352, 234, 276, 92);
-    this.blurb.setText((getMap(this.cfg.mapId).blurb ?? '').toUpperCase());
+    this.preview.setTexture(bakeMapPreview(this,this.cfg.mapId)).setDisplaySize(184,92);
+    this.blurb.setText(getMap(this.cfg.mapId).name.toUpperCase()).setOrigin(.5,0).setX(490);
   }
 
   private get rows(): number {
