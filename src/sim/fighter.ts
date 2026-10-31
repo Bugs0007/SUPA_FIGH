@@ -2138,7 +2138,8 @@ function stHoldFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): voi
 /** ABILITY in base form (or with another hero's generic boost). */
 function startBase(w: World, f: Fighter, inp: Intent): void {
   const b = baseAbility(f);
-  if (!b || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max)) return;
+  // (like ability 2 and the super: never out of hitstun, a knockdown or another move)
+  if (!b || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max) || !canAct(f)) return;
   if (f.h !== FIGHTER_H) {
     if (!hasHeadroom(w.map, f, FIGHTER_H)) return;
     f.h = FIGHTER_H;

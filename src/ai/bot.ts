@@ -869,9 +869,9 @@ export class BotController implements Controller {
         const my = upDown(ang);
         const a = my * SECOND_AIM;
         if (usesAmaterasu(f) && s2.amaterasu) {
-          // the eye jutsu burns whoever is inside its cone: any range up to its reach, point-blank too
-          const dot = dist > 1 ? (vx * face * Math.cos(a) + vy * Math.sin(a)) / dist : 1;
-          if (dist <= amaterasuReach(f).range && dot >= s2.amaterasu.aimDot) cands.push({ hold: 'kick', ticks: 2, mx: face, my, weight: w2 });
+          // the eye jutsu burns whoever is in Sasuke's view (up to `view` above / below ahead): any range up to its reach
+          const inView = dist <= 1 || Math.abs(Math.atan2(vy, vx * face)) <= s2.amaterasu.view;
+          if (dist <= amaterasuReach(f).range && inView) cands.push({ hold: 'kick', ticks: 2, mx: face, my: 0, weight: w2 });
         } else if (s2.fireball && dist >= 30 && dist <= s2.fireball.range * 0.9 && Math.abs(ang - a) <= 0.25) {
           cands.push({ hold: 'kick', ticks: 2, mx: face, my, weight: w2 });
         }

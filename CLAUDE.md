@@ -19,6 +19,7 @@ npm run test:e2e   # Playwright browser tests (uses installed Edge on Windows, e
 npm run typecheck  # tsc --noEmit
 npm run balance    # bot survey across every map (scripts/balance.ts)
 npm run sim -- 8 8 test normal 1   # headless bots-only balance report (matches bots map difficulty seed)
+npm run herofight -- 4 test        # headless Naruto vs Sasuke bots at a start form: close-range share, damage split, guards
 npm run trailer    # records + encodes the game trailer into trailer/ (see scripts/trailer/README.md)
 npm run host       # LAN multiplayer: build, serve game + WebSocket server on one port, print LAN URLs + QR (README)
 npm run server     # the game server alone (use with `npm run dev` and ?server=ws://host:8080)

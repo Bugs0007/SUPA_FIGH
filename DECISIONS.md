@@ -723,3 +723,17 @@ for the other button), so a target can no longer walk out of the old 0.36 s eye-
 top). Targets are picked in Sasuke's peripheral view: anyone in front within `view` = 1.25 rad (~72 degrees) above or below
 straight ahead and in clear sight, nearest first (no longer a narrow cone around the aimed direction), so enemies on platforms
 above and below are caught; straight overhead and behind are not.
+
+### D87 — Bots fight with their moves, not just fists
+Hero bots used to drop their abilities up close: every move needed a minimum distance, a level target, the ground and the
+`normal` state, so two top-form heroes traded fist combos (~65-80 % of all damage, within 30 px ~60 % of the time). Now, whenever
+the game allows a hero move (standing or crouching, a guard out of blockstun, a combo hit's recovery, the air, flight), the bot
+lists every move that would hit from where it is and picks one by weight: point-blank Rasengan / Chidori aimed in 8 directions,
+point-blank supers, Amaterasu in its view, instant transmission locking on; the 3rd / 4th combo hits are cancelled into a move.
+Bots guard (hold PUNCH) against attacks they see coming, once per attack, with a per-difficulty chance and reaction time, some
+timed as parries; they drop it after the threat, after 0.8 s, before a guard break, or to punish a parried attacker, and run
+from a super being charged next to them. A guard in front is never punched: bots grab it, use a hero move on it, or wait. After a
+short exchange hero bots back off along the nav graph, then a ranged move becomes likelier. Numbers: `src/ai/botData.ts`
+(`DifficultyDef` fields, `BOT_FIGHT`). Form-4 Naruto vs Sasuke on `test` (hard): combo share 0.65 -> 0.14, close share
+0.58 -> 0.22, ~2 % guard time; `npm run herofight` reproduces it. Also: a base ability (Rasengan, Chidori, pistol, blink) can no
+longer be started out of hitstun / knockdown (`startBase` checks `canAct`, like ability 2 and the super).

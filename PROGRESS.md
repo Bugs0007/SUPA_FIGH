@@ -360,5 +360,6 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] Hero ranged attacks collide in the air: ult beats ability, higher form wins, equals explode (D84)
 - [x] Pixel-sprite Susanoo, fireball, Susanoo arrow and Amaterasu flames (D85)
 - [x] Amaterasu instant, 360-420 px, peripheral up / down view (D86)
+- [x] Bots use hero moves at every range (point-blank, air, combo enders), block / parry, grab guards, back off to make space (D87); `npm run herofight`
 - [ ] Play-test on a phone: JUMP / CROUCH reach, no zoom on rapid taps; Chidori stun feel, Amaterasu with 3-4 enemies, ultimate lock-on at different heights
 - [ ] Play-test: block / parry timing, 8-way dash feel, super area size (a top-form super does ~120 to everyone near the impact), mid-air clashes
