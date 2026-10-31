@@ -1,11 +1,11 @@
 // Controls over the wire (D70). The sim edge-detects buttons from the level state each tick, so a tap that is
 // pressed and released between two server ticks would vanish if only the level were sent. The client therefore
 // also sends the buttons that went down since its last message ("edges"); the server presses them for exactly one
-// tick even when the level says released. Same bit layout as `packIntent` (buttons in bits 8-14).
+// tick even when the level says released. Same bit layout as `packIntent` (buttons in bits 8-15).
 
 import { emptyIntent, packIntent, unpackIntent, type Intent } from '../sim/intent';
 
-const BUTTON_MASK = 0x7f00;
+const BUTTON_MASK = 0xff00;
 
 /** Client side: turn polled intents into messages, remembering presses that happened between sends. */
 export class IntentSender {
@@ -93,6 +93,7 @@ export class IntentSlot {
       out.cycle ||= (b & 16) !== 0;
       out.gadget ||= (b & 32) !== 0;
       out.ability ||= (b & 64) !== 0;
+      out.block ||= (b & 128) !== 0;
     }
     this.edges = 0;
     return out;
@@ -121,6 +122,7 @@ export function intentFor(v: number, e: number, out: Intent = emptyIntent()): In
     out.cycle ||= (b & 16) !== 0;
     out.gadget ||= (b & 32) !== 0;
     out.ability ||= (b & 64) !== 0;
+    out.block ||= (b & 128) !== 0;
   }
   return out;
 }

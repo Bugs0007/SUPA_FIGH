@@ -41,52 +41,99 @@ function step(w: World, ticks: number, a: Partial<Intent> = {}, b: Partial<Inten
   return out;
 }
 
-/** B raises its guard (holding PUNCH) and waits until the perfect-block window is over. */
+/** B raises its guard (holding BLOCK) and waits until the perfect-block window is over. */
 function guardUp(w: World): void {
-  step(w, 30, {}, { attack: true });
+  step(w, 30, {}, { block: true });
   expect(w.fighters[1].state).toBe('block');
   expect(w.fighters[1].parryT).toBe(0);
 }
 
 const ticks = (s: number) => Math.round(s / DT);
 
-describe('blocking (hold PUNCH)', () => {
-  it('a tap still punches and never raises the guard', () => {
+describe('blocking (hold BLOCK)', () => {
+  it('holding PUNCH never raises the guard: a tap punches, a long hold just punches on', () => {
     const w = duel(140);
     const a = w.fighters[0];
     const ev = step(w, 1, { attack: true });
     expect(a.state).toBe('melee');
     expect(ev.some((e) => e.t === 'swing')).toBe(true);
-    for (let t = 0; t < 40; t++) {
-      step(w, 1);
+    for (let t = 0; t < 60; t++) {
+      step(w, 1, { attack: true });
       expect(a.state).not.toBe('block');
     }
   });
 
-  it('holding PUNCH raises the guard after BLOCK.hold seconds', () => {
+  it('holding BLOCK raises the guard on the press, with a parry window; letting go drops it', () => {
     const w = duel(160);
     const a = w.fighters[0];
-    expect(BLOCK.hold).toBe(0.15);
-    step(w, ticks(BLOCK.hold), { attack: true }); // 9 ticks: 0.133 s held after the press tick
-    expect(a.state).not.toBe('block');
-    step(w, 1, { attack: true });
+    step(w, 1, { block: true });
     expect(a.state).toBe('block');
-    expect(a.parryT).toBeGreaterThan(0);
+    expect(a.parryT).toBeCloseTo(BLOCK.parryWindow, 6);
+    step(w, 20, { block: true });
+    expect(a.state).toBe('block');
+    expect(a.parryT).toBe(0);
     // letting go drops it at once
     step(w, 1);
     expect(a.state).toBe('normal');
   });
 
-  it('a held swing still in its windup is cancelled into the guard (no hit)', () => {
+  it('PUNCH pressed on the tick BLOCK is let go comes out at once', () => {
+    const w = duel(160);
+    const a = w.fighters[0];
+    step(w, 10, { block: true });
+    const ev = step(w, 1, { attack: true });
+    expect(a.state).toBe('melee');
+    expect(ev.some((e) => e.t === 'swing')).toBe(true);
+  });
+
+  it('PUNCH does nothing while guarding', () => {
     const w = duel(114);
     const [a, b] = w.fighters;
-    a.inv[SLOT.MELEE] = { id: 'chair', ammo: 0, dur: 4 }; // windup 0.18 s > the 0.15 s hold
-    a.active = SLOT.MELEE;
-    const ev = step(w, ticks(BLOCK.hold) + 1, { attack: true });
+    step(w, 5, { block: true });
+    const ev = step(w, 20, { block: true, attack: true });
     expect(a.state).toBe('block');
-    step(w, 20, { attack: true });
+    expect(ev.some((e) => e.t === 'swing' || e.t === 'hit')).toBe(false);
+    expect(b.hp).toBe(100);
+  });
+
+  it('a swing still in its windup is cancelled into the guard (no hit)', () => {
+    const w = duel(114);
+    const [a, b] = w.fighters;
+    a.inv[SLOT.MELEE] = { id: 'chair', ammo: 0, dur: 4 }; // windup 0.18 s
+    a.active = SLOT.MELEE;
+    step(w, 1, { attack: true });
+    expect(a.state).toBe('melee');
+    const ev = step(w, 3, { block: true });
+    expect(a.state).toBe('block');
+    ev.push(...step(w, 20, { block: true }));
     expect(b.hp).toBe(100);
     expect(ev.some((e) => e.t === 'hit')).toBe(false);
+  });
+
+  it('guards with any weapon in hand: a gun aim is dropped (nothing fired), a melee weapon too', () => {
+    for (const [slot, id, ammo] of [[SLOT.SIDEARM, 'pistol', 12], [SLOT.THROWABLE, 'grenade', 2], [SLOT.MELEE, 'bat', 0]] as const) {
+      const w = duel(200);
+      const a = w.fighters[0];
+      a.inv[slot] = { id, ammo, dur: 4 };
+      a.active = slot;
+      step(w, 1, { block: true });
+      expect(a.state, id).toBe('block');
+      step(w, 1);
+      expect(a.state, id).toBe('normal');
+    }
+    // aiming a pistol, then BLOCK: the aim is dropped, no shot
+    const w = duel(200);
+    const a = w.fighters[0];
+    a.inv[SLOT.SIDEARM] = { id: 'pistol', ammo: 12, dur: 1 };
+    a.active = SLOT.SIDEARM;
+    step(w, 20, { attack: true });
+    expect(a.state).toBe('aim');
+    const ev = step(w, 5, { attack: true, block: true });
+    expect(a.state).toBe('block');
+    ev.push(...step(w, 30, { block: true }));
+    expect(ev.some((e) => e.t === 'shot')).toBe(false);
+    expect(a.inv[SLOT.SIDEARM]?.ammo).toBe(12);
+    expect(w.bullets.some((x) => x.active)).toBe(false);
   });
 
   it('holding attack with a gun or a throwable aims as before', () => {
@@ -104,7 +151,7 @@ describe('blocking (hold PUNCH)', () => {
     const w = duel();
     const [a, b] = w.fighters;
     guardUp(w);
-    const ev = step(w, 12, { attack: true }, { attack: true });
+    const ev = step(w, 12, { attack: true }, { block: true });
     expect(ev.some((e) => e.t === 'hit' && e.victim === 1)).toBe(false);
     const blk = ev.find((e) => e.t === 'block');
     expect(blk).toMatchObject({ t: 'block', victim: 1, attacker: 0, chip: 0.6 });
@@ -121,7 +168,7 @@ describe('blocking (hold PUNCH)', () => {
     let stun = 0;
     let vy = 0;
     for (let t = 0; t < 14; t++) {
-      step(w, 1, { kick: t === 0 }, { attack: true });
+      step(w, 1, { kick: t === 0 }, { block: true });
       stun = Math.max(stun, b.blockStun);
       vy = Math.min(vy, b.vy);
     }
@@ -132,7 +179,7 @@ describe('blocking (hold PUNCH)', () => {
     expect(BLOCK.max - b.guard).toBeCloseTo(9 * BLOCK.costKick, 1);
     expect(stun).toBeGreaterThan(BLOCK.stunBase);
     expect(stun).toBeLessThanOrEqual(BLOCK.stunBase + 9 * BLOCK.stunPerDamage);
-    // blockstun: releasing PUNCH does not drop the guard until it is over
+    // blockstun: releasing BLOCK does not drop the guard until it is over
     step(w, 1, {}, {});
     if (b.blockStun > 0) expect(b.state).toBe('block');
     step(w, ticks(BLOCK.stunMax) + 2);
@@ -142,10 +189,10 @@ describe('blocking (hold PUNCH)', () => {
   it('a hit from behind is not blocked and drops the guard', () => {
     const w = duel();
     const [, b] = w.fighters;
-    step(w, 30, {}, { attack: true, moveX: 1 }); // B guards facing away from A
+    step(w, 30, {}, { block: true, moveX: 1 }); // B guards facing away from A
     expect(b.state).toBe('block');
     expect(b.facing).toBe(1);
-    const ev = step(w, 12, { attack: true }, { attack: true, moveX: 1 });
+    const ev = step(w, 12, { attack: true }, { block: true, moveX: 1 });
     expect(ev.some((e) => e.t === 'block')).toBe(false);
     expect(ev.some((e) => e.t === 'hit' && e.victim === 1)).toBe(true);
     expect(b.hp).toBe(96);
@@ -156,15 +203,15 @@ describe('blocking (hold PUNCH)', () => {
     const [, b] = w.fighters;
     guardUp(w);
     b.guard = 5;
-    const ev = step(w, 14, { kick: true }, { attack: true });
+    const ev = step(w, 14, { kick: true }, { block: true });
     expect(ev.some((e) => e.t === 'guardBreak' && e.victim === 1)).toBe(true);
     expect(b.hp).toBe(91); // the full 9 of the kick
     expect(b.state).toBe('flinch');
     expect(b.flinchTime).toBe(BLOCK.breakStun);
     expect(b.guard).toBeGreaterThanOrEqual(BLOCK.breakRefill);
     expect(b.guard).toBeLessThan(BLOCK.breakRefill + 1);
-    // still dazed a second later even though PUNCH is held
-    step(w, 60, {}, { attack: true });
+    // still dazed a second later even though BLOCK is held
+    step(w, 60, {}, { block: true });
     expect(b.state).toBe('flinch');
   });
 
@@ -172,13 +219,13 @@ describe('blocking (hold PUNCH)', () => {
     const w = duel();
     const [, b] = w.fighters;
     guardUp(w);
-    step(w, 12, { attack: true }, { attack: true });
+    step(w, 12, { attack: true }, { block: true });
     const after = b.guard;
     expect(after).toBeLessThan(BLOCK.max);
-    step(w, ticks(BLOCK.regenDelay) - 14, {}, { attack: true });
+    step(w, ticks(BLOCK.regenDelay) - 14, {}, { block: true });
     expect(b.guard).toBeCloseTo(after, 5);
     b.guard = 40;
-    step(w, 60, {}, { attack: true });
+    step(w, 60, {}, { block: true });
     expect(b.guard).toBeGreaterThan(40 + BLOCK.regen * 0.9);
     step(w, 240);
     expect(b.guard).toBe(BLOCK.max);
@@ -187,18 +234,18 @@ describe('blocking (hold PUNCH)', () => {
   it('a perfect block (right as the guard comes up) costs nothing and staggers the attacker', () => {
     const w = duel();
     const [a, b] = w.fighters;
-    // B starts holding out of reach (its own opening jab whiffs), steps in as the guard comes up (tick 10),
-    // and A's jab connects 3 ticks after its press: inside the 0.12 s window
+    // B presses BLOCK out of reach, is put in front of A right away, and A's jab connects 3 ticks after its press:
+    // inside the 0.12 s window
     b.x = b.px = 150;
     const ev: SimEvent[] = [];
     let staggered = 0;
     for (let t = 0; t < 30; t++) {
-      if (t === 10) {
+      if (t === 1) {
         expect(b.state).toBe('block');
         b.x = b.px = 112;
         b.vx = 0;
       }
-      ev.push(...step(w, 1, { attack: t === 10 }, { attack: true }));
+      ev.push(...step(w, 1, { attack: t === 1 }, { block: true }));
       if (a.state === 'flinch') staggered = a.flinchTime;
     }
     expect(ev.find((e) => e.t === 'parry')).toMatchObject({ victim: 1, attacker: 0 });
@@ -211,19 +258,29 @@ describe('blocking (hold PUNCH)', () => {
   it('one parry window per press: a guard raised again in the same press has none', () => {
     const w = duel(200);
     const a = w.fighters[0];
-    step(w, 12, { attack: true });
+    step(w, 1, { block: true });
     expect(a.parryT).toBeGreaterThan(0);
-    step(w, 1, { attack: true, jump: true }); // jump out of the guard...
+    step(w, 1, { block: true, jump: true }); // jump out of the guard...
     expect(a.vy).toBeLessThan(0);
-    step(w, 2, { attack: true, jump: true }); // ...and it comes back up in the air
+    step(w, 2, { block: true, jump: true }); // ...and it comes back up in the air
     expect(a.state).toBe('block');
     expect(a.grounded).toBe(false);
     expect(a.parryT).toBe(0);
-    // release and hold again: a new window
+    // release and press again: a new window
     step(w, 60);
-    step(w, 12, { attack: true });
+    step(w, 1, { block: true });
     expect(a.state).toBe('block');
     expect(a.parryT).toBeGreaterThan(0);
+    // a press made while busy (kicking) opens its window when the guard comes up after the kick
+    step(w, 30);
+    step(w, 1, { kick: true });
+    expect(a.state).toBe('kick');
+    let raised = -1;
+    for (let t = 0; t < 60 && raised < 0; t++) {
+      step(w, 1, { block: true });
+      if (a.state === 'block') raised = a.parryT;
+    }
+    expect(raised).toBeGreaterThan(0);
   });
 
   it('fire, sudden-death drain and grabs go straight through a guard', () => {
@@ -237,7 +294,7 @@ describe('blocking (hold PUNCH)', () => {
     expect(b.state).toBe('block');
     expect(b.guard).toBe(BLOCK.max);
     a.x = a.px = 104;
-    step(w, 1, { interact: true }, { attack: true });
+    step(w, 1, { interact: true }, { block: true });
     expect(a.state).toBe('grabbing');
     expect(b.state).toBe('grabbed');
   });
@@ -245,33 +302,33 @@ describe('blocking (hold PUNCH)', () => {
   it('jump and kick cancel out of the guard', () => {
     const w = duel(200);
     const a = w.fighters[0];
-    step(w, 12, { attack: true });
+    step(w, 12, { block: true });
     expect(a.state).toBe('block');
-    step(w, 1, { attack: true, jump: true });
+    step(w, 1, { block: true, jump: true });
     expect(a.state).toBe('normal');
     expect(a.vy).toBeLessThan(0);
     step(w, 60);
-    step(w, 12, { attack: true });
+    step(w, 12, { block: true });
     expect(a.state).toBe('block');
-    step(w, 1, { attack: true, kick: true });
+    step(w, 1, { block: true, kick: true });
     expect(a.state).toBe('kick');
   });
 
   it('a hero cancels the guard into an ability', () => {
     const w = duel(300, [{ ...spec('N'), hero: 'naruto' }, spec('B')]);
     const n = w.fighters[0];
-    step(w, 12, { attack: true });
+    step(w, 12, { block: true });
     expect(n.state).toBe('block');
-    step(w, 1, { attack: true, ability: true });
+    step(w, 1, { block: true, ability: true });
     expect(n.state).toBe('special');
   });
 
-  it('hero abilities chip 0.3 and Chidori (2 s stun) is blocked without stunning', () => {
+  it('hero abilities chip 0.3 and Chidori (1 s stun) is blocked without stunning', () => {
     const w = duel(130, [{ ...spec('S'), hero: 'sasuke' }, spec('B')]);
     const [s, b] = w.fighters;
     s.x = s.px = 70;
     guardUp(w);
-    const ev = step(w, 50, { ability: true }, { attack: true });
+    const ev = step(w, 50, { ability: true }, { block: true });
     const blk = ev.find((e) => e.t === 'block');
     expect(blk).toBeDefined();
     expect(ev.some((e) => e.t === 'hit' && e.victim === 1)).toBe(false);
@@ -292,18 +349,18 @@ describe('blocking (hold PUNCH)', () => {
     a.active = SLOT.SIDEARM;
     guardUp(w);
     // aim (hold), fire (release): semi-automatic
-    const ev = step(w, 20, { attack: true }, { attack: true });
-    ev.push(...step(w, 30, {}, { attack: true }));
+    const ev = step(w, 20, { attack: true }, { block: true });
+    ev.push(...step(w, 30, {}, { block: true }));
     expect(ev.some((e) => e.t === 'block' && e.victim === 1)).toBe(true);
     expect(ev.some((e) => e.t === 'hit' && e.victim === 1)).toBe(false);
     expect(b.hp).toBeGreaterThan(97);
     expect(b.state).toBe('block');
     expect(w.bullets.some((x) => x.active)).toBe(false);
     // B turns its back (still guarding): the next one goes through
-    step(w, 5, {}, { attack: true, moveX: 1 });
+    step(w, 5, {}, { block: true, moveX: 1 });
     expect(b.facing).toBe(1);
-    ev.push(...step(w, 20, { attack: true }, { attack: true, moveX: 1 }));
-    ev.push(...step(w, 30, {}, { attack: true, moveX: 1 }));
+    ev.push(...step(w, 20, { attack: true }, { block: true, moveX: 1 }));
+    ev.push(...step(w, 30, {}, { block: true, moveX: 1 }));
     expect(ev.some((e) => e.t === 'hit' && e.victim === 1 && e.kind === 'bullet')).toBe(true);
     expect(b.hp).toBeLessThan(90);
   });

@@ -624,6 +624,8 @@ export class FighterView {
         back = -0.6;
         // rocks back a touch while a blocked hit is absorbed
         leanTarget = f.blockStun > 0 ? -0.1 : 0.03;
+        // a gun / throwable / gadget is lowered (out of sight) behind the guard; a melee weapon is held up across it
+        if (!def.melee) showWeapon = false;
         break;
       case 'kick':
         frame = f.airKick ? BF.AIRKICK : BF.KICK;

@@ -44,9 +44,10 @@ export interface BaseAbility {
     radius: number;
     /**
      * Chidori: the shock arcs from the victim to the nearest other enemies, which are stunned too. The number of
-     * fighters and the distance grow with the form level; `damageFrac` is the share of the hit's damage they take.
+     * fighters (`count` + `countPerLevel` per form, at most `maxCount`) and the distance grow with the form level;
+     * `damageFrac` is the share of the hit's damage they take.
      */
-    spread?: { count: number; countPerLevel: number; radius: number; radiusPerLevel: number; damageFrac: number };
+    spread?: { count: number; countPerLevel: number; maxCount: number; radius: number; radiusPerLevel: number; damageFrac: number };
   };
   /** Gum-Gum Pistol: a stretching arm that hits, grabs (walls, ceilings, platforms, ladders) and pulls / swings */
   stretch?: StretchStats;
@@ -292,7 +293,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       kind: 'rasengan', weapon: 'chidori', name: 'CHIDORI',
       desc: 'LIGHTNING PALM DASH. STUNS FOR 2 SECONDS AND ARCS TO NEARBY ENEMIES (MORE IN HIGHER FORMS). HOLD TO EXTEND; TWO USES.',
       cooldown: 0.4, charges: { max: 2, recharge: 2.8 },
-      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 360, recover: 0.22, damage: 14, knockX: 140, knockY: -60, stun: 2, radius: 6, spread: { count: 1, countPerLevel: 1, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
+      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 360, recover: 0.22, damage: 14, knockX: 140, knockY: -60, stun: 1, radius: 6, spread: { count: 1, countPerLevel: 1, maxCount: 2, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
     },
     second: {
       kind: 'fireball', name: 'FIRE STYLE: FIREBALL',

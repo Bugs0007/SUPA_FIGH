@@ -44,23 +44,29 @@ function press(w: World, input: Partial<Intent>, ticks = 60): SimEvent[] {
 }
 
 describe('Chidori stuns', () => {
-  it('holds the victim for two seconds (not a knockdown), and a later short stun cannot cut it short', () => {
+  it('holds the victim for one second (not a knockdown), and a later short stun cannot cut it short', () => {
     const w = arena(0, [{ x: 130 }]);
     const [, victim] = w.fighters;
-    press(w, { ability: true }, 40);
+    expect(S.base.dash!.stun).toBe(1);
+    let hitAt = -1;
+    for (let i = 0; i < 40 && hitAt < 0; i++) {
+      press(w, i === 0 ? { ability: true } : {}, 1);
+      if (victim.hp < 100) hitAt = w.time;
+    }
     expect(victim.state).toBe('flinch');
-    expect(victim.flinchTime).toBe(2);
-    expect(victim.hp).toBeLessThan(100);
-    // still stunned 1.5 s later, free after 2 s
-    const stunnedAt = w.time - 0; // (a few ticks after the hit)
-    run(w, 80);
-    expect(victim.state, `${(w.time - stunnedAt).toFixed(2)} s after`).toBe('flinch');
-    // somebody else's 0.3 s stun lands in the middle of it: the rest of the two seconds stays
+    expect(victim.flinchTime).toBe(1);
+    // still stunned 0.5 s later
+    run(w, 30);
+    expect(victim.state).toBe('flinch');
+    // somebody else's 0.3 s stun lands in the middle of it: the rest of the second stays
     const left = victim.flinchTime - victim.stateTime;
+    expect(left).toBeGreaterThan(0.3);
     applyHit(w, victim, { damage: 1, kbX: 0, kbY: 0, attacker: -1, weapon: 'test', kind: 'melee', stun: 0.3, ignoreInvuln: true });
     expect(victim.flinchTime).toBeGreaterThanOrEqual(left - 1e-6);
-    run(w, 70);
-    expect(victim.state).not.toBe('flinch');
+    // free just after the second is over (not knocked down: it was a hold)
+    run(w, Math.ceil(left * 60) + 1);
+    expect(victim.state).toBe('normal');
+    expect(w.time - hitAt).toBeLessThan(1.1);
   });
 
   it('a short stun still works as before (and still knocks down when it asks to)', () => {
@@ -73,19 +79,16 @@ describe('Chidori stuns', () => {
     expect(v.state).toBe('knockdown');
   });
 
-  it('the reach (how many fighters, how far from the victim) grows with the form', () => {
+  it('the reach grows with the form: 1 extra enemy in base form, 2 from form 1 on (never more), the radius keeps growing', () => {
     const spread = S.base.dash!.spread!;
+    expect(spread.maxCount).toBe(2);
     const reach = [0, 1, 2, 3, 4].map((l) => chidoriReach(spread, l));
-    for (let l = 1; l <= 4; l++) {
-      expect(reach[l].count).toBe(reach[l - 1].count + 1);
-      expect(reach[l].radius).toBeGreaterThan(reach[l - 1].radius);
-    }
-    expect(reach[0].count).toBeGreaterThanOrEqual(1);
-    expect(reach[4].count).toBeGreaterThan(reach[0].count);
+    expect(reach.map((r) => r.count)).toEqual([1, 2, 2, 2, 2]);
+    for (let l = 1; l <= 4; l++) expect(reach[l].radius).toBeGreaterThan(reach[l - 1].radius);
   });
 
   for (let level = 0; level <= 4; level++) {
-    it(`form ${level}: the shock stuns exactly the nearest ${1 + level} other enemies within ${40 + 14 * level} px of the victim`, () => {
+    it(`form ${level}: the shock stuns exactly the nearest ${Math.min(2, 1 + level)} other enemies within ${40 + 14 * level} px of the victim`, () => {
       const reach = chidoriReach(S.base.dash!.spread!, level);
       // the victim at 130, then six more enemies stacked behind it at growing distances
       const dists = [14, 28, 42, 56, 70, 84];
@@ -93,9 +96,10 @@ describe('Chidori stuns', () => {
       const events = press(w, { ability: true }, 45);
       const victim = w.fighters[1];
       expect(victim.state).toBe('flinch');
-      const stunned = w.fighters.slice(2).map((f) => f.state === 'flinch' && f.flinchTime >= 2);
+      const stunned = w.fighters.slice(2).map((f) => f.state === 'flinch' && f.flinchTime >= S.base.dash!.stun);
       const within = dists.filter((d) => d <= reach.radius);
       const expected = Math.min(reach.count, within.length);
+      expect(expected).toBeLessThanOrEqual(2);
       expect(stunned.filter(Boolean).length, `form ${level}: ${JSON.stringify(stunned)}`).toBe(expected);
       // they are the NEAREST ones, in order
       stunned.slice(0, expected).forEach((s) => expect(s).toBe(true));

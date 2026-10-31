@@ -108,7 +108,7 @@ describe('render state (D71)', () => {
     const real = new Match(cfg);
     const mirror = new Match(cfg);
     for (let t = 0; t < 600; t++) {
-      real.step(real.world.fighters.map(() => ({ moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false })));
+      real.step(real.world.fighters.map(() => ({ moveX: 0, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false, block: false })));
     }
     applyWorld(mirror.world, JSON.parse(JSON.stringify(encodeWorld(real.world))));
     const live = real.world.items.filter((i) => i.active);
@@ -133,7 +133,7 @@ describe('render state (D71)', () => {
     const cfg = config('test');
     const real = new Match(cfg);
     const mirror = new Match(cfg);
-    const idle = () => real.world.fighters.map(() => ({ moveX: 1, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false }));
+    const idle = () => real.world.fighters.map(() => ({ moveX: 1, moveY: 0, jump: false, attack: false, kick: false, interact: false, cycle: false, gadget: false, ability: false, block: false }));
     for (let t = 0; t < 30; t++) real.step(idle());
     applyWorld(mirror.world, encodeWorld(real.world));
     const before = positionsOf(mirror.world);

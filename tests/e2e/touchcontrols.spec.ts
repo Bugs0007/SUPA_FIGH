@@ -42,7 +42,7 @@ test('JUMP and CROUCH sit on the far right and nothing overlaps or leaves the sc
   // heroes show their ability buttons too: check the busiest layout
   for (const heroes of ['-,-', 'naruto,-']) {
     await open(page, heroes);
-    const ids = ['.b-jump', '.b-crouch', '.b-attack', '.b-kick', '.b-ability', '.b-super', '.b-grab', '.b-swap', '.b-med', '.b-pause', '.pad'];
+    const ids = ['.b-jump', '.b-crouch', '.b-attack', '.b-block', '.b-kick', '.b-ability', '.b-super', '.b-grab', '.b-swap', '.b-med', '.b-pause', '.pad'];
     const rects: Record<string, { l: number; t: number; r: number; b: number }> = {};
     for (const id of ids) {
       const r = await rectOf(page, id);
@@ -50,6 +50,7 @@ test('JUMP and CROUCH sit on the far right and nothing overlaps or leaves the sc
     }
     expect(Object.keys(rects), heroes).toContain('.b-jump');
     expect(Object.keys(rects)).toContain('.b-crouch');
+    expect(Object.keys(rects)).toContain('.b-block');
     if (heroes !== '-,-') expect(Object.keys(rects)).toContain('.b-ability');
     const names = Object.keys(rects);
     for (const n of names) {

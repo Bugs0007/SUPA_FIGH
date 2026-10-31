@@ -175,6 +175,7 @@ export class BotController implements Controller {
     o.interact = false;
     o.cycle = false;
     o.ability = false;
+    o.block = false;
     const f = w.fighters[this.id];
     if (f && f.alive && !f.gone) {
       this.now = w.time;
@@ -198,6 +199,7 @@ export class BotController implements Controller {
     this.prev.interact = o.interact;
     this.prev.cycle = o.cycle;
     this.prev.ability = o.ability;
+    this.prev.block = o.block;
     return o;
   }
 
@@ -209,7 +211,7 @@ export class BotController implements Controller {
   private watchdog(w: World, f: Fighter): void {
     const o = this.out;
     const free = f.state === 'normal' || f.state === 'crouch' || f.state === 'climb';
-    const quiet = !o.moveX && !o.moveY && !o.jump && !o.attack && !o.kick && !o.ability && !o.interact && !o.cycle;
+    const quiet = !o.moveX && !o.moveY && !o.jump && !o.attack && !o.kick && !o.ability && !o.interact && !o.cycle && !o.block;
     if (!free || !quiet || this.taps.size > 0 || this.chargeTicks > 0 || this.now < this.unstickUntil) {
       this.idleTicks = 0;
       return;
@@ -911,7 +913,7 @@ export class BotController implements Controller {
     return true;
   }
 
-  // ------------------------------------------------------------------ guarding (hold PUNCH, BLOCK in sim/constants.ts)
+  // ------------------------------------------------------------------ guarding (hold BLOCK, BLOCK in sim/constants.ts)
 
   /** `e` holds a guard up toward us, close enough that punching it would only chip it. */
   private facesGuard(f: Fighter, e: Fighter): boolean {
@@ -1035,13 +1037,14 @@ export class BotController implements Controller {
   }
 
   /**
-   * Raise the guard (hold PUNCH) against an attack seen coming - decided once per attack with the difficulty's
+   * Raise the guard (hold BLOCK) against an attack seen coming - decided once per attack with the difficulty's
    * chance, after its reaction time (or timed as a perfect block when the hit's arrival can be predicted) - and drop
    * it when the attack is over, after BOT_FIGHT.guardMax, when the meter is about to break, or to punish an attacker
-   * left reeling by a parry. Runs from any goal. Returns true while the guard owns the inputs.
+   * left reeling by a parry. Runs from any goal. Returns true while the guard owns the inputs. Shadow clones never
+   * guard (the sim would not let them anyway).
    */
   private guardStep(w: World, f: Fighter): boolean {
-    const can = guardCapable(f) && f.carry < 0;
+    const can = f.carry < 0 && !this.isClone && f.master < 0;
     if (this.guardOn) {
       const s = f.state;
       const keep = can && (s === 'block' || s === 'normal' || s === 'crouch' || s === 'melee' || s === 'flinch' || s === 'knockdown');
@@ -1055,9 +1058,9 @@ export class BotController implements Controller {
         this.guardRest = this.now + BOT_FIGHT.guardRest;
         if (punish) this.meleeNext = this.now;
         if (t && (t.kind === 'super' || low)) this.startSpace(w, f, t.e);
-        return false; // (attack stays up this tick: the guard drops)
+        return false; // (BLOCK is let go this tick: the guard drops)
       }
-      this.out.attack = true;
+      this.out.block = true;
       if (src && s === 'block') {
         const face = src.x >= f.x ? 1 : -1;
         if (f.facing !== face) this.out.moveX = face; // (in the guard the stick only turns around)
@@ -1075,9 +1078,9 @@ export class BotController implements Controller {
       this.threatParry = t.kind !== 'pressure' && t.kind !== 'super' && this.rng.chance(this.diff.parry);
     }
     if (!this.threatGo || this.now < this.threatAt) return false;
-    if (this.threatParry && t.eta > BLOCK.hold + BLOCK.parryWindow * 0.5) {
-      // a perfect block: the guard comes up BLOCK.hold after the press, so press just that long before the hit
-      // lands. Meanwhile hold still, facing it (walking in would make it land sooner).
+    if (this.threatParry && t.eta > BLOCK.parryWindow * 0.5) {
+      // a perfect block: the guard comes up on the press, so press half the parry window before the hit lands.
+      // Meanwhile hold still, facing it (walking in would make it land sooner).
       const face = t.e.x >= f.x ? 1 : -1;
       if (f.facing !== face && (f.state === 'normal' || f.state === 'crouch')) this.out.moveX = face;
       return true;
@@ -1094,7 +1097,7 @@ export class BotController implements Controller {
     this.guardFrom = this.guardSeen = this.now;
     this.guardSrc = t.e.id;
     this.taps.delete('attack');
-    this.out.attack = true;
+    this.out.block = true;
     const face = t.e.x >= f.x ? 1 : -1;
     if (f.facing !== face) this.out.moveX = face;
     return true;
@@ -1592,12 +1595,6 @@ function swingHit(f: Fighter): MeleeHit {
   const def = activeWeapon(f);
   const combo = (def === FISTS ? heroDef(f.hero)?.combo : null) ?? (def.melee ?? FISTS.melee!).combo;
   return combo[Math.min(f.combo, combo.length - 1)];
-}
-
-/** Can the active weapon guard (fighter.ts guardWeapon)? Fists and melee weapons. */
-function guardCapable(f: Fighter): boolean {
-  const d = activeWeapon(f);
-  return !d.gun && !d.throw && !d.gadget && !d.powerup;
 }
 
 /**
