@@ -154,9 +154,14 @@ export interface SuperAbility {
   names: string[];
   desc: string;
   cooldown: number;
-  /** tailed beast bomb: wind-up, projectile speed, size and blast per level */
+  /**
+   * Tailed beast bomb / arrow / Spirit Bomb: wind-up, projectile speed, size and an area blast per level. `damage`
+   * (+ `damagePerLevel` per form above the first, x the form's damage multiplier) is the WHOLE hit: the projectile goes
+   * off on the first enemy it touches and everyone inside `radius` takes one blast hit (SUPER_AREA falloff).
+   */
   bomb?: { windup: number; speed: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki' };
-  fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number; fistGrowth?: number; rangeGrowth?: number };
+  /** giant fist: hits everyone the arm sweeps through, then a shockwave of `shock` px (+ per form) where the fist lands */
+  fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number; fistGrowth?: number; rangeGrowth?: number; shock: number; shockPerLevel: number };
   beam?: BeamStats & { widthPerLevel: number; damagePerLevel: number };
 }
 
@@ -219,6 +224,11 @@ export const FORM_BYPASS = ['fall', 'water', 'drain'] as const;
 export const HOLD_FLY = { speed: 120, accel: 1000, liftoff: 70 };
 /** seconds both ability buttons may be apart and still count as "together" (super) */
 export const SUPER_WINDOW = 0.1;
+/**
+ * Area of every super's blast (bombs and Luffy's fist shockwave): full damage within `core` x radius, then easing down
+ * to `edge` x damage at the rim. Each fighter takes the blast once; the caster and his own clones never do.
+ */
+export const SUPER_AREA = { core: 0.55, edge: 0.5 };
 /** pickup item of the power orb (data/weapons.ts) */
 export const POWER_ORB = 'powerorb';
 
@@ -270,7 +280,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       kind: 'bomb', names: ['CHIDORI SHARP SPEAR', 'ONYX CHIDORI SPEAR', 'SUSANOO ARROW', "INDRA'S ARROW"],
       desc: 'AIM A LIGHTNING SPEAR. HIGHER FORMS SUMMON SUSANOO TO FIRE AN EXPLOSIVE ARROW.',
       cooldown: 9,
-      bomb: { windup: 0.65, speed: 430, size: 4, sizePerLevel: 1.2, damage: 22, damagePerLevel: 7, radius: 24, radiusPerLevel: 10, range: 550, kind: 'ki' },
+      bomb: { windup: 0.65, speed: 430, size: 4, sizePerLevel: 1.2, damage: 37, damagePerLevel: 13, radius: 54, radiusPerLevel: 10, range: 550, kind: 'ki' },
     },
     forms: [
       { name: 'SHARINGAN', speedMul: 1.12, damageMul: 1.15, knockMul: 1.1, reach: 1 },
@@ -307,7 +317,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['RASENSHURIKEN', 'TAILED BEAST BOMB', 'TAILED BEAST BOMB', 'KURAMA BIJUDAMA'],
       desc: 'A GIANT CHAKRA BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      bomb: { windup: 0.45, speed: 190, size: 5, sizePerLevel: 1.5, damage: 16, damagePerLevel: 7, radius: 30, radiusPerLevel: 9 },
+      bomb: { windup: 0.45, speed: 190, size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
     },
     forms: [
       { name: 'ONE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.15, knockMul: 1.1, reach: 0 },
@@ -360,7 +370,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['JET PISTOL', 'ELEPHANT GUN', 'KING KONG GUN', 'BAJRANG GUN'],
       desc: 'A GIANT FIST THAT FLATTENS EVERYTHING IN ITS PATH.',
       cooldown: 8,
-      fist: { range: 150, out: 0.16, hold: 0.12, back: 0.14, damage: 18, knockX: 420, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 8 },
+      fist: { range: 150, out: 0.16, hold: 0.12, back: 0.14, damage: 18, knockX: 420, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 8, shock: 32, shockPerLevel: 10 },
     },
     forms: [
       { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 4 },
@@ -396,7 +406,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['SPIRIT BOMB', 'SUPER SPIRIT BOMB', 'GIANT SPIRIT BOMB', 'UNIVERSAL SPIRIT BOMB'],
       desc: 'GATHER ENERGY OVERHEAD, THEN THROW A GIANT EXPLOSIVE SPIRIT BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      bomb: { windup: 0.95, speed: 260, size: 18, sizePerLevel: 6, damage: 24, damagePerLevel: 8, radius: 45, radiusPerLevel: 12, range: 520, kind: 'ki' },
+      bomb: { windup: 0.95, speed: 260, size: 18, sizePerLevel: 6, damage: 37, damagePerLevel: 13, radius: 60, radiusPerLevel: 12, range: 520, kind: 'ki' },
     },
     forms: [
       { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.25, knockMul: 1.25, reach: 3 },
@@ -419,8 +429,8 @@ export function maxLevel(hero: string): number {
   return HEROES[hero]?.forms.length ?? 0;
 }
 
-/** One source of truth for a super's actual reach, hit radius and damage at the current form. */
-export function superFistFor(hero: string, level: number): StretchStats | null {
+/** One source of truth for a super's actual reach, hit radius, damage and landing shockwave radius at the current form. */
+export function superFistFor(hero: string, level: number): (StretchStats & { shock: number }) | null {
   const s = HEROES[hero]?.super.fist;
   if (!s) return null;
   const n = Math.max(0, Math.min(maxLevel(hero), level) - 1);
@@ -429,6 +439,7 @@ export function superFistFor(hero: string, level: number): StretchStats | null {
     range: Math.round(s.range * (s.rangeGrowth ?? 1) ** n),
     fist: s.fistGrowth ? (s.fist ?? 4) * s.fistGrowth ** n : (s.fist ?? 4) + s.fistPerLevel * n,
     damage: s.damage + s.damagePerLevel * n,
+    shock: s.shock + s.shockPerLevel * n,
   };
 }
 

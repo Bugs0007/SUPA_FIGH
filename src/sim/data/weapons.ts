@@ -21,6 +21,16 @@ export interface ExplosionStats {
   ignite?: number;
   /** camera trauma (render only) */
   shake: number;
+  /**
+   * Area blasts (hero supers): everyone within `core` x radius takes the full damage, beyond it the damage eases
+   * linearly down to `edge` x damage at the rim. Absent = the usual grenade falloff (20 % at the rim).
+   */
+  core?: number;
+  edge?: number;
+  /** the projectile carrying this blast does no damage of its own on contact: the blast is the whole hit */
+  blastOnly?: boolean;
+  /** never touches its owner or the owner's shadow clones */
+  spareOwner?: boolean;
 }
 
 export interface GunStats {

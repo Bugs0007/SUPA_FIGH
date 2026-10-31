@@ -85,6 +85,8 @@ import {
   endPower,
   fireBomb,
   fireJutsu,
+  fistShock,
+  stretchFist,
   superGuard,
   usesAmaterasu,
   aimUltimate,
@@ -1890,6 +1892,11 @@ function stSuperFist(w: World, f: Fighter, dt: number): void {
   if (reach > 0) {
     const r = pistolHits(w, f, s, f.stretchAngle, reach, { weapon: f.hero + ':super', damage: s.damage, fist });
     f.stretchLen = Math.max(0, r.len - f.w / 2);
+    // the fist lands (fully out, or against the wall that stopped it): a shockwave around it
+    if (f.stateTime - dt < s.out && f.stateTime >= s.out) {
+      const { x0, y0 } = stretchFist(f, f.stretchAngle, 0);
+      fistShock(w, f, s, x0 + Math.cos(f.stretchAngle) * f.facing * r.len, y0 + Math.sin(f.stretchAngle) * r.len, s.shock, f.hero + ':super');
+    }
   }
   f.beamWidth = fist;
   if (f.stateTime >= s.out + s.hold + s.back) {

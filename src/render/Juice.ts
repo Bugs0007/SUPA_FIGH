@@ -580,6 +580,20 @@ export class Juice {
         }
         break;
       }
+      case 'shockwave': {
+        // Luffy's giant fist lands: a ring the size of the area it hits, dust and steam
+        const f = w.fighters[e.f];
+        const [c0] = f.power === 'hero' ? levelColors(f.hero, f.powerLevel) : levelColors('', 0);
+        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.14, s0: e.radius / 20, s1: e.radius / 12, a0: 0.6, a1: 0, tint: 0xffd0e8, add: true, depth: 64 });
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.3, s0: 0.3, s1: e.radius / 12, a0: 1, a1: 0, tint: 0xffffff, depth: 64 });
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.42, s0: 0.2, s1: (e.radius / 12) * 0.7, a0: 0.8, a1: 0, tint: c0, depth: 64 });
+        fx.sparks(e.x, e.y, 0, -1, Math.round(8 + e.radius / 4), 0xff9ad0, 120 + e.radius * 3);
+        fx.smoke(e.x, e.y, Math.round(3 + e.radius / 12), 0xffd0e8);
+        this.sfx('energyHit', e.x, 1, 0.7);
+        this.cam.addTrauma(0.25 + e.radius / 200);
+        this.hitstop = Math.max(this.hitstop, 0.06);
+        break;
+      }
       case 'weaponBreak':
         fx.chips(e.x, e.y, 10);
         this.sfx('break', e.x);

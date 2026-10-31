@@ -93,7 +93,7 @@ describe('Sasuke', () => {
     expect(b).toBeDefined();
     expect(b!.vy).toBeLessThan(0);
     expect(b!.size).toBeCloseTo(4 + (level - 1) * 1.2);
-    expect(b!.explosion!.radius).toBe(24 + (level - 1) * 10);
+    expect(b!.explosion!.radius).toBe(54 + (level - 1) * 10);
     expect(f.specialCd).toBeGreaterThan(8);
     expect(holdFlies(f)).toBe(level === 4);
     const later = press(w, {}, 30);

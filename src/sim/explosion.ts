@@ -22,7 +22,17 @@ export function lineBlocked(w: World, x0: number, y0: number, x1: number, y1: nu
 }
 
 /** Shielded targets behind walls take this fraction. */
-const COVER = 0.35;
+export const COVER = 0.35;
+
+/**
+ * Damage share of an area blast (supers) at `u` = distance / radius (0..1): full inside the core, then a straight
+ * line down to `edge` at the rim.
+ */
+export function areaFrac(u: number, core: number, edge: number): number {
+  if (u >= 1) return 0;
+  if (u <= core) return 1;
+  return 1 - (1 - edge) * ((u - core) / (1 - core));
+}
 
 /**
  * Radial blast: damage + knockback (knocks down) on fighters and corpses, shoves items/props,
@@ -33,12 +43,14 @@ export function explode(w: World, x: number, y: number, ex: ExplosionStats, owne
   w.emit({ t: 'explosion', x, y, radius: ex.radius, weapon, shake: ex.shake });
   const r = ex.radius;
 
-  const falloff = (tx: number, ty: number, pad: number) => {
+  /** 1 at the centre .. 0 at the rim (and beyond) */
+  const nearness = (tx: number, ty: number, pad: number) => {
     const d = Math.max(0, Math.hypot(tx - x, ty - y) - pad);
-    if (d >= r) return 0;
-    let k = 1 - d / r;
-    if (lineBlocked(w, x, y, tx, ty)) k *= COVER;
-    return k;
+    return d >= r ? 0 : 1 - d / r;
+  };
+  const falloff = (tx: number, ty: number, pad: number) => {
+    const k = nearness(tx, ty, pad);
+    return k > 0 && lineBlocked(w, x, y, tx, ty) ? k * COVER : k;
   };
   const dir = (tx: number, ty: number) => {
     let nx = tx - x;
@@ -58,20 +70,31 @@ export function explode(w: World, x: number, y: number, ex: ExplosionStats, owne
 
   for (const f of w.fighters) {
     if (f.gone) continue;
+    if (ex.spareOwner && owner >= 0 && (f.id === owner || f.master === owner)) continue;
     const cy = f.y - f.h / 2;
-    const k = falloff(f.x, cy, 6);
+    const near = nearness(f.x, cy, 6);
+    if (near <= 0) continue;
+    const cover = lineBlocked(w, x, y, f.x, cy) ? COVER : 1;
+    const k = near * cover;
     if (k <= 0.02) continue;
     const [nx, ny] = dir(f.x, cy);
-    const kb = ex.knock * (0.35 + 0.65 * k);
+    // area blasts (supers): full damage in the core, easing to `edge` at the rim; wall cover still applies
+    let share = 0.2 + 0.8 * k;
+    let push = k;
+    if (ex.core !== undefined) {
+      share = areaFrac(1 - near, ex.core, ex.edge ?? 0.5) * cover;
+      push = share;
+    }
+    const kb = ex.knock * (0.35 + 0.65 * push);
     applyHit(w, f, {
-      damage: ex.damage * (0.2 + 0.8 * k),
+      damage: ex.damage * share,
       kbX: nx * kb,
       kbY: ny * kb,
       attacker: owner,
       weapon,
       kind: 'explosion',
       stun: 0.3,
-      knockdown: k > 0.2,
+      knockdown: push > 0.2,
       ignoreInvuln: true,
       x: f.x,
       y: cy,

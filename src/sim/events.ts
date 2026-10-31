@@ -92,6 +92,8 @@ export type SimEvent =
   /** Chidori's shock jumping from one stunned enemy to the next */
   | { t: 'arc'; f: number; x0: number; y0: number; x1: number; y1: number }
   | { t: 'stretch'; f: number }
+  /** a super's shockwave where Luffy's giant fist lands (radius = the area it hits) */
+  | { t: 'shockwave'; f: number; x: number; y: number; radius: number }
   | { t: 'clone'; f: number; x: number; y: number; facing: number; id: number }
   | { t: 'cloneGone'; x: number; y: number }
   | { t: 'blink'; f: number; fromX: number; fromY: number; toX: number; toY: number }

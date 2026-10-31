@@ -457,7 +457,7 @@ describe('super (both abilities together, transformed only)', () => {
       expect(ball.kind).toBe('ki');
       expect(ball.size).toBe(18 + (level - 1) * 6);
       expect(ball.range).toBe(520);
-      expect(ball.explosion!.radius).toBe(45 + (level - 1) * 12);
+      expect(ball.explosion!.radius).toBe(60 + (level - 1) * 12);
       expect(seen.filter(e => e.t === 'special' && e.power === 'goku')).toHaveLength(1);
       expect(f.specialCd).toBeGreaterThan(0);
     }
