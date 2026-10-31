@@ -5,7 +5,7 @@ import { hexToNum, P } from '../art/palette';
 import { SHOULDER_Y_STAND } from '../sim/constants';
 import { heroDef } from '../sim/data/heroes';
 import type { Fighter } from '../sim/fighter';
-import { baseAbility, beamOrigin, rasenganPoint } from '../sim/hero';
+import { baseAbility, beamOrigin, dashDir, rasenganPoint } from '../sim/hero';
 import type { World } from '../sim/world';
 import type { FighterView } from './FighterView';
 import type { Fx } from './Fx';
@@ -105,6 +105,7 @@ export class HeroFx {
   destroy(): void {
     this.choreography.destroy();
     this.orbForms.clear();
+    this.clashes = [];
     this.back.destroy();
     this.front.destroy();
     this.orbs.destroy();
@@ -211,6 +212,57 @@ export class HeroFx {
     }
   }
 
+  private clashes: { x: number; y: number; t: number; c0: number; c1: number }[] = [];
+
+  /** Two Rasengan / Chidori orbs met at (x, y): c0 / c1 = the two orbs' colours. */
+  startClash(x: number, y: number, c0: number, c1: number): void {
+    this.clashes.push({ x, y, t: 0, c0, c1 });
+  }
+
+  /**
+   * Orb clash (0.45 s): a white flash disc, a jagged crack of both colours radiating out, and two expanding pixel
+   * shockwave rings (white, then the two colours alternating), all in whole pixels.
+   */
+  private drawClashes(dt: number): void {
+    const g = this.orbs;
+    for (let i = this.clashes.length - 1; i >= 0; i--) {
+      const c = this.clashes[i];
+      c.t += dt;
+      if (c.t > 0.45) {
+        this.clashes.splice(i, 1);
+        continue;
+      }
+      const k = c.t / 0.45;
+      const fade = 1 - k;
+      if (c.t < 0.08) {
+        this.disc(g, c.x, c.y, 16 - c.t * 60, 0xffffff, 0.95);
+        this.disc(g, c.x, c.y, 26, 0xffffff, 0.25);
+      }
+      this.ring(g, c.x, c.y, 4 + k * 52, 0xffffff, fade);
+      const r2 = 2 + Math.max(0, k - 0.12) * 40;
+      const n = Math.max(12, Math.round(r2 * 2.4));
+      for (let s = 0; s < n; s++) {
+        const a = (s / n) * Math.PI * 2;
+        g.fillStyle(s % 2 ? c.c0 : c.c1, fade * 0.9).fillRect(Math.round(c.x + Math.cos(a) * r2), Math.round(c.y + Math.sin(a) * r2 * 0.75), 2, 1);
+      }
+      if (c.t < 0.2) {
+        // 8 jagged cracks, a new pattern every frame step
+        const step = Math.floor(c.t * 30);
+        for (let b = 0; b < 8; b++) {
+          let px = c.x;
+          let py = c.y;
+          const a = (b / 8) * Math.PI * 2 + 0.2;
+          for (let s = 0; s < 6; s++) {
+            const j = Math.sin(b * 7.1 + s * 3.3 + step * 5.7) * 3;
+            px += Math.cos(a) * 4 - Math.sin(a) * j;
+            py += Math.sin(a) * 4 + Math.cos(a) * j;
+            g.fillStyle(s < 2 ? 0xffffff : b % 2 ? c.c0 : c.c1, 1 - c.t / 0.2).fillRect(Math.round(px), Math.round(py), 1, 1);
+          }
+        }
+      }
+    }
+  }
+
   /** Blue-white arcs flickering over a stunned fighter (a new pattern ~18 times a second, whole pixels only). */
   private stunSparks(x: number, y: number, f: Fighter, time: number): void {
     const step = Math.floor(time * 18);
@@ -286,6 +338,7 @@ export class HeroFx {
     }
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
+    this.drawClashes(dt);
   }
 
   // ------------------------------------------------------------------ auras and tails
@@ -408,15 +461,19 @@ export class HeroFx {
       g.fillStyle(i % 3 ? style.spark : 0xffffff, 0.75).fillRect(Math.round(ox + Math.cos(a) * spiralR), Math.round(cy + Math.sin(a) * spiralR * 0.7), 1, 1);
     }
     if (dt > 0) {
+      // the dash sheds sparks straight back along its direction (any of the 8)
+      const dir = dashDir(f);
       for (let i = emitCount(forming ? 30 : 70, dt); i > 0; i--) {
         const a = Math.random() * Math.PI * 2;
         const rr = forming ? 8 : 3;
+        const back = rnd(40, 90);
+        const side = rnd(-15, 15);
         this.fx.spawn({
           frame: 'p1',
           x: ox + Math.cos(a) * rr,
           y: cy + Math.sin(a) * rr,
-          vx: forming ? -Math.cos(a) * 40 : -f.facing * rnd(40, 90),
-          vy: forming ? -Math.sin(a) * 40 : rnd(-15, 15),
+          vx: forming ? -Math.cos(a) * 40 : -dir.x * back - dir.y * side,
+          vy: forming ? -Math.sin(a) * 40 : -dir.y * back + dir.x * side,
           life: rnd(0.12, 0.25),
           a0: 1,
           a1: 0,

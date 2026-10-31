@@ -34,7 +34,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
   ['burn', 'n'], ['burnStyle', 's'], ['speedBoost', 'n'], ['strengthBoost', 'n'], ['cook', 'n'], ['jetting', 'b'], ['carry', 'n'],
   ['ghost', 'b'], ['gx', 'n'], ['gy', 'n'], ['ghostCd', 'n'],
   ['power', 's'], ['powerLevel', 'n'], ['formHp', 'n'], ['powerTime', 'n'], ['powerMax', 'n'], ['specialCd', 'n'],
-  ['charge', 'n'], ['specialKind', 's'], ['stretchLen', 'n'], ['stretchAngle', 'n'], ['baseCd', 'n'], ['baseUsed', 'n'],
+  ['charge', 'n'], ['specialKind', 's'], ['stretchLen', 'n'], ['stretchAngle', 'n'], ['dashAngle', 'n'], ['baseCd', 'n'], ['baseUsed', 'n'],
   ['baseRecharge', 'n'], ['secondCd', 'n'], ['beamWidth', 'n'], ['flying', 'b'], ['anchorX', 'n'], ['anchorY', 'n'],
   ['recoverAt', 'n'], ['cloneCount', 'n'], ['cloneForm', 'n'], ['wallDir', 'n'], ['armReach', 'n'], ['armBack', 'b'],
   ['ropeLen', 'n'], ['grip', 's'], ['lockOn', 'n'], ['flinchTime', 'n'],

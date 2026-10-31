@@ -7,6 +7,7 @@ import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from './constants';
 import {
   cloneSpec,
   baseWeaponId,
+  DASH_CLASH,
   FORM_BYPASS,
   FORM_HP,
   GENERIC_BOOST,
@@ -261,11 +262,141 @@ export function meleeMuls(f: Fighter): { dmg: number; knock: number } {
   return { dmg: strength * (ab?.damageMul ?? 1), knock: (1 + (strength - 1) * 0.5) * (ab?.knockMul ?? 1) };
 }
 
-// ------------------------------------------------------------------ rasengan (Naruto, ability 1)
+// ------------------------------------------------------------------ rasengan / chidori (Naruto, Sasuke: ability 1)
 
-/** Where the Rasengan orb sits (in front of the palm). */
+type DashStats = NonNullable<BaseAbility['dash']>;
+
+/**
+ * Unit vector (world space, y down) the Rasengan / Chidori is aimed or dashing along. `dashAngle` is facing-local
+ * (0 = straight ahead, + = down), so the horizontal component always follows `facing`.
+ */
+export function dashDir(f: Fighter): { x: number; y: number } {
+  const c = Math.cos(f.dashAngle);
+  return { x: Math.abs(c) < 1e-9 ? 0 : f.facing * c, y: Math.sin(f.dashAngle) };
+}
+
+/** Where the Rasengan orb sits: in front of the palm, along the aim / dash direction (above the head for straight up). */
 export function rasenganPoint(f: Fighter): { x: number; y: number } {
-  return { x: f.x + f.facing * (f.w / 2 + 4), y: f.y - SHOULDER_Y_STAND + 1 };
+  const d = dashDir(f);
+  return { x: f.x + d.x * (f.w / 2 + 4), y: f.y - SHOULDER_Y_STAND + 1 + d.y * (f.h - SHOULDER_Y_STAND + 5) };
+}
+
+/** Orb radius (grows one px per form level). */
+function orbRadius(f: Fighter, d: DashStats): number {
+  return d.radius + (f.power === 'hero' ? f.powerLevel : 0);
+}
+
+/** Does a circle touch a fighter's body box? */
+function orbTouches(hx: number, hy: number, r: number, o: { x: number; y: number; w: number; h: number }): boolean {
+  const nx = Math.max(o.x - o.w / 2, Math.min(hx, o.x + o.w / 2));
+  const ny = Math.max(o.y - o.h, Math.min(hy, o.y));
+  return (nx - hx) ** 2 + (ny - hy) ** 2 <= r * r;
+}
+
+/** The dash stats while this fighter's orb can strike or clash: formed in the windup, or out in the dash. */
+function liveOrb(f: Fighter): DashStats | null {
+  if (!f.alive || f.gone || f.state !== 'special' || f.specialKind !== 'rasengan' || f.recoverAt !== 0) return null;
+  const d = baseAbility(f)?.dash;
+  return d && f.stateTime >= d.windup * DASH_CLASH.formedFrac ? d : null;
+}
+
+/** Is `a` aiming its orb at `b` (body centres)? */
+function aimsAt(a: Fighter, b: Fighter): boolean {
+  const d = dashDir(a);
+  return d.x * (b.x - a.x) + d.y * (b.y - b.h / 2 - (a.y - a.h / 2)) > 0;
+}
+
+/**
+ * Do the two fighters' orbs meet? Both orbs out (at least one of them dashing), enemies, neither has hit the other
+ * this move, and either the orbs overlap or one orb reaches the other fighter while both aim at each other.
+ */
+function clashing(w: World, a: Fighter, b: Fighter): boolean {
+  const da = liveOrb(a);
+  const db = liveOrb(b);
+  if (!da || !db || !isEnemy(w, a, b) || !isEnemy(w, b, a)) return false;
+  if (a.stateTime < da.windup && b.stateTime < db.windup) return false; // nobody is dashing yet
+  if (a.swingHit.includes(b.id) || b.swingHit.includes(a.id)) return false;
+  const pa = rasenganPoint(a);
+  const pb = rasenganPoint(b);
+  const ra = orbRadius(a, da);
+  const rb = orbRadius(b, db);
+  if (Math.hypot(pa.x - pb.x, pa.y - pb.y) <= ra + rb + DASH_CLASH.slack) return true;
+  if (!orbTouches(pa.x, pa.y, ra, b) && !orbTouches(pb.x, pb.y, rb, a)) return false;
+  return aimsAt(a, b) && aimsAt(b, a);
+}
+
+/** The attacker's numbers for one orb strike, read before any hit of a clash lands (a hit can end a form). */
+interface OrbPower {
+  m: { dmg: number; knock: number };
+  level: number;
+  dir: { x: number; y: number };
+}
+
+function orbPower(f: Fighter): OrbPower {
+  return { m: meleeMuls(f), level: f.power === 'hero' ? f.powerLevel : 0, dir: dashDir(f) };
+}
+
+/**
+ * `f`'s orb lands on `o`: blasted along the dash direction with a little lift (a downward strike on a grounded
+ * victim pops them up instead of driving them into the floor); Chidori's shock spreads. True if it connected.
+ */
+function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, x: number, y: number, burst = true): boolean {
+  const lift = d.knockY * (p.dir.y < 0 ? 1 + p.dir.y : 1);
+  let kbY = p.dir.y * d.knockX + lift;
+  if (o.grounded) kbY = Math.min(kbY, d.knockY);
+  const connected = applyHit(w, o, {
+    damage: d.damage * p.m.dmg,
+    kbX: p.dir.x * d.knockX * p.m.knock,
+    kbY: kbY * p.m.knock,
+    attacker: f.id,
+    weapon: baseWeaponId(baseAbility(f)!),
+    kind: 'melee',
+    stun: d.stun,
+    // a stun of a second or more holds the victim in place; a short one still knocks them down
+    knockdown: d.stun < 1,
+    x,
+    y,
+  });
+  if (connected) {
+    if (burst) w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x, y });
+    if (d.spread) chidoriShock(w, f, o, d, p);
+  }
+  return connected;
+}
+
+/**
+ * Two orbs meeting (Rasengan vs Chidori, or either against itself) settle in one place once every fighter has
+ * moved this tick, so the outcome never depends on fighter order: both dashes end and BOTH fighters take the
+ * other's full hit (each from its owner's numbers, read before either lands).
+ */
+export function resolveClashes(w: World): void {
+  const fs = w.fighters;
+  for (let i = 0; i < fs.length; i++) {
+    if (!liveOrb(fs[i])) continue;
+    for (let j = i + 1; j < fs.length; j++) {
+      const a = fs[i];
+      const b = fs[j];
+      if (!clashing(w, a, b)) continue;
+      const da = liveOrb(a)!;
+      const db = liveOrb(b)!;
+      const pa = orbPower(a);
+      const pb = orbPower(b);
+      const oa = rasenganPoint(a);
+      const ob = rasenganPoint(b);
+      const x = (oa.x + ob.x) / 2;
+      const y = (oa.y + ob.y) / 2;
+      for (const [f, o] of [[a, b], [b, a]] as const) {
+        f.swingHit.push(o.id);
+        f.recoverAt = f.stateTime;
+        f.vx = 0;
+        f.vy = 0;
+      }
+      w.emit({ t: 'clash', a: a.id, b: b.id, x, y });
+      orbStrike(w, a, b, da, pa, x, y, false);
+      orbStrike(w, b, a, db, pb, x, y, false);
+      break; // a's move is over
+    }
+  }
 }
 
 /** How many fighters Chidori's shock reaches, and how far from the victim, at a form level. */
@@ -274,9 +405,9 @@ export function chidoriReach(d: NonNullable<NonNullable<BaseAbility['dash']>['sp
 }
 
 /** The shock arcs from the stunned victim to the nearest enemies around them: they take part of the hit and the same stun. */
-function chidoriShock(w: World, f: Fighter, victim: Fighter, d: NonNullable<BaseAbility['dash']>): void {
-  const reach = chidoriReach(d.spread!, f.power === 'hero' ? f.powerLevel : 0);
-  const m = meleeMuls(f);
+function chidoriShock(w: World, f: Fighter, victim: Fighter, d: DashStats, p: OrbPower): void {
+  const reach = chidoriReach(d.spread!, p.level);
+  const m = p.m;
   const vx = victim.x;
   const vy = victim.y - victim.h * 0.5;
   const near: { o: Fighter; dist: number }[] = [];
@@ -305,45 +436,26 @@ function chidoriShock(w: World, f: Fighter, victim: Fighter, d: NonNullable<Base
   }
 }
 
-/** Rasengan contact: the first fighter the orb touches is blasted away. Props get shoved. True on a hit. */
-export function rasenganHit(w: World, f: Fighter, d: NonNullable<BaseAbility['dash']>): boolean {
+/**
+ * Rasengan contact: the first fighter the orb touches is blasted along the dash. Props get shoved. True on a hit.
+ * A fighter whose own orb is coming the other way is left alone here: that is a clash (resolveClashes).
+ */
+export function rasenganHit(w: World, f: Fighter, d: DashStats): boolean {
   const { x: hx, y: hy } = rasenganPoint(f);
-  const r = d.radius + (f.power === 'hero' ? f.powerLevel : 0);
-  const m = meleeMuls(f);
-  const touches = (l: number, t: number, rr: number, b: number) => {
-    const nx = Math.max(l, Math.min(hx, rr));
-    const ny = Math.max(t, Math.min(hy, b));
-    return (nx - hx) ** 2 + (ny - hy) ** 2 <= r * r;
-  };
-  for (const p of w.props) {
-    if (!p.active || f.swingProps.includes(p.id)) continue;
-    if (!touches(p.x - p.w / 2, p.y - p.h, p.x + p.w / 2, p.y)) continue;
-    f.swingProps.push(p.id);
-    pushProp(p, f.facing * d.knockX * m.knock, d.knockY * 0.6);
-    damageProp(w, p, d.damage * m.dmg, f.id);
+  const r = orbRadius(f, d);
+  const p = orbPower(f);
+  for (const pr of w.props) {
+    if (!pr.active || f.swingProps.includes(pr.id)) continue;
+    if (!orbTouches(hx, hy, r, pr)) continue;
+    f.swingProps.push(pr.id);
+    pushProp(pr, p.dir.x * d.knockX * p.m.knock, (p.dir.y * d.knockX * p.m.knock + d.knockY) * 0.6);
+    damageProp(w, pr, d.damage * p.m.dmg, f.id);
   }
   for (const o of w.fighters) {
     if (o === f || o.gone || !o.alive || f.swingHit.includes(o.id)) continue;
-    if (!touches(o.x - o.w / 2, o.y - o.h, o.x + o.w / 2, o.y)) continue;
+    if (!orbTouches(hx, hy, r, o) || clashing(w, f, o)) continue;
     f.swingHit.push(o.id);
-    const connected = applyHit(w, o, {
-      damage: d.damage * m.dmg,
-      kbX: f.facing * d.knockX * m.knock,
-      kbY: d.knockY * m.knock,
-      attacker: f.id,
-      weapon: baseWeaponId(baseAbility(f)!),
-      kind: 'melee',
-      stun: d.stun,
-      // a stun of a second or more holds the victim in place; a short one still knocks them down
-      knockdown: d.stun < 1,
-      x: hx,
-      y: hy,
-    });
-    if (connected) {
-      w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x: hx, y: hy });
-      if (d.spread) chidoriShock(w, f, o, d);
-      return true;
-    }
+    if (orbStrike(w, f, o, d, p, hx, hy)) return true;
   }
   return false;
 }

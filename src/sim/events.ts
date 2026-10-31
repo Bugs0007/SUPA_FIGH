@@ -102,4 +102,6 @@ export type SimEvent =
   | { t: 'flyStart'; f: number; x: number; y: number }
   | { t: 'flyEnd'; f: number; x: number; y: number; empty: boolean }
   | { t: 'rasengan'; f: number; phase: 'form' | 'dash' }
+  /** two Rasengan / Chidori orbs met (both fighters took the other's hit); x, y = between the orbs */
+  | { t: 'clash'; a: number; b: number; x: number; y: number }
   | { t: 'rocket'; f: number; x: number; y: number };

@@ -93,7 +93,9 @@ import {
   gripTarget,
   holdFlies,
   pistolHits,
+  dashDir,
   rasenganHit,
+  rasenganPoint,
   recallClones,
   secondAbility,
   stretchAt,
@@ -277,6 +279,8 @@ export interface Fighter extends Body {
   stretchLen: number;
   /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
   stretchAngle: number;
+  /** Rasengan / Chidori aim, then locked dash direction: facing-local (0 = straight ahead, + = down, ±PI/2 = vertical) */
+  dashAngle: number;
   /** base ability (ability 1) cooldown; secondCd = ability 2; specialCd = the super */
   baseCd: number;
   /** charged base abilities (Luffy's arm): charges spent, and seconds until the next one refills */
@@ -440,6 +444,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     lockOn: -1,
     stretchLen: 0,
     stretchAngle: 0,
+    dashAngle: 0,
     baseCd: 0,
     baseUsed: 0,
     baseRecharge: 0,
@@ -1997,6 +2002,7 @@ function startBase(w: World, f: Fighter, inp: Intent): void {
   f.recoverAt = 0;
   if (b.kind === 'rasengan') {
     f.specialKind = 'rasengan';
+    aimDash(f, inp);
     w.emit({ t: 'rasengan', f: f.id, phase: 'form' });
   } else {
     const s = b.stretch!;
@@ -2062,9 +2068,21 @@ function endSpecial(w: World, f: Fighter): void {
 }
 
 /**
- * Rasengan: the orb forms (hang in place), then a gravity-free dash. A tap dashes for `time`; holding the
- * ability button keeps the dash going (up to `maxTime`) until it hits somebody or a wall, or the button is
- * let go. Then a short recovery.
+ * Aim the Rasengan / Chidori from the stick: 8 directions, neutral = straight ahead. On the ground a downward aim
+ * goes straight ahead instead (no digging into the floor). Facing follows the horizontal part.
+ */
+function aimDash(f: Fighter, inp: Intent): void {
+  const mx = axis(inp.moveX);
+  const my = f.grounded ? Math.min(0, axis(inp.moveY)) : axis(inp.moveY);
+  if (mx !== 0) f.facing = mx;
+  f.dashAngle = mx === 0 && my === 0 ? 0 : Math.atan2(my, Math.abs(mx));
+}
+
+/**
+ * Rasengan: the orb forms (hang in place, aim with the stick), then a gravity-free dash in the direction held as
+ * it starts (8 directions, the same speed in each). A tap dashes for `time`; holding the ability button keeps
+ * the dash going (up to `maxTime`) until it hits somebody, a wall, the floor or a ceiling, or the button is let
+ * go. Then a short recovery. Two orbs meeting clash (resolveClashes, after every fighter has moved).
  */
 function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
   const d = baseAbility(f)?.dash;
@@ -2074,7 +2092,8 @@ function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
     return;
   }
   const t = f.stateTime;
-  if (t < d.windup) {
+  if (t < d.windup && f.recoverAt === 0) {
+    aimDash(f, inp);
     f.vx = approach(f.vx, 0, GROUND_DECEL * dt);
     if (!f.grounded) f.vy = Math.min(f.vy, 30);
     integrate(w, f, dt);
@@ -2083,16 +2102,31 @@ function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
   if (f.recoverAt === 0) {
     // dashing: ends at `time` unless the button is still held (never later than `maxTime`)
     if (t < d.windup + (inp.ability ? d.maxTime : d.time)) {
-      if (t - dt < d.windup) w.emit({ t: 'rasengan', f: f.id, phase: 'dash' });
-      f.vx = f.facing * d.speed;
-      f.vy = 0;
+      if (t - dt < d.windup) {
+        // the direction held as the dash starts wins; it stays locked for the whole dash
+        aimDash(f, inp);
+        w.emit({ t: 'rasengan', f: f.id, phase: 'dash' });
+      }
+      const dir = dashDir(f);
+      f.vx = dir.x * d.speed;
+      f.vy = dir.y * d.speed;
       const res = integrate(w, f, dt, false);
+      let solid = res.wallX !== 0 || (res.landed && dir.y > 0) || (res.ceil && dir.y < 0);
+      if (dir.y < 0 && f.y - f.h < 2) {
+        // the top of the world counts as a ceiling
+        f.y = 2 + f.h;
+        solid = true;
+      }
       const hit = rasenganHit(w, f, d);
-      if (hit || res.wallX !== 0) {
-        // straight into the recovery
+      if (hit || solid) {
+        // straight into the recovery (a hit bounces back a little)
         f.recoverAt = t;
         f.vx *= hit ? -0.3 : 0;
-        if (!hit) w.emit({ t: 'heroFx', fx: 'rasengan', heavy: false, x: f.x + f.facing * (f.w / 2 + 3), y: f.y - SHOULDER_Y_STAND + 1 });
+        f.vy *= hit ? -0.3 : 0;
+        if (!hit) {
+          const o = rasenganPoint(f);
+          w.emit({ t: 'heroFx', fx: 'rasengan', heavy: false, x: o.x, y: o.y });
+        }
       }
       return;
     }

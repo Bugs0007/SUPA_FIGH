@@ -181,6 +181,13 @@ export const SOUNDS: Record<string, SfxDef> = {
     { wave: 'noise', freq: 1500, slide: -2, sustain: 0.05, decay: 0.35, lowpass: 0.5, volume: 0.45 },
     { wave: 'sine', freq: 110, slide: -2, decay: 0.25, volume: 0.7, punch: 0.3 },
   ],
+  // two Rasengan / Chidori orbs meeting: a cracking boom with a whining spiral and a crackle on top
+  orbClash: [
+    { wave: 'sine', freq: 80, slide: -1.5, sustain: 0.06, decay: 0.45, volume: 0.8, punch: 0.5 },
+    { wave: 'noise', freq: 2200, slide: -2.5, sustain: 0.08, decay: 0.5, lowpass: 0.6, volume: 0.5 },
+    { wave: 'saw', freq: 620, slide: -2, sustain: 0.05, decay: 0.35, volume: 0.25, vibDepth: 0.35, vibSpeed: 55 },
+    { wave: 'square', freq: 2600, slide: -3, decay: 0.12, duty: 0.3, volume: 0.12, delay: 0.03, tremolo: 60 },
+  ],
   rubberSnap: [
     { wave: 'sine', freq: 500, slide: 4, decay: 0.07, volume: 0.3 },
     { wave: 'square', freq: 200, slide: 2, decay: 0.1, duty: 0.3, volume: 0.12, delay: 0.04 },

@@ -549,6 +549,25 @@ export class Juice {
         }
         break;
       }
+      case 'clash': {
+        // two orbs meeting: white flash, pixel shockwave, sparks in both orbs' colours, a big shake
+        const orbColor = (id: number) => {
+          const f = w.fighters[id];
+          return f?.hero === 'sasuke' ? 0x83ccff : hexToNum('#5ab8ff');
+        };
+        const c0 = orbColor(e.a);
+        const c1 = orbColor(e.b);
+        this.r.heroFx.startClash(e.x, e.y, c0, c1);
+        this.cam.flash(90, 255, 255, 255);
+        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.2, s0: 1.5, s1: 4, a0: 1, a1: 0, tint: 0xffffff, add: true, depth: 64 });
+        fx.sparks(e.x, e.y, 0, -1, 18, c0, 300);
+        fx.sparks(e.x, e.y, 0, -1, 18, c1, 300);
+        fx.sparks(e.x, e.y, 0, -1, 10, 0xe8f8ff, 220);
+        this.sfx('orbClash', e.x, 1);
+        this.hitstop = Math.max(this.hitstop, 0.14);
+        this.cam.addTrauma(0.65);
+        break;
+      }
       case 'rocket':
         fx.chips(e.x, e.y, 4);
         fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.15, s0: 0.2, s1: 1, a0: 1, a1: 0, tint: 0xffe0c0, depth: 64 });

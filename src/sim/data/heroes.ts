@@ -225,6 +225,13 @@ export const POWER_ORB = 'powerorb';
 /** Shadow clones: strike timings for the combo clones (kept from M9 for Kurama's finisher) */
 export const CLONE = { offset: 13, delay: 0.08, active: 0.1, life: 0.38, range: 10, damage: 5, knockX: 200, knockY: -110 };
 
+/**
+ * Rasengan / Chidori clash: two orbs meet when their centres are within the sum of their radii plus `slack` px
+ * (or one orb reaches the other fighter while both aim at each other). An orb still forming in the windup counts
+ * from `formedFrac` of the windup on, so it can be dashed into head-on.
+ */
+export const DASH_CLASH = { slack: 3, formedFrac: 0.5 };
+
 /** Fist combo hit helper (fists timings by default). */
 const hit = (p: Partial<MeleeHit> & Pick<MeleeHit, 'damage'>): MeleeHit => ({
   windup: 0.05,

@@ -538,6 +538,12 @@ export class FighterView {
             backLen = 1;
             leanTarget = forming ? -.08 : .26;
           }
+          // aimed off the horizontal: the palm points along the aim, and the body tips into a diagonal / vertical dash
+          const fox = f.hero === 'naruto' && (level === 2 || level === 3);
+          if (f.dashAngle !== 0 && !fox) {
+            front = f.dashAngle;
+            if (!forming && f.recoverAt === 0) rigRot = Math.max(-0.3, Math.min(0.6, f.dashAngle * 0.4));
+          }
         } else if (kind === 'fireball') {
           frame = f.charge === -2 ? BF.CROSS : BF.WINDUP;
           front = -.8;

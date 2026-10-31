@@ -5,7 +5,7 @@ import type { Fighter } from '../sim/fighter';
 import type { Bullet } from '../sim/projectile';
 import { formLevel } from './formLevel';
 import { AvatarArt } from './AvatarArt';
-import { usesAmaterasu } from '../sim/hero';
+import { dashDir, rasenganPoint, usesAmaterasu } from '../sim/hero';
 type G = Phaser.GameObjects.Graphics;
 /** Match and gallery share this art. All positions follow the real fighter / projectile. */
 export class SasukeAbilityArt {
@@ -37,7 +37,10 @@ export class SasukeAbilityArt {
     if (f.specialKind === 'rasengan') {
       const windup = HEROES.sasuke.base.dash!.windup;
       const forming = f.stateTime < windup;
-      const palmX = x + d * (forming ? 7 : 12), palmY = y - 14;
+      // the lightning sits where the sim's orb is (aimed in any of 8 directions)
+      const dir = dashDir(f), px = -dir.y, py = dir.x;
+      const orb = rasenganPoint({ ...f, x, y } as Fighter);
+      const palmX = orb.x, palmY = orb.y;
       const power = forming ? Math.max(0.2, f.stateTime / windup) : f.recoverAt ? 0.4 : 1;
       for (let k = 0; k < 8; k++) {
         const a = k * Math.PI / 4 + Math.sin(time * 13 + k) * .3;
@@ -46,8 +49,11 @@ export class SasukeAbilityArt {
       }
       g.fillStyle(look.core, .95).fillRect(Math.round(palmX - 2), Math.round(palmY - 2), 4, 4);
       if (!forming && !f.recoverAt) {
-        for (let i = 0; i < 3; i++)
-          this.bolt(this.back, x - d * 3, y - 5 - i * 7, -d * (24 + i * 6), Math.sin(time * 28 + i) * 4, look.rim, time, i + 10);
+        // streaks trail straight back along the dash
+        for (let i = 0; i < 3; i++) {
+          const s = (i - 1) * 7, len = 24 + i * 6, wob = Math.sin(time * 28 + i) * 4;
+          this.bolt(this.back, x - dir.x * 3 + px * s, y - 12 - dir.y * 3 + py * s, -dir.x * len + px * wob, -dir.y * len + py * wob, look.rim, time, i + 10);
+        }
       }
     }
     else if (f.specialKind === 'fireball' && f.charge !== -2) {
