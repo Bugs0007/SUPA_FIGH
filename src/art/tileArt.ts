@@ -5,6 +5,7 @@ import type { TileMap } from '../sim/map/tilemap';
 import { hash2, PixelCanvas } from './canvas';
 import { mix, P, shade } from './palette';
 import { ARENA_COLORS } from './arenaArt';
+import { VALLEY_TILES } from './valleyArt';
 
 // Autotiled tileset: one row per tile kind, 16 variants per row indexed by a 4-bit neighbor mask
 // (1 = up, 2 = right, 4 = down, 8 = left: set when that neighbor "connects").
@@ -513,6 +514,11 @@ export function bakeTiles(scene: Phaser.Scene, theme: string): string {
     for (let mask = 0; mask < 16; mask++) {
       const ox = mask * TILE;
       const oy = kind * TILE;
+      const own = theme === 'valley' ? VALLEY_TILES[kind] : undefined;
+      if (own) {
+        own(pc, ox, oy, mask, kind * 31 + mask); // the valley paints its stone in the scenery (valleyArt.ts)
+        continue;
+      }
       painter(pc, ox, oy, mask, kind * 31 + mask);
       const tint=ARENA_COLORS[theme]?.[0]??'#85a4bb';
       if(kind!==TK.EMPTY&&kind!==TK.GLASS&&kind!==TK.LADDER&&kind!==TK.WATER){

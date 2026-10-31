@@ -28,9 +28,6 @@ function arena(id: string, name: string, theme: string, blurb: string, ground: s
     grid[y][x] = c;
   return { id, name, theme, blurb, rows: grid.map(r => r.join('')), gimmicks: [] };
 }
-export const valley = arena('valley', 'WATERFALL VALLEY', 'valley', 'Cross the falls, fight over the shrine bridge, or flank through the lower river terraces.', 'D', '-');
-valley.powerBias = 'kurama';
-valley.gimmicks = [{ type: 'mover', kind: 'platform', x: 25, y: 28, w: 4, path: [[0, 0], [0, -8], [12, -8]], speed: 55, pause: .65 }];
 export const citadel = arena('citadel', 'SKY CITADEL', 'citadel', 'Floating gardens, rising stone lifts and a low-gravity central lane reward aerial attacks.', '#', '-');
 citadel.gravityScale = .9;
 citadel.gimmicks = [{ type: 'mover', kind: 'elevator', x: 22, y: 29, w: 4, path: [[0, 0], [0, -14]], speed: 48, pause: .8 }, { type: 'mover', kind: 'platform', x: 40, y: 13, w: 4, swing: { length: 64, amp: .5, period: 5.8 } }, { type: 'gravity', x: 27, y: 4, w: 10, h: 27, mult: .58 }];

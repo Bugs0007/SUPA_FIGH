@@ -20,6 +20,7 @@ import { FORM_HP } from '../sim/data/heroes';
 import { formFx } from '../art/heroArt';
 import { Atmosphere } from './Atmosphere';
 import { bakeArenaScenery } from '../art/arenaArt';
+import { ValleyFx } from './ValleyFx';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -48,6 +49,7 @@ export class WorldRenderer {
   private decor: DecorLayer;
   private atmosphere: Atmosphere;
   private scenery: Phaser.GameObjects.Image;
+  private valley: ValleyFx | null;
   private tilemap: Phaser.Tilemaps.Tilemap;
   private fg: Phaser.Tilemaps.TilemapLayer;
   private bg: Phaser.Tilemaps.TilemapLayer;
@@ -100,6 +102,7 @@ export class WorldRenderer {
     this.decor = new DecorLayer(scene, map, world.def);
     this.scenery = scene.add.image(0,0,bakeArenaScenery(scene,world.def)).setOrigin(0,0).setDepth(.5);
     this.atmosphere = new Atmosphere(scene, world);
+    this.valley = world.def.theme === 'valley' ? new ValleyFx(scene, world) : null;
     this.decals = scene.add.renderTexture(0, 0, map.pxW, map.pxH).setOrigin(0, 0).setDepth(25);
     this.fx = new Fx(scene, map, this.decals);
 
@@ -166,6 +169,7 @@ export class WorldRenderer {
     for (const v of this.views) v.update(alpha, dt, time, w.time);
     this.heroFx.sync(alpha, dt, time);
     this.decor.update(time);
+    this.valley?.update(time, alpha);
     this.atmosphere.sync(alpha, time);
 
     // items
@@ -682,6 +686,7 @@ export class WorldRenderer {
     for (const v of this.views) v.destroy();
     this.heroFx.destroy();
     this.decor.destroy();
+    this.valley?.destroy();
     this.atmosphere.destroy();
     for (const img of this.items.values()) img.destroy();
     for (const f of this.floats) f.obj.destroy();
