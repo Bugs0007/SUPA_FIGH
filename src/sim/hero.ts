@@ -83,18 +83,21 @@ export function amaterasuReach(f: Fighter): { range: number; count: number } {
   return { range: a.range + a.rangePerLevel * extra, count: a.targets + a.targetsPerLevel * extra };
 }
 
-/** The visible enemies in the aimed direction, nearest first, as many as this form's Amaterasu can burn; solid geometry always blocks the eye jutsu. */
+/**
+ * The visible enemies in Sasuke's view, nearest first, as many as this form's Amaterasu can burn: anyone in front within
+ * `range` and within `view` radians above or below straight ahead (his peripheral view, so enemies on platforms above
+ * and below are caught too). Solid geometry always blocks the eye jutsu.
+ */
 export function amaterasuTargets(w: World, f: Fighter): Fighter[] {
   const a = heroDef(f.hero)?.second.amaterasu;
   if (!a) return [];
   const { range, count } = amaterasuReach(f);
   const sx = f.x, sy = f.y - SHOULDER_Y_STAND - 3;
-  const dx = f.facing * Math.cos(f.stretchAngle), dy = Math.sin(f.stretchAngle);
   const seen: { o: Fighter; dist: number }[] = [];
   for (const o of w.fighters) {
     if (!isEnemy(w, f, o)) continue;
     const ox = o.x - sx, oy = o.y - o.h * .5 - sy, dist = Math.hypot(ox, oy);
-    if (dist > range + .001 || (dist > 1 && (ox * dx + oy * dy) / dist < a.aimDot)) continue;
+    if (dist > range + .001 || (dist > 1 && Math.abs(Math.atan2(oy, ox * f.facing)) > a.view)) continue;
     if (clearView(w, sx, sy, o.x, o.y - o.h * .5)) seen.push({ o, dist });
   }
   return seen.sort((p, q) => p.dist - q.dist).slice(0, count).map((s) => s.o);

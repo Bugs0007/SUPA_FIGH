@@ -67,7 +67,7 @@ describe('Amaterasu',()=>{
 
   it('requires range, facing and clear line of sight',()=>{
     const w=arena('sasuke',3),[f,b]=w.fighters;
-    expect(amaterasuTarget(w,f)).toBe(null);
+    b.x=b.px=f.x+400;expect(amaterasuTarget(w,f)).toBe(null);
     b.x=b.px=200;expect(amaterasuTarget(w,f)).toBe(b);
     f.facing=-1;expect(amaterasuTarget(w,f)).toBe(null);f.facing=1;
     w.map.set(8,8,1);expect(amaterasuTarget(w,f)).toBe(null);
@@ -81,10 +81,11 @@ describe('Amaterasu',()=>{
     expect(b.hp).toBe(100);expect(b.burn).toBe(0);
   });
 
-  it('selects a target at release, so leaving range during the eye-cast avoids it',()=>{
+  it('is instant: the target burns on the press tick, before it can leave range',()=>{
     const w=arena('sasuke',3),[,b]=w.fighters;b.x=b.px=180;
-    w.step([intent({kick:true})]);run(w,10);b.x=b.px=390;run(w,30);
-    expect(b.burn).toBe(0);expect(b.hp).toBe(100);
+    w.step([intent({kick:true})]);run(w,6); // (a transformed press waits SUPER_WINDOW, 0.1 s, for the other button)
+    expect(b.burnStyle).toBe('amaterasu');expect(b.burn).toBeGreaterThan(2);expect(b.hp).toBeLessThan(100);
+    b.x=b.px=600;run(w,30);expect(b.burn).toBeGreaterThan(0);
   });
 
   it('forms below Mangekyo still fire travelling fireballs',()=>{

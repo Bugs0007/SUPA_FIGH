@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { applyHit } from '../../src/sim/combat';
-import { HEROES } from '../../src/sim/data/heroes';
+import { HEROES, SUPER_WINDOW } from '../../src/sim/data/heroes';
 import type { SimEvent } from '../../src/sim/events';
 import { amaterasuReach, amaterasuTargets, chidoriReach, transform } from '../../src/sim/hero';
 import type { Intent } from '../../src/sim/intent';
@@ -187,9 +187,9 @@ describe('Amaterasu', () => {
     expect(w.burningTiles.size).toBeGreaterThan(0);
   });
 
-  it('the range grows with the form: an enemy 280 px away is out of reach of Mangekyo and in reach of the top form', () => {
-    const w3 = arena(3, [{ x: 70 + 270 }]);
-    const w4 = arena(4, [{ x: 70 + 270 }]);
+  it('the range grows with the form: an enemy 390 px away is out of reach of Mangekyo and in reach of the top form', () => {
+    const w3 = arena(3, [{ x: 70 + 390 }]);
+    const w4 = arena(4, [{ x: 70 + 390 }]);
     expect(amaterasuReach(w3.fighters[0]).range).toBe(S.second.amaterasu!.range);
     expect(amaterasuReach(w4.fighters[0]).range).toBeGreaterThan(amaterasuReach(w3.fighters[0]).range);
     w3.fighters[0].stretchAngle = 0;
@@ -198,6 +198,30 @@ describe('Amaterasu', () => {
     expect(amaterasuTargets(w4, w4.fighters[0])).toHaveLength(1);
     press(w4, { kick: true }, 60);
     expect(w4.fighters[1].burn).toBeGreaterThan(0);
+  });
+
+  it('reaches 360 px (420 at the top form) and is instant', () => {
+    expect(S.second.amaterasu!.range).toBe(360);
+    expect(S.second.amaterasu!.rangePerLevel).toBe(60);
+    expect(S.second.amaterasu!.windup).toBe(0);
+    const w = arena(3, [{ x: 70 + 300 }]);
+    // (a transformed hero's press waits SUPER_WINDOW for the other button, the same short beat as every move)
+    press(w, { kick: true }, Math.ceil(SUPER_WINDOW * 60) + 1);
+    expect(w.fighters[1].burnStyle).toBe('amaterasu');
+    expect(w.fighters[1].burn).toBeGreaterThan(0);
+  });
+
+  it('catches enemies above and below in his peripheral view, not straight overhead or behind', () => {
+    // Sasuke hovers at y 100 (eyes at about y 82); view = 1.25 rad (~72 degrees) above or below straight ahead
+    const w = arena(3, [
+      { x: 70 + 60, y: 40 }, // up-forward on a ledge (~41 degrees)
+      { x: 70 + 50, y: 144 }, // down-forward on the floor (~46 degrees)
+      { x: 72, y: 20 }, // straight overhead
+      { x: 70 - 60, y: 100 }, // behind
+    ]);
+    w.fighters[0].y = w.fighters[0].py = 100;
+    const ids = amaterasuTargets(w, w.fighters[0]).map((t) => t.id).sort();
+    expect(ids).toEqual([1, 2]);
   });
 
   it('walls block it, friends are skipped and nobody in sight is reported once', () => {

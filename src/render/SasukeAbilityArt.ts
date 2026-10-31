@@ -61,7 +61,7 @@ export class SasukeAbilityArt {
       }
     }
     else if (f.specialKind === 'fireball' && f.charge !== -2) {
-      const k = Math.min(1, f.stateTime / (usesAmaterasu(f)?HEROES.sasuke.second.amaterasu!.windup:HEROES.sasuke.second.fireball!.windup));
+      const k = Math.min(1, f.stateTime / Math.max(.01, usesAmaterasu(f)?HEROES.sasuke.second.amaterasu!.windup:HEROES.sasuke.second.fireball!.windup));
       if(usesAmaterasu(f)) {
         const eyeX=x+d*3,eyeY=y-23;
         g.fillStyle(0xf24468,.6+k*.4).fillRect(Math.round(eyeX),Math.round(eyeY),2,1);

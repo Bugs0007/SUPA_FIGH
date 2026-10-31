@@ -1850,6 +1850,11 @@ function startSecond(w: World, f: Fighter, inp: Intent): void {
     f.stretchAngle = aimAngle(f, inp);
     f.secondCd = s.cooldown;
     w.emit({ t: 'chargeStart', f: f.id });
+    if (usesAmaterasu(f) && !s.amaterasu?.windup) {
+      // Amaterasu is instant: the black flames take their targets on the press
+      fireJutsu(w, f);
+      f.charge = -2;
+    }
   } else if (s.kind === 'clones') {
     if (!beginMove(w, f, inp, 'cast')) return;
     if (summonClones(w, f) > 0) f.secondCd = s.cooldown; // (the cooldown only counts down once no clone is left)

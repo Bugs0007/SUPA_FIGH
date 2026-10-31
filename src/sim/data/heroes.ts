@@ -136,12 +136,14 @@ export interface SecondAbility {
     rangePerLevel: number;
     targets: number;
     targetsPerLevel: number;
+    /** 0 = instant: the eye jutsu burns its targets on the press (like the shadow clones), then a short `recover` pose */
     windup: number;
     recover: number;
     damage: number;
     duration: number;
     dps: number;
-    aimDot: number;
+    /** peripheral view: enemies in front within this angle (radians) above or below straight ahead can be burned */
+    view: number;
     /** black flame patches left on the ground under each victim (they burn wood, crates and whoever steps in) */
     patches: number;
   };
@@ -297,7 +299,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       desc: 'BIG FIREBALL THAT BURNS THE ARENA. FROM MANGEKYO: AMATERASU BURNS 3 ENEMIES (4 AT THE TOP FORM). UP / DOWN TO AIM.',
       cooldown: 3.8,
       fireball: { windup: 0.28, recover: 0.2, speed: 240, range: 300, size: 9, sizePerLevel: 2.4, damage: 12, damagePerLevel: 2, radius: 28, radiusPerLevel: 6, ignite: 2.5, fire: 3, firePerLevel: 1 },
-      amaterasu: { minLevel: 3, range: 240, rangePerLevel: 50, targets: 3, targetsPerLevel: 1, windup: 0.36, recover: 0.22, damage: 8, duration: 3, dps: 6, aimDot: 0.7, patches: 2 },
+      amaterasu: { minLevel: 3, range: 360, rangePerLevel: 60, targets: 3, targetsPerLevel: 1, windup: 0, recover: 0.18, damage: 8, duration: 3, dps: 6, view: 1.25, patches: 2 },
     },
     super: {
       kind: 'bomb', names: ['CHIDORI SHARP SPEAR', 'ONYX CHIDORI SPEAR', 'SUSANOO ARROW', "INDRA'S ARROW"],
