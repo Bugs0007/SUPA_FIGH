@@ -8,17 +8,17 @@
 
 import type { Controller } from '../input/controllers';
 import { sameTeam } from '../sim/combat';
-import { AIM_LIMIT, DT, GRAVITY, TILE } from '../sim/constants';
-import { SLOT, THROW_AIM, weaponDef, type ThrowStats } from '../sim/data/weapons';
+import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND, TILE } from '../sim/constants';
+import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { heroDef, POWER_ORB, superFistFor } from '../sim/data/heroes';
-import { baseAbility, transformed } from '../sim/hero';
+import { heroDef, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
+import { amaterasuReach, baseAbility, dashDir, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
 import type { World } from '../sim/world';
-import { DIFFICULTIES, PERSONALITIES, weaponAi, type Difficulty, type DifficultyDef, type Personality } from './botData';
+import { BOT_FIGHT, DIFFICULTIES, PERSONALITIES, weaponAi, type Difficulty, type DifficultyDef, type Personality } from './botData';
 import { HeroMobility } from './heroMove';
 import { MANEUVERS, navFor, type NavEdge, type NavGraph, type NavNode } from './nav';
 
@@ -48,7 +48,34 @@ interface Memory {
 
 type Btn = 'jump' | 'attack' | 'kick' | 'interact' | 'cycle' | 'ability';
 
+/** An attack the bot sees coming at it (guard / get away). `eta` = seconds until it lands (rough). */
+interface Threat {
+  e: Fighter;
+  kind: 'melee' | 'pressure' | 'ability' | 'shot' | 'super';
+  eta: number;
+  /** one decision per attack: same key = same attack */
+  key: string;
+}
+
+/** A hero move the bot can start right now: which buttons, for how long, and the stick held meanwhile. */
+interface HeroPick {
+  hold: 'ability' | 'kick' | 'both';
+  ticks: number;
+  mx: number;
+  my: number;
+  weight: number;
+}
+
+type DashStats = NonNullable<BaseAbility['dash']>;
+
 const STUCK_TIME = 1.1;
+/** Up / Down stick aim of the fireball / Amaterasu (fighter.ts aimAngle) */
+const SECOND_AIM = 0.45;
+/** widest angle off straight ahead at which an ultimate locks on (hero.ts ultimateTarget, a little inside it) */
+const LOCK_CONE = 0.9;
+/** 8-direction stick: past 22.5 deg it is a diagonal, past 67.5 deg straight up / down */
+const DIAG = 0.39;
+const STEEP = 1.18;
 
 export class BotController implements Controller {
   readonly label: string;
@@ -97,6 +124,30 @@ export class BotController implements Controller {
   private noPathUntil = 0;
   private unstickUntil = 0;
   private unstickDir = 1;
+  // close fights (BOT_FIGHT): stick held while a hero move starts, combo cancels, the guard, making space
+  private aimX = 0;
+  private aimY = 0;
+  private aimTicks = 0;
+  private cancelKey = '';
+  private cancelOk = false;
+  private guardOn = false;
+  private guardFrom = 0;
+  private guardSeen = 0;
+  private guardRest = 0;
+  private guardSrc = -1;
+  private threatKey = '';
+  private threatGo = false;
+  private threatAt = 0;
+  private threatParry = false;
+  /** first swing of each enemy's current combo (tick): one guard decision per combo */
+  private comboStart = new Map<number, number>();
+  private closeT = 0;
+  private exchangeLen = 0;
+  private spaceUntil = 0;
+  private spaceFrom = -1;
+  private spaceNode = -1;
+  private spaceRolled = false;
+  private rangedUntil = 0;
 
   constructor(
     private getWorld: () => World,
@@ -210,6 +261,20 @@ export class BotController implements Controller {
     this.unstickUntil = 0;
     this.mobility.reset();
     this.noPathUntil = 0;
+    this.aimTicks = 0;
+    this.cancelKey = '';
+    this.guardOn = false;
+    this.guardFrom = this.guardSeen = this.guardRest = 0;
+    this.guardSrc = -1;
+    this.threatKey = '';
+    this.threatGo = false;
+    this.threatAt = 0;
+    this.comboStart.clear();
+    this.closeT = 0;
+    this.exchangeLen = 0;
+    this.spaceUntil = 0;
+    this.spaceFrom = -1;
+    this.rangedUntil = 0;
   }
 
   /** Request a button press; it's delivered as a clean edge (released the tick before if needed). */
@@ -507,6 +572,14 @@ export class BotController implements Controller {
       return;
     }
     if (this.mobility.active) {
+      // flying toward the target: strike from the air as soon as a move fits
+      if (this.mobility.flying && this.goal.t === 'fight') {
+        const e = w.fighters[this.goal.target];
+        if (e && e.alive && this.useSpecial(w, f, e, this.visible(e.id))) {
+          this.mobility.cancel(this.now);
+          return;
+        }
+      }
       // a hero traversal move (fly / wall walk / dash / grapple) owns the inputs until it ends
       if (this.mobility.step(w, f, this.out, this.now)) {
         this.progressT = this.now;
@@ -521,6 +594,8 @@ export class BotController implements Controller {
       if (f.state === 'climb' || (f.grounded && (this.now * 60) % 20 < 1)) this.tap('jump');
       return;
     }
+    if (this.chargeTicks <= 0 && this.aimTicks <= 0 && f.state !== 'special' && this.guardStep(w, f)) return;
+    if (this.spaceStep(w, f)) return;
     if (this.dodge(w, f)) return;
 
     switch (this.goal.t) {
@@ -577,8 +652,10 @@ export class BotController implements Controller {
       }
     }
 
-    // hero special (Kurama chakra bomb, Gear 2 rubber bullet, Super Saiyan ki blast)
+    // hero moves at every range: point-blank, from the air, as combo enders, on a guard
     if (this.useSpecial(w, f, e, seen)) return;
+    // heroes don't trade fists forever: after a short exchange, make space (then a ranged move fits)
+    if (f.hero && !this.isClone && seen && this.exchangeClock(w, f, e, dist)) return;
 
     // halfway up/down a ladder: guns and throws can't start here, so finish the climb instead of hanging
     if (f.state === 'climb') {
@@ -626,6 +703,15 @@ export class BotController implements Controller {
       if (close) {
         const face = dx >= 0 ? 1 : -1;
         if (f.facing !== face) this.out.moveX = face;
+        if (this.facesGuard(f, e)) {
+          this.beatGuard(f, e, face);
+          return;
+        }
+        if (f.hero && !this.isClone && f.state === 'normal' && f.grounded && Math.abs(dx) < BOT_FIGHT.overlap && this.dashReady(f)) {
+          // standing inside them: a step back makes room for the Rasengan / Chidori (the orb would pass them by)
+          this.out.moveX = -face;
+          return;
+        }
         if (this.now >= this.meleeNext && f.state === 'normal') {
           this.meleeNext = this.now + this.rng.range(0.08, 0.22) + this.diff.reaction * 0.3;
           const r = this.rng.next();
@@ -647,84 +733,442 @@ export class BotController implements Controller {
   }
 
   /**
-   * Hero moves (D51, D58): super (both buttons) when transformed and ready, then ability 2 (kick button:
-   * Kamehameha charge / clone rush / gatling), then ability 1 - each only when the target is level with
-   * the bot, in the move's range band and in line of sight. Returns true while busy.
+   * Hero moves (D51, D58) at every range: the super (both buttons, transformed), ability 2 (kick button) and
+   * ability 1, from the ground or the air, point-blank or far - whichever fit right now (target in the move's reach
+   * and aim, line of sight), picked at random by weight. Also as a combo ender (the recovery of a late combo hit is
+   * cancelled into the move) and against a guard. Returns true while busy.
    */
   private useSpecial(w: World, f: Fighter, e: Fighter, seen: boolean): boolean {
-    if (this.chargeTicks > 0) {
-      this.chargeTicks--;
-      const on = this.chargeTicks > 0;
-      this.out.ability = on && this.hold !== 'kick';
-      this.out.kick = on && this.hold !== 'ability';
-      if (f.state === 'special' && f.facing !== (e.x >= f.x ? 1 : -1)) this.out.moveX = e.x >= f.x ? 1 : -1;
+    const face = e.x >= f.x ? 1 : -1;
+    if (this.chargeTicks > 0 || this.aimTicks > 0) {
+      if (this.chargeTicks > 0) {
+        this.chargeTicks--;
+        const on = this.chargeTicks > 0;
+        this.out.ability = on && this.hold !== 'kick';
+        this.out.kick = on && this.hold !== 'ability';
+      }
+      if (this.aimTicks > 0) {
+        // the stick aims the move until it has started (transformed heroes' single presses wait SUPER_WINDOW)
+        this.aimTicks--;
+        this.out.moveX = this.aimX;
+        this.out.moveY = this.aimY;
+      } else if (f.state === 'special' && f.facing !== face) this.out.moveX = face;
       return true;
     }
     if (f.state === 'special') return true;
     const h = heroDef(f.hero);
-    if (!h || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0 || e.state === 'roll' || e.invuln > 0.15) return false;
-    const dx = e.x - f.x;
-    const dist = Math.abs(dx);
-    const dy = Math.abs(e.y - f.y);
-    const clear = () => w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
-    const face = dx >= 0 ? 1 : -1;
-    const go = (hold: 'ability' | 'kick' | 'both', ticks: number) => {
-      this.out.moveX = face;
-      this.hold = hold;
-      this.chargeTicks = ticks;
-      this.out.ability = hold !== 'kick';
-      this.out.kick = hold !== 'ability';
-      return true;
-    };
-    const roll = (k: number) => this.rng.chance(k + this.diff.throwChance * 0.2);
-    if (this.isClone) return this.useBase(w, f, e, seen);
-    // super
-    if (transformed(f) && f.specialCd <= 0) {
-      const reach = h.super.kind === 'fist' ? (superFistFor(f.hero, f.powerLevel)?.range ?? 150) : h.super.kind === 'beam' ? 300 : (h.super.bomb?.range ?? 230);
-      if (dist >= 40 && dist <= reach && dy <= (h.super.kind === 'beam' ? 20 : 12) && clear() && roll(0.2)) return go('both', 4);
+    if (!h || !seen || f.carry >= 0 || !this.canMove(f)) return false;
+    if (e.state === 'roll' || e.invuln > 0.15 || superGuard(e)) return false;
+    if (this.isClone) return this.useBase(w, f, e);
+    const guard = this.facesGuard(f, e);
+    let p = this.diff.heroMove * (this.now < this.rangedUntil ? BOT_FIGHT.rangedBoost : 1) * (guard ? BOT_FIGHT.vsGuard : 1);
+    // an enemy crowding a hero whose super is ready: the super goes off on them at once (and the windup can't be hit)
+    if (transformed(f) && f.specialCd <= 0 && Math.abs(e.x - f.x) < BOT_FIGHT.close && Math.abs(e.y - f.y) < BOT_FIGHT.level) p *= BOT_FIGHT.closeSuper;
+    if (f.state === 'melee') {
+      // combo ender: decided once per swing, only on the late hits (the enemy is still reeling from the early ones)
+      const key = f.combo + ':' + Math.round((w.time - f.stateTime) * 60);
+      if (key !== this.cancelKey) {
+        this.cancelKey = key;
+        this.cancelOk = f.combo >= 2 && this.rng.chance(this.diff.comboCancel);
+      }
+      if (!this.cancelOk) return false;
+      p = 1;
     }
-    // ability 2
+    if (!this.rng.chance(p)) return false;
+    const pick = this.pickMove(w, f, e, h, guard);
+    if (!pick) return false;
+    if (f.state === 'melee') this.cancelOk = false;
+    this.startMove(f, pick);
+    return true;
+  }
+
+  /** Press a hero move's buttons (held for `ticks`) with the stick held at its aim. */
+  private startMove(f: Fighter, pick: HeroPick): void {
+    // a transformed hero's single press waits SUPER_WINDOW for the other button: hold everything that much longer
+    const wait = transformed(f) && pick.hold !== 'both' ? Math.ceil(SUPER_WINDOW / DT) + 1 : 0;
+    this.hold = pick.hold;
+    this.chargeTicks = pick.ticks + wait;
+    this.aimX = pick.mx;
+    this.aimY = pick.my;
+    this.aimTicks = Math.max(this.chargeTicks, wait + 2);
+    this.guardOn = false; // (an ability cancels the guard)
+    this.taps.delete('attack');
+    this.out.attack = false;
+    this.out.moveX = pick.mx;
+    this.out.moveY = pick.my;
+    this.out.ability = pick.hold !== 'kick';
+    this.out.kick = pick.hold !== 'ability';
+  }
+
+  /** The Rasengan / Chidori is ready to dash. */
+  private dashReady(f: Fighter): boolean {
+    const b = baseAbility(f);
+    return !!b?.dash && f.baseCd <= 0 && !(b.charges && f.baseUsed >= b.charges.max);
+  }
+
+  /** Free to start a hero move (fighter.ts canAct): standing / crouching / flying, a guard out of blockstun, a combo hit's recovery. */
+  private canMove(f: Fighter): boolean {
+    if (f.state === 'normal' || f.state === 'crouch') return true;
+    if (f.state === 'block') return f.blockStun <= 0;
+    if (f.state === 'melee') {
+      const hit = swingHit(f);
+      return f.stateTime >= hit.windup + hit.active;
+    }
+    return false;
+  }
+
+  /** Every hero move that would hit `e` from here right now (and is ready), one picked by weight. */
+  private pickMove(w: World, f: Fighter, e: Fighter, h: HeroDefinition, guard: boolean): HeroPick | null {
+    const cands: HeroPick[] = [];
+    const face = e.x >= f.x ? 1 : -1;
+    const sx = f.x;
+    const sy = f.y - SHOULDER_Y_STAND - 3; // where fireballs / ultimates leave from
+    const tx = e.x;
+    const ty = e.y - e.h / 2;
+    const vx = tx - sx;
+    const vy = ty - sy;
+    const dist = Math.hypot(vx, vy);
+    const ang = Math.atan2(vy, Math.max(1, Math.abs(vx))); // facing-local, + = down
+    const level = Math.abs(e.y - f.y);
+    const near = Math.abs(e.x - f.x);
+    const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
+    if (!clear) return null;
+    // the stick: Up / Down to aim (Down only works in the air)
+    const upDown = (a: number) => (a < -SECOND_AIM * 0.5 ? -1 : a > SECOND_AIM * 0.5 && !f.grounded ? 1 : 0);
+
+    // --- super: the ultimate locks onto the enemy being faced; enemies crowding the hero set it off at once
+    if (transformed(f) && f.specialCd <= 0) {
+      const sp = h.super;
+      const pointBlank = near <= 30 && level <= 16;
+      let ok = false;
+      let my = 0;
+      if (sp.kind === 'bomb') ok = pointBlank || (dist <= (sp.bomb?.range ?? 320) && near >= 4 && Math.abs(ang) <= LOCK_CONE);
+      else if (sp.kind === 'fist' && sp.fist) {
+        my = upDown(ang);
+        const a = my < 0 ? sp.fist.upAngle : my > 0 ? sp.fist.downAngle : 0;
+        ok = pointBlank || (dist <= (superFistFor(f.hero, f.powerLevel)?.range ?? sp.fist.range) && Math.abs(ang - a) <= 0.3);
+      } else ok = dist <= (sp.beam?.range ?? 300) && level <= 20;
+      if (ok) cands.push({ hold: 'both', ticks: 4, mx: face, my, weight: BOT_FIGHT.wSuper * (guard ? BOT_FIGHT.vsGuardSuper : 1) });
+    }
+
+    // --- ability 2 (kick button)
     const s2 = h.second;
     if (f.secondCd <= 0) {
-      if (s2.kind === 'beam' && dist >= 50 && dist <= (s2.beam?.range ?? 200) && dy <= 20 && clear() && roll(0.12)) {
-        return go('kick', Math.round(this.rng.range(0.3, 1.2) * 60));
+      const w2 = BOT_FIGHT.wSecond;
+      if (s2.kind === 'beam' && s2.beam) {
+        if (near >= 12 && dist <= s2.beam.range && level <= 16) {
+          // close up: the shortest charge (it has to come out before they move)
+          const t = dist < 90 ? Math.ceil(s2.beam.minCharge / DT) + 2 : Math.round(this.rng.range(0.3, 1.2) / DT);
+          cands.push({ hold: 'kick', ticks: t, mx: face, my: 0, weight: w2 });
+        }
+      } else if (s2.kind === 'clones') {
+        if (f.cloneCount === 0 && dist <= 220) cands.push({ hold: 'kick', ticks: 2, mx: face, my: 0, weight: w2 * 1.5 });
+      } else if (s2.kind === 'gatling' && s2.gatling) {
+        if (near <= s2.gatling.range && level <= 14) cands.push({ hold: 'kick', ticks: 2, mx: face, my: 0, weight: w2 });
+      } else if (s2.kind === 'fireball') {
+        const my = upDown(ang);
+        const a = my * SECOND_AIM;
+        if (usesAmaterasu(f) && s2.amaterasu) {
+          // the eye jutsu burns whoever is inside its cone: any range up to its reach, point-blank too
+          const dot = dist > 1 ? (vx * face * Math.cos(a) + vy * Math.sin(a)) / dist : 1;
+          if (dist <= amaterasuReach(f).range && dot >= s2.amaterasu.aimDot) cands.push({ hold: 'kick', ticks: 2, mx: face, my, weight: w2 });
+        } else if (s2.fireball && dist >= 30 && dist <= s2.fireball.range * 0.9 && Math.abs(ang - a) <= 0.25) {
+          cands.push({ hold: 'kick', ticks: 2, mx: face, my, weight: w2 });
+        }
       }
-      if (s2.kind === 'clones' && f.cloneCount === 0 && dist >= 40 && dist <= 220 && dy <= 30 && clear() && roll(0.1)) return go('kick', 2);
-      if (s2.kind === 'gatling' && dist >= 14 && dist <= (s2.gatling?.range ?? 60) && dy <= 14 && clear() && roll(0.15)) return go('kick', 2);
-      if (s2.kind === 'fireball' && dist >= 45 && dist <= (f.powerLevel >= (s2.amaterasu?.minLevel??99) ? s2.amaterasu!.range : s2.fireball?.range ?? 300) && dy <= 20 && clear() && roll(0.13)) return go('kick', 2);
     }
-    return this.useBase(w, f, e, seen);
+
+    // --- ability 1
+    const b = baseAbility(f);
+    if (b && f.baseCd <= 0 && !(b.charges && f.baseUsed >= b.charges.max)) {
+      const wb = BOT_FIGHT.wBase;
+      if (b.kind === 'rasengan' && b.dash) {
+        const aim = dashAim(w, f, e, b.dash);
+        if (aim) cands.push({ hold: 'ability', ticks: aim.ticks, mx: aim.mx, my: aim.my, weight: wb });
+      } else if (b.kind === 'blink' && b.blink) {
+        // instant transmission locks on and lands behind them (a guard faces the wrong way then)
+        const aim = blinkAim(f, e, b.blink.range + b.blink.assist);
+        if (aim) cands.push({ hold: 'ability', ticks: 1, mx: aim.mx, my: aim.my, weight: wb * (guard ? 2 : 1) });
+      } else if (b.kind === 'pistol' && b.stretch && level <= 8) {
+        // a shove (no damage): makes space up close, or reaches out to them
+        const far = near >= 26 && near <= (b.stretch.maxRange ?? 100) - 40;
+        if (near <= 40 || far) cands.push({ hold: 'ability', ticks: Math.ceil(((near + 10) / (b.stretch.extendSpeed ?? 700) + 0.05) / DT), mx: face, my: 0, weight: wb * (far ? 1 : 0.5) });
+      }
+    }
+    if (!cands.length) return null;
+    let r = this.rng.next() * cands.reduce((s, c) => s + c.weight, 0);
+    for (const c of cands) if ((r -= c.weight) <= 0) return c;
+    return cands[cands.length - 1];
+  }
+
+  /** Shadow clones only know the Rasengan: aimed in 8 directions at any range up to its reach. */
+  private useBase(w: World, f: Fighter, e: Fighter): boolean {
+    const b = baseAbility(f);
+    if (!b?.dash || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max)) return false;
+    const aim = dashAim(w, f, e, b.dash);
+    if (!aim || !this.rng.chance(0.12 + this.diff.throwChance * 0.2)) return false;
+    this.startMove(f, { hold: 'ability', ticks: aim.ticks, mx: aim.mx, my: aim.my, weight: 1 });
+    return true;
+  }
+
+  // ------------------------------------------------------------------ guarding (hold PUNCH, BLOCK in sim/constants.ts)
+
+  /** `e` holds a guard up toward us, close enough that punching it would only chip it. */
+  private facesGuard(f: Fighter, e: Fighter): boolean {
+    if (e.state !== 'block') return false;
+    const dx = f.x - e.x;
+    return (Math.abs(dx) < 3 || Math.sign(dx) === e.facing) && Math.abs(dx) < BOT_FIGHT.guardWait && Math.abs(e.y - f.y) < BOT_FIGHT.level * 2;
+  }
+
+  /** A guard in front of us: never punch into it. Grab it (throws beat the guard) or wait for it to come down. */
+  private beatGuard(f: Fighter, e: Fighter, face: number): void {
+    const reach = Math.abs(e.x - f.x) <= GRAB_RANGE + e.w / 2 - 1 && Math.abs(e.y - f.y) <= 8;
+    if (f.state !== 'normal' && f.state !== 'crouch') return;
+    if (!reach) {
+      if (f.grounded) this.out.moveX = face; // step into grab range (the guard can't hit back)
+      return;
+    }
+    if (f.grounded && this.rng.chance(this.diff.guardGrab)) {
+      this.out.moveX = face;
+      this.tap('interact');
+    }
   }
 
   /**
-   * Hero base abilities (D51): Rasengan dash (held until it lands), Gum-Gum Pistol (held while the arm
-   * reaches), Instant Transmission - when the target is in line at the right distance with nothing between.
+   * The attack the bot sees coming at it soonest: an enemy close in front (pressure) or swinging at it, a hero move
+   * winding up / dashing / firing at it, a hero projectile on its way. Only enemies it can see.
    */
-  private useBase(w: World, f: Fighter, e: Fighter, seen: boolean): boolean {
-    const b = baseAbility(f);
-    if (!b || f.baseCd > 0 || (b.charges && f.baseUsed >= b.charges.max) || !seen || f.state !== 'normal' || !f.grounded || f.carry >= 0) return false;
-    const dx = e.x - f.x;
-    const dist = Math.abs(dx);
-    const dy = Math.abs(e.y - f.y);
-    let band: [number, number];
-    let level = 8;
-    if (b.kind === 'rasengan') band = [24, Math.min(240, (b.dash?.speed ?? 300) * 0.8)];
-    else if (b.kind === 'pistol') band = [26, (b.stretch?.maxRange ?? 100) - 40];
-    else {
-      band = [56, (b.blink?.range ?? 100) + 10];
-      level = 16;
+  private threat(w: World, f: Fighter): Threat | null {
+    let best: Threat | null = null;
+    for (const e of w.fighters) {
+      if (e === f || !e.alive || e.gone || sameTeam(e, f) || !this.mem.get(e.id)?.seen) continue;
+      const t = this.threatFrom(w, f, e);
+      if (t && (!best || t.eta < best.eta)) best = t;
     }
-    if (dist < band[0] || dist > band[1] || dy > level || e.state === 'roll' || e.invuln > 0.15) return false;
-    if (!w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12)) return false;
-    if (!this.rng.chance(0.12 + this.diff.throwChance * 0.2)) return false;
-    this.out.moveX = dx >= 0 ? 1 : -1;
-    // how long to keep the button down: until the dash / arm has had time to reach the target
-    let ticks = 1;
-    if (b.kind === 'rasengan' && b.dash) ticks = Math.min(Math.ceil(b.dash.maxTime * 60), Math.ceil((b.dash.windup + dist / b.dash.speed + 0.2) * 60));
-    else if (b.kind === 'pistol' && b.stretch) ticks = Math.ceil(((dist + 10) / (b.stretch.extendSpeed ?? 700) + 0.05) * 60);
-    this.chargeTicks = ticks;
-    this.hold = 'ability';
-    this.out.ability = true;
+    const cx = f.x;
+    const cy = f.y - f.h / 2;
+    for (const b of w.bullets) {
+      if (!b.active || b.owner === f.id || b.tier <= 0) continue;
+      const o = w.fighters[b.owner];
+      if (!o || sameTeam(o, f)) continue;
+      const sp2 = b.vx * b.vx + b.vy * b.vy;
+      if (sp2 < 1) continue;
+      const t = ((cx - b.x) * b.vx + (cy - b.y) * b.vy) / sp2;
+      if (t < 0 || t > 0.6) continue;
+      if (Math.hypot(b.x + b.vx * t - cx, b.y + b.vy * t - cy) > 12 + b.size) continue;
+      const k: Threat = { e: o, kind: b.tier >= 2 ? 'super' : 'shot', eta: t, key: 'b' + b.owner + ':' + Math.round(b.ox) + ':' + Math.round(b.oy) };
+      if (!best || k.eta < best.eta) best = k;
+    }
+    return best;
+  }
+
+  private threatFrom(w: World, f: Fighter, e: Fighter): Threat | null {
+    const dx = f.x - e.x; // from them to us
+    const adx = Math.abs(dx);
+    const level = Math.abs(f.y - e.y);
+    const facing = adx < 3 || Math.sign(dx) === e.facing;
+    const start = Math.round((w.time - e.stateTime) / DT);
+    const key = (k: string) => e.id + ':' + k + ':' + e.state + ':' + e.specialKind + ':' + start;
+    if (e.state === 'melee' && e.combo === 0) this.comboStart.set(e.id, start);
+    switch (e.state) {
+      case 'melee':
+      case 'kick': {
+        if (!facing || level > BOT_FIGHT.level) return null;
+        const hit = e.state === 'kick' ? KICK : swingHit(e);
+        if (adx > f.w / 2 + e.w / 2 + hit.range + 8) return null;
+        // one decision per combo (the follow-up hits of a combo that landed are true combos anyway)
+        const k = e.state === 'kick' ? key('k') : e.id + ':m:' + (this.comboStart.get(e.id) ?? start);
+        return { e, kind: 'melee', eta: Math.max(0, hit.windup - e.stateTime), key: k };
+      }
+      case 'normal':
+      case 'crouch': {
+        // close in front with fists / a melee weapon, stepping in or between combo hits: a swing can start any
+        // moment (a guard is a guess). Someone just standing there is no pressure.
+        const def = activeWeapon(e);
+        if (!facing || adx > BOT_FIGHT.meleeThreat || level > BOT_FIGHT.level || def.gun || def.throw || e.carry >= 0) return null;
+        if (e.comboTimer <= 0 && e.vx * Math.sign(dx) < BOT_FIGHT.pressureSpeed) return null;
+        return { e, kind: 'pressure', eta: 0.15, key: key('p') };
+      }
+      case 'special':
+        break;
+      default:
+        return null;
+    }
+    if (superGuard(e)) {
+      // an ultimate charging up: a guard can't take that, get out of its way
+      if (!facing || adx > 140 || level > 60) return null;
+      return { e, kind: 'super', eta: 0.3, key: key('s') };
+    }
+    const t = e.stateTime;
+    switch (e.specialKind) {
+      case 'rasengan': {
+        const d = baseAbility(e)?.dash;
+        if (!d || e.recoverAt > 0) return null;
+        const ox = f.x - e.x;
+        const oy = f.y - e.y;
+        const dist = Math.hypot(ox, oy);
+        const dir = dashDir(e);
+        if (dist > BOT_FIGHT.dashThreat || (dist > 24 && (ox * dir.x + oy * dir.y) / dist < 0.8)) return null;
+        // (the orb leads the dasher by half a body + its radius and touches us half a body early)
+        const gap = Math.max(0, dist - e.w / 2 - 4 - d.radius - f.w / 2);
+        return { e, kind: 'ability', eta: Math.max(0, d.windup - t) + gap / d.speed, key: key('r') };
+      }
+      case 'fireball': {
+        const fb = heroDef(e.hero)?.second.fireball;
+        if (!fb || usesAmaterasu(e) || !facing || level > 30 || adx > fb.range) return null; // (Amaterasu is fire: no guard stops it)
+        return { e, kind: 'ability', eta: Math.max(0, fb.windup - t) + adx / fb.speed, key: key('f') };
+      }
+      case 'gatling': {
+        const g = heroDef(e.hero)?.second.gatling;
+        if (!g || !facing || level > 16 || adx > g.range + 10) return null;
+        return { e, kind: 'ability', eta: 0, key: key('g') };
+      }
+      case 'beamCharge':
+      case 'beam': {
+        const bm = heroDef(e.hero)?.second.beam;
+        if (!bm || !facing || level > 20 || adx > bm.range) return null;
+        return { e, kind: 'ability', eta: e.specialKind === 'beam' ? 0 : 0.3, key: key('b') };
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Raise the guard (hold PUNCH) against an attack seen coming - decided once per attack with the difficulty's
+   * chance, after its reaction time (or timed as a perfect block when the hit's arrival can be predicted) - and drop
+   * it when the attack is over, after BOT_FIGHT.guardMax, when the meter is about to break, or to punish an attacker
+   * left reeling by a parry. Runs from any goal. Returns true while the guard owns the inputs.
+   */
+  private guardStep(w: World, f: Fighter): boolean {
+    const can = guardCapable(f) && f.carry < 0;
+    if (this.guardOn) {
+      const s = f.state;
+      const keep = can && (s === 'block' || s === 'normal' || s === 'crouch' || s === 'melee' || s === 'flinch' || s === 'knockdown');
+      const t = keep ? this.threat(w, f) : null;
+      if (t && t.kind !== 'super') this.guardSeen = this.now;
+      const src = w.fighters[this.guardSrc];
+      const punish = s === 'block' && !!src && src.alive && src.state === 'flinch' && Math.abs(src.x - f.x) < BOT_FIGHT.guardWait;
+      const low = f.guard < BOT_FIGHT.guardLow && f.blockStun <= 0;
+      if (!keep || punish || low || t?.kind === 'super' || this.now - this.guardFrom > BOT_FIGHT.guardMax || this.now - this.guardSeen > BOT_FIGHT.guardLinger) {
+        this.guardOn = false;
+        this.guardRest = this.now + BOT_FIGHT.guardRest;
+        if (punish) this.meleeNext = this.now;
+        if (t && (t.kind === 'super' || low)) this.startSpace(w, f, t.e);
+        return false; // (attack stays up this tick: the guard drops)
+      }
+      this.out.attack = true;
+      if (src && s === 'block') {
+        const face = src.x >= f.x ? 1 : -1;
+        if (f.facing !== face) this.out.moveX = face; // (in the guard the stick only turns around)
+      }
+      return true;
+    }
+    if (!can) return false;
+    const t = this.threat(w, f);
+    if (!t) return false;
+    if (t.key !== this.threatKey) {
+      this.threatKey = t.key;
+      const chance = t.kind === 'super' ? this.diff.disengage : this.diff.block * (t.kind === 'pressure' ? BOT_FIGHT.pressure : 1);
+      this.threatGo = this.rng.chance(chance);
+      this.threatAt = this.now + this.diff.blockReact;
+      this.threatParry = t.kind !== 'pressure' && t.kind !== 'super' && this.rng.chance(this.diff.parry);
+    }
+    if (!this.threatGo || this.now < this.threatAt) return false;
+    if (this.threatParry && t.eta > BLOCK.hold + BLOCK.parryWindow * 0.5) {
+      // a perfect block: the guard comes up BLOCK.hold after the press, so press just that long before the hit
+      // lands. Meanwhile hold still, facing it (walking in would make it land sooner).
+      const face = t.e.x >= f.x ? 1 : -1;
+      if (f.facing !== face && (f.state === 'normal' || f.state === 'crouch')) this.out.moveX = face;
+      return true;
+    }
+    this.threatGo = false;
+    if (t.kind === 'super') {
+      this.startSpace(w, f, t.e);
+      return false;
+    }
+    const s = f.state;
+    if (this.now < this.guardRest || f.guard < BOT_FIGHT.guardLow) return false;
+    if (s !== 'normal' && s !== 'crouch' && s !== 'melee' && s !== 'flinch' && s !== 'knockdown') return false;
+    this.guardOn = true;
+    this.guardFrom = this.guardSeen = this.now;
+    this.guardSrc = t.e.id;
+    this.taps.delete('attack');
+    this.out.attack = true;
+    const face = t.e.x >= f.x ? 1 : -1;
+    if (f.facing !== face) this.out.moveX = face;
+    return true;
+  }
+
+  // ------------------------------------------------------------------ making space
+
+  /**
+   * The exchange clock: after BOT_FIGHT.exchange s close to the target, maybe back off (difficulty `disengage`)
+   * so a ranged move fits afterwards. Returns true when it just started backing off.
+   */
+  private exchangeClock(w: World, f: Fighter, e: Fighter, dist: number): boolean {
+    if (dist < BOT_FIGHT.close) this.closeT += DT;
+    else if (dist > BOT_FIGHT.close * 2) this.closeT = 0;
+    if (this.exchangeLen <= 0) this.exchangeLen = this.rng.range(BOT_FIGHT.exchange[0], BOT_FIGHT.exchange[1]);
+    if (this.closeT < this.exchangeLen) return false;
+    this.closeT = 0;
+    this.exchangeLen = this.rng.range(BOT_FIGHT.exchange[0], BOT_FIGHT.exchange[1]);
+    if (!this.rng.chance(this.diff.disengage)) return false;
+    return this.startSpace(w, f, e);
+  }
+
+  /** Back off from `e` to a reachable spot on the far side (nav graph), jumping / rolling / flying on the way. */
+  private startSpace(w: World, f: Fighter, e: Fighter): boolean {
+    const g = this.graph!;
+    const here = g.nearest(f.x, f.y);
+    if (!here) return false;
+    const away = Math.sign(f.x - e.x) || -f.facing;
+    const costs = g.costsFrom(here.id, 1.5, this.edgeCost);
+    let best = -1;
+    let bestScore = -Infinity;
+    for (const n of g.nodes) {
+      if (!n.stand || costs[n.id] === Infinity || (n.x - e.x) * away <= 0) continue;
+      const score = Math.min(Math.hypot(n.x - e.x, n.y - e.y), BOT_FIGHT.spaceDist + 20) - costs[n.id] * 40;
+      if (score > bestScore) {
+        bestScore = score;
+        best = n.id;
+      }
+    }
+    if (best < 0) return false;
+    this.spaceNode = best;
+    this.spaceFrom = e.id;
+    this.spaceRolled = false;
+    this.spaceUntil = this.now + this.rng.range(BOT_FIGHT.space[0], BOT_FIGHT.space[1]);
+    this.closeT = 0;
+    this.guardOn = false;
+    this.path = [];
+    if (f.grounded && f.state === 'normal' && this.rng.chance(0.35)) this.tap('jump');
+    void w;
+    return true;
+  }
+
+  private spaceStep(w: World, f: Fighter): boolean {
+    if (this.now >= this.spaceUntil) return false;
+    const e = w.fighters[this.spaceFrom];
+    const n = this.graph!.nodes[this.spaceNode];
+    if (!e || !e.alive || !n || Math.hypot(e.x - f.x, e.y - f.y) > BOT_FIGHT.spaceDist) {
+      this.spaceUntil = 0;
+      this.rangedUntil = this.now + BOT_FIGHT.rangedWindow;
+      return false;
+    }
+    this.navigate(w, f, n.x, n.y, false); // (on foot: no Rasengan dash / grapple to get there)
+    if (!this.script) {
+      const away = Math.sign(f.x - e.x) || 1;
+      if (f.grounded && f.state === 'normal' && !this.spaceRolled && Math.sign(f.vx) === away && Math.abs(f.vx) > 60) {
+        // a roll (i-frames) once we're running, sometimes
+        this.spaceRolled = true;
+        if (this.rng.chance(0.5 * this.diff.disengage) && !this.prev.moveY) {
+          this.out.moveX = away;
+          this.out.moveY = 1;
+        }
+      } else if (!f.grounded && holdFlies(f)) this.out.moveY = -1; // fly up and away
+    }
+    if (this.now + DT >= this.spaceUntil) this.rangedUntil = this.now + BOT_FIGHT.rangedWindow;
     return true;
   }
 
@@ -940,7 +1384,7 @@ export class BotController implements Controller {
   // ------------------------------------------------------------------ navigation motor
 
   /** Move toward a world point using the nav graph. */
-  private navigate(w: World, f: Fighter, x: number, y: number): void {
+  private navigate(w: World, f: Fighter, x: number, y: number, heroTravel = true): void {
     const g = this.graph!;
     if (f.state === 'aim' && f.aimHeld) {
       this.out.attack = false;
@@ -962,7 +1406,7 @@ export class BotController implements Controller {
       return;
     }
     // heroes: fly / wall-walk / Rasengan-dash / grapple instead of the scripted jumps when that gets there faster
-    if (f.hero && !this.isClone && this.mobility.consider(w, f, g, x, y, this.now, this.out, this.now < this.noPathUntil)) {
+    if (heroTravel && f.hero && !this.isClone && this.mobility.consider(w, f, g, x, y, this.now, this.out, this.now < this.noPathUntil)) {
       this.progressT = this.now;
       this.progressX = f.x;
       this.progressY = f.y;
@@ -1142,6 +1586,68 @@ export class BotController implements Controller {
 }
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
+
+/** The combo hit a fighter is swinging (fighter.ts meleeStats: a hero's fists use the hero combo). */
+function swingHit(f: Fighter): MeleeHit {
+  const def = activeWeapon(f);
+  const combo = (def === FISTS ? heroDef(f.hero)?.combo : null) ?? (def.melee ?? FISTS.melee!).combo;
+  return combo[Math.min(f.combo, combo.length - 1)];
+}
+
+/** Can the active weapon guard (fighter.ts guardWeapon)? Fists and melee weapons. */
+function guardCapable(f: Fighter): boolean {
+  const d = activeWeapon(f);
+  return !d.gun && !d.throw && !d.gadget && !d.powerup;
+}
+
+/**
+ * Quantize a direction (y down) to the 8-way stick: past DIAG it is a diagonal, past STEEP straight up / down.
+ * (A target overlapping us, within half a body sideways, counts as ahead unless it's well above / below.)
+ */
+function stick8(vx: number, vy: number, facing: number): { mx: number; my: number } {
+  const ang = Math.atan2(vy, Math.max(Math.abs(vx), 8));
+  let mx = Math.sign(vx) || facing;
+  const my = ang < -DIAG ? -1 : ang > DIAG ? 1 : 0;
+  if (my !== 0 && Math.abs(ang) > STEEP) mx = 0;
+  return { mx, my };
+}
+
+/**
+ * Aim the Rasengan / Chidori dash at `e` (8 directions; on the ground it can't aim down): the stick and how long to
+ * hold the button (until the dash has had time to reach them). null when the dash line misses them, they're out of
+ * reach or a wall is in between.
+ */
+function dashAim(w: World, f: Fighter, e: Fighter, d: DashStats): { mx: number; my: number; ticks: number } | null {
+  const ox = f.x;
+  const oy = f.y - FIGHTER_H / 2 - 3;
+  const vx = e.x - ox;
+  const vy = e.y - e.h / 2 - oy;
+  if (Math.hypot(vx, vy) > Math.min(240, d.speed * d.maxTime * 0.8)) return null;
+  const { mx, my } = stick8(vx, vy, f.facing);
+  if (my > 0 && f.grounded) return null;
+  const len = Math.hypot(mx, my);
+  const ux = mx / len;
+  const uy = my / len;
+  const along = vx * ux + vy * uy;
+  const across = Math.abs(vx * uy - vy * ux);
+  // (a target overlapping us is passed by the orb on the dash's first tick: it needs to be a little ahead)
+  if (along < 6 || across > d.radius + (Math.abs(uy) > 0.5 ? e.w / 2 : e.h / 2) + 2) return null;
+  if (!w.map.clearShot(ox, oy, e.x, e.y - e.h / 2)) return null;
+  const ticks = Math.min(Math.ceil(d.maxTime / DT), Math.ceil((d.windup + Math.max(0, along) / d.speed + 0.2) / DT));
+  return { mx, my, ticks };
+}
+
+/** Instant transmission toward `e`: the stick that locks onto them (hero.ts blinkDestination), null if none does. */
+function blinkAim(f: Fighter, e: Fighter, reach: number): { mx: number; my: number } | null {
+  const vx = e.x - f.x;
+  const vy = e.y - e.h / 2 - (f.y - FIGHTER_H / 2);
+  const s = stick8(vx, vy, f.facing);
+  if (s.my > 0 && f.grounded) s.my = 0;
+  const len = Math.hypot(s.mx, s.my) || 1;
+  const along = (vx * s.mx + vy * s.my) / len;
+  const across = Math.abs(vx * s.my - vy * s.mx) / len;
+  return along >= 6 && along <= reach - 4 && across <= 14 ? s : null;
+}
 
 /**
  * Pick the aim angle (local, + = down) that lands a full-power throw closest to (x, y).
