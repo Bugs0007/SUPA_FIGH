@@ -56,6 +56,8 @@ export interface LobbyCfg {
   chaos: boolean;
   /** rare hero power-up pickups (M9) */
   heroPowers: boolean;
+  /** falling out of the map kills; off = the fighter is thrown back in (shared with the Settings menu / Quick Match) */
+  fallDeath: boolean;
 }
 
 export const MAX_SLOTS = 10;
@@ -69,7 +71,7 @@ export function defaultLobby(): LobbyCfg {
     hero: '',
     form: 0,
   }));
-  return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75, chaos: false, heroPowers: true };
+  return { slots, mapId: 'test', mode: 'brawl', roundsToWin: 5, timeLimit: 180, friendlyFire: false, weaponSpawnRate: 1, suddenDeath: 75, chaos: false, heroPowers: true, fallDeath: true };
 }
 
 /** Keyboard player index of a slot kind (kb0 -> 0, kb1 -> 1), else -1. */
@@ -163,6 +165,7 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
       weaponSpawnRate: c.weaponSpawnRate,
       chaos: c.chaos,
       heroPowers: c.heroPowers,
+      fallDeath: c.fallDeath,
       seed,
     },
   };

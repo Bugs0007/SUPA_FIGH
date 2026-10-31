@@ -41,6 +41,8 @@ export interface RoomConfig {
   friendlyFire: boolean;
   weaponSpawnRate: number;
   heroPowers: boolean;
+  /** falling out of the map kills (off = thrown back in) */
+  fallDeath: boolean;
   chaos: boolean;
   modifiers: string[];
   bots: BotSpec[];
@@ -54,6 +56,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
   friendlyFire: false,
   weaponSpawnRate: 1,
   heroPowers: true,
+  fallDeath: true,
   chaos: false,
   modifiers: [],
   bots: [],
@@ -196,6 +199,7 @@ export function sanitizeConfig(v: unknown): Partial<RoomConfig> | null {
   if ('friendlyFire' in v) out.friendlyFire = v.friendlyFire === true;
   if ('weaponSpawnRate' in v) out.weaponSpawnRate = num(v.weaponSpawnRate, 0, 2, 1);
   if ('heroPowers' in v) out.heroPowers = v.heroPowers === true;
+  if ('fallDeath' in v) out.fallDeath = v.fallDeath !== false;
   if ('chaos' in v) out.chaos = v.chaos === true;
   if (Array.isArray(v.modifiers)) out.modifiers = v.modifiers.filter((m): m is string => typeof m === 'string' && MODIFIERS.some((d) => d.id === m)).slice(0, 8);
   if (Array.isArray(v.bots)) {

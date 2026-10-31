@@ -124,6 +124,27 @@ export const LAST_HIT_CREDIT = 6;
 export const SUDDEN_DEATH_DRAIN_AFTER = 15; // seconds after sudden death starts until HP drains
 export const SUDDEN_DEATH_DPS = 2;
 export const RESPAWN_PROTECTION = 1.5;
+/**
+ * FALL DEATH off (a match rule): a fighter that falls out of the map is thrown back in from the top, over an open
+ * column near where it fell (falling off the side: the nearest columns inside), instead of dying.
+ */
+export const THROW_IN = {
+  /** HP lost per fall; never takes the fighter below 1 HP. Counts as the last attacker's damage, never as a kill. */
+  damage: 10,
+  /** seconds of invulnerability after coming back in */
+  invuln: 1,
+  /** launch: downward speed (px/s), sideways speed toward the middle of the map (px/s) */
+  vy: 140,
+  vx: 30,
+  /** seconds of tumbling (no control) before the fighter can steer again */
+  stun: 0.3,
+  /** feet this many px above the top of the map when the column is open to the sky */
+  above: 4,
+  /** a column needs at least this many free tiles above the floor it drops onto (body + a visible drop) */
+  minDrop: 3,
+  /** solid rows at the top of a column (a roof) skipped to reach the open space under it, at most */
+  maxRoof: 8,
+} as const;
 // Ghosts (Brawl): the dead haunt the living
 export const GHOST_DELAY = 1.2; // seconds after death before the ghost rises
 export const GHOST_SPEED = 110;

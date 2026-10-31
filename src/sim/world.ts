@@ -34,6 +34,10 @@ export interface WorldSettings {
   noPickups?: boolean;
   /** rare hero power-up pickups (M9) appear during the round */
   heroPowers?: boolean;
+  /** falling out of the map kills (default true); false = the fighter is thrown back in (THROW_IN in constants.ts) */
+  fallDeath?: boolean;
+  /** with fallDeath off, bots still die from falls (Co-op: the enemy waves) */
+  fallDeathBots?: boolean;
 }
 
 export const DEFAULT_WORLD_SETTINGS: WorldSettings = {

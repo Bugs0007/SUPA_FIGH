@@ -109,6 +109,7 @@ import {
   type Grip,
 } from './hero';
 import { detonate } from './item';
+import { fallKills, outOfWorld, throwIn } from './fall';
 import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
 import { conveyorPush, useCannon } from './gimmicks';
 import { copyIntent, emptyIntent, type Intent } from './intent';
@@ -739,6 +740,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
     if (f.cook <= 0 || f.state !== 'aim' || !f.aimHeld) dropCooked(w, f);
   }
 
+  if (f.alive && !superGuard(f) && outOfWorld(w, f) && !fallKills(w, f)) throwIn(w, f);
   if (f.alive && (f.state === 'normal' || f.state === 'crouch' || f.state === 'roll')) autoPickup(w, f);
   copyIntent(f.prev, inp);
 }
@@ -811,8 +813,9 @@ function propContacts(w: World, f: Fighter, prevY: number): void {
 function checkOutOfWorld(w: World, f: Fighter): void {
   if (superGuard(f)) return;
   if (!f.alive) return;
-  const out = f.y > w.killY || f.x < -160 || f.x > w.map.pxW + 160;
-  if (out) {
+  if (outOfWorld(w, f)) {
+    // fall death off: thrown back in once its update is over (updateFighter)
+    if (!fallKills(w, f)) return;
     killFighter(w, f, { damage: 999, kbX: 0, kbY: 0, attacker: -1, weapon: 'fall', kind: 'fall' });
     f.gone = true;
     return;

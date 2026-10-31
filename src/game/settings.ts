@@ -21,6 +21,8 @@ export interface Settings {
   /** quick match from the title: map id or 'random', and 1 or 2 keyboard players */
   quickMap: string;
   quickPlayers: number;
+  /** falling out of the map kills (Quick Match; Match Setup's FALL DEATH rule is kept in step with it) */
+  fallDeath: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -38,6 +40,7 @@ const DEFAULTS: Settings = {
   quickMap: 'test',
   // a phone has one set of controls
   quickPlayers: isTouchDevice() ? 1 : 2,
+  fallDeath: true,
 };
 
 export const settings: Settings = load('settings', DEFAULTS);

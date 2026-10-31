@@ -72,6 +72,8 @@ export type SimEvent =
   | { t: 'heal'; f: number; amount: number }
   | { t: 'spinUp'; f: number }
   | { t: 'respawn'; f: number; x: number; y: number }
+  /** FALL DEATH off: a fighter fell out of the map (exit point, clamped to the map) and was thrown back in at x, y */
+  | { t: 'thrownIn'; f: number; fromX: number; fromY: number; x: number; y: number; damage: number; attacker: number }
   | { t: 'hazard'; kind: string; x: number; y: number; on: boolean }
   | { t: 'supplyDrop'; x: number; y: number }
   | { t: 'gravity'; on: boolean; x: number; y: number }

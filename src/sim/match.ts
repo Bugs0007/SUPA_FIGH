@@ -38,6 +38,8 @@ export interface MatchConfig {
   modifiers?: string[];
   /** rare hero power-up pickups during rounds (M9) */
   heroPowers?: boolean;
+  /** falling out of the map kills (default true); false = thrown back in with a small penalty (Co-op: enemy bots still fall to their death) */
+  fallDeath?: boolean;
 }
 
 export const MODE_NAMES: Record<GameMode, string> = {
@@ -178,6 +180,8 @@ export class Match {
       ghosts: this.cfg.mode === 'brawl',
       noPickups: this.cfg.mode === 'gungame',
       heroPowers: !!this.cfg.heroPowers && this.cfg.mode !== 'gungame',
+      fallDeath: this.cfg.fallDeath !== false,
+      fallDeathBots: this.cfg.mode === 'coop',
     };
   }
 
@@ -386,6 +390,8 @@ export class Match {
         this.stats[e.attacker].damage += e.damage;
       } else if (e.t === 'block' && e.attacker >= 0 && e.attacker !== e.victim) {
         this.stats[e.attacker].damage += e.chip; // chip damage through a guard
+      } else if (e.t === 'thrownIn' && e.attacker >= 0 && e.attacker !== e.f) {
+        this.stats[e.attacker].damage += e.damage; // knocked out of the map with fall death off: damage, no kill
       } else if (e.t === 'kill') {
         this.stats[e.victim].deaths++;
         if (e.killer >= 0 && e.killer !== e.victim) {

@@ -6,6 +6,10 @@ import { saveSettings, settings, type Settings } from '../game/settings';
 import { menu } from '../input/menu';
 import { hint, HintBar, meter, panel, rowBar, toggle } from './kit';
 import { bindZoom } from './ui';
+import { loadLobby, saveLobby } from './lobby';
+
+/** row pitch (px) */
+const ROW_H = 22;
 
 type Row =
   | { label: string; key: keyof Settings; kind: 'pct' }
@@ -22,6 +26,7 @@ const ROWS: Row[] = [
   { label: 'INSTANT REPLAYS', key: 'replays', kind: 'bool' },
   { label: 'LAN PREDICTION', key: 'netPrediction', kind: 'bool' },
   { label: 'FULLSCREEN', key: 'fullscreen', kind: 'bool' },
+  { label: 'FALL DEATH', key: 'fallDeath', kind: 'bool' },
   { label: 'BACK', kind: 'back' },
 ];
 
@@ -50,8 +55,8 @@ export class SettingsScene extends Phaser.Scene {
     if (this.overlay) this.gfx.fillStyle(0x000000, 0.85).fillRect(0, 0, VIEW_W, VIEW_H);
     this.add.bitmapText(VIEW_W / 2, 24, 'pxo', 'SETTINGS').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
     this.t = 0;
-    this.texts = ROWS.map((r, i) => this.add.bitmapText(VIEW_W / 2 - 150, 71 + i * 24, 'pxo', '').setDepth(2).setVisible(r.kind !== 'back'));
-    this.values = ROWS.map((_, i) => this.add.bitmapText(VIEW_W / 2 + 150, 71 + i * 24, 'pxo', '').setOrigin(1, 0).setDepth(2));
+    this.texts = ROWS.map((r, i) => this.add.bitmapText(VIEW_W / 2 - 150, 71 + i * ROW_H, 'pxo', '').setDepth(2).setVisible(r.kind !== 'back'));
+    this.values = ROWS.map((_, i) => this.add.bitmapText(VIEW_W / 2 + 150, 71 + i * ROW_H, 'pxo', '').setOrigin(1, 0).setDepth(2));
     this.bar = new HintBar(this);
     this.bar.set([hint.move('SELECT', 'ud'), hint.move('CHANGE', 'lr'), hint.back('BACK')]);
     this.render();
@@ -84,6 +89,12 @@ export class SettingsScene extends Phaser.Scene {
         if (settings.fullscreen && !this.scale.isFullscreen) this.scale.startFullscreen();
         else if (!settings.fullscreen && this.scale.isFullscreen) this.scale.stopFullscreen();
       }
+      if (r.key === 'fallDeath') {
+        // one preference: Match Setup's FALL DEATH rule follows (a running match keeps its own rules)
+        const lobby = loadLobby();
+        lobby.fallDeath = settings.fallDeath;
+        saveLobby(lobby);
+      }
       audio.setVolumes(settings.masterVolume, settings.sfxVolume, settings.musicVolume);
       saveSettings();
       audio.play('uiOk');
@@ -96,10 +107,10 @@ export class SettingsScene extends Phaser.Scene {
     g.clear();
     if (this.overlay) g.fillStyle(0x000000, 0.85).fillRect(0, 0, VIEW_W, VIEW_H);
     const blink = Math.floor(this.t * 3) % 2 === 0;
-    panel(g, VIEW_W / 2 - 170, 44, 340, ROWS.length * 24 + 34, hexToNum(P.purple1), true);
+    panel(g, VIEW_W / 2 - 170, 44, 340, ROWS.length * ROW_H + 34, hexToNum(P.purple1), true);
     ROWS.forEach((r, i) => {
       const sel = this.row === i;
-      const y = 71 + i * 24;
+      const y = 71 + i * ROW_H;
       if (sel) rowBar(g, VIEW_W / 2 - 166, y - 6, 332, 20, blink);
       const label = this.texts[i];
       const val = this.values[i];

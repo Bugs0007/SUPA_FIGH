@@ -77,7 +77,7 @@ test('host and join through the menus, ready up, play, reconnect', async ({ brow
   await press(guest, 'ArrowDown', 4); // P1, F1, P2, F2 -> READY
   await press(guest, 'Enter');
   await expect.poll(async () => (await room(host))?.peers.find((p) => p.ready)).toBeTruthy();
-  await press(host, 'ArrowDown', 11); // BOTS -> ... -> START MATCH (row 14 of 15)
+  await press(host, 'ArrowDown', 12); // BOTS -> ... -> START MATCH (row 15 of 16)
   await host.screenshot({ path: 'tests/e2e/screenshots/netlobby-ready.png' });
   await press(host, 'Enter');
 

@@ -26,9 +26,9 @@ export interface NetLobbyData {
 }
 
 type Phase = 'connecting' | 'error' | 'rooms' | 'room';
-type RowId = 'map' | 'mode' | 'length' | 'bots' | 'skill' | 'botHeroes' | 'ff' | 'weapons' | 'chaos' | 'powers' | 'p1' | 'f1' | 'p2' | 'f2' | 'ready' | 'start' | 'leave';
+type RowId = 'map' | 'mode' | 'length' | 'bots' | 'skill' | 'botHeroes' | 'ff' | 'weapons' | 'chaos' | 'powers' | 'fall' | 'p1' | 'f1' | 'p2' | 'f2' | 'ready' | 'start' | 'leave';
 
-const SETTING_ROWS: RowId[] = ['map', 'mode', 'length', 'bots', 'skill', 'botHeroes', 'ff', 'weapons', 'chaos', 'powers'];
+const SETTING_ROWS: RowId[] = ['map', 'mode', 'length', 'bots', 'skill', 'botHeroes', 'ff', 'weapons', 'chaos', 'powers', 'fall'];
 const ROW_LABELS: Record<RowId, string> = {
   map: 'MAP',
   mode: 'MODE',
@@ -40,6 +40,7 @@ const ROW_LABELS: Record<RowId, string> = {
   weapons: 'WEAPONS',
   chaos: 'CHAOS CARDS',
   powers: 'HERO POWERS',
+  fall: 'FALL DEATH',
   p1: 'PLAYER 1',
   f1: 'FIGHTER 1',
   p2: 'PLAYER 2',
@@ -129,7 +130,7 @@ export class NetLobbyScene extends Phaser.Scene {
     this.sub = this.add.bitmapText(VIEW_W / 2, 26, 'smo', '').setOrigin(0.5, 0).setTint(0x8d95b0);
     this.status = this.add.bitmapText(VIEW_W / 2, VIEW_H - 30, 'smo', '').setOrigin(0.5, 0).setTint(0xf8c840);
     for (let i = 0; i < 12; i++) this.lines.push(this.add.bitmapText(VIEW_W / 2, 70 + i * 14, 'smo', '').setOrigin(0.5, 0));
-    for (let i = 0; i < 17; i++) {
+    for (let i = 0; i < 18; i++) {
       this.labels.push(this.add.bitmapText(326, PANEL_Y + 18 + i * ROW_H, 'sm', ''));
       this.values.push(this.add.bitmapText(626, PANEL_Y + 17 + i * ROW_H, 'smo', '').setOrigin(1, 0));
     }
@@ -308,6 +309,8 @@ export class NetLobbyScene extends Phaser.Scene {
         return send({ chaos: !cfg.chaos });
       case 'powers':
         return send({ heroPowers: !cfg.heroPowers });
+      case 'fall':
+        return send({ fallDeath: cfg.fallDeath === false });
       case 'p1':
       case 'p2': {
         const n = row === 'p1' ? 0 : 1;
@@ -479,6 +482,8 @@ export class NetLobbyScene extends Phaser.Scene {
         return on(cfg.chaos);
       case 'powers':
         return on(cfg.heroPowers);
+      case 'fall':
+        return cfg.fallDeath !== false ? 'ON' : 'OFF (THROWN BACK)';
       case 'p1':
         return this.claimed(0) ? clip(profiles[0].name, 8) : 'OFF';
       case 'p2':

@@ -74,10 +74,10 @@ test('re-enter title, lobby and creator without errors', async ({ page }) => {
   await press(page, 'Enter', 4); // back to solo
   await press(page, 'ArrowLeft'); // KIND column
   await press(page, 'ArrowUp'); // last row (CONTROLS...) → setting rows change with left/right
-  await press(page, 'ArrowUp', 9); // MAP row
+  await press(page, 'ArrowUp', 10); // MAP row
   await press(page, 'ArrowRight');
   await press(page, 'ArrowLeft');
-  await press(page, 'ArrowDown', 9);
+  await press(page, 'ArrowDown', 10);
   await press(page, 'ArrowDown'); // back to slot 1
   for (let i = 0; i < 2; i++) {
     await press(page, 'ArrowLeft', 2); // slot 1, LOOK column (columns wrap: KIND -> START FORM -> LOOK)

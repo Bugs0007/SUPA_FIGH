@@ -8,6 +8,7 @@ import { VIEW_H, VIEW_W } from '../game/display';
 import { connectedPads, padMenu } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
+import { saveSettings, settings } from '../game/settings';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { MODE_NAMES, type GameMode } from '../sim/match';
 
@@ -36,7 +37,9 @@ import { bakeMapPreview } from '../art/mapPreview';
 const SLOT_COLS = ['kind', 'team', 'skill', 'look', 'form'] as const;
 const SLOT_COL_X = [36, 130, 186, 244, 298];
 const SLOT_COL_W = [88, 50, 52, 50, 38];
-const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'start', 'controls'] as const;
+const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'fall', 'start', 'controls'] as const;
+/** rules panel row pitch (px): 11 rows still clear the map preview below */
+const SET_H = 16;
 type Setting = (typeof SETTINGS)[number];
 
 const padStyleOf = () => inputDevice.pad;
@@ -93,13 +96,13 @@ export class LobbyScene extends Phaser.Scene {
       this.previews.push(this.add.container(0, 0));
     }
     SETTINGS.forEach((_, i) => {
-      this.settingLabels.push(this.add.bitmapText(354, 52 + i * 17, 'sm', '').setTint(0x8d95b0).setDepth(2));
-      this.settingValues.push(this.add.bitmapText(626, 49 + i * 17, 'pxo', '').setOrigin(1, 0).setDepth(2));
+      this.settingLabels.push(this.add.bitmapText(354, 52 + i * SET_H, 'sm', '').setTint(0x8d95b0).setDepth(2));
+      this.settingValues.push(this.add.bitmapText(626, 49 + i * SET_H, 'pxo', '').setOrigin(1, 0).setDepth(2));
     });
     this.bar = new HintBar(this);
     this.joinText = this.add.bitmapText(8, 330, 'sm', '').setTint(0x8d95b0);
-    this.status = this.add.bitmapText(354, 48 + SETTINGS.length * 17 + 3, 'smo', '').setTint(0xea4a4a).setDepth(2);
-    this.preview = this.add.image(490,280,'__DEFAULT').setDepth(1);
+    this.status = this.add.bitmapText(354, 48 + SETTINGS.length * SET_H + 3, 'smo', '').setTint(0xea4a4a).setDepth(2);
+    this.preview = this.add.image(490,285,'__DEFAULT').setDepth(1);
     this.blurb = this.add.bitmapText(344, 330, 'sm', '').setTint(0x8d95b0);
     this.refreshPreviews();
     this.render();
@@ -109,7 +112,7 @@ export class LobbyScene extends Phaser.Scene {
   private drawMapPreview(): void {
     if (this.previewMap === this.cfg.mapId) return;
     this.previewMap = this.cfg.mapId;
-    this.preview.setTexture(bakeMapPreview(this,this.cfg.mapId)).setDisplaySize(184,92);
+    this.preview.setTexture(bakeMapPreview(this,this.cfg.mapId)).setDisplaySize(172,86);
     this.blurb.setText(getMap(this.cfg.mapId).name.toUpperCase()).setOrigin(.5,0).setX(490);
   }
 
@@ -256,6 +259,12 @@ export class LobbyScene extends Phaser.Scene {
       case 'powers':
         c.heroPowers = !c.heroPowers;
         return true;
+      case 'fall':
+        c.fallDeath = !c.fallDeath;
+        // one preference: the Settings menu's FALL DEATH (Quick Match) follows Match Setup and vice versa
+        settings.fallDeath = c.fallDeath;
+        saveSettings();
+        return true;
       default:
         return false;
     }
@@ -311,13 +320,14 @@ export class LobbyScene extends Phaser.Scene {
       weapons: ['WEAPONS', WEAPON_RATE_LABELS[WEAPON_RATES.indexOf(c.weaponSpawnRate)] ?? 'NORMAL'],
       chaos: ['CHAOS CARDS', c.chaos ? 'ON' : 'OFF'],
       powers: ['HERO POWER-UPS', c.heroPowers && c.mode !== 'gungame' ? 'ON' : 'OFF'],
+      fall: ['FALL DEATH', c.fallDeath ? 'ON' : 'OFF (THROWN BACK)'],
       start: ['', '>> START MATCH <<'],
       controls: ['', 'CONTROLS...'],
     };
-    panel(g, 344, 38, 292, SETTINGS.length * 17 + 22, hexToNum(P.purple1), this.setting() !== null);
+    panel(g, 344, 38, 292, SETTINGS.length * SET_H + 22, hexToNum(P.purple1), this.setting() !== null);
     SETTINGS.forEach((st, i) => {
       const sel = this.row === MAX_SLOTS + i;
-      const y = 50 + i * 17;
+      const y = 50 + i * SET_H;
       if (sel) rowBar(g, 346, y - 3, 288, 15, blink);
       const [label, value] = vals[st];
       const label_ = this.settingLabels[i];

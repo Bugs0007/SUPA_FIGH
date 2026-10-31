@@ -66,7 +66,7 @@ function quickMapId(id: string, seed: number): string {
 /**
  * Quick-match setup: keyboard players (?humans=0..2) + bots (?bots=N, ?diff=easy|normal|hard|expert).
  * ?heroes=naruto,luffy,goku assigns heroes in player order (humans first, '-' = scrapyard fighter);
- * hero power-ups spawn unless ?powers=0.
+ * hero power-ups spawn unless ?powers=0; falling out of the map kills unless ?falldeath=0 (default: the Settings menu).
  */
 export function defaultSetup(params: URLSearchParams): MatchSceneData {
   const bots = Math.max(0, Math.min(8, Number(params.get('bots') ?? 0)));
@@ -114,6 +114,7 @@ export function defaultSetup(params: URLSearchParams): MatchSceneData {
       friendlyFire: false,
       weaponSpawnRate: 1,
       heroPowers: params.get('powers') !== '0',
+      fallDeath: params.has('falldeath') ? params.get('falldeath') !== '0' : settings.fallDeath,
       seed,
     },
   };
@@ -129,6 +130,7 @@ function trailerSetup(shot: ShotSpec): MatchSceneData {
     diff: shot.diff ?? 'expert',
     humans: '0',
     powers: shot.powers ? '1' : '0',
+    falldeath: '1', // scripted shots never depend on the player's settings
   });
   const setup = defaultSetup(p);
   for (const pl of setup.players) pl.label = '';

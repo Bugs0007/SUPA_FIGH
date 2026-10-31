@@ -86,6 +86,11 @@ export const SOUNDS: Record<string, SfxDef> = {
     { wave: 'sine', freq: 80, slide: -1, decay: 0.15, volume: 0.6 },
   ],
   grab: [{ wave: 'square', freq: 340, slide: -1, decay: 0.07, duty: 0.3, volume: 0.18 }],
+  // fall death off: sucked out at the bottom (a rising whoosh), then a falling whistle as the fighter drops back in
+  throwIn: [
+    { wave: 'noise', freq: 700, slide: 1.8, attack: 0.05, sustain: 0.05, decay: 0.16, lowpass: 0.35, volume: 0.32 },
+    { wave: 'sine', freq: 1400, slide: -1.4, attack: 0.02, sustain: 0.08, decay: 0.22, delay: 0.14, volume: 0.13, vibDepth: 0.04, vibSpeed: 22 },
+  ],
   throw: [{ wave: 'noise', freq: 1800, slide: -1.2, attack: 0.03, sustain: 0.05, decay: 0.2, lowpass: 0.3, volume: 0.35 }],
   spawn: [
     { wave: 'sine', freq: 1200, slide: 2, decay: 0.12, volume: 0.15 },

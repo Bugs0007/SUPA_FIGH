@@ -226,6 +226,7 @@ export class Room {
       chaos: c.chaos,
       modifiers: c.modifiers.length ? [...c.modifiers] : undefined,
       heroPowers: c.heroPowers,
+      fallDeath: c.fallDeath,
     };
     this.looks = looks;
     this.session = new Session(cfg, slots);

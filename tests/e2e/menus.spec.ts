@@ -35,8 +35,8 @@ test('title -> lobby -> deathmatch with teams', async ({ page }) => {
   await press(page, 'ArrowDown', 11);
   await press(page, 'ArrowRight'); // brawl -> deathmatch
   await page.screenshot({ path: 'tests/e2e/screenshots/lobby.png' });
-  // START row = slots(10) + 8 (map, mode, length, sudden, ff, weapons, chaos, hero power-ups, START)
-  await press(page, 'ArrowDown', 7);
+  // START row = slots(10) + 9 (map, mode, length, sudden, ff, weapons, chaos, hero power-ups, fall death, START)
+  await press(page, 'ArrowDown', 8);
   await press(page, 'Enter');
   await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 20);
   const info = await page.evaluate(() => {

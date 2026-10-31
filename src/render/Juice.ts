@@ -5,7 +5,7 @@ import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_W } from '../game/display';
 import { settings } from '../game/settings';
-import { TILE } from '../sim/constants';
+import { GRAVITY, THROW_IN, TILE } from '../sim/constants';
 import { weaponDef } from '../sim/data/weapons';
 import type { SimEvent } from '../sim/events';
 import { activeWeapon, gunGeometry } from '../sim/fighter';
@@ -81,6 +81,8 @@ export class Juice {
   /** seconds of hit-stop requested (the frame loop freezes the sim) */
   hitstop = 0;
   ui: UiEvent[] = [];
+  /** fighters thrown back into the map (fall death off) -> world time it happened: their landing gets a dust burst */
+  private droppingIn = new Map<number, number>();
 
   constructor(
     private r: WorldRenderer,
@@ -229,11 +231,22 @@ export class Juice {
         fx.dust(e.x, e.y, 2, 18);
         this.sfx('swing', e.x, 0.45, 0.6);
         break;
-      case 'land':
+      case 'land': {
         this.r.views[e.f]?.onLand(e.speed);
         fx.dust(e.x, e.y, Math.min(6, Math.floor(e.speed / 90)), 35 + e.speed * 0.05);
         this.sfx('land', e.x, Math.min(1, e.speed / 400));
+        const t0 = this.droppingIn.get(e.f);
+        if (t0 !== undefined) {
+          this.droppingIn.delete(e.f);
+          if (t0 <= w.time && w.time - t0 < 3) {
+            // touchdown after being thrown back in
+            fx.dust(e.x, e.y, 8, 70);
+            fx.spawn({ frame: 'ring', x: e.x, y: e.y - 2, life: 0.3, s0: 0.3, s1: 2.6, a0: 0.6, a1: 0, tint: 0xd8d0c0, depth: 64 });
+            this.cam.addTrauma(0.12);
+          }
+        }
         break;
+      }
       case 'swing':
         this.sfx('swing', w.fighters[e.f].x, 0.8, (SWING_PITCH[e.weapon] ?? 1) + e.step * 0.1);
         break;
@@ -421,6 +434,25 @@ export class Juice {
         fx.motes(e.x, e.y - 8, 8, 0xffffff);
         this.sfx('spawn', e.x);
         break;
+      case 'thrownIn': {
+        // fall death off: a swirl where the fighter left the map, a streak dropping in from the top
+        const ex = Math.max(8, Math.min(w.map.pxW - 8, e.fromX));
+        const ey = Math.max(8, Math.min(w.map.pxH - 4, e.fromY));
+        const tint = 0xb0e0ff;
+        fx.spawn({ frame: 'ring', x: ex, y: ey - 6, life: 0.4, s0: 2.8, s1: 0.2, a0: 0.2, a1: 0.9, tint, depth: 64 });
+        fx.spawn({ frame: 'ring', x: ex, y: ey - 6, life: 0.3, s0: 0.3, s1: 2.4, a0: 0.8, a1: 0, tint: 0xffffff, depth: 64 });
+        fx.motes(ex, ey - 6, 12, tint);
+        // the streak falls exactly like the fighter (same launch, same gravity) a few px behind it, fading out
+        const g = GRAVITY * w.gravityAt(e.x, Math.max(0, e.y));
+        for (let k = 0; k < 10; k++) {
+          fx.spawn({ frame: 'p1', x: e.x + (Math.random() - 0.5) * 3, y: e.y - 16 - k * 5, vy: THROW_IN.vy, g, life: 0.2 + k * 0.03, s0: 1.6 - k * 0.1, s1: 0.4, a0: 0.9 - k * 0.07, a1: 0, tint: k < 3 ? 0xffffff : tint, collide: true, depth: 59 });
+        }
+        this.droppingIn.set(e.f, w.time);
+        this.sfx('throwIn', e.x);
+        this.cam.addTrauma(0.1);
+        if (settings.damageNumbers && e.damage > 0) this.r.floatText(e.x, Math.max(20, e.y + 12), '-' + Math.round(e.damage), hexToNum(P.yellow2));
+        break;
+      }
       case 'spinUp':
         this.sfx('spinup', w.fighters[e.f].x, 0.8);
         break;
