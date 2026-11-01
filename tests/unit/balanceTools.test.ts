@@ -2,7 +2,7 @@ import {expect,it} from 'vitest';
 import {Match} from '../../src/sim/match';
 import {World} from '../../src/sim/world';
 import {HEROES,CLONE_SLINGSHOT,FORM_COMBO} from '../../src/sim/data/heroes';
-import {drawKirin} from '../../src/art/kirinArt';
+import {drawKirin,drawKirinImpact} from '../../src/art/kirinArt';
 import {HeroMobility} from '../../src/ai/heroMove';
 import {navFor} from '../../src/ai/nav';
 import {BotController} from '../../src/ai/bot';
@@ -42,7 +42,8 @@ it('Kirin descends from the map ceiling and reaches the strike on time at every 
   for(const level of [1,2,3,4])for(const targetY of [120,480,1200]){
     const bottom=(t:number)=>{
       const boxes:number[][]=[];
-      drawKirin({fillStyle:()=>{},fillRect:(x,y,w,h)=>{boxes.push([x,y,w,h]);}},200,targetY,t,level,0);
+      let color=0;
+      drawKirin({fillStyle:c=>{color=c;},fillRect:(x,y,w,h)=>{if(color===0x152951)boxes.push([x,y,w,h]);}},200,targetY,t,level,0);
       return Math.max(...boxes.map(b=>b[1]+b[3]));
     };
     expect(bottom(0)).toBeLessThan(30);
@@ -51,6 +52,27 @@ it('Kirin descends from the map ceiling and reaches the strike on time at every 
     expect(bottom(FORM_COMBO.windup)).toBeGreaterThan(targetY);
     expect(bottom(FORM_COMBO.windup)).toBeLessThan(targetY+20);
     expect(bottom(FORM_COMBO.duration)).toBe(bottom(FORM_COMBO.windup));
+  }
+});
+it('Kirin lightning blast starts on impact, covers the strike area and fades out',()=>{
+  const boxes=(t:number)=>{
+    const out:number[][]=[];
+    drawKirinImpact({fillStyle:()=>{},fillRect:(x,y,w,h)=>{out.push([x,y,w,h]);}},200,300,t,4,0);
+    return out;
+  };
+  expect(boxes(FORM_COMBO.windup-.001)).toHaveLength(0);
+  const burst=boxes(FORM_COMBO.windup);
+  expect(burst.length).toBeGreaterThan(200);
+  expect(Math.min(...burst.map(b=>b[0]))).toBeLessThan(185);
+  expect(Math.max(...burst.map(b=>b[0]+b[2]))).toBeGreaterThan(215);
+  for(const box of burst)for(const n of box)expect(Number.isInteger(n)).toBe(true);
+  expect(boxes(FORM_COMBO.duration)).toHaveLength(0);
+});
+it('Kirin has a mirrored side profile with its snout pointing in the caster direction',()=>{
+  for(const facing of [-1,1]){
+    let color=0;const nose:number[]=[];
+    drawKirin({fillStyle:c=>{color=c;},fillRect:(x,y,w)=>{if(color===0x152951)nose.push(x+w/2);}},200,300,.1,1,0,facing);
+    expect((nose[0]-200)*facing).toBeGreaterThan(10);
   }
 });
 it('Kirin can miss an enemy that escapes the marked strike position',()=>{

@@ -809,3 +809,5 @@ Round recordings retain the final kill's victim slot. The replay camera follows 
 
 ### D99 — Kirin falls from the map ceiling
 Kirin's head starts at world y=0 and descends to its announced strike position over the existing windup, replacing the fixed 90-pixel offset above the target. Form scaling affects the dragon's size while every form reaches the target at the existing damage and stun tick. Targets already above the map do not cause an upward flight.
+
+Kirin uses a mirrored side-profile skull with one eye, swept antlers, an elongated snout and a biting jaw. At the damage tick, a blue-white flash, forked lightning and an expanding ground ring appear at the announced strike location and fade during recovery. The blast illustrates the existing area hit and stun without adding a second damage event.

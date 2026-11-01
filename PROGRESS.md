@@ -393,3 +393,4 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D98: instant replay follows the killed fighter throughout the clip, including fast knockback and falls outside the arena.
 
 - [x] Kirin descends from the map ceiling to its marked strike position, reaching it at the existing hit / stun timing in every form.
+- [x] Kirin side-profile dragon head and a branching lightning impact blast at the marked target location.

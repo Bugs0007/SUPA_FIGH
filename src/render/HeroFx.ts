@@ -369,7 +369,7 @@ export class HeroFx {
     if(f.hero==='sasuke'){
       const tx=f.anchorX,ty=f.anchorY-11;
       if(t<FORM_COMBO.windup)this.ring(this.back,tx,f.anchorY,KIRIN.radius+KIRIN.radiusPerForm*(formLevel(f)-1),0x8cd8ff,.35,.25);
-      drawKirin(this.front,tx,ty,t,formLevel(f),time);
+      drawKirin(this.front,tx,ty,t,formLevel(f),time,f.facing);
     }else if(f.hero==='naruto'){
       this.choreography.slingshot(v,x,y);
       for(let i=0;i<5;i++)this.back.fillStyle(0xffd05a,.3).fillRect(Math.round(x)-d*(10+i*7),Math.round(y)-16+i%3*4,5,1);
