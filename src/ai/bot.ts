@@ -12,7 +12,7 @@ import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND,
 import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { heroDef, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
+import { heroDef, FORM_COMBO, SASUKE_ARROW, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
 import { amaterasuReach, baseAbility, dashDir, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
@@ -59,6 +59,7 @@ interface Threat {
 
 /** A hero move the bot can start right now: which buttons, for how long, and the stick held meanwhile. */
 interface HeroPick {
+  combo?: boolean;
   hold: 'ability' | 'kick' | 'both';
   ticks: number;
   mx: number;
@@ -117,6 +118,7 @@ export class BotController implements Controller {
   /** ticks left to hold ABILITY (charging a ki blast) */
   private chargeTicks = 0;
   private hold: 'ability' | 'kick' | 'both' = 'ability';
+  private comboHold = false;
   private readonly isClone: boolean;
   /** consecutive ticks the bot sent no input at all while it should be doing something (watchdog) */
   private idleTicks = 0;
@@ -257,6 +259,7 @@ export class BotController implements Controller {
     this.lootId = -1;
     this.ignoreItems.clear();
     this.chargeTicks = 0;
+    this.comboHold = false;
     this.hazardNodes.clear();
     this.prev = emptyIntent();
     this.idleTicks = 0;
@@ -748,6 +751,7 @@ export class BotController implements Controller {
         const on = this.chargeTicks > 0;
         this.out.ability = on && this.hold !== 'kick';
         this.out.kick = on && this.hold !== 'ability';
+        this.out.attack = on && this.comboHold;
       }
       if (this.aimTicks > 0) {
         // the stick aims the move until it has started (transformed heroes' single presses wait SUPER_WINDOW)
@@ -787,7 +791,8 @@ export class BotController implements Controller {
   /** Press a hero move's buttons (held for `ticks`) with the stick held at its aim. */
   private startMove(f: Fighter, pick: HeroPick): void {
     // a transformed hero's single press waits SUPER_WINDOW for the other button: hold everything that much longer
-    const wait = transformed(f) && pick.hold !== 'both' ? Math.ceil(SUPER_WINDOW / DT) + 1 : 0;
+    const wait = transformed(f) && pick.hold !== 'both' && !pick.combo ? Math.ceil(SUPER_WINDOW / DT) + 1 : 0;
+    this.comboHold = !!pick.combo;
     this.hold = pick.hold;
     this.chargeTicks = pick.ticks + wait;
     this.aimX = pick.mx;
@@ -795,7 +800,7 @@ export class BotController implements Controller {
     this.aimTicks = Math.max(this.chargeTicks, wait + 2);
     this.guardOn = false; // (an ability cancels the guard)
     this.taps.delete('attack');
-    this.out.attack = false;
+    this.out.attack = !!pick.combo;
     this.out.moveX = pick.mx;
     this.out.moveY = pick.my;
     this.out.ability = pick.hold !== 'kick';
@@ -835,6 +840,10 @@ export class BotController implements Controller {
     const near = Math.abs(e.x - f.x);
     const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     if (!clear) return null;
+    if(transformed(f)&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
+      const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:near>45&&level<70);
+      if(fits)cands.push({hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:face,my:0,weight:BOT_FIGHT.wCombo});
+    }
     // the stick: Up / Down to aim (Down only works in the air)
     const upDown = (a: number) => (a < -SECOND_AIM * 0.5 ? -1 : a > SECOND_AIM * 0.5 && !f.grounded ? 1 : 0);
 
@@ -844,7 +853,7 @@ export class BotController implements Controller {
       const pointBlank = near <= 30 && level <= 16;
       let ok = false;
       let my = 0;
-      if (sp.kind === 'bomb') ok = pointBlank || (dist <= (sp.bomb?.range ?? 320) && near >= 4 && Math.abs(ang) <= LOCK_CONE);
+      if (sp.kind === 'bomb') ok = pointBlank || (dist <= (f.hero==='sasuke'&&f.powerLevel>=3?SASUKE_ARROW.lockRange:sp.bomb?.range ?? 320) && near >= 4 && Math.abs(ang) <= (f.hero==='sasuke'&&f.powerLevel>=3?1.45:LOCK_CONE));
       else if (sp.kind === 'fist' && sp.fist) {
         my = upDown(ang);
         const a = my < 0 ? sp.fist.upAngle : my > 0 ? sp.fist.downAngle : 0;
@@ -1389,6 +1398,12 @@ export class BotController implements Controller {
   /** Move toward a world point using the nav graph. */
   private navigate(w: World, f: Fighter, x: number, y: number, heroTravel = true): void {
     const g = this.graph!;
+    if(heroTravel&&!this.isClone&&f.hero==='naruto'&&transformed(f)&&f.formComboCd<=0&&this.canMove(f)&&this.goal.t==='loot'){
+      const orb=w.items[this.goal.item],dist=Math.hypot(x-f.x,y-f.y);
+      if(orb?.active&&orb.weaponId==='powerorb'&&dist>70&&dist<=FORM_COMBO.range&&w.map.clearShot(f.x,f.y-15,orb.x,orb.y)){
+        this.startMove(f,{hold:'kick',combo:true,ticks:2,mx:x>=f.x?1:-1,my:-1,weight:1});return;
+      }
+    }
     if (f.state === 'aim' && f.aimHeld) {
       this.out.attack = false;
       return;

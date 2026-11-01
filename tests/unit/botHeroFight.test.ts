@@ -48,6 +48,18 @@ function play(w: World, bot: BotController, ticks: number, other: (t: number) =>
 }
 
 describe('hero bots use their moves at every range', () => {
+  it.each(['sasuke','naruto','luffy','goku'])('%s deliberately uses its form combo',id=>{
+    const w=duel(hero('bot',id,1),spec('dummy'),100,230);
+    const f=w.fighters[0],d=w.fighters[1];
+    const bot=new BotController(()=>w,0,{difficulty:'expert',seed:7});
+    let used=false;
+    play(w,bot,60*20,()=>({}),(events)=>{
+      used ||= events.some(e=>e.t==='superStart'&&e.f===0&&['KIRIN','CLONE SLINGSHOT','JET BAZOOKA','VANISH STRIKE'].includes(e.name));
+      pin(d,230,FLOOR);f.formHp=120;
+      return used;
+    });
+    expect(used).toBe(true);
+  });
   it.each([
     ['naruto', 'rasengan'],
     ['sasuke', 'chidori'],

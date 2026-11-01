@@ -501,7 +501,7 @@ function kuramaRaster(frame: number, roar: boolean): Baked {
   r.poly(P([[-20, -7], [-4, -7], [-2, -1], [-21, -1]]), K_FAR);
   r.poly(T([[24, -44], [36, -26], [42, -7]], 6.5, 5), K_FAR);
   r.poly(P([[36, -9], [52, -9], [55, -1], [35, -1]]), K_FAR);
-  r.poly(T([H([40, -64]), H([30, -72]), H([17, -77])], 6, 0.6), K_FAR);
+  r.poly(T([H([40, -64]), H([36, -75]), H([29, -81])], 6, 0.6), K_FAR);
 
   // the body: a low, powerful, crouched mass rising to big shoulders, chakra flicking off the back
   r.poly(P([[-48, -24], [-48, -34], [-40, -41], [-26, -43], [-10, -45], [6, -50], [18, -56], [30, -57], [38, -46], [37, -32], [30, -22], [16, -17], [0, -19], [-14, -20], [-28, -17], [-42, -17]]), K_BODY);
@@ -534,20 +534,21 @@ function kuramaRaster(frame: number, roar: boolean): Baked {
   // the open mouth (dark), then the head and the jaw over it: what stays dark between them is the mouth
   r.poly([Q(...hinge), Q(...H([71, -48])), Q(...J([68, -44])), Q(...J([48, -39]))], K_MOUTH);
   r.poly(T([H([28, -52]), H([22, -46]), H([18, -42])], 4.5, 1), K_HEAD);
-  r.poly(HQ([[24, -55], [28, -63], [36, -68], [46, -68], [54, -63], [62, -58], [70, -53], [71, -48], [62, -47], [50, -46], [38, -45], [28, -47]]), K_HEAD);
-  r.poly(T([H([33, -63]), H([22, -71]), H([7, -76])], 6.5, 0.6), K_EAR);
-  mark([H([31, -65]), H([21, -71]), H([12, -74])]);
+  r.poly(HQ([[24, -55], [28, -66], [36, -71], [45, -68], [50, -60], [59, -56], [70, -53], [71, -48], [62, -47], [50, -49], [38, -45], [28, -47]]), K_HEAD);
+  r.poly(T([H([33, -64]), H([25, -74]), H([20, -82])], 6.5, 0.6), K_EAR);
+  mark([H([31, -65]), H([25, -73]), H([22, -78])],2);
   r.poly([Q(...J([38, -45])), Q(...J([62, -46])), Q(...J([68, -44])), Q(...J([63, -40])), Q(...J([48, -38])), Q(...J([38, -40]))], K_JAW);
   // fangs down from the upper lip, up from the jaw
   for (const u of [52, 58, 64]) r.poly(HQ([[u - 1.5, -47], [u + 1.5, -47], [u + 0.3, -43]]), K_FANG);
   for (const u of [48, 54, 60]) r.poly([Q(...J([u - 1.3, -44.5])), Q(...J([u + 1.3, -44.5])), Q(...J([u, -48]))], K_FANG);
   // the eye: a slanted slit with a black pupil under a heavy brow; three bold whisker marks; the nose
-  r.poly(HQ([[43, -60], [55, -63.5], [56, -59.5], [45, -57.5]]), K_EYE);
-  mark([H([50, -62]), H([50, -59])]);
-  mark([H([40, -62]), H([48, -65]), H([57, -66])], 2);
-  mark([H([42, -57]), H([51, -56])]);
+  r.poly(HQ([[37,-64],[50,-62],[48,-56],[39,-57]]),K_MARK);
+  r.poly(HQ([[39, -62], [49, -60], [46, -57.5], [40, -59]]), K_EYE);
+  mark([H([45, -61]), H([45, -58])]);
+  mark([H([36, -66]), H([42, -64]), H([51, -62])], 2);
+  mark([H([44, -55]), H([54, -54])]);
   for (const k of [0, 1, 2]) mark([H([31, -58 + k * 3]), H([40, -57 + k * 2.5])], 2);
-  r.rect(...R(...H([69, -51])), 2, 2, K_MARK);
+  r.poly(HQ([[67,-54],[72,-52],[71,-49],[67,-50]]),K_MARK);
   // cheek ruff: licks off the back of the head
   tongue(r, ...Q(...H([28, -48])), -0.85, 0.5, 7 + wob([0, 2, 1, 3], frame), 5, 1, K_HEAD);
   tongue(r, ...Q(...H([26, -57])), -0.9, -0.3, 6 + wob([1, 3, 0, 2], frame), 5, -1, K_HEAD);

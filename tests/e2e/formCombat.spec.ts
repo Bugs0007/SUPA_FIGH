@@ -34,3 +34,23 @@ for(const hero of ['sasuke','naruto','luffy','goku'])test(`${hero}: form combo a
   await page.screenshot({path:`tests/e2e/screenshots/${hero}-special-gallery.png`});
   expect(errors).toEqual([]);
 });
+
+test('clone swing stays horizontal before the Superman launch',async({page})=>{
+  await page.goto('/?scene=art&page=moves&hero=naruto&move=special');
+  await page.waitForFunction(()=>(window as any).__GAME__?.game.scene.getScene('art').gallery);
+  const motion=await page.evaluate(()=>{
+    const h=(window as any).__GAME__,s=h.game.scene.getScene('art'),g=s.gallery;
+    h.game.loop.stop();s.update=()=>{};
+    const samples=[];
+    for(const t of [.51,.61,.71,.81,.91,1.01]){
+      g.t=t;g.update(0);const v=g.views[4];
+      samples.push({x:v.root.x-v.fighter.x,y:v.root.y-v.fighter.y,angle:v.rig.rotation});
+    }
+    g.t=.85;g.update(0);h.game.step(performance.now(),0);
+    return samples;
+  });
+  expect(Math.max(...motion.map(s=>s.x))-Math.min(...motion.map(s=>s.x))).toBeGreaterThan(35);
+  expect(Math.max(...motion.map(s=>s.y))-Math.min(...motion.map(s=>s.y))).toBeLessThan(10);
+  for(const s of motion)expect(s.angle).toBeCloseTo(Math.PI/2,2);
+  await page.screenshot({path:'tests/e2e/screenshots/naruto-horizontal-swing.png'});
+});

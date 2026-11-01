@@ -96,6 +96,7 @@ export const BOT_FIGHT = {
   wSuper: 4,
   wBase: 3,
   wSecond: 2,
+  wCombo: 4,
   vsGuardSuper: 2,
 };
 

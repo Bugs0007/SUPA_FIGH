@@ -82,7 +82,7 @@ for (const hero of ['naruto', 'luffy', 'goku']) {
   });
 }
 
-test('Kurama chakra arms render from real Rasengan and bomb inputs, including hit recovery', async ({ page }) => {
+test('Kurama uses side-on Rasengan arms and no hands during Bijudama', async ({ page }) => {
   await page.goto('/?scene=match&trailer=1&shot=rasengan&timer=1');
   await page.waitForFunction(() => (window as any).__TRAILER__?.ready());
   const result = await page.evaluate(() => {
@@ -99,9 +99,12 @@ test('Kurama chakra arms render from real Rasengan and bomb inputs, including hi
     const fx = scene.wr.heroFx, f = scene.match.world.fighters[0];
     const states = new Set<string>();
     let unchanged = true;
-    for (const method of ['kuramaArms', 'rasengan']) {
-    const draw = fx.choreography[method].bind(fx.choreography);
-    fx.choreography[method] = (...args: any[]) => {
+    let bombHands=0;
+    const hands=fx.choreography.kuramaArms.bind(fx.choreography);
+    fx.choreography.kuramaArms=(...args:any[])=>{if(f.specialKind==='bomb')bombHands++;return hands(...args);};
+    for (const [owner,method] of [[fx.choreography,'rasengan'],[fx,'bombOrb']] as const) {
+    const draw = owner[method].bind(owner);
+    owner[method] = (...args: any[]) => {
       const before = JSON.stringify(scene.match.world.fighters);
       draw(...args);
       unchanged &&= before === JSON.stringify(scene.match.world.fighters);
@@ -110,10 +113,11 @@ test('Kurama chakra arms render from real Rasengan and bomb inputs, including hi
     }
     driver.begin();
     for (let i = 0; i < 190; i++) driver.step();
-    return { states: [...states], unchanged, aboveBody: fx.front.depth > scene.wr.views[0].root.depth, belowOrb: fx.front.depth < fx.orbs.depth };
+    return { states: [...states], unchanged, bombHands, aboveBody: fx.front.depth > scene.wr.views[0].root.depth, belowOrb: fx.front.depth < fx.orbs.depth };
   });
   expect(result.states).toEqual(expect.arrayContaining(['rasengan', 'rasengan-recovery', 'bomb-charge', 'bomb-release']));
   expect(result.unchanged).toBe(true);
+  expect(result.bombHands).toBe(0);
   expect(result.aboveBody && result.belowOrb).toBe(true);
 });
 

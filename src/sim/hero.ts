@@ -520,20 +520,21 @@ function chidoriShock(w: World, f: Fighter, victim: Fighter, d: DashStats, p: Or
  * Rasengan contact: the first fighter the orb touches is blasted along the dash. Props get shoved. True on a hit.
  * A fighter whose own orb is coming the other way is left alone here: that is a clash (resolveOrbClashes).
  */
-export function rasenganHit(w: World, f: Fighter, d: DashStats): boolean {
+export function rasenganHit(w: World, f: Fighter, d: DashStats, from?: { x: number; y: number }): boolean {
   const { x: hx, y: hy } = rasenganPoint(f);
   const r = orbRadius(f, d);
   const p = orbPower(f);
   for (const pr of w.props) {
     if (!pr.active || f.swingProps.includes(pr.id)) continue;
-    if (!orbTouches(hx, hy, r, pr)) continue;
+    if (!orbTouches(hx, hy, r, pr) && !(from && segmentAabb(from.x,from.y,hx,hy,pr.x-pr.w/2-r,pr.y-pr.h-r,pr.x+pr.w/2+r,pr.y+r)>=0)) continue;
     f.swingProps.push(pr.id);
     pushProp(pr, p.dir.x * d.knockX * p.m.knock, (p.dir.y * d.knockX * p.m.knock + d.knockY) * 0.6);
     damageProp(w, pr, d.damage * p.m.dmg, f.id);
   }
   for (const o of w.fighters) {
     if (o === f || o.gone || !o.alive || f.swingHit.includes(o.id)) continue;
-    if (!orbTouches(hx, hy, r, o) || clashing(w, f, o)) continue;
+    const touching=orbTouches(hx,hy,r,o)||(from&&segmentAabb(from.x,from.y,hx,hy,o.x-o.w/2-r,o.y-o.h-r,o.x+o.w/2+r,o.y+r)>=0);
+    if (!touching || clashing(w, f, o)) continue;
     f.swingHit.push(o.id);
     if (orbStrike(w, f, o, d, p, hx, hy)) return true;
   }

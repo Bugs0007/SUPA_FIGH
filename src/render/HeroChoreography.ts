@@ -163,10 +163,10 @@ export class HeroChoreography {
     const helpers=this.echoes.get(v.fighter.id)??[];
     const e=helpers[0];if(!e)return;
     const a=t/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns,d=v.fighter.facing;
-    this.pose(e,v.texFor(formLevel(v.fighter)),BF.WINDUP,a);
+    this.pose(e,v.texFor(formLevel(v.fighter)),BF.WINDUP,Math.cos(a)>0?0:Math.PI);
     e.root.setVisible(true).setPosition(x,y).setScale(d,1).setAlpha(.85);
     // A single thrower keeps hold of Naruto's hand throughout the circular swing.
-    const hx=x+d*Math.cos(a)*12,hy=y-12+Math.sin(a)*12;
+    const hx=x+d*Math.cos(a)*12,hy=y-12+Math.sin(a)*2;
     this.curve(this.front,[x,y-16,x+d*5,y-18,hx,hy,hx,hy],hexToNum(v.lookFor(formLevel(v.fighter)).skin),2,.95);
   }
 

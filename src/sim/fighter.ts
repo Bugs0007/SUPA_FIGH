@@ -2366,6 +2366,7 @@ function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
       const dir = dashDir(f);
       f.vx = dir.x * d.speed;
       f.vy = dir.y * d.speed;
+      const from=rasenganPoint(f);
       const res = integrate(w, f, dt, false);
       let solid = res.wallX !== 0 || (res.landed && dir.y > 0) || (res.ceil && dir.y < 0);
       if (dir.y < 0 && f.y - f.h < 2) {
@@ -2373,7 +2374,7 @@ function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
         f.y = 2 + f.h;
         solid = true;
       }
-      const hit = rasenganHit(w, f, d);
+      const hit = rasenganHit(w, f, d, from);
       if (hit || solid) {
         // straight into the recovery (a hit bounces back a little)
         f.recoverAt = t;

@@ -222,3 +222,5 @@ The animated moves gallery now has **5: SPECIAL** and **6: GUARD** previews. Sus
 
 Clone Slingshot uses one clone holding Naruto's hand, swinging him around before releasing him in a Superman pose at high speed. Chidori now dashes twice as fast.
 Kirin holds a hit enemy stunned for 1.5 seconds.
+
+Bots now use all four form combos and Naruto's clone throw for power-orb traversal. Clone Slingshot spins horizontally; Kurama's Bijudama forms at its mouth without supporting hands.

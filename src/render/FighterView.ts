@@ -489,8 +489,7 @@ export class FighterView {
         if (kind === 'formCombo' && f.hero === 'naruto') {
           smoothArms=false; frame=BF.STRETCH;leanTarget=0;
           if(f.stateTime<CLONE_SLINGSHOT.windup){
-            const a=f.stateTime/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns;
-            rigRot=a+Math.PI/2;front=Math.PI/2;back=1.9;
+            rigRot=Math.PI/2;front=Math.PI/2;back=1.9;
           }else{
             rigRot=Math.PI/2+Math.atan2(f.vy,f.vx*f.facing);
             front=-Math.PI/2;back=-Math.PI/2+.12;
@@ -762,11 +761,15 @@ export class FighterView {
     this.root.setPosition(x, y + bob);
     if(f.hero==='naruto'&&f.state==='special'&&f.specialKind==='formCombo'&&f.stateTime<CLONE_SLINGSHOT.windup){
       const a=f.stateTime/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns;
-      this.root.setPosition(x+f.facing*Math.cos(a)*CLONE_SLINGSHOT.swingRadius,y-12+Math.sin(a)*CLONE_SLINGSHOT.swingRadius);
+      this.root.setPosition(x+f.facing*Math.cos(a)*CLONE_SLINGSHOT.swingRadius,y+Math.sin(a)*4);
     }
     this.squash *= Math.pow(0.001, dt * 6);
     const sq = this.squash;
     this.root.setScale(f.facing * (1 + sq * 0.6) * (1 - this.turnT * 0.35), 1 - sq);
+    if(f.hero==='naruto'&&f.state==='special'&&f.specialKind==='formCombo'&&f.stateTime<CLONE_SLINGSHOT.windup){
+      const turn=Math.sin(f.stateTime/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns);
+      this.root.scaleX*= (turn>=0?1:-1)*(.55+.45*Math.abs(turn));
+    }
     // on a wall the body lies along it: pull the rig off the wall so the feet touch it, not the middle
     this.rig.setPosition(f.state === 'wallwalk' ? -6 : 0, lerp(-RIG_Y, -4, this.lieAmount));
     this.lean += (leanTarget - this.lean) * Math.min(1, dt * 14);

@@ -651,20 +651,10 @@ export class HeroFx {
         this.disc(this.orbs,cx,cy,r+1,0x6a3348);
         this.disc(this.orbs,cx,cy,r,0x211427);
         this.disc(this.orbs,cx-r*.25,cy-r*.25,r*.32,0xe5a6ca,.65);
-        this.choreography.kuramaArms(x,y,cx,cy,r,fade*.85);
-      } else {
-        // released: the arms swing forward with the orb and fade with the avatar
-        const elapsed=f.stateTime-b.windup;
-        if(elapsed>=0&&fade>0)this.choreography.kuramaArms(x,y,x+f.facing*(8+elapsed*70),y-SHOULDER_Y_STAND-2,5,fade);
       }
       return;
     }
     if (f.charge < 0) {
-      if (f.hero === 'naruto' && formLevel(f) === 4) {
-        const elapsed = f.stateTime - heroDef('naruto')!.super.bomb!.windup;
-        const fade = Math.max(0, 1 - elapsed / .3);
-        if (elapsed >= 0 && fade > 0) this.choreography.kuramaArms(x, y, x + f.facing * (8 + elapsed * 70), y - SHOULDER_Y_STAND - 2, 5, fade);
-      }
       return;
     }
     if (f.hero === 'goku') {
@@ -687,12 +677,6 @@ export class HeroFx {
       this.disc(g, cx - r * 0.25, cy - r * 0.3, r * 0.3, level === 4 ? 0xffda75 : 0xb54b81, 0.65);
     }
     if (beast) this.choreography.rasengan(this.views[f.id], x, y, cx, cy, k, time);
-    if (level === 4) {
-      // A brief Kurama silhouette and golden chakra hands support the overhead Bijudama.
-      this.back.fillStyle(0xe3a129, 0.25).fillTriangle(x - 18, y - 28, x - 11, y - 52, x - 4, y - 31)
-        .fillTriangle(x + 18, y - 28, x + 11, y - 52, x + 4, y - 31);
-      this.choreography.kuramaArms(x, y, cx, cy, r, .95);
-    }
     for (let i = 0; i < 6; i++) {
       const a = time * 11 + (i * Math.PI) / 3;
       g.fillStyle(i % 2 ? c1 : c0, 1).fillRect(Math.round(cx + Math.cos(a) * (r + 2)) - 1, Math.round(cy + Math.sin(a) * (r + 2)) - 1, 2, 2);
