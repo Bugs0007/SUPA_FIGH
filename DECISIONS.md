@@ -737,3 +737,52 @@ short exchange hero bots back off along the nav graph, then a ranged move become
 (`DifficultyDef` fields, `BOT_FIGHT`). Form-4 Naruto vs Sasuke on `test` (hard): combo share 0.65 -> 0.14, close share
 0.58 -> 0.22, ~2 % guard time; `npm run herofight` reproduces it. Also: a base ability (Rasengan, Chidori, pistol, blink) can no
 longer be started out of hitstun / knockdown (`startBase` checks `canAct`, like ability 2 and the super).
+
+
+### D88 — FALL DEATH rule (thrown back in)
+New match rule `fallDeath` (default ON = falling out of the map kills, as before), in Match Setup, in Settings (which Quick
+Match uses; the two menus are kept in step as one preference) and in LAN rooms. When OFF, a fighter leaving the map (below
+`killY` or off a side) is not killed: at the end of its update `sim/fall.ts` throws it back in from the top of the map, over
+the nearest column (inward first) with a floor, at least 3 free tiles, no water and no map hazard near the landing (a roof of up
+to 8 rows is skipped), else at the nearest spawn. It drops in tumbling (`flinch` 0.3 s, not `knockdown`, whose landing damage
+could kill), keeps its weapons (a cooked grenade and a carried prop are lost), loses `THROW_IN.damage` = 10 HP (never below 1,
+credited to the last attacker's damage, never a kill) and gets 1 s of invulnerability. A `thrownIn` event drives the juice.
+Shadow clones still poof and co-op's enemy bots still die (`fallDeathBots`). Hazards that kill on purpose are unchanged; missing
+settings mean ON, so old saves, replays and tests are unaffected.
+
+### D89 — BLOCK button, symmetric clashes, Chidori nerf, clones can't guard
+Guarding moved off PUNCH onto its own BLOCK button (`Intent.block`, bit 15; protocol v2). Holding BLOCK raises the guard on the
+press with any weapon in hand (an aim is dropped, a gun lowered); PUNCH is back to tap = punch, hold = aim. Every D82 rule
+stays (front only, chip, pushback, blockstun, meter, guard break, a 0.12 s parry once per press, jump / kick / ability /
+interact cancel). Defaults: P1 G, P2 Num5 / K, pads RT (RT used to duplicate PUNCH's X); old saves migrate, a default key a save
+already uses elsewhere is left unbound; phones get a hold-to-guard BLOCK button. Shadow clones can never guard or parry. Two
+orbs meeting now give both fighters one shared hit: the average of the form-scaled damages, the stronger form-scaled knockback
+away from each other along the line between them, and the longer stun (1 s or more = dazed in place, else a knockdown); no
+Chidori spread on a clash; order-independent. Chidori: stun 2 -> 1 s, and its shock reaches at most `spread.maxCount` = 2 extra
+enemies (1 in base form). herofight form 4: guard time 2.1 %, combo share 10 %.
+
+### D90 — Valley of the End
+The placeholder Waterfall Valley became the Valley of the End (same id `valley`, theme key and slot), built from the anime
+layout: two statues, the Senju founder on the left and the Uchiha on the right, face each other across a gorge with the
+waterfall between them and two rocks at its foot. The statues are the terrain: head, shoulder guards, the raised two-finger hand
+(the seal of confrontation), armour skirt and pedestal are platforms. `maps/valley.ts` builds the rows from exported part boxes,
+so `art/valleyArt.ts` paints each statue cell by cell exactly over its collision; vines stand in for ladders. The river is a
+solid riverbed under 8 px of water drawn in front of fighters (`render/ValleyFx.ts`), not deadly water (the fights happen on the
+water, and nobody dies at spawn); splashes are visual only. The waterfall scrolls behind the stone. Dusk sky by default
+(`VALLEY_WEATHER = 'rain'` gives the rainy look of the first fight). Top-form Naruto vs Sasuke bots: close share 0.15 (leaf
+0.16, test arena 0.21): the middle is deliberately open for flyers and area supers.
+
+### D91 — Layered pixel-clean parallax backgrounds, open indoor halls
+Each map theme's backdrop is a stack of up to five 640x360 horizontally tiling layers: far (sky, sun / moon, distant shapes
+mixed toward the sky colour), an optional drifting clouds layer, mid, near (darkest, least detailed), and an optional animated
+overlay of 2-4 frames riding one layer (blinking windows and beacons, water glitter, twinkling stars, banners, petals).
+`render/Parallax.ts` plays the stack for the match backdrop and the title screen. Light is stepped bands with a 4x4 ordered
+dither, never smooth blur (`art/bgKit.ts`); backgrounds stay darker and lower in contrast than the playfield. A theme is a
+`BACKGROUNDS` def plus a `PAINTERS[theme](pc, layer, frame, frames)` entry. Baking got faster (20-54 ms per theme, was 58-152 ms)
+because hot loops write packed pixels; the title screen frees each theme's textures as it cycles. For hero fights, TOURNAMENT
+HALL (`dojo`) and MUSEUM ATRIUM (`museum`) are open indoor halls: an unbroken floor of 36+ tiles, galleries and one-way
+platforms only at the sides and high up, cover only at the edges, the back wall opened onto the parallax view. In top-form
+Naruto vs Sasuke bot duels they deal 16-33 % more super damage than Hidden Leaf Forest.
+
+### D92 — Translucent Kurama and Susanoo
+The spirits use whole-pixel opacity bands: a bright rim, darker transparent core and a faint one-pixel halo. Four cached frames flicker flames, feathers and nine fox tails. Mangekyo has ribs and a horned tengu skull; Perfect adds layered armour, a crown, feathered wings and a drawn bow. Kurama crouches with seal rings, slit eyes and fangs, opening its mouth for Bijudama. Combo arms share the spectral palette and progress from open claws to fists. Launch offsets live in SUSANOO_LAUNCH and KURAMA_LAUNCH and are shared by art and simulation. Canvas padding preserves moving wing tips; spirit pixels stop at the feet. Tests cover transparency, palettes, animation, bounds and launch alignment.

@@ -209,3 +209,8 @@ Useful URL parameters:
 - `?scene=art&page=weapons` (or `&page=heroes`)
 - `&speed=4`
 - `&seed=N`
+
+### New arenas and match rule
+Fight in **Tournament Hall**, **Museum Atrium**, and **Valley of the End**, with statue platforms, a waterfall and river. Every map has layered pixel-art parallax scenery.
+
+**FALL DEATH** is available in Match Setup, Settings and LAN rooms. Turn it off to return falling fighters from above with 10 damage that cannot kill them. Kurama and Susanoo now appear as translucent, animated chakra spirits.

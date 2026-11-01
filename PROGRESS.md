@@ -363,3 +363,13 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] Bots use hero moves at every range (point-blank, air, combo enders), block / parry, grab guards, back off to make space (D87); `npm run herofight`
 - [ ] Play-test on a phone: JUMP / CROUCH reach, no zoom on rapid taps; Chidori stun feel, Amaterasu with 3-4 enemies, ultimate lock-on at different heights
 - [ ] Play-test: block / parry timing, 8-way dash feel, super area size (a top-form super does ~120 to everyone near the impact), mid-air clashes
+
+## Combat, maps and spectral spirits (D88–D92)
+- [x] Chidori: 1 s stun, at most two shock targets; clones cannot guard or parry.
+- [x] Rasengan / Chidori clashes apply symmetric damage, knockback and stun.
+- [x] Dedicated BLOCK: G / Num5 or K / RT / phone hold button; bots use Intent.block.
+- [x] FALL DEATH option in Match Setup, Settings and LAN; off throws fighters back with nonlethal 10 damage.
+- [x] Layered parallax backgrounds on every map; Tournament Hall and Museum Atrium.
+- [x] Valley of the End with statue terrain, waterfall and river.
+- [x] Translucent Kurama, skeletal and armoured Susanoo, animated spectral combo arms; shared launch coordinates.
+- [ ] Play-test on phones and LAN: guard timing, fall re-entry, new maps and spirit visibility over varied scenery.
