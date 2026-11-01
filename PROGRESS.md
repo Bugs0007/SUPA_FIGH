@@ -394,3 +394,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 
 - [x] Kirin descends from the map ceiling to its marked strike position, reaching it at the existing hit / stun timing in every form.
 - [x] Kirin side-profile dragon head and a branching lightning impact blast at the marked target location.
+
+- [x] D100: Luffy durability / movement buffs, stronger and more frequent Gatling / supers, guaranteed Gatling finisher, shared art / bot / combat reach and per-fighter herofight results.

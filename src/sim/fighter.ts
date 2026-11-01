@@ -2169,9 +2169,15 @@ function stGatling(w: World, f: Fighter, dt: number): void {
     f.swingHit.length = 0;
     f.swingProps.length = 0;
   }
-  if (t < g.time && f.abilT >= g.every) {
+  const finalAt = g.time - g.every;
+  if (t >= finalAt && t - dt < finalAt) {
+    // The last punch has its own hit window; a recent flurry hit must not suppress it.
+    f.swingHit.length = 0;
+    f.swingProps.length = 0;
+    gatlingHit(w, f, g, true);
+  } else if (t < finalAt && f.abilT >= g.every) {
     f.abilT = 0;
-    gatlingHit(w, f, g, t >= g.time - g.every);
+    gatlingHit(w, f, g, false);
   }
   if (t >= g.time + 0.15) endSpecial(w, f);
 }

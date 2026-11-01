@@ -276,6 +276,11 @@ export function secondAbility(f: Fighter): SecondAbility | null {
   return heroDef(f.hero)?.second ?? null;
 }
 
+/** Shared by Gatling's hitbox, bot selection and drawn fists. */
+export function gatlingReach(f: Fighter): number {
+  return (secondAbility(f)?.gatling?.range ?? 0) + (ability(f)?.reach ?? 0) * 2;
+}
+
 /** Melee-style damage/knockback multipliers (strength pickup, hero form / generic boost). */
 export function meleeMuls(f: Fighter): { dmg: number; knock: number } {
   const strength = f.strengthBoost > 0 ? (weaponDef('strength').powerup?.mult ?? 1) : 1;
@@ -667,7 +672,7 @@ export function stretchAt(s: StretchStats, t: number): number {
  */
 export function gatlingHit(w: World, f: Fighter, g: NonNullable<SecondAbility['gatling']>, final: boolean): void {
   const near = f.x + f.facing * (f.w / 2 - 2);
-  const far = f.x + f.facing * (f.w / 2 + g.range + (ability(f)?.reach ?? 0) * 2);
+  const far = f.x + f.facing * (f.w / 2 + gatlingReach(f));
   const l = Math.min(near, far);
   const r = Math.max(near, far);
   const t = f.y - 21;

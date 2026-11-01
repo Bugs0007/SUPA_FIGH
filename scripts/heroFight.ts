@@ -18,6 +18,7 @@ const guard: Record<string, number> = { block: 0, parry: 0, guardBreak: 0, block
 let close = 0, total = 0, kills = 0;
 const distHist = [0, 0, 0, 0, 0];
 const stateClose: Record<string, number> = {};
+const results = [{ damage: 0, kills: 0, roundsWon: 0 }, { damage: 0, kills: 0, roundsWon: 0 }];
 for (let m = 0; m < matches; m++) {
   const match = new Match({
     mapId: map, mode: 'brawl', roundsToWin: 99, friendlyFire: false, weaponSpawnRate: 0, seed: 11 + m * 7, heroPowers: false,
@@ -58,10 +59,16 @@ for (let m = 0; m < matches; m++) {
       }
     }
   }
+  for (let i = 0; i < 2; i++) {
+    results[i].damage += match.stats[i].damage;
+    results[i].kills += match.stats[i].kills;
+    results[i].roundsWon += match.stats[i].roundsWon;
+  }
 }
 const all = Object.values(dmg).reduce((s, v) => s + v, 0);
 const combo = Object.entries(dmg).filter(([k]) => k.endsWith(':combo')).reduce((s, [, v]) => s + v, 0);
 console.log(`${ha} vs ${hb} form ${form} map ${map} ${diff}: close(<30px) ${(close / total).toFixed(2)}  combo share ${(combo / all).toFixed(2)}  total dmg ${Math.round(all)}  kills ${kills}`);
+console.log('fighters', [ha, hb].map((hero, i) => `${hero}: damage ${Math.round(results[i].damage)}, kills ${results[i].kills}, rounds won ${results[i].roundsWon}`).join(' | '));
 console.log('dist hist per 30px', distHist.map((v) => (v / total).toFixed(2)).join(' '));
 console.log('damage by weapon', Object.entries(dmg).sort((x, y) => y[1] - x[1]).map(([k, v]) => k + '=' + Math.round(v)).join('  '));
 console.log('guard', JSON.stringify(guard), 'block time share', (guard.blockTicks / (2 * total)).toFixed(3));

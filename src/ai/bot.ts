@@ -13,7 +13,7 @@ import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
 import { heroDef, FORM_COMBO, SASUKE_ARROW, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
-import { amaterasuReach, baseAbility, dashDir, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
+import { amaterasuReach, baseAbility, dashDir, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
@@ -880,7 +880,7 @@ export class BotController implements Controller {
       } else if (s2.kind === 'clones') {
         if (f.cloneCount === 0 && dist <= 220) cands.push({ hold: 'kick', ticks: 2, mx: face, my: 0, weight: w2 * 1.5 });
       } else if (s2.kind === 'gatling' && s2.gatling) {
-        if (near <= s2.gatling.range && level <= 14) cands.push({ hold: 'kick', ticks: 2, mx: face, my: 0, weight: w2 });
+        if (near <= gatlingReach(f) && level <= 14) cands.push({ hold: 'kick', ticks: 2, mx: face, my: 0, weight: w2 });
       } else if (s2.kind === 'fireball') {
         const my = upDown(ang);
         const a = my * SECOND_AIM;
@@ -1040,7 +1040,7 @@ export class BotController implements Controller {
       }
       case 'gatling': {
         const g = heroDef(e.hero)?.second.gatling;
-        if (!g || !facing || level > 16 || adx > g.range + 10) return null;
+        if (!g || !facing || level > 16 || adx > gatlingReach(e) + 10) return null;
         return { e, kind: 'ability', eta: 0, key: key('g') };
       }
       case 'beamCharge':

@@ -78,7 +78,8 @@ describe('hero data', () => {
       expect(h.stats.speed).toBeGreaterThanOrEqual(0.95);
       expect(h.stats.speed).toBeLessThanOrEqual(1.08);
       expect(h.stats.hp).toBeGreaterThanOrEqual(95);
-      expect(h.stats.hp).toBeLessThanOrEqual(110);
+      // Luffy's rubber durability is his deliberate base-stat advantage.
+      expect(h.stats.hp).toBeLessThanOrEqual(h.id === 'luffy' ? 115 : 110);
     }
   });
 

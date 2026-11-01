@@ -383,7 +383,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     id: 'luffy',
     name: 'LUFFY',
     blurb: 'GEAR SECOND > GEAR THIRD > GEAR FOURTH > GEAR FIFTH',
-    stats: { speed: 1.0, hp: 105 },
+    stats: { speed: 1.05, hp: 115 },
     comboName: 'RUBBER COMBO',
     combo: heroCombo('steam', true),
     base: {
@@ -414,16 +414,16 @@ export const HEROES: Record<string, HeroDefinition> = {
     second: {
       kind: 'gatling',
       name: 'GUM-GUM GATLING',
-      desc: 'A FLURRY OF STRETCHY PUNCHES IN FRONT OF HIM.',
-      cooldown: 4,
-      gatling: { time: 0.7, every: 0.06, range: 64, damage: 2, knockX: 50, rehit: 0.12, finalKnock: 280 },
+      desc: 'A LONG-REACH FLURRY THAT KEEPS ENEMIES CLOSE, THEN LAUNCHES THEM WITH A HEAVY FINISHER. REACH GROWS WITH EACH GEAR.',
+      cooldown: 2.8,
+      gatling: { time: 0.7, every: 0.06, range: 84, damage: 3.5, knockX: 25, rehit: 0.12, finalKnock: 420 },
     },
     super: {
       kind: 'fist',
       names: ['JET PISTOL', 'ELEPHANT GUN', 'KING KONG GUN', 'BAJRANG GUN'],
       desc: 'A GIANT FIST THAT FLATTENS EVERYTHING IN ITS PATH.',
-      cooldown: 8,
-      fist: { range: 150, out: 0.16, hold: 0.12, back: 0.14, damage: 18, knockX: 420, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 8, shock: 32, shockPerLevel: 10 },
+      cooldown: 6.5,
+      fist: { range: 150, out: 0.13, hold: 0.12, back: 0.14, damage: 24, knockX: 460, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 9, shock: 38, shockPerLevel: 12 },
     },
     forms: [
       { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 4 },

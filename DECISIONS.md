@@ -811,3 +811,21 @@ Round recordings retain the final kill's victim slot. The replay camera follows 
 Kirin's head starts at world y=0 and descends to its announced strike position over the existing windup, replacing the fixed 90-pixel offset above the target. Form scaling affects the dragon's size while every form reaches the target at the existing damage and stun tick. Targets already above the map do not cause an upward flight.
 
 Kirin uses a mirrored side-profile skull with one eye, swept antlers, an elongated snout and a biting jaw. At the damage tick, a blue-white flash, forked lightning and an expanding ground ring appear at the announced strike location and fade during recovery. The blast illustrates the existing area hit and stun without adding a second damage event.
+
+### D100 — Luffy pressure and durability
+Luffy has 115 base HP (was 105) and 1.05 movement speed (was 1). Gatling's base range is 84 (was 64), damage 3.5 (was 2), cooldown 2.8 s (was 4), ordinary knockback 25 (was 50) to retain targets, and finishing knockback 420 (was 280). The final punch gets an independent hit window at time minus punch interval, fixing suppression by the preceding rehit window. Gatling reach is shared across combat, artwork, bot move selection and threat recognition, including form reach bonuses.
+
+Giant-fist supers recharge in 6.5 s (was 8), extend in 0.13 s (was 0.16), deal 24 plus 9 per additional Gear (was 18 plus 8), knock back at 460 (was 420), and have a 38 plus 12 per additional Gear landing shock radius (was 32 plus 10). Existing range / fist growth and grapple behavior remain. The herofight report now includes each fighter's damage, kills and rounds won so matchup tuning can be compared using identical seeds.
+
+Seeded survey: `herofight <form> test hard luffy <opponent> 4 60`, seeds 11 / 18 / 25 / 32. Round wins are Luffy–opponent; finite samples with map items and environmental kills, not a guarantee of equal win rates.
+
+| Form | Opponent | Before | After |
+| --- | --- | --- | --- |
+| 1 | Naruto | 2–14 | 4–8 |
+| 1 | Sasuke | 3–4 | 8–2 |
+| 1 | Goku | 5–6 | 6–4 |
+| 4 | Naruto | 4–12 | 7–10 |
+| 4 | Sasuke | 8–5 | 7–6 |
+| 4 | Goku | 6–7 | 10–5 |
+
+Reversed-slot Gear Fifth checks on neon (`<opponent> luffy 2 60`) finished Luffy–opponent 8–5 against Naruto, 8–3 against Sasuke and 6–4 against Goku.

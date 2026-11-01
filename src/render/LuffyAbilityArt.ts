@@ -5,6 +5,7 @@ import { heroDef, JET_BAZOOKA } from '../sim/data/heroes';
 import { SHOULDER_Y_STAND } from '../sim/constants';
 import type { FighterView } from './FighterView';
 import { formLevel } from './formLevel';
+import { gatlingReach } from '../sim/hero';
 
 type Graphics = Phaser.GameObjects.Graphics;
 type Point = { x: number; y: number };
@@ -151,7 +152,7 @@ export class LuffyAbilityArt {
     for (let i = 0; i < count; i++) {
       const phase = (f.stateTime / (stats.every * count) + i / count) % 1;
       const extension = phase < .34 ? phase / .34 : Math.max(0, (1 - phase) / .66);
-      const len = 5 + stats.range * previewReach * extension;
+      const len = 5 + gatlingReach(f) * previewReach * extension;
       const lane = (i - (count - 1) / 2) * (level === 2 ? 5.5 : 4);
       const sx = x + f.facing * 2, sy = y - SHOULDER_Y_STAND + 1;
       const dy = lane / Math.max(20, len), dx = Math.sqrt(Math.max(.75, 1 - dy * dy)) * f.facing;

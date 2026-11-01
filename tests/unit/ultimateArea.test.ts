@@ -127,7 +127,7 @@ describe('area numbers', () => {
       expect(radii[3]).toBeGreaterThanOrEqual(80);
     }
     const shock = [1, 2, 3, 4].map((l) => superFistFor('luffy', l)!.shock);
-    expect(shock).toEqual([32, 42, 52, 62]);
+    expect(shock).toEqual([38, 50, 62, 74]);
   });
 
   it('the blast falloff in the sim: core, mid-way, rim and wall cover', () => {
@@ -202,9 +202,8 @@ describe('single-target damage stays close to before the area change', () => {
     sasuke: [42, 64.8, 91.4, 121.5],
     naruto: [30.7, 51.6, 76.4, 104.7],
     goku: [45.8, 69.4, 96.8, 128],
-    luffy: [20.7, 36.4, 52.7, 71.4],
   };
-  for (const hero of HERO_IDS) {
+  for (const hero of HERO_IDS.filter(id => id !== 'luffy')) {
     it(`${hero}: within 3 % at every form`, () => {
       for (let level = 1; level <= 4; level++) {
         const { dmg } = fire(arena(hero, level, [{ x: 200 }]));
@@ -216,6 +215,13 @@ describe('single-target damage stays close to before the area change', () => {
 });
 
 describe("Luffy's giant fist", () => {
+  it('delivers the upgraded single-target damage at every Gear without double-hitting', () => {
+    const expected = [27.6, 46.2, 65.1, 86.7];
+    for (let level = 1; level <= 4; level++) {
+      const { dmg } = fire(arena('luffy', level, [{ x: 200 }]));
+      expect(dmg.get(1)).toBeCloseTo(expected[level - 1], 1);
+    }
+  });
   it('hits every fighter the arm sweeps through (each once, full damage)', () => {
     const w = arena('luffy', 2, [{ x: 100 }, { x: 140 }, { x: 180 }, { x: 220 }]);
     const { dmg } = fire(w, 60);

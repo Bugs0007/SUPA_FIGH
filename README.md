@@ -95,6 +95,10 @@ Naruto runs on all fours in forms 1-3 (form 1's tail is made of crimson aura) an
 Holding Up in the air flies for **Goku in every form** and in the **final forms of Naruto and Luffy**. Scrapyard fighters
 just get a short timed boost. Quick match link: `?heroes=naruto,luffy,goku`.
 
+Luffy has 115 base HP and a small movement bonus. Gatling reaches farther with each Gear, keeps enemies close
+through the flurry and ends with a heavy launching punch; it recharges in 2.8 s. His giant-fist supers start faster,
+hit harder and recharge in 6.5 s.
+
 ### Modes
 - **Brawl:** rounds, last fighter standing. The dead come back as ghosts who can shove things around.
 - **Deathmatch:** timed, with respawns.
