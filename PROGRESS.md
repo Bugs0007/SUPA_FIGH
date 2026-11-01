@@ -389,3 +389,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [ ] Manual balance survey across forms and maps using unlimited matches.
 
 - [x] D97: Jet Bazooka close grab + directional launch kick, or real-surface anchored slingshot to an enemy / orb; elastic windup and recovery, safe interruption, bots and LAN state.
+
+- [x] D98: instant replay follows the killed fighter throughout the clip, including fast knockback and falls outside the arena.

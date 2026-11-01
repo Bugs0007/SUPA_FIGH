@@ -470,6 +470,7 @@ export class MatchScene extends Phaser.Scene {
       this.acc = 0;
       audio.play('uiOk', { pitch: 0.6 });
     }
+    const firstFrame = r.age === 0;
     r.age += dt;
     const skip = r.age > 0.4 && (keyboard.anyJustPressed() || padMenu.justPressed(0) || padMenu.justPressed(2) || padMenu.justPressed(9));
     const w = r.player.world;
@@ -486,7 +487,11 @@ export class MatchScene extends Phaser.Scene {
     }
     audio.timePitch = 0.6 + 0.4 * scale;
     this.wr.sync(Math.min(1, r.acc / DT), dt * scale, this.elapsed);
-    const focus = nearKill ? { x: r.rec.finalKillX, y: r.rec.finalKillY, ticks: 30 } : null;
+    const victim = w.fighters[r.rec.finalKillVictim];
+    const alpha = Math.min(1, r.acc / DT);
+    const focus = victim
+      ? { x: victim.px + (victim.x - victim.px) * alpha, y: victim.py + (victim.y - victim.py) * alpha, follow: true, snap: firstFrame }
+      : nearKill ? { x: r.rec.finalKillX, y: r.rec.finalKillY } : null;
     this.camDir.update(dt, w, focus);
     if (skip || r.player.done || r.player.t >= r.end) this.endReplay();
   }

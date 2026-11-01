@@ -18,8 +18,9 @@ export class RoundRecording {
   /** fighters in the world (players + Naruto's clone slots): every one's intents are recorded */
   readonly count: number;
   ticks = 0;
-  /** world tick of the round-ending kill (-1 = none) and where it happened */
+  /** World tick, victim slot and position of the round-ending kill (-1 = none). */
   finalKillTick = -1;
+  finalKillVictim = -1;
   finalKillX = 0;
   finalKillY = 0;
   private data: number[] = [];

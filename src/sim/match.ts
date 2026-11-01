@@ -427,6 +427,7 @@ export class Match {
           this.events.push({ t: 'finalKill', x: e.x, y: e.y });
           if (this.recording) {
             this.recording.finalKillTick = w.tick;
+            this.recording.finalKillVictim = e.victim;
             this.recording.finalKillX = e.x;
             this.recording.finalKillY = e.y;
           }

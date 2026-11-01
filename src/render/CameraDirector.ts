@@ -110,7 +110,7 @@ export class CameraDirector {
     return { must, nice };
   }
 
-  update(dt: number, w: World, focus: { x: number; y: number } | null): void {
+  update(dt: number, w: World, focus: { x: number; y: number; follow?: boolean; snap?: boolean } | null): void {
     const mapW = w.map.pxW;
     const mapH = w.map.pxH;
     const { must, nice } = this.gather(w);
@@ -153,7 +153,7 @@ export class CameraDirector {
       tz = Math.max(tz * 1.35, 1.7);
     }
 
-    if (this.first) {
+    if (this.first || focus?.snap) {
       this.x = tx;
       this.y = ty;
       this.z = tz;
@@ -168,12 +168,18 @@ export class CameraDirector {
 
     // hard guarantee: after smoothing, every human player is still inside the safe area
     if (!focus && !this.manual && must.n) this.keepInView(must);
+    // Replay victims remain framed even during fast knockback or after leaving the arena.
+    if (focus?.follow) {
+      const victim = emptyBox();
+      addPoint(victim, focus.x, focus.y - 40, focus.y + 2);
+      this.keepInView(victim);
+    }
 
     // clamp to map (or center when the view is bigger than the map)
     const halfW = VIEW_W / this.z / 2;
     const halfH = VIEW_H / this.z / 2;
-    const cx = halfW * 2 >= mapW ? mapW / 2 : Math.max(halfW, Math.min(mapW - halfW, this.x));
-    const cy = halfH * 2 >= mapH ? mapH / 2 : Math.max(halfH, Math.min(mapH - halfH, this.y));
+    const cx = focus?.follow ? this.x : halfW * 2 >= mapW ? mapW / 2 : Math.max(halfW, Math.min(mapW - halfW, this.x));
+    const cy = focus?.follow ? this.y : halfH * 2 >= mapH ? mapH / 2 : Math.max(halfH, Math.min(mapH - halfH, this.y));
 
     // shake
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
