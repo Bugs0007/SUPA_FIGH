@@ -391,3 +391,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D97: Jet Bazooka close grab + directional launch kick, or real-surface anchored slingshot to an enemy / orb; elastic windup and recovery, safe interruption, bots and LAN state.
 
 - [x] D98: instant replay follows the killed fighter throughout the clip, including fast knockback and falls outside the arena.
+
+- [x] Kirin descends from the map ceiling to its marked strike position, reaching it at the existing hit / stun timing in every form.

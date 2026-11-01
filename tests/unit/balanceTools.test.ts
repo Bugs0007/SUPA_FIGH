@@ -1,7 +1,7 @@
 import {expect,it} from 'vitest';
 import {Match} from '../../src/sim/match';
 import {World} from '../../src/sim/world';
-import {HEROES,CLONE_SLINGSHOT} from '../../src/sim/data/heroes';
+import {HEROES,CLONE_SLINGSHOT,FORM_COMBO} from '../../src/sim/data/heroes';
 import {drawKirin} from '../../src/art/kirinArt';
 import {HeroMobility} from '../../src/ai/heroMove';
 import {navFor} from '../../src/ai/nav';
@@ -37,6 +37,21 @@ it('Kirin grows on every form and remains on the pixel grid',()=>{
     sizes.push(Math.max(...boxes.map(b=>b[0]+b[2]))-Math.min(...boxes.map(b=>b[0])));
   }
   for(let i=1;i<sizes.length;i++)expect(sizes[i]).toBeGreaterThan(sizes[i-1]);
+});
+it('Kirin descends from the map ceiling and reaches the strike on time at every form and height',()=>{
+  for(const level of [1,2,3,4])for(const targetY of [120,480,1200]){
+    const bottom=(t:number)=>{
+      const boxes:number[][]=[];
+      drawKirin({fillStyle:()=>{},fillRect:(x,y,w,h)=>{boxes.push([x,y,w,h]);}},200,targetY,t,level,0);
+      return Math.max(...boxes.map(b=>b[1]+b[3]));
+    };
+    expect(bottom(0)).toBeLessThan(30);
+    expect(bottom(FORM_COMBO.windup/2)).toBeGreaterThan(targetY/2);
+    expect(bottom(FORM_COMBO.windup/2)).toBeLessThan(targetY/2+30);
+    expect(bottom(FORM_COMBO.windup)).toBeGreaterThan(targetY);
+    expect(bottom(FORM_COMBO.windup)).toBeLessThan(targetY+20);
+    expect(bottom(FORM_COMBO.duration)).toBe(bottom(FORM_COMBO.windup));
+  }
 });
 it('Kirin can miss an enemy that escapes the marked strike position',()=>{
   const w=new World(FLAT,[{...spec('A'),hero:'sasuke',startForm:1},spec('B')],{friendlyFire:false,weaponSpawnRate:0,gravityScale:1},2);run(w,5);

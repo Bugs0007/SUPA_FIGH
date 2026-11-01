@@ -806,3 +806,6 @@ Pistol + Punch from form 1 selects a real close grab within 42 px, otherwise an 
 
 ### D98 — Follow the replay victim
 Round recordings retain the final kill's victim slot. The replay camera follows that fighter's interpolated position from the first replay frame through the aftermath, instead of focusing on the fixed kill location only near impact. It snaps into the opening shot, smooths movement and keeps the victim inside the safe view during fast launches. Replay follow can move beyond map bounds to show falls; ordinary gameplay retains its existing arena clamp and player framing.
+
+### D99 — Kirin falls from the map ceiling
+Kirin's head starts at world y=0 and descends to its announced strike position over the existing windup, replacing the fixed 90-pixel offset above the target. Form scaling affects the dragon's size while every form reaches the target at the existing damage and stun tick. Targets already above the map do not cause an upward flight.

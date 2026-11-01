@@ -4,7 +4,11 @@ import type { RectPainter } from './pixelRaster';
 /** A horned lightning dragon descending into a bite. Whole-pixel bands, scaled geometry per form. */
 export function drawKirin(g:RectPainter,x:number,y:number,t:number,level:number,time:number):void{
   const scale=KIRIN.scaleBase+KIRIN.scalePerForm*(Math.max(1,level)-1);
-  const headY=y-90*scale*(1-Math.min(1,t/FORM_COMBO.windup));
+  // World y=0 is the map ceiling. Reach the marked strike at the damage tick,
+  // regardless of map height or transformation size.
+  const progress=Math.max(0,Math.min(1,t/FORM_COMBO.windup));
+  const ceilingY=Math.min(0,y);
+  const headY=ceilingY+(y-ceilingY)*progress;
   const rect=(xx:number,yy:number,w:number,h:number,c:number,a=1)=>{
     g.fillStyle(c,a);g.fillRect(Math.round(x+xx*scale),Math.round(headY+yy*scale),Math.max(1,Math.round(w*scale)),Math.max(1,Math.round(h*scale)));
   };
