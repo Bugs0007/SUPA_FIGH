@@ -9,7 +9,7 @@ import { ARM_LONG, ARM_SHORT, FIGHTER_CROUCH_H, ROLL_TIME } from '../sim/constan
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
 import { baseAbility, formLayers, usesAmaterasu } from '../sim/hero';
-import { heroDef } from '../sim/data/heroes';
+import { heroDef, CLONE_SLINGSHOT } from '../sim/data/heroes';
 
 /** Rig pivot: body center, this many px above the feet. */
 const RIG_Y = 11;
@@ -486,7 +486,16 @@ export class FighterView {
         frontLen = 1;
         backLen = 1;
         showWeapon = false;
-        if (kind === 'pistol' || kind === 'superFist') {
+        if (kind === 'formCombo' && f.hero === 'naruto') {
+          smoothArms=false; frame=BF.STRETCH;leanTarget=0;
+          if(f.stateTime<CLONE_SLINGSHOT.windup){
+            const a=f.stateTime/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns;
+            rigRot=a+Math.PI/2;front=Math.PI/2;back=1.9;
+          }else{
+            rigRot=Math.PI/2+Math.atan2(f.vy,f.vx*f.facing);
+            front=-Math.PI/2;back=-Math.PI/2+.12;
+          }
+        } else if (kind === 'pistol' || kind === 'superFist') {
           const move = kind === 'superFist' ? heroDef('luffy')!.super.fist! : baseAbility(f)?.stretch;
           const extending = f.stateTime < (move?.out ?? .12);
           const early = f.stateTime < .045;
@@ -751,6 +760,10 @@ export class FighterView {
     }
     this.turnT = Math.max(0, this.turnT - dt / 0.09);
     this.root.setPosition(x, y + bob);
+    if(f.hero==='naruto'&&f.state==='special'&&f.specialKind==='formCombo'&&f.stateTime<CLONE_SLINGSHOT.windup){
+      const a=f.stateTime/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns;
+      this.root.setPosition(x+f.facing*Math.cos(a)*CLONE_SLINGSHOT.swingRadius,y-12+Math.sin(a)*CLONE_SLINGSHOT.swingRadius);
+    }
     this.squash *= Math.pow(0.001, dt * 6);
     const sq = this.squash;
     this.root.setScale(f.facing * (1 + sq * 0.6) * (1 - this.turnT * 0.35), 1 - sq);

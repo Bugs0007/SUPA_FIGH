@@ -377,3 +377,4 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D93: faster Sasuke arrows, wider locks, avatar facing updates, spectral guards and side-on final Rasengan arm.
 - [x] D93: form-1 Kirin / Clone Slingshot / Jet Bazooka / Vanish Strike; hold-to-dismiss clones, orb traversal and gallery previews.
 - [ ] Play-test combo balance and clone slingshot traversal on phones and LAN.
+- [x] Clone Slingshot: one clone holds Naruto's hand and swings him before a Superman-pose launch at 1,040 px/s; Chidori dash doubled to 720 px/s.

@@ -75,7 +75,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, FORM_COMBO, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, FORM_COMBO, CLONE_SLINGSHOT, KIRIN, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -1789,7 +1789,7 @@ function canAct(f: Fighter): boolean {
 function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   if (!f.hero || f.carry >= 0) return;
   f.formComboCd = Math.max(0, f.formComboCd - DT);
-  if (f.hero === 'naruto' && f.master < 0 && f.cloneCount > 0 && inp.kick) {
+  if (f.hero === 'naruto' && f.master < 0 && f.cloneCount > 0 && inp.kick && !(f.state==='special'&&f.specialKind==='formCombo')) {
     f.cloneRecallHold += DT;
     if (f.cloneRecallHold >= FORM_COMBO.recallHold) {
       w.emit({ t: 'recall', f: f.id, n: recallClones(w, f) });
@@ -1807,7 +1807,7 @@ function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   if (transformed(f) && f.master < 0 && chord) {
     e.attackP = e.abilityP = e.kickP = false;
     f.btnBuf1 = f.btnBuf2 = 0;
-    const openingPunch = f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0;
+    const openingPunch = f.state === 'aim' || (f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0);
     if (f.formComboCd <= 0 && (canAct(f) || openingPunch)) startFormCombo(w, f, inp);
     return;
   }
@@ -1931,11 +1931,12 @@ function startFormCombo(w: World, f: Fighter, inp: Intent): void {
 function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
   if (f.specialKind === 'formCombo') {
     const t = f.stateTime;
-    if (t >= FORM_COMBO.windup && f.charge === 0) {
+    const timing=f.hero==='naruto'?CLONE_SLINGSHOT:FORM_COMBO;
+    if (t >= timing.windup && f.charge === 0) {
       f.charge = 1;
       const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
       if (target?.alive && !target.gone && f.hero === 'sasuke') {
-        applyHit(w, target, { damage: FORM_COMBO.damage * meleeMuls(f).dmg, kbX: f.facing * 100, kbY: 160, attacker: f.id, weapon: 'kirin', kind: 'melee', stun: 0.45, x: target.x, y: target.y-target.h/2 });
+        applyHit(w, target, { damage: FORM_COMBO.damage * meleeMuls(f).dmg, kbX: 0, kbY: 0, attacker: f.id, weapon: 'kirin', kind: 'melee', stun: KIRIN.stun, x: target.x, y: target.y-target.h/2 });
       } else if (f.hero !== 'sasuke') {
         if (f.hero === 'goku') {
           const b = baseAbility(f)?.blink;
@@ -1945,21 +1946,28 @@ function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
             f.x = dest.x; f.y = dest.y; blinkStrike(w, f, b!);
           }
         } else {
+          if(f.hero==='naruto'&&target?.alive&&!target.gone){f.anchorX=target.x;f.anchorY=target.y;}
+          if(f.hero==='naruto'&&f.lockOn<0){
+            const orb=w.items.filter(i=>i.active&&i.weaponId==='powerorb')
+              .sort((a,b)=>Math.hypot(a.x-f.anchorX,a.y-f.anchorY)-Math.hypot(b.x-f.anchorX,b.y-f.anchorY))[0];
+            if(orb){f.anchorX=orb.x;f.anchorY=orb.y;}
+          }
           const dx=f.anchorX-f.x, dy=f.anchorY-f.y, len=Math.hypot(dx,dy)||1;
-          f.vx=dx/len*FORM_COMBO.speed; f.vy=dy/len*FORM_COMBO.speed;
-          if(f.hero==='naruto')f.vy-=.5*GRAVITY*w.settings.gravityScale*(len/FORM_COMBO.speed);
+          const speed=f.hero==='naruto'?CLONE_SLINGSHOT.speed:FORM_COMBO.speed;
+          f.vx=dx/len*speed; f.vy=dy/len*speed;
+          if(f.hero==='naruto')f.vy-=.5*GRAVITY*w.settings.gravityScale*(len/speed);
           f.grounded=false;
         }
       }
     }
-    if (t >= FORM_COMBO.windup && f.hero !== 'sasuke') {
+    if (t >= timing.windup && f.hero !== 'sasuke') {
       for (const o of w.fighters) if (o.alive && !o.gone && o!==f && !sameTeam(f,o) && o.master!==f.id && !f.swingHit.includes(o.id) && Math.hypot(o.x-f.x,o.y-f.y)<FORM_COMBO.radius) {
         f.swingHit.push(o.id);
         applyHit(w,o,{damage:FORM_COMBO.damage*meleeMuls(f).dmg,kbX:f.facing*300,kbY:-140,attacker:f.id,weapon:f.hero+':formCombo',kind:'melee',stun:.3,x:o.x,y:o.y-o.h/2});
       }
     } else { f.vx=0; f.vy=0; }
     integrate(w,f,dt);
-    if(t>=FORM_COMBO.duration)endSpecial(w,f);
+    if(t>=timing.duration)endSpecial(w,f);
     return;
   }
   f.abilT += dt;

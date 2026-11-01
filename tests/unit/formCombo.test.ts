@@ -1,7 +1,7 @@
 import { describe,expect,it } from 'vitest';
 import { World } from '../../src/sim/world';
 import { transform,fireBomb,summonClones } from '../../src/sim/hero';
-import { HEROES,SASUKE_ARROW } from '../../src/sim/data/heroes';
+import { HEROES,SASUKE_ARROW,CLONE_SLINGSHOT,KIRIN } from '../../src/sim/data/heroes';
 import { encodeWorld,applyWorld } from '../../src/net/renderState';
 import { FLAT,intent,run } from './helpers';
 
@@ -13,6 +13,19 @@ function arena(hero:string,level=1){
   return w;
 }
 describe('form button combos',()=>{
+  it('holds Naruto for the swing, then throws him at high speed',()=>{
+    const w=arena('naruto'),f=w.fighters[0];
+    w.step([intent({attack:true,kick:true})]);run(w,20);
+    expect(f.charge).toBe(0);expect(f.vx).toBe(0);
+    run(w,17);expect(f.charge).toBe(1);
+    expect(Math.abs(f.vx)).toBeGreaterThan(CLONE_SLINGSHOT.speed*.9);
+  });
+  it('Chidori dashes at twice its previous speed',()=>{
+    const w=arena('sasuke'),f=w.fighters[0];
+    w.step([intent({ability:true})]);run(w,20);
+    expect(HEROES.sasuke.base.dash!.speed).toBe(720);
+    expect(Math.abs(f.vx)).toBeCloseTo(720);
+  });
   it.each(['sasuke','naruto','luffy','goku'])('%s accepts punch one tick before the ability',hero=>{
     const w=arena(hero),f=w.fighters[0];
     w.step([intent({attack:true})]);
@@ -26,7 +39,7 @@ describe('form button combos',()=>{
     expect(f.formComboCd).toBeGreaterThan(0);
     const mirror=arena(hero);applyWorld(mirror,JSON.parse(JSON.stringify(encodeWorld(w))));
     expect(mirror.fighters[0].specialKind).toBe('formCombo');
-    run(w,55);expect(f.state).not.toBe('special');
+    run(w,70);expect(f.state).not.toBe('special');
   });
   it('Kirin bites once and consumes its own cooldown',()=>{
     const w=arena('sasuke'),f=w.fighters[0],enemy=w.fighters[1];
@@ -35,12 +48,20 @@ describe('form button combos',()=>{
     const hp=enemy.hp;run(w,25);expect(enemy.hp).toBe(hp);
     w.step([intent({attack:true,ability:true})]);expect(f.specialKind).not.toBe('formCombo');
   });
+  it('Kirin holds its victim stunned for 1.5 seconds and prevents actions',()=>{
+    const w=arena('sasuke'),enemy=w.fighters[1];
+    w.step([intent({attack:true,ability:true})]);run(w,20);
+    expect(enemy.state).toBe('flinch');expect(enemy.flinchTime).toBe(KIRIN.stun);
+    run(w,50,()=>[intent(),intent({attack:true,jump:true,moveX:1})]);
+    expect(enemy.state).toBe('flinch');
+    run(w,45);expect(enemy.state).not.toBe('flinch');
+  });
   it('nearby clones throw Naruto on tap and only disappear on a hold',()=>{
     const w=arena('naruto'),f=w.fighters[0];summonClones(w,f);
     const clone=w.fighters.find(c=>c.master===f.id&&c.alive)!;clone.x=f.x+10;clone.y=f.y;
     w.step([intent({kick:true})]);run(w,8);
     expect(f.cloneCount).toBeGreaterThan(0);expect(f.specialKind).toBe('formCombo');
-    run(w,40,()=>[intent({kick:true})]);expect(f.cloneCount).toBe(0);
+    run(w,100,()=>[intent({kick:true})]);expect(f.cloneCount).toBe(0);
   });
   it('Up selects a power orb instead of the enemy for the clone throw',()=>{
     const w=arena('naruto'),f=w.fighters[0];

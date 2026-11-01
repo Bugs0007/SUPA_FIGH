@@ -3,7 +3,7 @@ import { HERO_ART } from '../art/heroArt';
 import { moveLook } from '../art/heroMoves';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
-import { HEROES, superFistFor } from '../sim/data/heroes';
+import { HEROES, CLONE_SLINGSHOT, superFistFor } from '../sim/data/heroes';
 import { newBullet, type Bullet } from '../sim/projectile';
 import { getMap } from '../sim/map/maps';
 import { DEFAULT_WORLD_SETTINGS, World } from '../sim/world';
@@ -214,7 +214,8 @@ export class HeroMoveGallery {
       }
       if(this.mode==='special'){
         f.state=level>0&&phase>.5&&phase<2.4?'special':'normal';f.specialKind='formCombo';
-        f.stateTime=Math.max(0,(phase-.5)% .7);f.lockOn=-1;f.anchorX=f.x+28;f.anchorY=f.y;
+        f.stateTime=Math.max(0,(phase-.5)% (this.hero==='naruto'?CLONE_SLINGSHOT.duration:.7));f.lockOn=-1;f.anchorX=f.x+28;f.anchorY=f.y;
+        if(this.hero==='naruto'&&f.stateTime>=CLONE_SLINGSHOT.windup)f.vx=CLONE_SLINGSHOT.speed;
       }
       if(this.mode==='guard'){f.state='block';f.specialKind='';}
       this.targets[level]?.setVisible(this.mode==='second'&&level>=3||this.mode==='special'&&level>0);

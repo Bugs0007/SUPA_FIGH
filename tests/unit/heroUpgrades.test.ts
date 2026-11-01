@@ -216,7 +216,7 @@ describe('Naruto: shadow clones are real fighters', () => {
     hold(w, 60 * (cd + 2), {});
     expect(n.secondCd).toBeCloseTo(cd, 1); // still waiting
     // Hold ability 2 to recall; taps now request a clone slingshot.
-    hold(w, 35, { kick: true });
+    hold(w, 100, { kick: true });
     hold(w, 3, {});
     expect(clones(w).length).toBe(0);
     expect(n.cloneCount).toBe(0);

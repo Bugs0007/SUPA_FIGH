@@ -219,3 +219,6 @@ Fight in **Tournament Hall**, **Museum Atrium**, and **Valley of the End**, with
 Available from form 1, with a separate 6-second cooldown. Sasuke: **Chidori + Punch = Kirin**. Naruto: **Shadow Clones + Punch = Clone Slingshot**; hold Up to prefer a nearby power orb. Tap Shadow Clones near an existing clone for the same throw; hold it for 0.55 seconds to dismiss clones. Luffy: **Pistol + Punch = Jet Bazooka**. Goku: **Instant Transmission + Punch = Vanish Strike**. The two ability buttons still trigger the original ultimate.
 
 The animated moves gallery now has **5: SPECIAL** and **6: GUARD** previews. Susanoo forms show ribs while blocking; Kurama mode raises chakra arms.
+
+Clone Slingshot uses one clone holding Naruto's hand, swinging him around before releasing him in a Superman pose at high speed. Chidori now dashes twice as fast.
+Kirin holds a hit enemy stunned for 1.5 seconds.

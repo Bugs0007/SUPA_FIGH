@@ -7,6 +7,7 @@ import { hexToNum } from '../art/palette';
 import { paintRuns } from '../art/pixelRaster';
 import type { FighterView } from './FighterView';
 import { formLevel } from './formLevel';
+import { CLONE_SLINGSHOT } from '../sim/data/heroes';
 
 type Graphics = Phaser.GameObjects.Graphics;
 interface Echo {
@@ -158,14 +159,15 @@ export class HeroChoreography {
 
   slingshot(v: FighterView, x: number, y: number): void {
     const t=v.fighter.stateTime;
-    if(t>.3)return;
+    if(t>=CLONE_SLINGSHOT.windup)return;
     const helpers=this.echoes.get(v.fighter.id)??[];
-    helpers.forEach((e,i)=>{
-      const a=t*25+i*Math.PI;
-      this.pose(e,v.texFor(formLevel(v.fighter)),BF.WINDUP,a);
-      e.root.setVisible(true).setPosition(x+Math.cos(a)*18,y+Math.sin(a)*6)
-        .setScale(v.fighter.facing,1).setAlpha(.75);
-    });
+    const e=helpers[0];if(!e)return;
+    const a=t/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns,d=v.fighter.facing;
+    this.pose(e,v.texFor(formLevel(v.fighter)),BF.WINDUP,a);
+    e.root.setVisible(true).setPosition(x,y).setScale(d,1).setAlpha(.85);
+    // A single thrower keeps hold of Naruto's hand throughout the circular swing.
+    const hx=x+d*Math.cos(a)*12,hy=y-12+Math.sin(a)*12;
+    this.curve(this.front,[x,y-16,x+d*5,y-18,hx,hy,hx,hy],hexToNum(v.lookFor(formLevel(v.fighter)).skin),2,.95);
   }
 
   destroy(): void {
