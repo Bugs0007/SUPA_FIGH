@@ -288,7 +288,7 @@ export class NetLobbyScene extends Phaser.Scene {
     const heroes = cfg.bots.some((b) => b.hero);
     switch (row) {
       case 'map':
-        return send({ mapId: cycle(MAP_LIST.map((m) => m.id), cfg.mapId, d) });
+        return send({ mapId: cycle(['random', ...MAP_LIST.map((m) => m.id)], cfg.mapId, d) });
       case 'mode':
         return send({ mode: cycle(MODES, cfg.mode, d) });
       case 'length':
@@ -463,7 +463,7 @@ export class NetLobbyScene extends Phaser.Scene {
     const on = (b: boolean) => (b ? 'ON' : 'OFF');
     switch (row) {
       case 'map':
-        return clip(getMap(cfg.mapId).name, 16);
+        return cfg.mapId === 'random' ? 'RANDOM / ROUND' : clip(getMap(cfg.mapId).name, 16);
       case 'mode':
         return MODE_NAMES[cfg.mode];
       case 'length':

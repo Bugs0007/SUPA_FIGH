@@ -236,3 +236,5 @@ Match Setup and LAN Brawl rooms offer **UNLIMITED** after 10 rounds (or before 1
 
 ### Jet Bazooka
 From form 1, press **Pistol + Punch**. Near an enemy, Luffy grabs them and kicks them away; hold a direction to aim the launch. At range he grips the nearest available floor, wall, platform or ladder, winds back, and slingshots toward the closest enemy or power orb. The slingshot requires a real anchor and collects orbs during flight. Gallery previews: add **jet=sling** or **jet=kick** to Luffy's special-move gallery URL.
+
+Match Setup and LAN rooms offer **Random (each round)** in the map selector. Arenas play in a shuffled rotation, visiting every map before repeating with no consecutive duplicates.

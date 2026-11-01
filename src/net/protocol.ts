@@ -193,7 +193,7 @@ export function sanitizeClaim(v: unknown): SlotClaim | null {
 export function sanitizeConfig(v: unknown): Partial<RoomConfig> | null {
   if (!isObj(v)) return null;
   const out: Partial<RoomConfig> = {};
-  if (typeof v.mapId === 'string' && v.mapId in MAPS) out.mapId = v.mapId;
+  if (typeof v.mapId === 'string' && (v.mapId === 'random' || v.mapId in MAPS)) out.mapId = v.mapId;
   if (typeof v.mode === 'string' && (MODES as readonly string[]).includes(v.mode)) out.mode = v.mode as GameMode;
   if ('roundsToWin' in v) out.roundsToWin = Math.round(num(v.roundsToWin, 0, 10, 5));
   if ('timeLimit' in v) out.timeLimit = Math.round(num(v.timeLimit, 30, 600, 180));

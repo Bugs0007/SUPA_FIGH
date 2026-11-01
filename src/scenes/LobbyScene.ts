@@ -113,7 +113,8 @@ export class LobbyScene extends Phaser.Scene {
     if (this.previewMap === this.cfg.mapId) return;
     this.previewMap = this.cfg.mapId;
     this.preview.setTexture(bakeMapPreview(this,this.cfg.mapId)).setDisplaySize(172,86);
-    this.blurb.setText(getMap(this.cfg.mapId).name.toUpperCase()).setOrigin(.5,0).setX(490);
+    this.preview.setVisible(this.cfg.mapId !== 'random');
+    this.blurb.setText(this.cfg.mapId === 'random' ? 'RANDOM - EACH ROUND' : getMap(this.cfg.mapId).name.toUpperCase()).setOrigin(.5,0).setX(490);
   }
 
   private get rows(): number {
@@ -231,7 +232,7 @@ export class LobbyScene extends Phaser.Scene {
     switch (set) {
       case 'map':
         c.mapId = cycle(
-          MAP_LIST.map((m) => m.id),
+          ['random', ...MAP_LIST.map((m) => m.id)],
           c.mapId,
           d,
         );
@@ -307,7 +308,7 @@ export class LobbyScene extends Phaser.Scene {
     });
     // settings
     const vals: Record<Setting, [string, string]> = {
-      map: ['MAP', MAP_LIST.find((m) => m.id === c.mapId)?.name ?? c.mapId],
+      map: ['MAP', c.mapId === 'random' ? 'RANDOM' : MAP_LIST.find((m) => m.id === c.mapId)?.name ?? c.mapId],
       mode: ['MODE', MODE_NAMES[c.mode]],
       length:
         c.mode === 'brawl'

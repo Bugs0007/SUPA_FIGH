@@ -412,3 +412,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D107: dedicated Kirin lightning-crack / thunder explosion sound, priority playback under combat audio load, stronger per-form impact shake and live screen-shake setting updates.
 
 - [x] D108: Luffy grapple range +25%, hold/release selection through near/far ladders and platforms in any direction, visible selection marker, automatic pull and repress cancellation; bots and LAN snapshots covered.
+
+- [x] D109: Random map choice in Match Setup and LAN rooms, seeded shuffled arena rotation each round, synchronized restoration / prediction, and browser navigation coverage.

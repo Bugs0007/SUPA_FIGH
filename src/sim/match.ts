@@ -4,7 +4,7 @@ import { MODIFIERS } from './data/modifiers';
 import { freshAmmo, SLOT, weaponDef } from './data/weapons';
 import type { Fighter, FighterSpawn } from './fighter';
 import type { Intent } from './intent';
-import { getMap } from './map/maps';
+import { roundMap } from './map/maps';
 import { World, type WorldSettings } from './world';
 import { RoundRecording } from './replay';
 import { rankBrawl, type BrawlPlacement } from './data/brawl';
@@ -205,7 +205,7 @@ export class Match {
   startRound(): void {
     this.round++;
     this.pickModifiers();
-    const def = getMap(this.cfg.mapId);
+    const def = roundMap(this.cfg.mapId, this.cfg.seed, this.round);
     const settings = this.worldSettings();
     const seed = this.cfg.seed + this.round * 7919;
     this.world = new World(def, this.cfg.fighters, settings, seed);
@@ -268,7 +268,7 @@ export class Match {
     this.round = c.round;
     this.roundModifiers = c.roundModifiers;
     const seed = this.cfg.seed + this.round * 7919;
-    this.world = new World(getMap(this.cfg.mapId), this.cfg.fighters, this.worldSettings(), seed);
+    this.world = new World(roundMap(this.cfg.mapId, this.cfg.seed, this.round), this.cfg.fighters, this.worldSettings(), seed);
     this.world.restore(c.world);
     this.recording = this.cfg.mode === 'brawl' ? new RoundRecording(this.world.def, this.cfg.fighters, this.worldSettings(), seed, this.world.fighters.length) : null;
     this.lastRecording = null;
@@ -316,7 +316,7 @@ export class Match {
 
   /** A new World as round `round` (with those chaos modifiers) would start it. Network clients build prediction sandboxes with it. */
   freshWorld(round: number, modifiers: string[]): World {
-    return new World(getMap(this.cfg.mapId), this.cfg.fighters, { ...this.worldSettings(), modifiers }, this.cfg.seed + round * 7919);
+    return new World(roundMap(this.cfg.mapId, this.cfg.seed, round), this.cfg.fighters, { ...this.worldSettings(), modifiers }, this.cfg.seed + round * 7919);
   }
 
   step(intents: readonly Intent[]): void {
