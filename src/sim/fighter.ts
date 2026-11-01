@@ -75,7 +75,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, FORM_COMBO, CLONE_SLINGSHOT, KIRIN, SASUKE_ARROW, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, FORM_COMBO, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, SASUKE_ARROW, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -279,6 +279,9 @@ export interface Fighter extends Body {
   specialCd: number;
   formComboCd: number;
   cloneRecallHold: number;
+  jetMode: '' | 'kick' | 'sling';
+  jetAnchorX:number;
+  jetAnchorY:number;
   /** seconds the special has been charged (-1 = not charging) */
   charge: number;
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
@@ -463,6 +466,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     charge: -1,
     formComboCd: 0,
     cloneRecallHold: 0,
+    jetMode:'',jetAnchorX:0,jetAnchorY:0,
     specialKind: '',
     lockOn: -1,
     stretchLen: 0,
@@ -728,7 +732,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       break;
     case 'grabbed':
       if (e.anyP) f.struggle++;
-      if (f.grabbedBy < 0 || w.fighters[f.grabbedBy]?.state !== 'grabbing') {
+      if (f.grabbedBy < 0 || !(w.fighters[f.grabbedBy]?.state === 'grabbing' || w.fighters[f.grabbedBy]?.state==='special'&&w.fighters[f.grabbedBy]?.hero==='luffy'&&w.fighters[f.grabbedBy]?.specialKind==='formCombo'&&w.fighters[f.grabbedBy]?.grabTarget===f.id)) {
         f.grabbedBy = -1;
         setState(f, 'normal');
       }
@@ -745,7 +749,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
 
   if (f.alive && !superGuard(f) && outOfWorld(w, f) && !fallKills(w, f)) throwIn(w, f);
   if (f.alive && (f.state === 'normal' || f.state === 'crouch' || f.state === 'roll')) autoPickup(w, f);
-  if(f.alive&&f.master<0&&!w.settings.noPickups&&(f.hero==='naruto'||f.hero==='sasuke')&&f.state==='special'&&(f.specialKind==='rasengan'||f.hero==='naruto'&&f.specialKind==='formCombo')){
+  if(f.alive&&f.master<0&&!w.settings.noPickups&&(f.hero==='naruto'||f.hero==='sasuke'||f.hero==='luffy')&&f.state==='special'&&(f.specialKind==='rasengan'||(f.hero==='naruto'||f.hero==='luffy')&&f.specialKind==='formCombo')){
     for(const orb of w.items)if(orb.active&&orb.weaponId==='powerorb'&&!orb.live&&segmentAabb(f.px,f.py-f.h/2,f.x,f.y-f.h/2,orb.x-orb.w/2-f.w/2,orb.y-orb.h-f.h/2,orb.x+orb.w/2+f.w/2,orb.y+f.h/2)>=0)w.pickUp(f,orb,false);
   }
   copyIntent(f.prev, inp);
@@ -1915,7 +1919,7 @@ function startFormCombo(w: World, f: Fighter, inp: Intent): void {
   f.formComboCd=FORM_COMBO.cooldown;
   f.charge=0;
   f.lockOn=-1;
-  let nearest=FORM_COMBO.range;
+  let nearest=f.hero==='luffy'?JET_BAZOOKA.targetRange:FORM_COMBO.range;
   for(const o of w.fighters){
     if(!o.alive||o.gone||o===f||sameTeam(f,o)||o.master===f.id)continue;
     const dist=Math.hypot(o.x-f.x,o.y-f.y);
@@ -1934,11 +1938,79 @@ function startFormCombo(w: World, f: Fighter, inp: Intent): void {
     }
   }
   if(f.anchorX!==f.x)f.facing=f.anchorX>f.x?1:-1;
+  if(f.hero==='luffy'){
+    f.jetMode='sling';
+    f.stretchAngle=Math.abs(inp.moveY)>.5?Math.atan2(inp.moveY,Math.abs(inp.moveX)):0;
+    if(target&&nearest<=JET_BAZOOKA.closeRange&&target.invuln<=0&&!superGuard(target)&&target.state!=='roll'){
+      startGrab(w,f,target);setState(f,'special');f.specialKind='formCombo';f.jetMode='kick';
+    }else{
+      for(const orb of w.items)if(orb.active&&orb.weaponId==='powerorb'){
+        const distance=Math.hypot(orb.x-f.x,orb.y-f.y);
+        if(distance<nearest){nearest=distance;f.anchorX=orb.x;f.anchorY=orb.y;f.lockOn=-1;}
+      }
+      let grip:Grip|null=null;
+      for(let i=0;i<16;i++){
+        const found=grabProbe(w,f,-Math.PI+i*Math.PI/8,JET_BAZOOKA.anchorRange);
+        if(found&&(!grip||found.len<grip.len))grip=found;
+      }
+      if(!grip||(!target&&nearest===JET_BAZOOKA.targetRange)){
+        f.formComboCd=0;endSpecial(w,f);return;
+      }
+      f.jetAnchorX=grip.x;f.jetAnchorY=grip.y;
+      if(f.anchorX!==f.x)f.facing=f.anchorX>f.x?1:-1;
+    }
+  }
   w.emit({t:'superStart',f:f.id,name: f.hero==='sasuke'?'KIRIN':f.hero==='naruto'?'CLONE SLINGSHOT':f.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE',level:f.powerLevel});
+}
+
+function stJetBazooka(w:World,f:Fighter,inp:Intent,dt:number):void{
+  const data=JET_BAZOOKA,t=f.stateTime;
+  if(f.jetMode==='kick'){
+    const victim=w.fighters[f.grabTarget];
+    if(f.charge===0){
+      if(!victim?.alive||victim.gone||victim.grabbedBy!==f.id||victim.struggle>=GRAB.struggleToEscape)return endSpecial(w,f);
+      holdStill(f,dt);integrate(w,f,dt);
+      const holdX=f.x+f.facing*18;
+      victim.x=w.map.rectSolid(holdX-victim.w/2,f.y-victim.h,holdX+victim.w/2,f.y)?f.x:holdX;
+      victim.y=f.y;victim.vx=victim.vy=0;
+      if(Math.abs(inp.moveX)>.5)f.facing=inp.moveX>0?1:-1;
+      if(Math.abs(inp.moveX)>.5||Math.abs(inp.moveY)>.5)f.stretchAngle=Math.atan2(inp.moveY,Math.abs(inp.moveX));
+      if(t>=data.windup){
+        f.charge=1;const m=meleeMuls(f),dx=f.facing*Math.cos(f.stretchAngle),dy=Math.sin(f.stretchAngle);
+        w.releaseGrab(f);
+        applyHit(w,victim,{damage:data.kickDamage*m.dmg,kbX:dx*data.kickKnock*m.knock,kbY:(Math.abs(dy)<.1?data.kickLift:dy*data.kickKnock)*m.knock,attacker:f.id,weapon:'luffy:jetKick',kind:'throw',stun:data.kickStun,knockdown:true,x:victim.x,y:victim.y-victim.h/2});
+        victim.thrownBy=f.id;victim.thrownTime=w.time;victim.vrot=f.facing*14;victim.grounded=false;
+        w.emit({t:'kick',f:f.id,air:!f.grounded});w.emit({t:'throw',f:f.id,victim:victim.id});
+        f.vx=-dx*90;f.vy=-dy*60;
+      }
+    }else{
+      f.vx=approach(f.vx,0,GROUND_DECEL*dt);integrate(w,f,dt);
+    }
+    if(t>=data.windup+.3)endSpecial(w,f);
+    return;
+  }
+  if(t<data.windup){holdStill(f,dt);integrate(w,f,dt);return;}
+  if(f.charge===0){
+    f.charge=1;
+    const target=f.lockOn>=0?w.fighters[f.lockOn]:null;
+    if(target?.alive&&!target.gone){f.anchorX=target.x;f.anchorY=target.y;}
+    else{
+      const orb=w.items.filter(i=>i.active&&i.weaponId==='powerorb').sort((a,b)=>Math.hypot(a.x-f.anchorX,a.y-f.anchorY)-Math.hypot(b.x-f.anchorX,b.y-f.anchorY))[0];
+      if(orb){f.anchorX=orb.x;f.anchorY=orb.y;}
+    }
+    const dx=f.anchorX-f.x,dy=f.anchorY-f.y,len=Math.hypot(dx,dy)||1;
+    f.facing=dx>=0?1:-1;f.vx=dx/len*data.speed;f.vy=dy/len*data.speed-.5*GRAVITY*w.gravityScale*(len/data.speed);f.grounded=false;
+  }
+  const res=integrate(w,f,dt);
+  for(const o of w.fighters)if(o!==f&&o.alive&&!o.gone&&!sameTeam(f,o)&&!f.swingHit.includes(o.id)&&Math.hypot(o.x-f.x,o.y-f.y)<data.hitRadius){
+    f.swingHit.push(o.id);applyHit(w,o,{damage:FORM_COMBO.damage*meleeMuls(f).dmg,kbX:f.facing*400,kbY:-140,attacker:f.id,weapon:'luffy:formCombo',kind:'melee',stun:.3,x:o.x,y:o.y-o.h/2});
+  }
+  if(t>=data.duration||res.wallX!==0||res.ceil||res.landed||Math.hypot(f.x-f.anchorX,f.y-f.anchorY)<12)endSpecial(w,f);
 }
 
 function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
   if (f.specialKind === 'formCombo') {
+    if(f.hero==='luffy')return stJetBazooka(w,f,inp,dt);
     const t = f.stateTime;
     const timing=f.hero==='naruto'?CLONE_SLINGSHOT:FORM_COMBO;
     if (t >= timing.windup && f.charge === 0) {
@@ -2328,6 +2400,8 @@ export function cancelMove(w: World, f: Fighter): void {
 }
 
 function endSpecial(w: World, f: Fighter): void {
+  if(f.jetMode==='kick')w.releaseGrab(f);
+  f.jetMode='';
   f.specialKind = '';
   f.lockOn = -1;
   f.stretchLen = 0;

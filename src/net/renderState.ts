@@ -37,6 +37,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
   ['formComboCd', 'n'], ['cloneRecallHold', 'n'], ['charge', 'n'], ['specialKind', 's'], ['stretchLen', 'n'], ['stretchAngle', 'n'], ['dashAngle', 'n'], ['baseCd', 'n'], ['baseUsed', 'n'],
   ['baseRecharge', 'n'], ['secondCd', 'n'], ['beamWidth', 'n'], ['flying', 'b'], ['anchorX', 'n'], ['anchorY', 'n'],
   ['recoverAt', 'n'], ['cloneCount', 'n'], ['cloneForm', 'n'], ['wallDir', 'n'], ['armReach', 'n'], ['armBack', 'b'],
+  ['jetMode','s'],['jetAnchorX','n'],['jetAnchorY','n'],['grabTarget','n'],
   ['ropeLen', 'n'], ['grip', 's'], ['lockOn', 'n'], ['flinchTime', 'n'], ['guard', 'n'], ['blockStun', 'n'], ['parryT', 'n'],
 ];
 

@@ -239,7 +239,7 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
     v.state = 'knockdown';
     v.stateTime = 0;
   } else if (hit.stun && hit.stun > 0 && v.state !== 'knockdown' && v.state !== 'grabbed') {
-    if (v.state === 'grabbing' && hit.kind !== 'bullet') w.releaseGrab(v);
+    if ((v.state === 'grabbing' && hit.kind !== 'bullet') || (v.state==='special'&&v.grabTarget>=0)) w.releaseGrab(v);
     if (v.state !== 'grabbing') {
       // a long stun (Chidori's) must not be cut short by a later, shorter one
       const left = v.state === 'flinch' ? v.flinchTime - v.stateTime : 0;

@@ -374,7 +374,7 @@ export class HeroFx {
       this.choreography.slingshot(v,x,y);
       for(let i=0;i<5;i++)this.back.fillStyle(0xffd05a,.3).fillRect(Math.round(x)-d*(10+i*7),Math.round(y)-16+i%3*4,5,1);
     }else if(f.hero==='luffy'){
-      for(const offset of [-4,4])this.choreography.curve(this.front,[x,y-15+offset,x+d*12,y-16+offset,x+d*24,y-14+offset,x+d*32,y-14+offset],0xf2b78a,4,.85);
+      this.luffyArt.jet(v,x,y);
     }else{
       for(let i=0;i<8;i++)this.front.fillStyle(0x98e9ff,.7).fillRect(Math.round(x)-14+i*4,Math.round(y)-30+i%3*6,1,16);
     }

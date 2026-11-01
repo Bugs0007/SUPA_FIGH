@@ -844,7 +844,7 @@ export class BotController implements Controller {
     const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     if (!clear) return null;
     if(transformed(f)&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
-      const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:near>45&&level<70);
+      const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:f.hero==='luffy'?level<70:near>45&&level<70);
       if(fits)cands.push({hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:face,my:0,weight:BOT_FIGHT.wCombo});
     }
     // the stick: Up / Down to aim (Down only works in the air)
@@ -1415,10 +1415,10 @@ export class BotController implements Controller {
   /** Move toward a world point using the nav graph. */
   private navigate(w: World, f: Fighter, x: number, y: number, heroTravel = true): void {
     const g = this.graph!;
-    if(heroTravel&&!this.isClone&&f.hero==='naruto'&&transformed(f)&&f.formComboCd<=0&&this.canMove(f)&&this.goal.t==='loot'){
+    if(heroTravel&&!this.isClone&&(f.hero==='naruto'||f.hero==='luffy')&&transformed(f)&&f.formComboCd<=0&&this.canMove(f)&&this.goal.t==='loot'){
       const orbId=this.goal.item,orb=w.items.find(i=>i.id===orbId),dist=Math.hypot(x-f.x,y-f.y);
       if(orb?.active&&orb.weaponId==='powerorb'&&dist>70&&dist<=FORM_COMBO.range&&w.map.clearShot(f.x,f.y-15,orb.x,orb.y)){
-        this.startMove(f,{hold:'kick',combo:true,ticks:2,mx:x>=f.x?1:-1,my:-1,weight:1});return;
+        this.startMove(f,{hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:x>=f.x?1:-1,my:f.hero==='naruto'?-1:0,weight:1});return;
       }
     }
     if (f.state === 'aim' && f.aimHeld) {

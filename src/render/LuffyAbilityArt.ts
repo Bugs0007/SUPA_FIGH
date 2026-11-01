@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { hexToNum, shade } from '../art/palette';
 import { moveLook } from '../art/heroMoves';
-import { heroDef } from '../sim/data/heroes';
+import { heroDef, JET_BAZOOKA } from '../sim/data/heroes';
 import { SHOULDER_Y_STAND } from '../sim/constants';
 import type { FighterView } from './FighterView';
 import { formLevel } from './formLevel';
@@ -99,6 +99,31 @@ export class LuffyAbilityArt {
           .lineBetween(Math.round(sx + dx * (d - a) + px * i * (radius + 3)), Math.round(sy + dy * (d - a) + py * i * (radius + 3)), Math.round(sx + dx * d + px * i * (radius + 3)), Math.round(sy + dy * d + py * i * (radius + 3)));
       }
     }
+  }
+
+  /** Stretch to a real grip, pull against it, then let the arms snap back with an elastic follow-through. */
+  jet(v:FighterView,x:number,y:number):void{
+    const f=v.fighter,t=f.stateTime,pre=Math.min(1,t/JET_BAZOOKA.windup),release=Math.max(0,t-JET_BAZOOKA.windup);
+    const skin=v.lookFor(formLevel(f)).skin,haki=formLevel(f)>=3;
+    const rootX=v.root.x,rootY=v.root.y;
+    if(f.jetMode==='kick'){
+      const hold=release===0?1:Math.max(0,1-release/.16);
+      const hx=x+f.facing*18*Math.max(0,1-release/.1),hy=y-14;
+      const dx=hx-rootX,dy=hy-(rootY-15),len=Math.hypot(dx,dy)||1;
+      if(hold>0){this.limb(this.front,rootX,rootY-15,dx/len,dy/len,f.facing,len,3,skin,haki,Math.sin(pre*Math.PI)*5,hold);this.fist(this.front,hx,hy,dx/len,dy/len,f.facing,3,skin,haki,hold);}
+      const kickX=x+f.facing*Math.cos(f.stretchAngle)*24,kickY=y-13+Math.sin(f.stretchAngle)*24;
+      if(release<.15&&release>0)for(let i=0;i<4;i++)this.front.fillStyle(0xfff0cf,.7).fillRect(Math.round(kickX+f.facing*i*4),Math.round(kickY-4+i*3),3,1);
+      return;
+    }
+    const stretch=release===0?Math.min(1,pre*3):Math.max(0,1-release/.15);
+    for(const side of [-1,1]){
+      const sx=rootX+f.facing*side*2,sy=rootY-15+side*2;
+      const dx=f.jetAnchorX-sx,dy=f.jetAnchorY-sy,len=Math.hypot(dx,dy)||1;
+      const reach=Math.max(6,Math.min(JET_BAZOOKA.anchorRange,len)*stretch);
+      this.limb(this.back,sx,sy,dx/len,dy/len,side,reach,3.5,skin,haki,Math.sin(pre*Math.PI)*9*(release===0?1:stretch),1);
+      this.fist(this.back,sx+dx/len*reach,sy+dy/len*reach,dx/len,dy/len,side,3,skin,haki,1);
+    }
+    if(release>0)for(let i=0;i<5;i++)this.back.fillStyle(0xffeee2,.35*(1-i/6)).fillRect(Math.round(x-f.facing*(12+i*8)),Math.round(y-14+i%2*5),6,1);
   }
 
   combo(v:FighterView,x:number,y:number,reach:number,extension:number,alpha:number,upper:boolean,kick:boolean):void{

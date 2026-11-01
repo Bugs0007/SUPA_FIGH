@@ -387,3 +387,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D96: unlimited local/LAN Brawl with numeric round scores; faster Naruto ultimate; swept orb pickups during hero movement and bot orb dashes.
 - [x] D96: improved bot evasion and ultimate timing; per-form Kirin size / strike radius and dragon art; Naruto forms 1–3 tail-whip combos.
 - [ ] Manual balance survey across forms and maps using unlimited matches.
+
+- [x] D97: Jet Bazooka close grab + directional launch kick, or real-surface anchored slingshot to an enemy / orb; elastic windup and recovery, safe interruption, bots and LAN state.

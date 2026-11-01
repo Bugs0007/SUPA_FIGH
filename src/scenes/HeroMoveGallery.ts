@@ -3,7 +3,7 @@ import { HERO_ART } from '../art/heroArt';
 import { moveLook } from '../art/heroMoves';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
-import { HEROES, CLONE_SLINGSHOT, avatarLaunch, superFistFor } from '../sim/data/heroes';
+import { HEROES, CLONE_SLINGSHOT, JET_BAZOOKA, avatarLaunch, superFistFor } from '../sim/data/heroes';
 import { newBullet, type Bullet } from '../sim/projectile';
 import { getMap } from '../sim/map/maps';
 import { DEFAULT_WORLD_SETTINGS, World } from '../sim/world';
@@ -28,6 +28,7 @@ export class HeroMoveGallery {
   private spiritBalls: Bullet[] = [];
   private mode: MoveMode;
   private aim=0;
+  private jetPreview:'kick'|'sling'='sling';
   private targets:Phaser.GameObjects.Container[]=[];
   private targetFx:Phaser.GameObjects.Graphics;
   private labels: Phaser.GameObjects.BitmapText[] = [];
@@ -38,6 +39,7 @@ export class HeroMoveGallery {
 
   constructor(private scene: Phaser.Scene, readonly hero: string) {
     const params = new URLSearchParams(location.search);
+    this.jetPreview=params.get('jet')==='kick'?'kick':'sling';
     this.aim=Math.max(-1.5,Math.min(1.5,Number(params.get('aim'))||0));
     this.mode = MODES.find(m=>m===params.get('move'))??'base';
     const before = new Set(scene.children.list);
@@ -55,7 +57,7 @@ export class HeroMoveGallery {
     this.fx = new Fx(scene, this.world.map, null, 220);
     this.heroFx = new HeroFx(scene, this.world, this.views, this.fx, 0.42);
     this.targetFx=scene.add.graphics().setDepth(58);
-    if(hero==='sasuke')this.targets=this.views.map(v=>fighterPreview(scene,PLAYER_PRESETS[0],v.fighter.x+33,v.fighter.y,.8).setDepth(40).setVisible(false));
+    if(hero==='sasuke'||hero==='luffy')this.targets=this.views.map(v=>fighterPreview(scene,PLAYER_PRESETS[0],v.fighter.x+33,v.fighter.y,.8).setDepth(40).setVisible(false));
     if (hero === 'goku' || hero === 'sasuke') {
       this.spiritBalls = this.views.map(v => Object.assign(newBullet(), { owner: v.fighter.id, kind: 'ki', weapon: hero + ':super' }));
       this.world.bullets.push(...this.spiritBalls);
@@ -139,6 +141,7 @@ export class HeroMoveGallery {
       const words = name.split(' ');
       const split = words.length > 2 ? Math.ceil(words.length / 2) : words.length;
       label.setText([words.slice(0, split).join(' '), words.slice(split).join(' ')].filter(Boolean).join('\n'));
+      if(mode==='special'&&this.hero==='luffy'&&i>0)label.setText(this.jetPreview==='kick'?'JET GRAB KICK':'JET SLINGSHOT');
       if (mode === 'super' && i > 0 && this.hero === 'luffy') label.setText(`${name}\nRANGE ${superFistFor('luffy', i)!.range} / FIST ${superFistFor('luffy', i)!.fist}`);
     });
     this.layout();
@@ -223,11 +226,16 @@ export class HeroMoveGallery {
       }
       if(this.mode==='special'){
         f.state=level>0&&phase>.5&&phase<2.4?'special':'normal';f.specialKind='formCombo';
-        f.stateTime=Math.max(0,(phase-.5)% (this.hero==='naruto'?CLONE_SLINGSHOT.duration:.7));f.lockOn=-1;f.anchorX=f.x+28;f.anchorY=f.y;
+        f.stateTime=Math.max(0,(phase-.5)% (this.hero==='naruto'?CLONE_SLINGSHOT.duration:this.hero==='luffy'?JET_BAZOOKA.duration:.7));f.lockOn=-1;f.anchorX=f.x+28;f.anchorY=f.y;
         if(this.hero==='naruto'&&f.stateTime>=CLONE_SLINGSHOT.windup)f.vx=CLONE_SLINGSHOT.speed;
+        if(this.hero==='luffy'){f.jetMode=this.jetPreview;f.jetAnchorX=f.x-14;f.jetAnchorY=f.y;if(f.stateTime>=JET_BAZOOKA.windup&&this.jetPreview==='sling')f.vx=JET_BAZOOKA.speed;}
       }
       if(this.mode==='guard'){f.state='block';f.specialKind='';}
-      this.targets[level]?.setVisible(this.mode==='second'&&level>=3||this.mode==='special'&&level>0);
+      this.targets[level]?.setVisible(this.hero==='sasuke'?(this.mode==='second'&&level>=3||this.mode==='special'&&level>0):(this.mode==='special'&&this.jetPreview==='kick'&&level>0));
+      if(this.hero==='luffy'&&this.targets[level]){
+        const released=Math.max(0,f.stateTime-JET_BAZOOKA.windup);
+        this.targets[level].setPosition(f.x+18+released*100,f.y-released*25).setRotation(released*7);
+      }
       v.update(1, dt, this.t, this.t);
       v.tag.setVisible(false);
       if (firing && loop !== this.lastLoop && this.hero === 'goku' && this.mode === 'base') this.heroFx.choreography.blink(f.id, f.x - 14, f.y - 12, f.x, f.y - 12);

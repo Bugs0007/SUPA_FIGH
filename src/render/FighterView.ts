@@ -9,7 +9,7 @@ import { ARM_LONG, ARM_SHORT, FIGHTER_CROUCH_H, ROLL_TIME } from '../sim/constan
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
 import { baseAbility, formLayers, usesAmaterasu } from '../sim/hero';
-import { heroDef, CLONE_SLINGSHOT } from '../sim/data/heroes';
+import { heroDef, CLONE_SLINGSHOT, JET_BAZOOKA } from '../sim/data/heroes';
 
 /** Rig pivot: body center, this many px above the feet. */
 const RIG_Y = 11;
@@ -490,7 +490,17 @@ export class FighterView {
         frontLen = 1;
         backLen = 1;
         showWeapon = false;
-        if (kind === 'formCombo' && f.hero === 'naruto') {
+        if(kind==='formCombo'&&f.hero==='luffy'){
+          const pre=Math.min(1,f.stateTime/JET_BAZOOKA.windup),released=f.stateTime>=JET_BAZOOKA.windup;
+          hideArms=true;smoothArms=false;leanTarget=0;
+          if(f.jetMode==='kick'){
+            frame=released?(f.stateTime<JET_BAZOOKA.windup+.12?BF.KICK:BF.CROSS):BF.WINDUP;
+            rigRot=released?(f.stretchAngle*.7+.12)*Math.max(0,1-(f.stateTime-JET_BAZOOKA.windup)/.3):-.18*Math.sin(pre*Math.PI);
+          }else{
+            frame=released?BF.STRETCH:f.grounded?BF.CROUCH:BF.WINDUP;
+            rigRot=released?Math.PI/2+Math.atan2(f.vy,f.vx*f.facing):-.25*Math.sin(pre*Math.PI/2);
+          }
+        } else if (kind === 'formCombo' && f.hero === 'naruto') {
           smoothArms=false; frame=BF.STRETCH;leanTarget=0;
           if(f.stateTime<CLONE_SLINGSHOT.windup){
             rigRot=Math.PI/2;front=Math.PI/2;back=1.9;
@@ -763,6 +773,10 @@ export class FighterView {
     }
     this.turnT = Math.max(0, this.turnT - dt / 0.09);
     this.root.setPosition(x, y + bob);
+    if(f.hero==='luffy'&&f.state==='special'&&f.specialKind==='formCombo'&&f.jetMode!=='kick'&&f.stateTime<JET_BAZOOKA.windup){
+      const pre=f.stateTime/JET_BAZOOKA.windup;
+      this.root.setPosition(x-f.facing*Math.sin(pre*Math.PI/2)*7,y+Math.sin(pre*Math.PI)*2);
+    }
     if(f.hero==='naruto'&&f.state==='special'&&f.specialKind==='formCombo'&&f.stateTime<CLONE_SLINGSHOT.windup){
       const a=f.stateTime/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns;
       this.root.setPosition(x+f.facing*Math.cos(a)*CLONE_SLINGSHOT.swingRadius,y+Math.sin(a)*4);
