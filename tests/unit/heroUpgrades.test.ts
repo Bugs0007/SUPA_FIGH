@@ -506,7 +506,7 @@ describe('Luffy: the grapple', () => {
     expect(lad?.kind).toBe('ladder');
   });
 
-  it('a tap reaches 100 px; holding keeps reaching until it hits (far targets)', () => {
+  it('a tap reaches 125 px; holding keeps reaching until it hits (far targets)', () => {
     const run = (held: boolean) => {
       const w = arena(['luffy', ''], 2);
       put(w, 0, 20 * TILE);
@@ -523,13 +523,16 @@ describe('Luffy: the grapple', () => {
     expect(run(true)).toBe(true);
   });
 
-  it('holding at a platform above pulls Luffy up onto it; a tap does not move him', () => {
+  it('releasing after passing a platform pulls Luffy onto it; a tap does not move him', () => {
     const w = arena(['luffy', ''], 2);
     const f = put(w, 0, 21 * TILE + 8);
     put(w, 1, 36 * TILE);
     settle(w);
     const y0 = f.y;
-    heldTicks(w, 60, { ability: true, moveY: -1 });
+    for(let t=0;t<60;t++){
+      heldTicks(w,1,{ability:true,moveY:-1});
+      if(f.specialKind==='pistol'&&f.grip==='platform')break;
+    }
     hold(w, 40, {});
     expect(f.y).toBeLessThan(7 * TILE + 2); // standing on the platform (row 7)
     expect(f.grounded).toBe(true);
@@ -549,13 +552,13 @@ describe('Luffy: the grapple', () => {
     const f = put(w, 0, 8 * TILE);
     put(w, 1, 36 * TILE);
     settle(w);
-    heldTicks(w, 40);
+    heldTicks(w, 60);
     hold(w, 3, {});
     expect(f.state).toBe('climb');
     expect(Math.abs(f.x - (16 * TILE + 8))).toBeLessThan(3);
   });
 
-  it('a ceiling makes him swing: a pendulum you can pump; letting go keeps the momentum', () => {
+  it('a ceiling makes him swing: a pendulum you can pump; pressing again releases with momentum', () => {
     const w = arena(['luffy', ''], 2);
     const f = put(w, 0, 10 * TILE);
     put(w, 1, 36 * TILE);
@@ -579,9 +582,11 @@ describe('Luffy: the grapple', () => {
     }
     expect(maxX).toBeGreaterThan(10 * TILE + 25);
     expect(maxDist).toBeLessThan(rope + 12);
-    // release: he flies on with his momentum, state back to normal, air jump refreshed
+    // Release the selection key, then press again to detach with momentum.
     const vx = f.vx;
     hold(w, 2, {});
+    expect(f.specialKind).toBe('swing');
+    hold(w,1,{ability:true});
     expect(f.state).not.toBe('special');
     expect(Math.abs(f.vx)).toBeGreaterThan(Math.abs(vx) * 0.5);
     expect(f.airJumps).toBeGreaterThan(0);

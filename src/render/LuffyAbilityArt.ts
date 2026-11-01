@@ -89,6 +89,15 @@ export class LuffyAbilityArt {
     const skin = v.lookFor(level).skin;
     this.limb(g, sx, sy, dx, dy, f.facing, len, radius, skin, haki, bend, 1);
     this.fist(g, sx + dx * len, sy + dy * len, dx, dy, f.facing, radius, skin, haki, 1);
+    if(f.specialKind==='pistol'&&!f.armBack&&(f.grip==='ladder'||f.grip==='platform')){
+      const ax=Math.round(f.anchorX),ay=Math.round(f.anchorY);
+      g.fillStyle(0xffdf8a,.9);
+      for(const side of [-1,1]){
+        g.fillRect(ax+side*5-(side<0?0:2),ay-5,3,1);
+        g.fillRect(ax+side*5-(side<0?0:2),ay+5,3,1);
+        g.fillRect(ax+side*5,ay-5,1,3);g.fillRect(ax+side*5,ay+3,1,3);
+      }
+    }
     if (f.specialKind !== 'swing' && f.specialKind !== 'rocket') {
       // Directional speed strokes stop before the hand. They never orbit it.
       const active = Math.min(1, len / 45);

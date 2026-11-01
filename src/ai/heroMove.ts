@@ -11,7 +11,7 @@
 import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from '../sim/constants';
 import { wallContact, type Fighter } from '../sim/fighter';
 import { heroDef, SUPER_WINDOW } from '../sim/data/heroes';
-import { baseAbility, grabProbe, gripTarget, holdFlies, type Grip } from '../sim/hero';
+import { baseAbility, grabProbe, gripTarget, holdFlies } from '../sim/hero';
 import type { Intent } from '../sim/intent';
 import type { World } from '../sim/world';
 import type { NavGraph } from './nav';
@@ -280,14 +280,14 @@ export class HeroMobility {
       out.moveX = m.mx;
       out.moveY = m.my;
     }
-    out.ability = true;
+    out.ability = f.specialKind==='pistol' ? !(f.grip&&f.armReach>=m.holdFor) : f.state!=='special';
     if (f.specialKind === 'swing') {
       // pendulum: pump toward the target, let go once we are past the anchor and moving that way
       const dir = Math.sign(m.tx - m.ax) || m.dir;
       out.moveX = dir;
       out.moveY = f.y - m.ay > 70 ? -1 : 0;
       const past = (f.x - f.anchorX) * dir > 22;
-      if ((past && f.vx * dir > 70) || f.stateTime > 2.2) out.ability = false;
+      if ((past && f.vx * dir > 70) || f.stateTime > 2.2) out.ability = !f.prev.ability;
     }
     return true;
   }
@@ -336,6 +336,8 @@ interface GrapplePick {
   ax: number;
   ay: number;
   swing: boolean;
+  /** Release once the hand has passed the selected anchor. */
+  holdFor: number;
 }
 
 /** The arm direction (stick) whose catch lands us closest to the target. null if nothing helps enough. */
@@ -354,7 +356,7 @@ function pickGrapple(w: World, f: Fighter, s: NonNullable<ReturnType<typeof base
   for (const c of cands) {
     const angle = c.my < 0 ? (Math.abs(c.mx) > 0.5 ? s.upAngle : -Math.PI / 2 + 0.05) : c.my > 0 && !f.grounded ? s.downAngle : 0;
     const probe = { ...f, facing: c.facing } as Fighter;
-    const g: Grip | null = grabProbe(w, probe, angle, reach);
+    for(const g of [grabProbe(w,probe,angle,reach),grabProbe(w,probe,angle,reach,true)]){
     if (!g || g.len < 28) continue;
     let ax: number;
     let ay: number;
@@ -379,7 +381,8 @@ function pickGrapple(w: World, f: Fighter, s: NonNullable<ReturnType<typeof base
     }
     if (gain > bestGain) {
       bestGain = gain;
-      best = { dir: c.facing, mx: c.mx, my: c.my, ax, ay, swing };
+      best = { dir: c.facing, mx: c.mx, my: c.my, ax, ay, swing, holdFor:Math.max(0,g.len-f.w/2) };
+    }
     }
   }
   return best;

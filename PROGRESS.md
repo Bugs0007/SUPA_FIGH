@@ -410,3 +410,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D105: replay follows the finishing attack through contact; environmental finishes hand off to the victim after the final blow, with the clip extended to include that blow.
 
 - [x] D107: dedicated Kirin lightning-crack / thunder explosion sound, priority playback under combat audio load, stronger per-form impact shake and live screen-shake setting updates.
+
+- [x] D108: Luffy grapple range +25%, hold/release selection through near/far ladders and platforms in any direction, visible selection marker, automatic pull and repress cancellation; bots and LAN snapshots covered.

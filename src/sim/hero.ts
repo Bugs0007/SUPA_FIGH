@@ -1037,10 +1037,10 @@ export interface Grip {
 
 /**
  * Marches along the arm from the shoulder (up to `reach` px past the body edge) and reports the first
- * thing the fist can grab. Solid tiles are walls / ceilings (the arm came up under them) / floors,
- * one-way platforms only count when the arm points up or down, ladders always (except the one you are on).
+ * thing the fist can grab, or the last pass-through anchor when `through` is true. Solids always stop
+ * the ray; ladders and one-way platforms can be passed in any direction (except the starting tile).
  */
-export function grabProbe(w: World, f: Fighter, angle: number, reach: number): Grip | null {
+export function grabProbe(w: World, f: Fighter, angle: number, reach: number, through=false): Grip | null {
   const dx = Math.cos(angle) * f.facing;
   const dy = Math.sin(angle);
   const { x0, y0 } = stretchFist(f, angle, 0);
@@ -1049,7 +1049,7 @@ export function grabProbe(w: World, f: Fighter, angle: number, reach: number): G
   const startTy = Math.floor(y0 / TILE);
   let ptx = startTx;
   let pty = startTy;
-  const steep = Math.abs(dy) > 0.3;
+  let last:Grip|null=null;
   for (let d = 2; d <= total; d += 2) {
     const px = x0 + dx * d;
     const py = y0 + dy * d;
@@ -1063,12 +1063,14 @@ export function grabProbe(w: World, f: Fighter, angle: number, reach: number): G
       const kind: GripKind = vertical ? (dy < 0 ? 'ceiling' : 'floor') : 'wall';
       return { kind, len: d, x: px, y: py, tx, ty };
     }
-    if (def.ladder && !(tx === startTx && ty === startTy)) return { kind: 'ladder', len: d, x: px, y: py, tx, ty };
-    if (def.oneWay && steep && !(tx === startTx && ty === startTy)) return { kind: 'platform', len: d, x: px, y: py, tx, ty };
+    if ((def.ladder||def.oneWay) && !(tx === startTx && ty === startTy) && (tx!==ptx||ty!==pty)) {
+      last={kind:def.ladder?'ladder':'platform',len:d,x:px,y:py,tx,ty};
+      if(!through)return last;
+    }
     ptx = tx;
     pty = ty;
   }
-  return null;
+  return last;
 }
 
 /** Where the body is pulled to for a grip (shoulder-height target): beside a wall, on top of a platform, on a ladder. */

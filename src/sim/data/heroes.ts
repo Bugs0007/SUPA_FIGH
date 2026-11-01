@@ -390,11 +390,11 @@ export const HEROES: Record<string, HeroDefinition> = {
     base: {
       kind: 'pistol',
       name: 'GUM-GUM PISTOL',
-      desc: 'STRETCHING ARM (UP / DOWN TO AIM). HOLD TO KEEP REACHING; GRABS WALLS, PLATFORMS AND LADDERS AND PULLS YOU TO THEM; SWINGS FROM CEILINGS.',
+      desc: 'HOLD TO REACH PAST LADDERS / PLATFORMS. RELEASE TO GRAB THE LAST ANCHOR PASSED; FULL REACH SELECTS THE FARTHEST. PRESS AGAIN TO CANCEL. UP / DOWN TO AIM.',
       cooldown: 0.25,
       charges: { max: 3, recharge: 2 },
       stretch: {
-        range: 100,
+        range: 125,
         out: 0.12,
         hold: 0.05,
         back: 0.12,
@@ -408,7 +408,7 @@ export const HEROES: Record<string, HeroDefinition> = {
         rocketTime: 1.2,
         extendSpeed: 760,
         retractSpeed: 1100,
-        maxRange: 340,
+        maxRange: 425,
         swing: { pump: 520, reel: 60, maxTime: 4 },
       },
     },

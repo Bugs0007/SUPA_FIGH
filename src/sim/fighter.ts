@@ -1801,6 +1801,10 @@ function canAct(f: Fighter): boolean {
  */
 function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   if (!f.hero || f.carry >= 0) return;
+  if(f.hero==='luffy'&&f.state==='special'&&e.abilityP&&(f.specialKind==='rocket'||f.specialKind==='swing'||f.specialKind==='pistol'&&f.armBack)){
+    f.airJumps=AIR_JUMPS;f.jumping=false;f.btnBuf1=f.btnBuf2=0;
+    e.abilityP=e.kickP=false;endSpecial(w,f);return;
+  }
   f.formComboCd = Math.max(0, f.formComboCd - DT);
   if (f.hero === 'naruto' && f.master < 0 && f.cloneCount > 0 && inp.kick && !(f.state==='special'&&f.specialKind==='formCombo')) {
     f.cloneRecallHold += DT;
@@ -2353,6 +2357,7 @@ function startBase(w: World, f: Fighter, inp: Intent): void {
     f.armReach = 0;
     f.armBack = false;
     f.grip = '';
+    f.ropeLen = 0; // while extending: distance of the last selectable anchor
     w.emit({ t: 'stretch', f: f.id });
   }
 }
@@ -2492,9 +2497,8 @@ function stRasengan(w: World, f: Fighter, inp: Intent, dt: number): void {
 
 /**
  * Gum-Gum Pistol (grapple): the arm stretches out while the ability button is held (a tap reaches `range`),
- * hits the first fighter / prop it touches and then comes back. If it catches on a wall, floor, platform or
- * ladder and the button is STILL held, Luffy is pulled to it; catching a ceiling makes him swing from it.
- * Letting go retracts the arm (or releases Luffy with his momentum).
+ * hits the first fighter / prop it touches and then comes back. Ladders and platforms are selectable pass-through
+ * anchors: release to commit the last one passed, or hold to full extension. Solids stop the hand immediately.
  */
 function stPistol(w: World, f: Fighter, inp: Intent, dt: number): void {
   const s = baseAbility(f)?.stretch;
@@ -2506,28 +2510,38 @@ function stPistol(w: World, f: Fighter, inp: Intent, dt: number): void {
   f.vx = approach(f.vx, 0, (f.grounded ? GROUND_DECEL : AIR_DECEL) * dt);
   if (!f.grounded) f.vy = Math.min(f.vy, 80);
   const held = inp.ability;
+  const released=!held&&f.prev.ability;
   const maxR = s.maxRange ?? s.range;
   if (!f.armBack) {
-    f.armReach = Math.min(maxR, f.armReach + (s.extendSpeed ?? 700) * dt);
-    // a tap still reaches `range`; holding keeps reaching until something is hit or `maxRange`
-    if ((!held && f.armReach >= s.range) || f.armReach >= maxR) f.armBack = true;
+    if(!released&&(held||!f.grip))f.armReach = Math.min(maxR, f.armReach + (s.extendSpeed ?? 700) * dt);
   } else {
     f.armReach = Math.max(0, f.armReach - (s.retractSpeed ?? 1000) * dt);
   }
   if (f.armReach > 0) {
-    const grip = f.armBack ? null : grabProbe(w, f, f.stretchAngle, f.armReach);
-    const reach = grip ? Math.max(0, grip.len - f.w / 2) : f.armReach;
+    const grip = f.armBack ? null : grabProbe(w, f, f.stretchAngle, f.armReach,true);
+    const solid=grip&&grip.kind!=='ladder'&&grip.kind!=='platform';
+    const reach = solid ? Math.max(0, grip.len - f.w / 2) : f.armReach;
     const hitsBefore = f.swingHit.length + f.swingProps.length;
     const r = pistolHits(w, f, s, f.stretchAngle, reach);
     f.stretchLen = Math.max(0, r.len - f.w / 2);
-    if (f.swingHit.length + f.swingProps.length > hitsBefore) f.armBack = true; // punched something: reel in
-    if (grip && !f.armBack) {
-      if (grip.len < (grip.kind === 'ladder' ? 6 : 16)) f.armBack = true;
-      else if (held) {
-        startGrip(w, f, grip);
-        integrate(w, f, dt);
-        return;
-      } else f.armBack = true;
+    if (f.swingHit.length + f.swingProps.length > hitsBefore){f.armBack=true;f.grip='';}
+    if(!f.armBack){
+      if(grip&&(held||released)&&grip.len>=(grip.kind==='ladder'?6:16)&&(solid||grip.len>=f.ropeLen)){
+        f.grip=grip.kind;
+        // Keep the stored contact inside its tile even after LAN snapshot rounding.
+        f.anchorX=Math.max(grip.tx*TILE+.1,Math.min((grip.tx+1)*TILE-.1,grip.x));
+        f.anchorY=Math.max(grip.ty*TILE+.1,Math.min((grip.ty+1)*TILE-.1,grip.y));f.ropeLen=grip.len;
+      }
+      if((!held||f.armReach>=maxR||solid&&held)&&f.grip){
+        const tx=Math.floor(f.anchorX/TILE),ty=Math.floor(f.anchorY/TILE),tile=w.map.def(tx,ty);
+        const valid=f.grip==='ladder'?tile.ladder:f.grip==='platform'?tile.oneWay:tile.solid;
+        if(valid){
+          startGrip(w,f,{kind:f.grip,len:f.ropeLen,x:f.anchorX,y:f.anchorY,tx,ty});
+          integrate(w,f,dt);return;
+        }
+        f.grip='';
+      }
+      if((!held&&f.armReach>=s.range)||f.armReach>=maxR||solid)f.armBack=true;
     }
   }
   integrate(w, f, dt);
@@ -2567,7 +2581,7 @@ function aimAtAnchor(f: Fighter): number {
   return Math.hypot(dx, dy);
 }
 
-/** Gum-Gum Rocket: yanked toward the anchor while the button is held, then released with the momentum. */
+/** Gum-Gum Rocket: pull automatically after committing an anchor; another ability press cancels. */
 function stRocket(w: World, f: Fighter, inp: Intent, dt: number): void {
   const s = baseAbility(f)?.stretch;
   const sx = f.x + f.facing * 2;
@@ -2576,8 +2590,7 @@ function stRocket(w: World, f: Fighter, inp: Intent, dt: number): void {
   const dy = f.anchorY - sy;
   const dist = Math.hypot(dx, dy);
   const arrive = f.grip === 'ladder' ? 8 : f.grip === 'platform' ? 10 : f.grip === 'floor' ? 18 : 12;
-  const held = inp.ability;
-  if (!s || !held || dist < arrive || f.stateTime > s.rocketTime) {
+  if (!s || dist < arrive || f.stateTime > s.rocketTime) {
     f.airJumps = AIR_JUMPS;
     f.jumping = false;
     const arrived = !!s && dist < arrive;
@@ -2643,7 +2656,7 @@ function stSwing(w: World, f: Fighter, inp: Intent, dt: number): void {
   integrate(w, f, dt, false);
   aimAtAnchor(f);
   const jumpP = inp.jump && !f.prev.jump;
-  if (!inp.ability || jumpP || f.stateTime > sw.maxTime) {
+  if (jumpP || f.stateTime > sw.maxTime) {
     f.airJumps = AIR_JUMPS;
     f.jumping = false;
     if (jumpP) f.vy = Math.min(f.vy, 0) - 150;

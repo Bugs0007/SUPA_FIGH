@@ -138,7 +138,7 @@ test('Naruto walks up a wall (D + W against it)', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("Luffy's Gum-Gum Pistol grabs the platform above (P2: Up + ability held) and pulls him onto it", async ({ page }) => {
+test("Luffy's Gum-Gum Pistol selects the platform above on release and pulls him onto it", async ({ page }) => {
   const errors = collectErrors(page);
   await start(page, 'bots=0&humans=2&heroes=naruto,luffy');
   // the long catwalk at row 20 (y = 320) with open floor below it
@@ -146,7 +146,10 @@ test("Luffy's Gum-Gum Pistol grabs the platform above (P2: Up + ability held) an
   await wait(page, 300);
   await page.keyboard.down('ArrowUp');
   await page.keyboard.down('Numpad1');
-  await wait(page, 700);
+  await page.waitForFunction(()=>{
+    const f=(window as any).__GAME__.match().world.fighters[1];
+    return f.specialKind==='pistol'&&f.grip==='platform';
+  });
   await page.keyboard.up('Numpad1');
   await page.keyboard.up('ArrowUp');
   await wait(page, 600);
