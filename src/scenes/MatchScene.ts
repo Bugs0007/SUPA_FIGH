@@ -26,6 +26,7 @@ import { emptyIntent, type Intent } from '../sim/intent';
 import { COOP, Match, type MatchConfig, type MatchEvent } from '../sim/match';
 import type { World } from '../sim/world';
 import { ReplayPlayer, type RoundRecording } from '../sim/replay';
+import { ReplayFocus } from '../render/ReplayFocus';
 import { padMenu } from '../input/gamepad';
 import { TrailerRig, trailerEnabled } from '../trailer/rig';
 import { freeShot, shotById, type ShotSpec } from '../trailer/shots';
@@ -167,6 +168,7 @@ export class MatchScene extends Phaser.Scene {
   replay: {
     rec: RoundRecording;
     player: ReplayPlayer;
+    focus: ReplayFocus;
     start: number;
     end: number;
     ready: boolean;
@@ -448,6 +450,7 @@ export class MatchScene extends Phaser.Scene {
     this.replay = {
       rec,
       player: new ReplayPlayer(rec),
+      focus: new ReplayFocus(rec),
       start: Math.max(0, killIdx - 150),
       end: Math.min(rec.ticks, killIdx + 80),
       ready: false,
@@ -460,6 +463,8 @@ export class MatchScene extends Phaser.Scene {
   private updateReplay(dt: number): void {
     const r = this.replay!;
     if (!r.ready) {
+      if(!r.focus.prepare(1500))return;
+      r.start=r.focus.startTick;
       // fast-forward in chunks so long rounds don't hitch
       if (!r.player.skipTo(r.start, 1500)) return;
       r.ready = true;
@@ -474,7 +479,7 @@ export class MatchScene extends Phaser.Scene {
     r.age += dt;
     const skip = r.age > 0.4 && (keyboard.anyJustPressed() || padMenu.justPressed(0) || padMenu.justPressed(2) || padMenu.justPressed(9));
     const w = r.player.world;
-    const nearKill = r.player.t >= r.rec.finalKillTick - 1 - 40;
+    const nearKill = Math.abs(r.player.t-r.focus.contactTick)<=40 || r.player.t >= r.rec.finalKillTick - 1 - 40;
     const scale = nearKill ? 0.25 : 0.55;
     r.acc += dt * scale;
     while (r.acc >= DT && !r.player.done && r.player.t < r.end) {
@@ -487,11 +492,9 @@ export class MatchScene extends Phaser.Scene {
     }
     audio.timePitch = 0.6 + 0.4 * scale;
     this.wr.sync(Math.min(1, r.acc / DT), dt * scale, this.elapsed);
-    const victim = w.fighters[r.rec.finalKillVictim];
     const alpha = Math.min(1, r.acc / DT);
-    const focus = victim
-      ? { x: victim.px + (victim.x - victim.px) * alpha, y: victim.py + (victim.y - victim.py) * alpha, follow: true, snap: firstFrame }
-      : nearKill ? { x: r.rec.finalKillX, y: r.rec.finalKillY } : null;
+    const target=r.focus.target(w,alpha);
+    const focus=target?{...target,snap:firstFrame}:null;
     this.camDir.update(dt, w, focus);
     if (skip || r.player.done || r.player.t >= r.end) this.endReplay();
   }

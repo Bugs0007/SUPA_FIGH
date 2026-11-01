@@ -447,6 +447,10 @@ export class Match {
           if (this.recording) {
             this.recording.finalKillTick = w.tick;
             this.recording.finalKillVictim = e.victim;
+            this.recording.finalKillAttacker = e.killer;
+            this.recording.finalKillWeapon = e.weapon;
+            this.recording.finalKillEnvironmental = e.env || ['fall','splat','water','hazard','drain'].includes(e.cause);
+            this.recording.finalHitTick = e.env ? Math.max(1,Math.round(w.fighters[e.victim].lastHitTime*60)) : w.tick;
             this.recording.finalKillX = e.x;
             this.recording.finalKillY = e.y;
           }

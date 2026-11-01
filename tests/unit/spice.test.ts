@@ -167,6 +167,9 @@ describe('instant replay', () => {
     const rec = m.lastRecording!;
     expect(rec.finalKillTick).toBeGreaterThan(0);
     expect(rec.finalKillVictim).toBeGreaterThanOrEqual(0);
+    expect(rec.finalHitTick).toBeGreaterThan(0);
+    expect(rec.finalHitTick).toBeLessThanOrEqual(rec.finalKillTick);
+    expect(rec.finalKillWeapon).toBeTruthy();
     expect(original.fighters[rec.finalKillVictim].alive).toBe(false);
     expect(rec.ticks).toBe(original.tick);
     const p = new ReplayPlayer(rec);
