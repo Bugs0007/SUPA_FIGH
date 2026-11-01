@@ -16,6 +16,7 @@ import {
   maxLevel,
   SUPER_AREA,
   SUSANOO_LAUNCH,
+  KURAMA_LAUNCH,
   type AbilityDefinition,
   type BaseAbility,
   type BeamStats,
@@ -816,8 +817,8 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   const kurama = f.hero === 'naruto' && level === 4;
   const archer = f.hero === 'sasuke' && level >= 3;
   const bow = SUSANOO_LAUNCH[level >= 4 ? 4 : 3];
-  const sx = f.x + f.facing * (kurama ? 53 : archer ? bow.ahead : spirit ? size + 12 : 8);
-  const sy = f.y - (kurama ? 27 : archer ? bow.up : SHOULDER_Y_STAND + 2);
+  const sx = f.x + f.facing * (kurama ? KURAMA_LAUNCH.ahead : archer ? bow.ahead : spirit ? size + 12 : 8);
+  const sy = f.y - (kurama ? KURAMA_LAUNCH.up : archer ? bow.up : SHOULDER_Y_STAND + 2);
   const m = meleeMuls(f);
   const blast = superBlast(f, b, level);
   const weapon = f.hero + ':super';

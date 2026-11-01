@@ -277,9 +277,15 @@ const heroCombo = (fx: 'chakra' | 'steam' | 'ki', stretch = false): MeleeHit[] =
  * fighter's feet. The pixel-art Susanoo (art/avatarSprites.ts) is drawn around this point: its arrowhead sits on it.
  */
 export const SUSANOO_LAUNCH: Record<3 | 4, { ahead: number; up: number }> = {
-  3: { ahead: 34, up: 35 },
-  4: { ahead: 37, up: 38 },
+  3: { ahead: 46, up: 42 },
+  4: { ahead: 54, up: 46 },
 };
+
+/**
+ * Where Naruto's final Bijudama leaves (Kurama mode): Kurama's open mouth, in whole pixels ahead of and above the
+ * fighter's feet. The pixel-art Kurama (art/avatarSprites.ts) is drawn around it.
+ */
+export const KURAMA_LAUNCH = { ahead: 66, up: 46 };
 
 export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {

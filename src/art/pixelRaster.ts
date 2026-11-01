@@ -19,6 +19,8 @@ export interface Run {
   y: number;
   w: number;
   c: number;
+  /** opacity of this run (translucent spirit sprites, `bakeSpirit`); absent = opaque */
+  a?: number;
 }
 
 export class Raster {
@@ -126,10 +128,12 @@ export interface Ink {
   x: number;
   y: number;
   c: number;
+  /** opacity (only `bakeSpirit` reads it; default 1) */
+  a?: number;
 }
 
 /** Bresenham pixels from (x0, y0) to (x1, y1) in colour `c`, appended to `out` (for `bake`'s ink layer). */
-export function inkLine(out: Ink[], x0: number, y0: number, x1: number, y1: number, c: number): void {
+export function inkLine(out: Ink[], x0: number, y0: number, x1: number, y1: number, c: number, a?: number): void {
   let x = Math.round(x0);
   let y = Math.round(y0);
   const ex = Math.round(x1);
@@ -140,7 +144,7 @@ export function inkLine(out: Ink[], x0: number, y0: number, x1: number, y1: numb
   const sy = y < ey ? 1 : -1;
   let err = dx + dy;
   for (;;) {
-    out.push({ x, y, c });
+    out.push(a === undefined ? { x, y, c } : { x, y, c, a });
     if (x === ex && y === ey) break;
     const e2 = 2 * err;
     if (e2 >= dy) {
@@ -154,20 +158,21 @@ export function inkLine(out: Ink[], x0: number, y0: number, x1: number, y1: numb
   }
 }
 
-/** Turn a colour per pixel (-1 = empty) into horizontal runs. */
-export function toRuns(colors: Int32Array, w: number, h: number): Baked {
+/** Turn a colour per pixel (-1 = empty) into horizontal runs; with `alphas`, a run also keeps one opacity. */
+export function toRuns(colors: Int32Array, w: number, h: number, alphas?: Float32Array): Baked {
   const runs: Run[] = [];
   for (let y = 0; y < h; y++) {
     let x = 0;
     while (x < w) {
-      const c = colors[y * w + x];
+      const i = y * w + x;
+      const c = colors[i];
       if (c < 0) {
         x++;
         continue;
       }
       let e = x + 1;
-      while (e < w && colors[y * w + e] === c) e++;
-      runs.push({ x, y, w: e - x, c });
+      while (e < w && colors[y * w + e] === c && (!alphas || alphas[y * w + e] === alphas[i])) e++;
+      runs.push(alphas ? { x, y, w: e - x, c, a: alphas[i] } : { x, y, w: e - x, c });
       x = e;
     }
   }
@@ -208,6 +213,107 @@ export function bake(r: Raster, mats: readonly Material[], outline: number, dith
   return toRuns(colors, r.w, r.h);
 }
 
+/**
+ * A translucent chakra material (Susanoo, Kurama and their arms, D88): the same treatment as Naruto's one-tail cloak
+ * (pure aura, no ink outline, see-through), scaled up. Four flat tones banded from the edge of the part inward, each
+ * with its own opacity: a bright, nearly opaque rim, a lighter inner band, then a darker and more transparent body and
+ * core. No gradients: every band is whole pixels of one colour and one opacity.
+ */
+export interface SpiritMat {
+  /** colours of the bands: rim (1 px), inner (1 px), body (2 px), core (the rest) */
+  tones: readonly [number, number, number, number];
+  /** opacity of each band */
+  alpha: readonly [number, number, number, number];
+  /** parts of one group shade as one mass (default: every material is its own group) */
+  group?: number;
+  /**
+   * stacking: a part on a higher layer is drawn over the lower ones without cutting them (the mass behind keeps its
+   * bands under it, the part gets its own rim against the mass); parts on the same layer rim each other
+   */
+  layer?: number;
+  /** a flat detail (an eye, a seal ring, a fang, a seam): tones[0] at alpha[0] everywhere, never an edge for others */
+  flat?: boolean;
+  /** how deep each band reaches for this material (default `SPIRIT_BANDS`); wider bands = a brighter, glowing body */
+  bands?: readonly [number, number, number];
+  /** checker the core with the body tone (a lighter, textured interior; classic pixel-art shading) */
+  dither?: boolean;
+}
+
+/** how deep (in pixels from the part's edge) each band reaches: rim, inner, body; deeper is core */
+export const SPIRIT_BANDS = [1, 2, 4] as const;
+
+/**
+ * Bake a raster as translucent spirit: every pixel gets the band of its distance (4-neighbour, in whole pixels) to
+ * the edge of its group, and every empty pixel touching the sprite becomes a faint halo (instead of `bake`'s dark
+ * outline, like the soft rim of the one-tail cloak). `ink` pixels go on last (their own opacity, default 1).
+ */
+export function bakeSpirit(r: Raster, mats: readonly SpiritMat[], halo: { c: number; a: number }, ink: readonly Ink[] = []): Baked {
+  const n = r.w * r.h;
+  const colors = new Int32Array(n).fill(-1);
+  const alphas = new Float32Array(n);
+  const groupOf = (m: number) => mats[m - 1].group ?? -m;
+  const layerOf = (m: number) => mats[m - 1].layer ?? 0;
+  const dist = new Int32Array(n);
+  const groups = new Map<number, number>();
+  for (let i = 0; i < n; i++) {
+    const m = r.m[i];
+    if (m && !mats[m - 1].flat) groups.set(groupOf(m), layerOf(m));
+  }
+  const BIG = 1 << 20;
+  for (const [g, layer] of groups) {
+    // the mass of this group: its own pixels plus whatever lies over it (higher layers, flat details)
+    const inside = (x: number, y: number): boolean => {
+      const m = r.get(x, y);
+      if (!m) return false;
+      const mm = mats[m - 1];
+      return mm.flat || groupOf(m) === g || layerOf(m) > layer;
+    };
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) dist[y * r.w + x] = inside(x, y) ? BIG : 0;
+    const at = (x: number, y: number) => (x < 0 || y < 0 || x >= r.w || y >= r.h ? 0 : dist[y * r.w + x]);
+    for (let y = 0; y < r.h; y++) {
+      for (let x = 0; x < r.w; x++) {
+        const i = y * r.w + x;
+        if (dist[i]) dist[i] = Math.min(dist[i], at(x - 1, y) + 1, at(x, y - 1) + 1);
+      }
+    }
+    for (let y = r.h - 1; y >= 0; y--) {
+      for (let x = r.w - 1; x >= 0; x--) {
+        const i = y * r.w + x;
+        if (dist[i]) dist[i] = Math.min(dist[i], at(x + 1, y) + 1, at(x, y + 1) + 1);
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const m = r.m[i];
+      if (!m || mats[m - 1].flat || groupOf(m) !== g) continue;
+      const d = dist[i];
+      const b = mats[m - 1].bands ?? SPIRIT_BANDS;
+      let band = d <= b[0] ? 0 : d <= b[1] ? 1 : d <= b[2] ? 2 : 3;
+      if (band === 3 && mats[m - 1].dither && ((i % r.w) + Math.floor(i / r.w)) % 2 === 0) band = 2;
+      colors[i] = mats[m - 1].tones[band];
+      alphas[i] = mats[m - 1].alpha[band];
+    }
+  }
+  for (let y = 0; y < r.h; y++) {
+    for (let x = 0; x < r.w; x++) {
+      const i = y * r.w + x;
+      const m = r.m[i];
+      if (m && mats[m - 1].flat) {
+        colors[i] = mats[m - 1].tones[0];
+        alphas[i] = mats[m - 1].alpha[0];
+      } else if (!m && (r.get(x - 1, y) || r.get(x + 1, y) || r.get(x, y - 1) || r.get(x, y + 1))) {
+        colors[i] = halo.c;
+        alphas[i] = halo.a;
+      }
+    }
+  }
+  for (const p of ink) {
+    if (p.x < 0 || p.y < 0 || p.x >= r.w || p.y >= r.h) continue;
+    colors[p.y * r.w + p.x] = p.c;
+    alphas[p.y * r.w + p.x] = p.a ?? 1;
+  }
+  return toRuns(colors, r.w, r.h, alphas);
+}
+
 /** The slice of Phaser's Graphics this needs (so tests can pass a recorder). */
 export interface RectPainter {
   fillStyle(color: number, alpha?: number): unknown;
@@ -216,14 +322,18 @@ export interface RectPainter {
 
 /**
  * Paint baked runs with the raster's origin at (ox, oy). `flip` mirrors around the origin column (a sprite is drawn
- * facing +x; facing left mirrors it). Everything lands on whole pixels.
+ * facing +x; facing left mirrors it). Everything lands on whole pixels. `alpha` fades the whole sprite as one (times
+ * each run's own opacity, for translucent spirits).
  */
 export function paintRuns(g: RectPainter, baked: Baked, ox: number, oy: number, flip = false, alpha = 1): void {
   let last = -1;
+  let lastA = -1;
   for (const r of baked.runs) {
-    if (r.c !== last) {
-      g.fillStyle(r.c, alpha);
+    const a = alpha * (r.a ?? 1);
+    if (r.c !== last || a !== lastA) {
+      g.fillStyle(r.c, a);
       last = r.c;
+      lastA = a;
     }
     g.fillRect(Math.round(flip ? ox - r.x - r.w + 1 : ox + r.x), Math.round(oy + r.y), r.w, 1);
   }

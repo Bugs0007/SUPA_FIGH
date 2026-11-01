@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { armSprite, KURAMA_MATS, kuramaSprite, SUSANOO, SUSANOO_INK, SUSANOO_MATS, SUSANOO_OUTLINE, susanooSprite, type ArmKind } from '../../src/art/avatarSprites';
+import { armSprite, KURAMA, KURAMA_MOUTH, KURAMA_COLOURS, kuramaSprite, SPIRIT_FRAMES, SUSANOO, SUSANOO_INK, SUSANOO_GLOW, SUSANOO_HALO, SUSANOO_COLOURS, susanooSprite, type ArmKind, type ArmSpec } from '../../src/art/avatarSprites';
 import { ARROW, arrowSprite, FIRE, fireballSprite, heading, HEADINGS } from '../../src/art/fireSprites';
-import { bake, inkLine, paintRuns, Raster, type Baked, type Ink } from '../../src/art/pixelRaster';
-import { HEROES, SUSANOO_LAUNCH } from '../../src/sim/data/heroes';
+import { bake, bakeSpirit, inkLine, paintRuns, Raster, type Baked, type Ink, type SpiritMat } from '../../src/art/pixelRaster';
+import { HEROES, SUSANOO_LAUNCH, KURAMA_LAUNCH } from '../../src/sim/data/heroes';
 
 const cells = (r: Raster, m = 1) => {
   const out: string[] = [];
@@ -114,8 +114,66 @@ describe('bake', () => {
   });
 });
 
-const ALLOWED = new Set<number>([SUSANOO_OUTLINE, ...Object.values(SUSANOO_INK), ...SUSANOO_MATS.flatMap((m) => [m.dark, m.base, m.light, m.hi])]);
-const GLOWS = new Set([SUSANOO_MATS[4].dark, SUSANOO_MATS[4].base, SUSANOO_MATS[4].light, SUSANOO_MATS[4].hi]);
+describe('bakeSpirit (translucent chakra, D88)', () => {
+  const tones = [0xffffff, 0xcccccc, 0x888888, 0x444444] as const;
+  const alpha = [1, 0.8, 0.6, 0.4] as const;
+  const mass: SpiritMat = { tones, alpha, group: 1, layer: 0 };
+  const part: SpiritMat = { tones: [0xff0000, 0xcc0000, 0x880000, 0x440000], alpha, group: 2, layer: 1 };
+  const dot: SpiritMat = { tones: [0x00ff00, 0x00ff00, 0x00ff00, 0x00ff00], alpha: [0.9, 0.9, 0.9, 0.9], flat: true };
+  const halo = { c: 0x123456, a: 0.3 };
+  const alphas = (b: Baked) => {
+    const m = new Map<string, number>();
+    for (const r of b.runs) for (let i = 0; i < r.w; i++) m.set(`${r.x + i},${r.y}`, r.a ?? 1);
+    return m;
+  };
+
+  it('bands a part from its edge inward (rim, inner, body, core), each with its own opacity, and haloes it', () => {
+    const r = new Raster(16, 16);
+    r.rect(2, 2, 11, 11, 1);
+    const b = bakeSpirit(r, [mass], halo);
+    const px = pixels(b);
+    const al = alphas(b);
+    expect(px.get('2,7')).toBe(tones[0]); // the edge: rim
+    expect(al.get('2,7')).toBe(1);
+    expect(px.get('3,7')).toBe(tones[1]); // one in: inner
+    expect(px.get('4,7')).toBe(tones[2]); // then two of body
+    expect(px.get('5,7')).toBe(tones[2]);
+    expect(px.get('7,7')).toBe(tones[3]); // the core: darkest and most see-through
+    expect(al.get('7,7')).toBeCloseTo(0.4);
+    expect(px.get('1,7')).toBe(halo.c); // a faint halo all round, not on the diagonal corners
+    expect(al.get('1,7')).toBeCloseTo(0.3);
+    expect(px.has('1,1')).toBe(false);
+  });
+
+  it('a part on a higher layer gets its own rim; the mass under it keeps its bands; flat details cut nothing', () => {
+    const r = new Raster(20, 20);
+    r.rect(2, 2, 15, 15, 1);
+    r.rect(8, 8, 3, 3, 2); // a small plate in the middle of the mass
+    r.set(5, 9, 3); // a flat dot
+    const b = bakeSpirit(r, [mass, part, dot], halo);
+    const px = pixels(b);
+    expect(px.get('9,9')).toBe(0xcc0000); // centre is in the second distance band
+    expect(px.get('8,9')).toBe(0xff0000);
+    expect(px.get('7,9')).toBe(tones[3]); // the mass right next to the plate is still core, not a rim
+    expect(px.get('5,9')).toBe(0x00ff00);
+    expect(px.get('6,9')).toBe(tones[3]); // and next to the flat dot too
+    expect(px.get('4,9')).toBe(tones[2]);
+  });
+
+  it('runs keep one opacity each; paintRuns multiplies it by the fade', () => {
+    const r = new Raster(12, 3);
+    r.rect(0, 1, 12, 1, 1);
+    const b = bakeSpirit(r, [mass], halo);
+    for (const q of b.runs) expect(q.a).toBeGreaterThan(0);
+    const styles: number[] = [];
+    paintRuns({ fillStyle: (_c, a) => styles.push(a ?? 1), fillRect: () => 0 }, b, 0, 0, false, 0.5);
+    expect(Math.max(...styles)).toBeLessThanOrEqual(0.5);
+    expect(styles).toContain(0.5); // the rim (alpha 1) at half fade
+    expect(styles.some((a) => Math.abs(a - 0.15) < 1e-6)).toBe(true); // the halo (0.3) at half fade
+  });
+});
+
+const GLOW_AT = (b: Baked, at: string) => pixels(b).get(at) === SUSANOO_GLOW;
 
 const bounds = (b: Baked) => {
   let minX = Infinity;
@@ -130,13 +188,26 @@ const bounds = (b: Baked) => {
   }
   return { minX, maxX, minY, maxY };
 };
-const key = (b: Baked) => b.runs.map((r) => `${r.x},${r.y},${r.w},${r.c}`).join('|');
+const key = (b: Baked) => b.runs.map((r) => `${r.x},${r.y},${r.w},${r.c},${r.a}`).join('|');
+/** share of a sprite's pixels you can see through (opacity under 0.75) and how many are bright rim (0.9 and up) */
+const translucency = (b: Baked) => {
+  let n = 0;
+  let see = 0;
+  let rim = 0;
+  for (const r of b.runs) {
+    n += r.w;
+    if ((r.a ?? 1) < 0.75) see += r.w;
+    if ((r.a ?? 1) >= 0.9) rim += r.w;
+  }
+  return { see: see / n, rim: rim / n };
+};
+const FIGHTER_H = 22;
 
-describe('spirit sprites', () => {
-  it('Susanoo: both forms, every stage and frame fit their canvas (nothing clipped) and use only the palette', () => {
+describe('spirit sprites (translucent, D88)', () => {
+  it('Susanoo: both forms, every stage and frame fit their canvas, use only the palette, whole pixels, on the feet', () => {
     for (const level of [3, 4] as const) {
       for (let stage = 0; stage <= SUSANOO.rest; stage++) {
-        for (let frame = 0; frame < 3; frame++) {
+        for (let frame = 0; frame < SPIRIT_FRAMES; frame++) {
           const b = susanooSprite(level, stage, frame);
           const bb = bounds(b);
           expect(bb.minX, `L${level} s${stage} f${frame}`).toBeGreaterThan(0);
@@ -144,7 +215,8 @@ describe('spirit sprites', () => {
           expect(bb.maxX).toBeLessThan(b.w - 1);
           expect(bb.maxY).toBeLessThan(b.h - 1);
           for (const r of b.runs) for (const n of [r.x, r.y, r.w]) expect(Number.isInteger(n)).toBe(true);
-          for (const c of pixels(b).values()) expect(ALLOWED.has(c)).toBe(true);
+          for (const r of b.runs) expect((r.a ?? 1) > 0 && (r.a ?? 1) <= 1).toBe(true);
+          for (const c of pixels(b).values()) expect(SUSANOO_COLOURS.has(c)).toBe(true);
           // the spirit stands on the fighter's feet: nothing below the floor row
           expect(bb.maxY).toBeLessThan(SUSANOO.ay);
         }
@@ -152,79 +224,109 @@ describe('spirit sprites', () => {
     }
   });
 
-  it('Susanoo animates: the bow draws back, the flames flicker, the shot flashes, the Perfect form differs', () => {
+  it('Susanoo is translucent like the one-tail cloak: a bright rim, a see-through interior', () => {
+    for (const level of [3, 4] as const) {
+      const t = translucency(susanooSprite(level, 1, 0));
+      expect(t.see, `L${level}`).toBeGreaterThan(0.35);
+      expect(t.rim).toBeGreaterThan(0.15);
+    }
+  });
+
+  it('Susanoo animates: the bow draws back, the flames flicker over four frames, the shot flashes, the forms differ', () => {
     expect(key(susanooSprite(3, 0, 0))).not.toBe(key(susanooSprite(3, 3, 0)));
-    expect(key(susanooSprite(3, 0, 0))).not.toBe(key(susanooSprite(3, 0, 1)));
-    expect(key(susanooSprite(4, 0, 0))).not.toBe(key(susanooSprite(4, 0, 1))); // the wings beat
+    for (let f = 1; f < SPIRIT_FRAMES; f++) {
+      expect(key(susanooSprite(3, 0, 0))).not.toBe(key(susanooSprite(3, 0, f)));
+      expect(key(susanooSprite(4, 0, 0))).not.toBe(key(susanooSprite(4, 0, f))); // and the wing beats
+    }
+    expect(susanooSprite(3, 0, SPIRIT_FRAMES)).toBe(susanooSprite(3, 0, 0)); // the frames loop
     expect(key(susanooSprite(3, SUSANOO.shot, 0))).not.toBe(key(susanooSprite(3, SUSANOO.rest, 0)));
     expect(key(susanooSprite(4, 0, 0))).not.toBe(key(susanooSprite(3, 0, 0)));
     expect(susanooSprite(4, 2, 1)).toBe(susanooSprite(4, 2, 1)); // cached
     expect(susanooSprite(3, 99, 0)).toBe(susanooSprite(3, SUSANOO.rest, 0)); // stages clamp
   });
 
-  it('Susanoo is 2-3 fighters tall (fighters are 22 px), a few distinct colours, the eye glows', () => {
+  it('Susanoo is about three fighters tall (a little more for the Perfect crown and wing), the eye glows', () => {
     for (const level of [3, 4] as const) {
       const b = susanooSprite(level, 0, 0);
       const height = SUSANOO.ay - bounds(b).minY;
-      expect(height, `L${level}`).toBeGreaterThanOrEqual(2 * 22);
-      expect(height).toBeLessThanOrEqual(3.8 * 22); // (crown spikes and wing tips included)
-      const colours = new Set(pixels(b).values());
-      expect(colours.size).toBeLessThan(40);
-      expect(colours.has(SUSANOO_MATS[4].base) || colours.has(SUSANOO_MATS[4].light)).toBe(true);
+      expect(height, `L${level}`).toBeGreaterThanOrEqual(3 * FIGHTER_H);
+      expect(height).toBeLessThanOrEqual(4 * FIGHTER_H);
+      expect(new Set(pixels(b).values()).size).toBeLessThan(48);
+      const glows = [...pixels(b).entries()].filter(([p, c]) => c === SUSANOO_GLOW && Number(p.split(',')[1]) < SUSANOO.ay - 55);
+      expect(glows.length, 'the eye').toBeGreaterThan(0);
     }
   });
 
   it('the arrowhead sits exactly on the sim launch point while drawing; the shot flashes just past it', () => {
     for (const level of [3, 4] as const) {
       const { ahead, up } = SUSANOO_LAUNCH[level];
-      // the body is drawn to the same proportions the launch point was chosen for
-      expect(Math.abs(ahead - 30 * SUSANOO.scale[level])).toBeLessThanOrEqual(1.5);
-      expect(Math.abs(up - 31 * SUSANOO.scale[level])).toBeLessThanOrEqual(1.5);
       const at = `${SUSANOO.ax + ahead},${SUSANOO.ay - up}`;
       for (let stage = 0; stage < SUSANOO.stages; stage++) {
-        const px = pixels(susanooSprite(level, stage, 0));
-        expect(GLOWS.has(px.get(at)!), `L${level} s${stage}`).toBe(true);
-        expect(px.get(`${SUSANOO.ax + ahead + 1},${SUSANOO.ay - up}`)).toBe(SUSANOO_OUTLINE); // the point, outlined
+        const b = susanooSprite(level, stage, 0);
+        expect(GLOW_AT(b, at), `L${level} s${stage}`).toBe(true);
+        expect(pixels(b).get(`${SUSANOO.ax + ahead + 1},${SUSANOO.ay - up}`)).toBe(SUSANOO_HALO.c); // the point, haloed
       }
       const shot = pixels(susanooSprite(level, SUSANOO.shot, 0));
       expect(shot.get(`${SUSANOO.ax + ahead + 4},${SUSANOO.ay - up}`)).toBe(SUSANOO_INK.flash);
       // the arrow has left: no arrowhead at rest
-      expect(GLOWS.has(pixels(susanooSprite(level, SUSANOO.rest, 0)).get(at) ?? -1)).toBe(false);
+      expect(GLOW_AT(susanooSprite(level, SUSANOO.rest, 0), at)).toBe(false);
     }
   });
 
   it('the string is single-pixel ink whose middle is pulled back as the bow draws', () => {
-    const row = SUSANOO.ay - SUSANOO_LAUNCH[3].up;
-    const strings = (stage: number) =>
-      [...pixels(susanooSprite(3, stage, 0)).entries()].filter(([p, c]) => c === SUSANOO_INK.string && Number(p.split(',')[1]) === row).map(([p]) => Number(p.split(',')[0]));
-    expect(Math.min(...strings(3))).toBeLessThan(Math.min(...strings(0)) - 10);
+    for (const level of [3, 4] as const) {
+      const row = SUSANOO.ay - SUSANOO_LAUNCH[level].up;
+      const strings = (stage: number) =>
+        [...pixels(susanooSprite(level, stage, 0)).entries()].filter(([p, c]) => c === SUSANOO_INK.string && Number(p.split(',')[1]) === row).map(([p]) => Number(p.split(',')[0]));
+      expect(Math.min(...strings(3))).toBeLessThan(Math.min(...strings(0)) - 20);
+    }
   });
 
-  it('Kurama: nine tails fit the canvas (no clipping), the sprite is deterministic and its animation differs', () => {
-    for (let f = 0; f < 3; f++) {
-      const b = kuramaSprite(f);
-      const bb = bounds(b);
-      expect(bb.minX, `frame ${f}`).toBeGreaterThan(0);
-      expect(bb.minY).toBeGreaterThan(0);
-      expect(bb.maxX).toBeLessThan(b.w - 1);
-      expect(bb.maxY).toBeLessThan(b.h - 1);
-      const allowed = new Set<number>(KURAMA_MATS.flatMap((m) => [m.dark, m.base, m.light, m.hi]));
-      for (const c of pixels(b).values()) expect(allowed.has(c) || c === 0x3b1a0c).toBe(true);
+  it('Kurama: every frame and both poses fit the canvas, use only the palette, stand on the feet, are translucent', () => {
+    for (const roar of [false, true]) {
+      for (let f = 0; f < SPIRIT_FRAMES; f++) {
+        const b = kuramaSprite(f, roar);
+        const bb = bounds(b);
+        expect(bb.minX, `frame ${f}`).toBeGreaterThan(0);
+        expect(bb.minY).toBeGreaterThan(0);
+        expect(bb.maxX).toBeLessThan(b.w - 1);
+        expect(bb.maxY).toBeLessThan(KURAMA.ay);
+        for (const c of pixels(b).values()) expect(KURAMA_COLOURS.has(c)).toBe(true);
+        const height = KURAMA.ay - bb.minY;
+        expect(height).toBeGreaterThanOrEqual(3 * FIGHTER_H);
+        expect(height).toBeLessThanOrEqual(3.8 * FIGHTER_H);
+        const t = translucency(b);
+        expect(t.see).toBeGreaterThan(0.3);
+        expect(t.rim).toBeGreaterThan(0.15);
+      }
     }
     expect(key(kuramaSprite(0))).not.toBe(key(kuramaSprite(1)));
+    expect(key(kuramaSprite(0))).not.toBe(key(kuramaSprite(0, true)));
     expect(kuramaSprite(0)).toBe(kuramaSprite(0));
+    expect(kuramaSprite(SPIRIT_FRAMES, true)).toBe(kuramaSprite(0, true));
+  });
+
+  it('Kurama roars the Bijudama out of its open mouth: the launch point is right in front of the dark mouth', () => {
+    for (let f = 0; f < SPIRIT_FRAMES; f++) {
+      const px = pixels(kuramaSprite(f, true));
+      expect(px.get(`${KURAMA.ax + KURAMA_LAUNCH.ahead - 6},${KURAMA.ay - KURAMA_LAUNCH.up}`), `frame ${f}`).toBe(KURAMA_MOUTH);
+      // the mouth is wide open: dark pixels at least 8 rows tall around the launch column
+      const col = [...px.entries()].filter(([p, c]) => c === KURAMA_MOUTH && Number(p.split(',')[0]) === KURAMA.ax + KURAMA_LAUNCH.ahead - 6);
+      expect(col.length).toBeGreaterThanOrEqual(8);
+    }
   });
 });
 
 describe('arm sprites (the transformed punches)', () => {
-  const spec = (kind: ArmKind, ext: number, d: 1 | -1 = 1) => {
+  const spec = (kind: ArmKind, ext: number, d: 1 | -1 = 1, step: 0 | 1 | 2 = 2): ArmSpec => {
     const sx = 100;
     const sy = 60;
     const hx = Math.round(sx + d * 36 * ext);
-    return { kind, s: [sx, sy] as [number, number], e: [Math.round((sx + hx) / 2), 52] as [number, number], h: [hx, 56] as [number, number], d, thick: 5 };
+    return { kind, s: [sx, sy], e: [Math.round((sx + hx) / 2), 52], h: [hx, 56], d, thick: 5, step };
   };
+  const KINDS: ArmKind[] = ['susanoo', 'susanooBone', 'kurama', 'claw'];
 
-  it.each(['susanoo', 'kurama', 'claw'] as ArmKind[])('%s: from windup to full reach the arm is whole, inside its canvas, and the fist leads', (kind) => {
+  it.each(KINDS)('%s: from windup to full reach the arm is whole, inside its canvas, and the fist leads', (kind) => {
     let lastReach = -1;
     for (const ext of [0.15, 0.4, 0.7, 1]) {
       const a = armSprite(spec(kind, ext));
@@ -240,23 +342,44 @@ describe('arm sprites (the transformed punches)', () => {
     }
   });
 
-  it('facing left mirrors the arm; the claws point where the fist faces', () => {
-    const right = armSprite(spec('claw', 1, 1));
-    const left = armSprite(spec('claw', 1, -1));
-    const rb = bounds(right.baked);
-    const lb = bounds(left.baked);
-    expect(right.ox + rb.maxX).toBeGreaterThan(100 + 30); // forward = +x
-    expect(left.ox + lb.minX).toBeLessThan(100 - 30); // forward = -x
+  it('the spirit arms are translucent in their palettes; the red cloak arm stays solid', () => {
+    for (const kind of ['susanoo', 'susanooBone', 'kurama'] as ArmKind[]) {
+      const b = armSprite(spec(kind, 0.8)).baked;
+      expect(b.runs.some((r) => (r.a ?? 1) < 0.75), kind).toBe(true);
+      const palette = kind === 'kurama' ? KURAMA_COLOURS : SUSANOO_COLOURS;
+      for (const c of pixels(b).values()) expect(palette.has(c), kind).toBe(true);
+    }
+    expect(armSprite(spec('claw', 0.8)).baked.runs.every((r) => r.a === undefined)).toBe(true);
   });
 
-  it('is deterministic (same arm, same pixels)', () => {
+  it('the three-step punch: open claw, curling fingers, fist all differ; flames flicker on the chakra arm', () => {
+    for (const kind of ['susanoo', 'susanooBone', 'kurama'] as ArmKind[]) {
+      const steps = ([0, 1, 2] as const).map((s) => key(armSprite(spec(kind, 0.6, 1, s)).baked));
+      expect(new Set(steps).size, kind).toBe(3);
+    }
+    expect(key(armSprite({ ...spec('kurama', 0.6), frame: 0 }).baked)).not.toBe(key(armSprite({ ...spec('kurama', 0.6), frame: 1 }).baked));
+  });
+
+  it('facing left mirrors the arm; the claws point where the fist faces', () => {
+    for (const kind of KINDS) {
+      const right = armSprite(spec(kind, 1, 1));
+      const left = armSprite(spec(kind, 1, -1));
+      expect(right.ox + bounds(right.baked).maxX, kind).toBeGreaterThan(100 + 30); // forward = +x
+      expect(left.ox + bounds(left.baked).minX, kind).toBeLessThan(100 - 30); // forward = -x
+    }
+  });
+
+  it('is deterministic, and baked once per shape: the same arm elsewhere reuses the runs at a shifted origin', () => {
     const a = armSprite(spec('susanoo', 0.6));
     const b = armSprite(spec('susanoo', 0.6));
     expect(a.baked.runs).toEqual(b.baked.runs);
+    const moved = armSprite({ ...spec('susanoo', 0.6), s: [140, 90], e: [151, 82], h: [162, 86] });
+    expect(moved.baked).toBe(a.baked);
+    expect(moved.ox - a.ox).toBe(40);
+    expect(moved.oy - a.oy).toBe(30);
     expect(new Set(pixels(a.baked).values()).size).toBeLessThan(25);
   });
 });
-
 describe('fire jutsu sprites (Sasuke)', () => {
   const fb = HEROES.sasuke.second.fireball!;
   const FIRE_COLOURS = new Set([FIRE.outline, FIRE.red, FIRE.orange, FIRE.yellow, FIRE.core]);

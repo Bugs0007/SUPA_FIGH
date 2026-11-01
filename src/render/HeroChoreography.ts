@@ -89,7 +89,7 @@ export class HeroChoreography {
     // two gold chakra arms rise from the shoulders and cup the sphere, fingers turned in (pixel art, like the punches)
     for (const side of [-1, 1] as const) {
       const hx = ox + side * (radius + 4);
-      const arm = armSprite({ kind: 'kurama', s: [x + side * 5, y - 14], e: [Math.round(x + side * 26), Math.round(y - 33)], h: [Math.round(hx), Math.round(oy)], d: -side as 1 | -1, thick: 7 });
+      const arm = armSprite({ kind: 'kurama', s: [x + side * 5, y - 14], e: [Math.round(x + side * 26), Math.round(y - 33)], h: [Math.round(hx), Math.round(oy)], d: -side as 1 | -1, thick: 7, step: 0 });
       paintRuns(this.front, arm.baked, arm.ox, arm.oy, false, alpha);
     }
   }
