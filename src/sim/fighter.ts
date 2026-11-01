@@ -1655,6 +1655,11 @@ function startKick(w: World, f: Fighter): void {
 
 /** Per tick: guard meter regeneration, blockstun / parry timers, and the end of a BLOCK press. */
 function updateGuard(f: Fighter, inp: Intent, dt: number): void {
+  if(f.master>=0){
+    f.parryT=f.blockStun=0;
+    if(f.state==='block'){f.state='normal';f.stateTime=0;}
+    return;
+  }
   if (f.state !== 'block') {
     f.blockStun = 0;
     f.parryT = 0;

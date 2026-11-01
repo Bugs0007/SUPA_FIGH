@@ -5,6 +5,7 @@ import { DEFAULT_PAD, loadPadBinds, PAD_ACTIONS } from '../../src/input/gamepad'
 import { intentFor, IntentSlot, TickSampler } from '../../src/net/intentWire';
 import { parseClientMsg, PROTOCOL_VERSION } from '../../src/net/protocol';
 import { HEROES } from '../../src/sim/data/heroes';
+import { applyHit } from '../../src/sim/combat';
 import type { SimEvent } from '../../src/sim/events';
 import type { Fighter } from '../../src/sim/fighter';
 import { clonesOf, summonClones, transform } from '../../src/sim/hero';
@@ -131,6 +132,24 @@ describe('shadow clones cannot block or parry', () => {
       for (const c of clones) expect(c.state).not.toBe('block');
     }
     expect(n.state).toBe('block');
+  });
+
+  it.each([0,.12])('a clone in stale guard state cannot block or parry (parry timer %s)',parry=>{
+    const {w,clones}=withClones(),c=clones[0],attacker=w.fighters[1];
+    attacker.x=c.x+c.facing*12;attacker.y=c.y;
+    c.invuln=0;c.state='block';c.parryT=parry;c.blockStun=.5;
+    const hp=c.hp;w.events.length=0;
+    expect(applyHit(w,c,{damage:5,kbX:0,kbY:0,attacker:attacker.id,weapon:'fists',kind:'melee',x:attacker.x,y:c.y-10})).toBe(true);
+    expect(c.hp).toBe(hp-5);
+    expect(c.parryT).toBe(0);expect(c.blockStun).toBe(0);
+    expect(w.events.some(e=>(e.t==='block'||e.t==='parry')&&e.victim===c.id)).toBe(false);
+  });
+
+  it('a clone drops stale blockstun immediately even while BLOCK stays held',()=>{
+    const {w,clones}=withClones(),c=clones[0];
+    c.state='block';c.parryT=.12;c.blockStun=1;
+    w.step(w.fighters.map(()=>intent({block:true})));
+    expect(c.state).not.toBe('block');expect(c.parryT).toBe(0);expect(c.blockStun).toBe(0);
   });
 
   it('a punch on a clone holding BLOCK lands in full: no block, no parry', () => {

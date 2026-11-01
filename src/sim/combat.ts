@@ -180,6 +180,11 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
 
   let dmg = Math.max(0, hit.damage);
   if (w.mods.has('glassJaw') && hit.kind !== 'drain') dmg *= 3;
+  // Clone restrictions apply at the damage boundary too, including stale/restored guard state.
+  if(v.master>=0){
+    v.parryT=0;v.blockStun=0;
+    if(v.state==='block'){v.state='normal';v.stateTime=0;}
+  }
   if (v.state === 'block' && BLOCKABLE.includes(hit.kind)) {
     const melee = hit.kind === 'melee' || hit.kind === 'kick';
     const srcX = melee && striker ? striker.x : hit.kind === 'explosion' ? undefined : (hit.x ?? striker?.x);
