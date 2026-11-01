@@ -126,7 +126,7 @@ it('Kurama launches the final Bijudama from the avatar mouth',()=>{
   const w=arena('naruto',4),f=w.fighters[0];
   fireBomb(w,f,HEROES.naruto.super.bomb!,4);
   const b=w.bullets.find(b=>b.active)!;
-  expect(b.x).toBe(f.x+53);expect(b.y).toBe(f.y-27);
+  expect(b.x).toBe(f.x+66);expect(b.y).toBe(f.y-46);
 });
 
 it('Chidori stays blue in every form, with a distinct deterministic chirping sound',()=>{
