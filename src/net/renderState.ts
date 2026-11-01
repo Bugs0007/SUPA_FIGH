@@ -261,6 +261,7 @@ export function applyWorld(w: World, s: RenderSnapshot, prev?: PrevPositions): v
 
 /** Match-level state the HUD / camera / world renderer read. Small; sent whenever it changes. */
 export interface MatchRender {
+  roundPlacements: Match['roundPlacements'];
   round: number;
   roundModifiers: string[];
   phase: string;
@@ -283,6 +284,7 @@ export interface MatchRender {
 
 export function encodeMatch(m: Match): MatchRender {
   return {
+    roundPlacements: m.roundPlacements.map(p=>({...p})),
     round: m.round,
     roundModifiers: [...m.roundModifiers],
     phase: m.phase,
@@ -306,6 +308,7 @@ export function encodeMatch(m: Match): MatchRender {
 
 /** Apply match-level state onto a mirror Match whose world is already for `s.round`. */
 export function applyMatch(m: Match, s: MatchRender): void {
+  m.roundPlacements=s.roundPlacements.map(p=>({...p}));
   m.round = s.round;
   m.roundModifiers = s.roundModifiers;
   m.phase = s.phase as Match['phase'];

@@ -311,7 +311,7 @@ export class LobbyScene extends Phaser.Scene {
       mode: ['MODE', MODE_NAMES[c.mode]],
       length:
         c.mode === 'brawl'
-          ? ['FIRST TO', c.roundsToWin===0?'UNLIMITED':`${c.roundsToWin} ROUNDS`]
+          ? ['CHAMPIONSHIP', c.roundsToWin===0?'UNLIMITED':`${c.roundsToWin} ROUNDS`]
           : c.mode === 'coop'
             ? ['LENGTH', 'SURVIVE 15 WAVES']
             : ['TIME LIMIT', `${Math.floor(c.timeLimit / 60)}:${String(c.timeLimit % 60).padStart(2, '0')}`],

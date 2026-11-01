@@ -467,7 +467,7 @@ export class NetLobbyScene extends Phaser.Scene {
       case 'mode':
         return MODE_NAMES[cfg.mode];
       case 'length':
-        return cfg.mode === 'brawl' ? cfg.roundsToWin===0?'UNLIMITED':`${cfg.roundsToWin} WINS` : cfg.mode === 'deathmatch' ? `${Math.floor(cfg.timeLimit / 60)}:${String(cfg.timeLimit % 60).padStart(2, '0')}` : 'AUTO';
+        return cfg.mode === 'brawl' ? cfg.roundsToWin===0?'UNLIMITED':`${cfg.roundsToWin} ROUNDS` : cfg.mode === 'deathmatch' ? `${Math.floor(cfg.timeLimit / 60)}:${String(cfg.timeLimit % 60).padStart(2, '0')}` : 'AUTO';
       case 'bots':
         return String(cfg.bots.length);
       case 'skill':

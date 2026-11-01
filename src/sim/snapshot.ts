@@ -72,6 +72,8 @@ export interface WorldSnapshot {
 }
 
 export interface MatchSnapshot {
+  roundPlacements: { team: number; place: number; points: number }[];
+  brawlEliminated: [number, number][];
   round: number;
   phase: string;
   phaseTime: number;

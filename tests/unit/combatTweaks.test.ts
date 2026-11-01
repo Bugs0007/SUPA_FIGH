@@ -47,7 +47,7 @@ describe('the BLOCK button bit', () => {
   });
 
   it('the protocol accepts the 16-bit controls and was bumped so older peers are refused', () => {
-    expect(PROTOCOL_VERSION).toBe(2);
+    expect(PROTOCOL_VERSION).toBe(3);
     const v = packIntent({ ...emptyIntent(), block: true, attack: true });
     expect(v).toBeGreaterThan(0x7fff);
     const m = parseClientMsg(JSON.stringify({ t: 'in', slot: 0, seq: 1, v, e: v & 0xff00 }));

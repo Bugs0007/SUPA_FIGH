@@ -7,6 +7,7 @@ import type { Intent } from './intent';
 import { getMap } from './map/maps';
 import { World, type WorldSettings } from './world';
 import { RoundRecording } from './replay';
+import { rankBrawl, type BrawlPlacement } from './data/brawl';
 import { clonePlain, type MatchSnapshot } from './snapshot';
 
 /**
@@ -20,7 +21,7 @@ export interface MatchConfig {
   mapId: string;
   mode: GameMode;
   fighters: FighterSpawn[];
-  /** Brawl win target; 0 keeps starting rounds indefinitely. */
+  /** Brawl championship round count; 0 keeps scoring indefinitely. Legacy wire field name. */
   roundsToWin: number;
   friendlyFire: boolean;
   weaponSpawnRate: number;
@@ -113,7 +114,7 @@ export class Match {
   round = 0;
   phase: MatchPhase = 'fight';
   phaseTime = 0;
-  /** round wins per team key */
+  /** Mode score per team key (Brawl championship placement points). */
   scores = new Map<number, number>();
   roundWinner: number | null = null;
   matchWinner: number | null = null;
@@ -168,6 +169,9 @@ export class Match {
   recording: RoundRecording | null = null;
   /** recording of the round that just ended (kept until the next one ends) */
   lastRecording: RoundRecording | null = null;
+  /** Last completed round's placement points; shared by teammates. */
+  roundPlacements: BrawlPlacement[] = [];
+  private brawlEliminated = new Map<number, number>();
 
   /** Modifiers active this round: fixed ones + this round's chaos card. */
   roundModifiers: string[] = [];
@@ -211,6 +215,7 @@ export class Match {
     this.decideTimer = -1;
     this.roundWinner = null;
     this.recentKills.length = 0;
+    this.brawlEliminated.clear();
     this.respawnAt.clear();
     this.overtime = false;
     this.initMode();
@@ -227,6 +232,8 @@ export class Match {
       phase: this.phase,
       phaseTime: this.phaseTime,
       scores: [...this.scores],
+      roundPlacements: this.roundPlacements.map(p=>({...p})),
+      brawlEliminated: [...this.brawlEliminated],
       roundWinner: this.roundWinner,
       matchWinner: this.matchWinner,
       stats: clonePlain(this.stats) as unknown as Record<string, number>[],
@@ -268,6 +275,8 @@ export class Match {
     this.phase = c.phase as MatchPhase;
     this.phaseTime = c.phaseTime;
     this.scores = new Map(c.scores);
+    this.roundPlacements = c.roundPlacements.map(p=>({...p}));
+    this.brawlEliminated = new Map(c.brawlEliminated);
     this.roundWinner = c.roundWinner;
     this.matchWinner = c.matchWinner;
     this.stats = c.stats as unknown as FighterStats[];
@@ -320,6 +329,16 @@ export class Match {
     this.phaseTime += DT;
 
     this.processWorldEvents(evStart, bounty);
+    if(this.cfg.mode==='brawl'&&this.phase==='fight'){
+      // Clones may survive their master's death until the next tick's link cleanup.
+      // Only actual roster members determine placement and simultaneous-death ties.
+      const alive=new Set<number>();
+      for(let i=0;i<this.cfg.fighters.length;i++)if(w.fighters[i].alive&&!w.fighters[i].gone)alive.add(this.teamOf(i));
+      for(let i=0;i<this.cfg.fighters.length;i++){
+        const team=this.teamOf(i);
+        if(!this.brawlEliminated.has(team)&&!alive.has(team))this.brawlEliminated.set(team,w.tick);
+      }
+    }
 
     this.updateSlowmo();
 
@@ -358,18 +377,18 @@ export class Match {
   }
 
   /**
-   * The bounty: the single fighter leading the match (round wins in Brawl, kills in Deathmatch).
+   * The bounty: the single fighter leading the match (points in Brawl, kills in Deathmatch).
    * -1 while nobody leads alone. Killing them is announced (and worth +1 in Deathmatch).
    */
   get bounty(): number {
     if (this.cfg.mode === 'juggernaut') return this.juggernaut;
     if (this.cfg.mode === 'coop') return -1;
-    const key = (s: FighterStats) => (this.cfg.mode === 'deathmatch' ? s.kills - s.suicides : s.roundsWon * 100 + s.kills);
+    const key = (s: FighterStats, i:number) => (this.cfg.mode === 'deathmatch' ? s.kills - s.suicides : (this.cfg.mode==='brawl'?(this.scores.get(this.teamOf(i))??0):s.roundsWon) * 100 + s.kills);
     let best = -1;
     let bestV = 0;
     let tie = false;
     this.stats.forEach((s, i) => {
-      const v = key(s);
+      const v = key(s,i);
       if (v > bestV) {
         bestV = v;
         best = i;
@@ -769,11 +788,17 @@ export class Match {
     const alive = [...this.world.aliveTeams()];
     const winner = alive.length === 1 ? alive[0] : null;
     this.roundWinner = winner;
+    const teams=[...new Set(this.cfg.fighters.map((_,i)=>this.teamOf(i)))];
+    this.roundPlacements=rankBrawl(teams,this.brawlEliminated);
+    for(const placement of this.roundPlacements)this.scores.set(placement.team,(this.scores.get(placement.team)??0)+placement.points);
     if (winner !== null) {
-      const s = (this.scores.get(winner) ?? 0) + 1;
-      this.scores.set(winner, s);
       for (const i of this.membersOf(winner)) this.stats[i].roundsWon++;
-      if (this.cfg.roundsToWin > 0 && s >= this.cfg.roundsToWin) this.matchWinner = winner;
+    }
+    if(this.cfg.roundsToWin>0&&this.round>=this.cfg.roundsToWin){
+      const best=Math.max(...teams.map(team=>this.scores.get(team)??0));
+      const leaders=teams.filter(team=>this.scores.get(team)===best);
+      if(leaders.length===1)this.matchWinner=leaders[0];
+      else this.overtime=true;
     }
     this.phase = 'roundEnd';
     this.phaseTime = 0;
@@ -782,6 +807,7 @@ export class Match {
 
   private resetMatch(): void {
     this.scores.clear();
+    this.roundPlacements=[];
     this.cineScale = 1;
     this.matchWinner = null;
     this.round = 0;

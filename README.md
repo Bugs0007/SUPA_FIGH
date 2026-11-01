@@ -100,7 +100,7 @@ through the flurry and ends with a heavy launching punch; it recharges in 2.8 s.
 hit harder and recharge in 6.5 s.
 
 ### Modes
-- **Brawl:** rounds, last fighter standing. The dead come back as ghosts who can shove things around.
+- **Brawl:** a placement-points championship over the selected number of rounds. Each round awards **25 / 18 / 15 / 12 / 10 / 8 / 6 / 4 / 2 / 1** points for 1st through 10th. Highest total wins; tied leaders play extra rounds. Teams place when their last member falls and share one team score. Same-tick eliminations share the lower occupied place's points. The dead come back as ghosts who can shove things around.
 - **Deathmatch:** timed, with respawns.
 - **King of the Hill:** hold the hill alone to score.
 - **Juggernaut:** one 400 HP minigunner. Kill them to take over.
@@ -232,7 +232,7 @@ Bots now use all four form combos and Naruto's clone throw for power-orb travers
 Avatar ultimates aim vertically as well as horizontally: Susanoo tilts its body and bow, and Kurama raises or lowers its head. Preview with ?scene=art&page=moves&hero=naruto&move=super&aim=-0.9 (negative aims up, positive aims down).
 
 ### Balance simulations
-Match Setup and LAN Brawl rooms offer **UNLIMITED** after 10 rounds (or before 1). The match keeps starting new rounds until you quit, and the top scoreboard shows numeric round wins. Naruto's ultimate travels twice as fast. Power orbs can be collected during Rasengan, Chidori and Clone Slingshot, including by bots. Bots account for projectile size and blast radius when dodging and favour ultimate shots against enemies committed to attacks or stunned. Kirin grows with each form; Naruto's forms 1–3 use tail whips for their melee combos.
+Match Setup and LAN Brawl rooms offer **UNLIMITED** after 10 rounds (or before 1). The match keeps starting new rounds until you quit, and the top scoreboard shows cumulative placement points. Pause to see every player's points, kills, deaths, damage dealt, round wins, last placement and points earned, plus health and form health. Online, the table updates while the server match continues. Naruto's ultimate travels twice as fast. Power orbs can be collected during Rasengan, Chidori and Clone Slingshot, including by bots. Bots account for projectile size and blast radius when dodging and favour ultimate shots against enemies committed to attacks or stunned. Kirin grows with each form; Naruto's forms 1–3 use tail whips for their melee combos.
 
 ### Jet Bazooka
 From form 1, press **Pistol + Punch**. Near an enemy, Luffy grabs them and kicks them away; hold a direction to aim the launch. At range he grips the nearest available floor, wall, platform or ladder, winds back, and slingshots toward the closest enemy or power orb. The slingshot requires a real anchor and collects orbs during flight. Gallery previews: add **jet=sling** or **jet=kick** to Luffy's special-move gallery URL.

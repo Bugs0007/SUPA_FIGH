@@ -11,7 +11,7 @@ import type { GameMode, MatchConfig, MatchEvent } from '../sim/match';
 import { MODIFIERS } from '../sim/data/modifiers';
 import type { MatchRender, RenderSnapshot } from './renderState';
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 /** most fighters in one match (humans + bots) */
 export const MAX_FIGHTERS = 10;
 /** local players one device may claim */
@@ -35,6 +35,7 @@ export interface BotSpec {
 export interface RoomConfig {
   mapId: string;
   mode: GameMode;
+  /** Brawl championship rounds, 0 = unlimited (legacy field name). */
   roundsToWin: number;
   /** deathmatch length (s) */
   timeLimit: number;

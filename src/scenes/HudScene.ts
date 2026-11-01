@@ -111,6 +111,8 @@ export class HudScene extends Phaser.Scene {
   private pauseText!: Phaser.GameObjects.BitmapText;
   private pauseSub!: Phaser.GameObjects.BitmapText;
   private pauseItems: Phaser.GameObjects.BitmapText[] = [];
+  private pauseStats: Phaser.GameObjects.BitmapText[][] = [];
+  private pauseStatsNote!: Phaser.GameObjects.BitmapText;
   private pauseDim!: Phaser.GameObjects.Rectangle;
   private pauseIdx = 0;
   private pauseGfx!: Phaser.GameObjects.Graphics;
@@ -140,6 +142,7 @@ export class HudScene extends Phaser.Scene {
     this.bannerTime = 0;
     this.announceTime = 0;
     this.pauseIdx = 0;
+    this.pauseStats = [];
     this.wasPaused = false;
     this.ms = this.scene.get("match") as unknown as MatchScene;
     this.applyZoom((this.registry.get('scale') as number) ?? 1);
@@ -151,7 +154,7 @@ export class HudScene extends Phaser.Scene {
     this.banner = this.add.bitmapText(VIEW_W / 2, 118, 'pxo', '').setOrigin(0.5).setScale(3).setDepth(10);
     this.bannerSub = this.add.bitmapText(VIEW_W / 2, 146, 'pxo', '').setOrigin(0.5).setDepth(10);
     this.announce = this.add.bitmapText(VIEW_W / 2, 72, 'pxo', '').setOrigin(0.5).setScale(2).setDepth(10);
-    this.pauseText = this.add.bitmapText(VIEW_W / 2, 74, 'pxo', 'PAUSED').setOrigin(0.5).setScale(3).setDepth(20).setVisible(false);
+    this.pauseText = this.add.bitmapText(VIEW_W / 2, 35, 'pxo', 'PAUSED / MATCH STATS').setOrigin(0.5).setScale(2).setDepth(20).setVisible(false);
     this.pauseSub = this.add
       .bitmapText(VIEW_W / 2, 300, 'sm', 'F1: HITBOXES   F2: SIM SPEED   F3: FRAME STEP')
       .setOrigin(0.5)
@@ -163,7 +166,8 @@ export class HudScene extends Phaser.Scene {
     this.pauseBar = new HintBar(this, VIEW_H - 15, 40);
     this.pauseBar.set([hint.move('SELECT', 'ud'), hint.ok('OK'), hint.key('RESUME', ['ESC'], [9, 1], ['II'])]);
     this.pauseBar.setVisible(false);
-    this.pauseItems = PAUSE_ITEMS.map((it, i) => this.add.bitmapText(VIEW_W / 2, 126 + i * 24, 'pxo', it.label).setOrigin(0.5).setDepth(20).setVisible(false));
+    this.pauseItems = PAUSE_ITEMS.map((it, i) => this.add.bitmapText(554, 96 + i * 24, 'pxo', it.label).setOrigin(0.5).setDepth(20).setVisible(false));
+    this.pauseStatsNote=this.add.bitmapText(18,280,'sm','').setDepth(20).setTint(0xa5b7d2).setVisible(false);
     this.debugText = this.add.bitmapText(4, 4, 'smo', '').setDepth(20);
     this.netText = this.add.bitmapText(VIEW_W / 2, 34, 'smo', '').setOrigin(0.5, 0).setDepth(25);
     this.pingText = this.add.bitmapText(VIEW_W - 6, 3, 'smo', '').setOrigin(1, 0).setDepth(25).setTint(0x8d95b0);
@@ -279,7 +283,7 @@ export class HudScene extends Phaser.Scene {
       gungame: 'EVERY KILL UPGRADES YOUR GUN. KNIFE KILL WINS.',
       coop: 'SURVIVE THE WAVES. HOLD INTERACT OVER A FRIEND TO REVIVE.',
     };
-    if (m.cfg.mode === 'brawl') this.showBanner('ROUND ' + round, 'FIGHT!', 0xffffff, 1.2);
+    if (m.cfg.mode === 'brawl') this.showBanner('ROUND ' + round, 'PLACEMENT POINTS: 25 / 18 / 15 / 12 / 10 / 8 / 6 / 4 / 2 / 1', 0xffffff, 1.2);
     else this.showBanner(MODE_NAMES[m.cfg.mode], subs[m.cfg.mode], 0xffffff, 2);
   }
 
@@ -356,10 +360,10 @@ export class HudScene extends Phaser.Scene {
       else if (e.t === 'overtime') this.showBanner('OVERTIME', 'NEXT KILL WINS', 0xf8c840, 2);
       else if (e.t === 'roundEnd') {
         const tn = this.teamName(e.winnerTeam);
-        this.showBanner(e.winnerTeam === null ? 'DRAW!' : tn.name + ' WINS', e.winnerTeam === null ? 'EVERYBODY DIED' : 'THE ROUND', tn.color, 2.4);
+        this.showBanner(e.winnerTeam === null ? 'DRAW!' : tn.name + ' WINS', e.winnerTeam === null ? 'TIED PLACEMENT POINTS AWARDED' : 'THE ROUND / +25 POINTS', tn.color, 2.4);
       } else if (e.t === 'matchEnd') {
         const tn = this.teamName(e.winnerTeam);
-        this.showBanner(tn.name + ' WINS!', 'BRAWLKAI CHAMPION', tn.color, 2.5);
+        this.showBanner(tn.name + ' WINS!', ms.match.cfg.mode==='brawl'?`${ms.match.scores.get(e.winnerTeam)??0} POINTS / CHAMPION`:'BRAWLKAI CHAMPION', tn.color, 2.5);
         this.showAwards();
       } else if (e.t === 'multiKill') {
         const words = ['', '', 'DOUBLE KILL!', 'TRIPLE KILL!', 'MULTI KILL!', 'RAMPAGE!!'];
@@ -401,7 +405,7 @@ export class HudScene extends Phaser.Scene {
       this.roundText.setText(m.overtime ? `${MODE_NAMES[m.cfg.mode]}  -  OVERTIME` : `${MODE_NAMES[m.cfg.mode]}  -  ${clock}${goal}`).setTint(tl <= 10 && m.phase === 'fight' ? 0xea4a4a : 0xffffff);
     } else {
       const sd = ms.match.world.suddenDeath > 0 ? '  -  SUDDEN DEATH' : '';
-      this.roundText.setText(`ROUND ${m.round}  -  ${m.cfg.roundsToWin===0?'UNLIMITED':`FIRST TO ${m.cfg.roundsToWin}`}${sd}`).setTint(sd ? 0xea4a4a : 0xffffff);
+      this.roundText.setText(`${m.cfg.roundsToWin>0&&m.round>m.cfg.roundsToWin?'TIEBREAK ':''}ROUND ${m.round}${m.cfg.roundsToWin===0?'  -  UNLIMITED':` / ${m.cfg.roundsToWin}`}  -  POINTS${sd}`).setTint(sd ? 0xea4a4a : 0xffffff);
     }
     const teams: number[] = [];
     m.cfg.fighters.forEach((f, i) => {
@@ -633,16 +637,40 @@ export class HudScene extends Phaser.Scene {
     const pg = this.pauseGfx.clear();
     if (showPause) {
       const shown = pauseList(!!ms.net);
-      panel(pg, VIEW_W / 2 - 100, 100, 200, 14 + shown.length * 24 + 6, hexToNum(P.purple1), true);
-      rowBar(pg, VIEW_W / 2 - 96, 122 + this.pauseIdx * 24, 192, 20, Math.floor(this.time.now / 330) % 2 === 0);
+      panel(pg, 12, 62, 456, 208, hexToNum(P.purple1), true);
+      panel(pg, 478, 70, 152, 14 + shown.length * 24 + 6, hexToNum(P.purple1), true);
+      rowBar(pg, 482, 92 + this.pauseIdx * 24, 144, 20, Math.floor(this.time.now / 330) % 2 === 0);
       this.pauseBar.setVisible(true);
       this.pauseBar.update();
     } else this.pauseBar.setVisible(false);
     const listed = pauseList(!!ms.net);
     this.pauseItems.forEach((t, i) => t.setVisible(showPause && i < listed.length).setText(listed[i]?.label ?? '').setTint(i === this.pauseIdx ? 0xffffff : 0x8d95b0));
+    this.updatePauseStats(showPause);
     if (ms.wr?.debug) {
       const alive = w.fighters.filter((f) => f.alive).length;
       this.debugText.setText(`FPS ${Math.round(this.game.loop.actualFps)}  SPEED ${ms.speed}X  TICK ${w.tick}  ALIVE ${alive}  BULLETS ${w.bullets.filter((b) => b.active).length}`);
     } else this.debugText.setText('');
+  }
+
+  private updatePauseStats(show: boolean): void {
+    this.pauseStatsNote.setVisible(show);
+    if(!show){for(const row of this.pauseStats)for(const cell of row)cell.setVisible(false);return;}
+    const m=this.ms.match,w=m.world;
+    const players=m.cfg.fighters.map((_,id)=>({id,team:teamKey(w.fighters[id]),stats:m.stats[id]}));
+    players.sort((a,b)=>(m.scores.get(b.team)??0)-(m.scores.get(a.team)??0)||b.stats.damage-a.stats.damage||a.id-b.id);
+    const rows=[['#','PLAYER','HERO','PTS','K','D','DMG','W','LAST','HP']];
+    for(const p of players){
+      const f=w.fighters[p.id],score=m.scores.get(p.team)??0;
+      const rank=1+new Set(players.filter(other=>(m.scores.get(other.team)??0)>score).map(other=>other.team)).size;
+      const last=m.roundPlacements.find(result=>result.team===p.team);
+      rows.push([String(rank),this.nameOf(p.id).name.slice(0,11),`${heroDef(f.hero)?.name??'FIGHTER'}${f.powerLevel>0?' '+f.powerLevel:''}`,String(score),String(p.stats.kills),String(p.stats.deaths),String(Math.round(p.stats.damage)),String(p.stats.roundsWon),last?`${last.place}/+${last.points}`:'-',f.alive?`${Math.ceil(f.hp)}${f.formHp>0?'+'+Math.ceil(f.formHp):''}`:'OUT']);
+    }
+    const columns=[24,40,122,208,237,262,303,330,382,454];
+    rows.forEach((row,i)=>{
+      if(!this.pauseStats[i])this.pauseStats[i]=columns.map((x,j)=>this.add.bitmapText(x,74+i*18,'sm','').setOrigin(j===1||j===2?0:1,0).setDepth(20));
+      row.forEach((value,j)=>this.pauseStats[i][j].setText(value.toUpperCase()).setVisible(true).setTint(i===0?0xffe08a:j===1?this.nameOf(players[i-1].id).color:0xffffff));
+    });
+    for(let i=rows.length;i<this.pauseStats.length;i++)for(const cell of this.pauseStats[i])cell.setVisible(false);
+    this.pauseStatsNote.setText(m.cfg.mode==='brawl'?'LAST = PLACE/+POINTS   HP = HEALTH+FORM\nPOINTS BY PLACE: 25 18 15 12 10 8 6 4 2 1':'K = KILLS   D = DEATHS   W = ROUND WINS\nHP = HEALTH+FORM');
   }
 }

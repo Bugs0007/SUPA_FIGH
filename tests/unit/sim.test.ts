@@ -164,7 +164,7 @@ describe('fighter', () => {
 });
 
 describe('match', () => {
-  it('ends the round when one team remains and awards a point', () => {
+  it('ends the round when one team remains and awards placement points', () => {
     const m = new Match({
       mapId: 'test',
       mode: 'brawl',
@@ -180,7 +180,8 @@ describe('match', () => {
     for (let i = 0; i < 200 && m.phase === 'fight'; i++) m.step([]);
     expect(m.phase).toBe('roundEnd');
     expect(m.roundWinner).not.toBeNull();
-    expect([...m.scores.values()]).toEqual([1]);
+    expect(m.scores.get(100)).toBe(25);
+    expect(m.scores.get(101)).toBe(18);
     for (let i = 0; i < 400 && m.round === 1; i++) m.step([]);
     expect(m.round).toBe(2);
   });
