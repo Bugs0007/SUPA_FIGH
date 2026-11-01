@@ -399,7 +399,7 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 
 - [x] D101: ceiling-connected thick Kirin dragon body, forelegs, connected lightning bolts and a persistent event-driven impact that survives caster interruption; verified in real-match screenshots.
 
-- [x] D102: Brawl placement-points championship (25/18/15/12/10/8/6/4/2/1), selected round count + tiebreak rounds, unlimited scoring, team / simultaneous-death rules and snapshot / LAN placement state.
+- [x] D102 / D106: Brawl placement-points championship (last = 0, +1 per position above it), selected round count + tiebreak rounds, unlimited scoring, team / simultaneous-death rules and snapshot / LAN placement state.
 - [x] D102: pause standings for all ten players with points, kills, deaths, damage, round wins, last placement / points and health / form health; protocol v3 prevents old scoring clients joining.
 
 - [x] Kirin impact redesigned as an expanding white/cyan detonation with twin ground shockwaves, lightning jets, debris and a lingering dust aftermath.

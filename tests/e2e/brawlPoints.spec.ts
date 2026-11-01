@@ -18,7 +18,7 @@ for(const count of [4,10])test(`pause shows all ${count} players and championshi
     s.paused=true;
     return {scores:[...m.scores.values()],placements:m.roundPlacements.length};
   },count);
-  expect(result.placements).toBe(count);expect(result.scores[0]).toBe(25);
+  expect(result.placements).toBe(count);expect(result.scores[0]).toBe(count-1);expect(result.scores[count-1]).toBe(0);
   await page.waitForFunction((count)=>{
     const hud=(window as any).__GAME__.game.scene.getScene('hud');
     return hud.pauseStats.length===count+1&&hud.pauseStats[0][0].visible;
@@ -29,7 +29,8 @@ for(const count of [4,10])test(`pause shows all ${count} players and championshi
   });
   expect(rows.header).toEqual(['#','PLAYER','HERO','PTS','K','D','DMG','W','LAST','HP']);
   expect(rows.rows).toHaveLength(count);
-  expect(rows.rows[0][3]).toBe('25');expect(rows.rows[0][6]).toBe('1234');expect(rows.rows[0][8]).toBe('1/+25');
+  expect(rows.rows[0][3]).toBe(String(count-1));expect(rows.rows[0][6]).toBe('1234');expect(rows.rows[0][8]).toBe(`1/+${count-1}`);
+  expect(rows.rows[count-1][3]).toBe('0');expect(rows.rows[count-1][8]).toBe(`${count}/+0`);
   expect(rows.title).toContain('POINTS');expect(rows.title).toContain('/ 3');
   for(const bounds of rows.bounds){expect(bounds.x).toBeGreaterThanOrEqual(12);expect(bounds.right).toBeLessThanOrEqual(468);expect(bounds.y).toBeLessThan(270);}
   await page.screenshot({path:`tests/e2e/screenshots/pause-standings-${count}.png`});

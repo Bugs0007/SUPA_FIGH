@@ -8,6 +8,7 @@ import { teamKey } from '../sim/combat';
 import { computeAwards } from '../sim/awards';
 import { hint, HintBar, panel, rowBar } from './kit';
 import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/match';
+import { brawlPoints, brawlPointScale } from '../sim/data/brawl';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
 import { FORM_HP, heroDef } from '../sim/data/heroes';
 import { BOOST_COLORS, formFx } from '../art/heroArt';
@@ -283,7 +284,7 @@ export class HudScene extends Phaser.Scene {
       gungame: 'EVERY KILL UPGRADES YOUR GUN. KNIFE KILL WINS.',
       coop: 'SURVIVE THE WAVES. HOLD INTERACT OVER A FRIEND TO REVIVE.',
     };
-    if (m.cfg.mode === 'brawl') this.showBanner('ROUND ' + round, 'PLACEMENT POINTS: 25 / 18 / 15 / 12 / 10 / 8 / 6 / 4 / 2 / 1', 0xffffff, 1.2);
+    if (m.cfg.mode === 'brawl') this.showBanner('ROUND ' + round, 'PLACEMENT POINTS: '+brawlPointScale(m.teamCount).join(' / '), 0xffffff, 1.2);
     else this.showBanner(MODE_NAMES[m.cfg.mode], subs[m.cfg.mode], 0xffffff, 2);
   }
 
@@ -360,7 +361,7 @@ export class HudScene extends Phaser.Scene {
       else if (e.t === 'overtime') this.showBanner('OVERTIME', 'NEXT KILL WINS', 0xf8c840, 2);
       else if (e.t === 'roundEnd') {
         const tn = this.teamName(e.winnerTeam);
-        this.showBanner(e.winnerTeam === null ? 'DRAW!' : tn.name + ' WINS', e.winnerTeam === null ? 'TIED PLACEMENT POINTS AWARDED' : 'THE ROUND / +25 POINTS', tn.color, 2.4);
+        this.showBanner(e.winnerTeam === null ? 'DRAW!' : tn.name + ' WINS', e.winnerTeam === null ? 'TIED PLACEMENT POINTS AWARDED' : `THE ROUND / +${brawlPoints(ms.match.teamCount,1)} PTS`, tn.color, 2.4);
       } else if (e.t === 'matchEnd') {
         const tn = this.teamName(e.winnerTeam);
         this.showBanner(tn.name + ' WINS!', ms.match.cfg.mode==='brawl'?`${ms.match.scores.get(e.winnerTeam)??0} POINTS / CHAMPION`:'BRAWLKAI CHAMPION', tn.color, 2.5);
@@ -671,6 +672,6 @@ export class HudScene extends Phaser.Scene {
       row.forEach((value,j)=>this.pauseStats[i][j].setText(value.toUpperCase()).setVisible(true).setTint(i===0?0xffe08a:j===1?this.nameOf(players[i-1].id).color:0xffffff));
     });
     for(let i=rows.length;i<this.pauseStats.length;i++)for(const cell of this.pauseStats[i])cell.setVisible(false);
-    this.pauseStatsNote.setText(m.cfg.mode==='brawl'?'LAST = PLACE/+POINTS   HP = HEALTH+FORM\nPOINTS BY PLACE: 25 18 15 12 10 8 6 4 2 1':'K = KILLS   D = DEATHS   W = ROUND WINS\nHP = HEALTH+FORM');
+    this.pauseStatsNote.setText(m.cfg.mode==='brawl'?'LAST = PLACE/+POINTS   HP = HEALTH+FORM\nPOINTS BY PLACE: '+brawlPointScale(m.teamCount).join(' '):'K = KILLS   D = DEATHS   W = ROUND WINS\nHP = HEALTH+FORM');
   }
 }

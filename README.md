@@ -100,7 +100,7 @@ through the flurry and ends with a heavy launching punch; it recharges in 2.8 s.
 hit harder and recharge in 6.5 s.
 
 ### Modes
-- **Brawl:** a placement-points championship over the selected number of rounds. Each round awards **25 / 18 / 15 / 12 / 10 / 8 / 6 / 4 / 2 / 1** points for 1st through 10th. Highest total wins; tied leaders play extra rounds. Teams place when their last member falls and share one team score. Same-tick eliminations share the lower occupied place's points. The dead come back as ghosts who can shove things around.
+- **Brawl:** a placement-points championship over the selected number of rounds. **Last place gets 0 points, with 1 extra point for each position above it**: four players score 3/2/1/0; ten score 9/8/7/6/5/4/3/2/1/0. Highest total wins; tied leaders play extra rounds. Teams place when their last member falls and share one team score, with the scale based on the number of teams. Same-tick eliminations share the lower occupied place's points. The dead come back as ghosts who can shove things around.
 - **Deathmatch:** timed, with respawns.
 - **King of the Hill:** hold the hill alone to score.
 - **Juggernaut:** one 400 HP minigunner. Kill them to take over.

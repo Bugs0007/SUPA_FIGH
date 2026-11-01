@@ -1,5 +1,6 @@
-/** Championship points by round placement, from first through tenth. */
-export const BRAWL_POINTS = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1] as const;
+/** Last place earns zero; every position above it earns one more point. Teams count as one entrant. */
+export const brawlPoints = (entrants:number,place:number):number => Math.max(0,entrants-place);
+export const brawlPointScale = (entrants:number):number[] => Array.from({length:entrants},(_,i)=>brawlPoints(entrants,i+1));
 export interface BrawlPlacement { team: number; place: number; points: number }
 
 /** Same-tick eliminations share the lower occupied place, never an arbitrary fighter-id tiebreak. */
@@ -9,7 +10,7 @@ export function rankBrawl(teams: readonly number[], eliminated: ReadonlyMap<numb
   for(let i=0;i<ordered.length;){
     let end=i+1;
     while(end<ordered.length&&ordered[end].tick===ordered[i].tick)end++;
-    for(let j=i;j<end;j++)results.push({team:ordered[j].team,place:end,points:BRAWL_POINTS[end-1]??0});
+    for(let j=i;j<end;j++)results.push({team:ordered[j].team,place:end,points:brawlPoints(teams.length,end)});
     i=end;
   }
   return results;

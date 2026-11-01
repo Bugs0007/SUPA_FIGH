@@ -16,7 +16,7 @@ it('unlimited Brawl keeps scoring and starts new rounds beyond ten wins',()=>{
     expect(m.phase).toBe('fight');
     m.world.fighters[1].alive=false;m.world.fighters[1].hp=0;
     for(let t=0;t<1500&&m.phase==='fight';t++)m.step([]);
-    expect(m.matchWinner).toBeNull();expect(m.scores.get(100)).toBe((round+1)*25);
+    expect(m.matchWinner).toBeNull();expect(m.scores.get(100)).toBe(round+1);
   }
 });
 for(const [hero,kind] of [['naruto','rasengan'],['sasuke','rasengan'],['naruto','formCombo']] as const)

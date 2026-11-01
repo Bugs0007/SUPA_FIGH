@@ -180,8 +180,8 @@ describe('match', () => {
     for (let i = 0; i < 200 && m.phase === 'fight'; i++) m.step([]);
     expect(m.phase).toBe('roundEnd');
     expect(m.roundWinner).not.toBeNull();
-    expect(m.scores.get(100)).toBe(25);
-    expect(m.scores.get(101)).toBe(18);
+    expect(m.scores.get(100)).toBe(1);
+    expect(m.scores.get(101)).toBe(0);
     for (let i = 0; i < 400 && m.round === 1; i++) m.step([]);
     expect(m.round).toBe(2);
   });
