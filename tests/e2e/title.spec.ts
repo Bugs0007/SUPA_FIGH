@@ -27,8 +27,8 @@ test('Sasuke and a new arena can be chosen from the title, including the full pr
   // The existing focus order is unchanged. P1 fighter is seven rows above the action buttons.
   await press(page, 'ArrowUp', 7);
   await press(page, 'ArrowRight', 4);
-  // Clicking the left half of the painting browses backward: test -> random -> neon -> citadel -> valley.
-  for (let i = 0; i < 4; i++) {
+  // Browse backward through random and the two new indoor halls to Valley.
+  for (let i = 0; i < 6; i++) {
     await page.mouse.click(200, 330);
     await page.waitForTimeout(80);
   }
