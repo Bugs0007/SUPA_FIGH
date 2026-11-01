@@ -99,13 +99,15 @@ test('Kurama chakra arms render from real Rasengan and bomb inputs, including hi
     const fx = scene.wr.heroFx, f = scene.match.world.fighters[0];
     const states = new Set<string>();
     let unchanged = true;
-    const draw = fx.choreography.kuramaArms.bind(fx.choreography);
-    fx.choreography.kuramaArms = (...args: any[]) => {
+    for (const method of ['kuramaArms', 'rasengan']) {
+    const draw = fx.choreography[method].bind(fx.choreography);
+    fx.choreography[method] = (...args: any[]) => {
       const before = JSON.stringify(scene.match.world.fighters);
       draw(...args);
       unchanged &&= before === JSON.stringify(scene.match.world.fighters);
       states.add(f.specialKind === 'rasengan' ? f.recoverAt > 0 ? 'rasengan-recovery' : 'rasengan' : f.charge < 0 ? 'bomb-release' : 'bomb-charge');
     };
+    }
     driver.begin();
     for (let i = 0; i < 190; i++) driver.step();
     return { states: [...states], unchanged, aboveBody: fx.front.depth > scene.wr.views[0].root.depth, belowOrb: fx.front.depth < fx.orbs.depth };

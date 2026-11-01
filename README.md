@@ -214,3 +214,8 @@ Useful URL parameters:
 Fight in **Tournament Hall**, **Museum Atrium**, and **Valley of the End**, with statue platforms, a waterfall and river. Every map has layered pixel-art parallax scenery.
 
 **FALL DEATH** is available in Match Setup, Settings and LAN rooms. Turn it off to return falling fighters from above with 10 damage that cannot kill them. Kurama and Susanoo now appear as translucent, animated chakra spirits.
+
+### Form button combos
+Available from form 1, with a separate 6-second cooldown. Sasuke: **Chidori + Punch = Kirin**. Naruto: **Shadow Clones + Punch = Clone Slingshot**; hold Up to prefer a nearby power orb. Tap Shadow Clones near an existing clone for the same throw; hold it for 0.55 seconds to dismiss clones. Luffy: **Pistol + Punch = Jet Bazooka**. Goku: **Instant Transmission + Punch = Vanish Strike**. The two ability buttons still trigger the original ultimate.
+
+The animated moves gallery now has **5: SPECIAL** and **6: GUARD** previews. Susanoo forms show ribs while blocking; Kurama mode raises chakra arms.

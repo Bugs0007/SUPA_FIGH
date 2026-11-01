@@ -99,7 +99,9 @@ export class HeroChoreography {
     const level = formLevel(f);
     const style = moveLook(f.hero, level);
     if (level === 4) {
-      this.kuramaArms(x, y, ox, oy, 4 + phase * 2, alpha);
+      // Side-on silhouette: one arm trails from the shoulder to the orb, behind Naruto.
+      const arm = armSprite({ kind: 'kurama', s: [x - f.facing * 4, y - 15], e: [x - f.facing * 12, oy + 8], h: [ox - f.facing * 4, oy + 2], d: f.facing, thick: 5, step: 0, frame: Math.floor(time * 8) });
+      paintRuns(this.back, arm.baked, arm.ox, arm.oy, false, alpha * 0.7);
       return;
     }
     const assistFade = Math.max(0, Math.min(1, (0.48 - f.stateTime) / 0.18));
@@ -152,6 +154,18 @@ export class HeroChoreography {
       this.back.fillStyle(level > 0 ? style.spark : 0xe8eff7, 0.28).fillRect(Math.round(x + side * (15 + i % 3)), Math.round(y - 4 - drift), 3, 2);
     }
     this.front.fillStyle(level > 0 ? style.spark : 0xe8eff7, 0.8).fillRect(Math.round(x) + f.facing * 3, Math.round(y) - 14, 2, 4);
+  }
+
+  slingshot(v: FighterView, x: number, y: number): void {
+    const t=v.fighter.stateTime;
+    if(t>.3)return;
+    const helpers=this.echoes.get(v.fighter.id)??[];
+    helpers.forEach((e,i)=>{
+      const a=t*25+i*Math.PI;
+      this.pose(e,v.texFor(formLevel(v.fighter)),BF.WINDUP,a);
+      e.root.setVisible(true).setPosition(x+Math.cos(a)*18,y+Math.sin(a)*6)
+        .setScale(v.fighter.facing,1).setAlpha(.75);
+    });
   }
 
   destroy(): void {

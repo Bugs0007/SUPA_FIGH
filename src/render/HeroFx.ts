@@ -309,6 +309,11 @@ export class HeroFx {
       const y = lerp(f.py, f.y, alpha);
       if(f.burn>0&&f.burnStyle==='amaterasu')drawBlackFlames(this.orbs,x,y,f.w,f.h,time);
       if (!f.alive) continue;
+      if(f.state==='block')this.spiritGuard(f,x,y,time);
+      if(f.state==='special'&&f.specialKind==='formCombo'){
+        this.formComboArt(v,x,y,time);
+        continue;
+      }
       // a long stun (Chidori's shock) crackles around the victim; an ultimate shows who it has locked onto
       if (f.state === 'flinch' && f.flinchTime >= 1) this.stunSparks(x, y, f, time);
       if (f.lockOn >= 0 && f.state === 'special') this.lockReticle(f, alpha, time);
@@ -339,6 +344,51 @@ export class HeroFx {
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
     this.drawClashes(dt);
+  }
+
+  private spiritGuard(f: Fighter,x:number,y:number,time:number):void{
+    const level=formLevel(f),d=f.facing;
+    if(f.hero==='sasuke'&&level>=3){
+      const a=.45+Math.sin(time*14)*.04;
+      this.back.fillStyle(0x6430a0,.22).fillRect(Math.round(x)-14,Math.round(y)-31,28,31);
+      for(let i=0;i<5;i++){
+        const yy=Math.round(y-28+i*5),w=14-i;
+        this.front.fillStyle(0xc5a0ff,a);
+        for(let rx=-w;rx<=w;rx++)this.front.fillRect(Math.round(x)+rx,yy+Math.round(3*(1-(rx/w)**2)),1,1);
+        this.front.fillRect(Math.round(x)-w,yy-3,1,4).fillRect(Math.round(x)+w,yy-3,1,4);
+      }
+      this.back.fillStyle(0xe4ccff,.7).fillRect(Math.round(x)-d*11,Math.round(y)-30,2,29);
+    } else if(f.hero==='naruto'&&level===4){
+      for(const side of [-1,1])this.avatars.arm(this.front,{kind:'kurama',s:[x-side*5,y-15],e:[x+d*8,y-10+side*4],h:[x+d*12,y-25+side*5],d,thick:5,step:0,frame:Math.floor(time*8)},.65);
+    }
+  }
+
+  private formComboArt(v:FighterView,x:number,y:number,time:number):void{
+    const f=v.fighter,t=f.stateTime,d=f.facing;
+    if(f.hero==='sasuke'){
+      const target=f.lockOn>=0?this.world.fighters[f.lockOn]:null;
+      const tx=target?.x??f.anchorX,ty=target?target.y-target.h/2:f.anchorY-11;
+      const progress=Math.min(1,t/.24),headY=ty-90*(1-progress);
+      // A descending lightning dragon: jagged spine, swept horns and a biting jaw.
+      for(let i=0;i<20;i++){
+        const yy=headY-i*4,xx=tx+Math.sin(i*1.8+time*28)*5;
+        this.front.fillStyle(0x4d80ff,.5).fillRect(Math.round(xx)-3,Math.round(yy),7,5);
+        this.front.fillStyle(0xd9f7ff,.9).fillRect(Math.round(xx),Math.round(yy),2,5);
+      }
+      this.front.fillStyle(0x86caff,.85).fillRect(Math.round(tx)-10,Math.round(headY)-9,20,9)
+        .fillRect(Math.round(tx)-12,Math.round(headY)-17,3,10).fillRect(Math.round(tx)+9,Math.round(headY)-17,3,10);
+      for(const s of [-1,1])this.front.fillStyle(0xffffff,1).fillRect(Math.round(tx)+s*5,Math.round(headY)-6,2,1);
+      const jaw=t<.24?7:2;
+      this.front.fillStyle(0xe5fcff,.95).fillRect(Math.round(tx)-8,Math.round(headY)+jaw,16,2);
+      for(const s of [-1,1])this.front.fillStyle(0xffffff,1).fillRect(Math.round(tx)+s*6,Math.round(headY)-2,2,5);
+    }else if(f.hero==='naruto'){
+      this.choreography.slingshot(v,x,y);
+      for(let i=0;i<5;i++)this.back.fillStyle(0xffd05a,.3).fillRect(Math.round(x)-d*(10+i*7),Math.round(y)-16+i%3*4,5,1);
+    }else if(f.hero==='luffy'){
+      for(const offset of [-4,4])this.choreography.curve(this.front,[x,y-15+offset,x+d*12,y-16+offset,x+d*24,y-14+offset,x+d*32,y-14+offset],0xf2b78a,4,.85);
+    }else{
+      for(let i=0;i<8;i++)this.front.fillStyle(0x98e9ff,.7).fillRect(Math.round(x)-14+i*4,Math.round(y)-30+i%3*6,1,16);
+    }
   }
 
   // ------------------------------------------------------------------ auras and tails

@@ -486,7 +486,7 @@ export class HudScene extends Phaser.Scene {
         const sup = transformed(f);
         const chips: { frac: number; on: boolean; col: number }[] = [
           { frac: 1 - Math.max(0, f.baseCd) / hero.base.cooldown, on: f.baseCd <= 0, col: hexToNum(P.orange) },
-          // shadow clones out: the chip stays lit (pressing again recalls them) and the cooldown waits
+          // Shadow clones out: the chip stays lit (hold to dismiss) and the cooldown waits.
           f.cloneCount > 0
             ? { frac: 1, on: true, col: 0xa8e0ff }
             : { frac: 1 - Math.max(0, f.secondCd) / hero.second.cooldown, on: f.secondCd <= 0, col: hexToNum(P.yellow) },

@@ -373,3 +373,7 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] Valley of the End with statue terrain, waterfall and river.
 - [x] Translucent Kurama, skeletal and armoured Susanoo, animated spectral combo arms; shared launch coordinates.
 - [ ] Play-test on phones and LAN: guard timing, fall re-entry, new maps and spirit visibility over varied scenery.
+
+- [x] D93: faster Sasuke arrows, wider locks, avatar facing updates, spectral guards and side-on final Rasengan arm.
+- [x] D93: form-1 Kirin / Clone Slingshot / Jet Bazooka / Vanish Strike; hold-to-dismiss clones, orb traversal and gallery previews.
+- [ ] Play-test combo balance and clone slingshot traversal on phones and LAN.

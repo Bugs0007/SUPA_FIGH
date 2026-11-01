@@ -75,7 +75,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, FORM_COMBO, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -92,6 +92,7 @@ import {
   superGuard,
   usesAmaterasu,
   aimUltimate,
+  meleeMuls,
   gatlingHit,
   grabProbe,
   gripTarget,
@@ -275,12 +276,14 @@ export interface Fighter extends Body {
   powerFull: boolean;
   /** special attack cooldown */
   specialCd: number;
+  formComboCd: number;
+  cloneRecallHold: number;
   /** seconds the special has been charged (-1 = not charging) */
   charge: number;
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
   /** the enemy an ultimate is locked onto (-1 = none) */
   lockOn: number;
-  specialKind: '' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
+  specialKind: '' | 'formCombo' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
   /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
@@ -457,6 +460,8 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     powerFull: startLevel > 0,
     specialCd: 0,
     charge: -1,
+    formComboCd: 0,
+    cloneRecallHold: 0,
     specialKind: '',
     lockOn: -1,
     stretchLen: 0,
@@ -1783,6 +1788,14 @@ function canAct(f: Fighter): boolean {
  */
 function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   if (!f.hero || f.carry >= 0) return;
+  f.formComboCd = Math.max(0, f.formComboCd - DT);
+  if (f.hero === 'naruto' && f.master < 0 && f.cloneCount > 0 && inp.kick) {
+    f.cloneRecallHold += DT;
+    if (f.cloneRecallHold >= FORM_COMBO.recallHold) {
+      w.emit({ t: 'recall', f: f.id, n: recallClones(w, f) });
+      f.cloneCount = 0;
+    }
+  } else f.cloneRecallHold = 0;
   if (f.state === 'block' && f.blockStun > 0) {
     // held in the guard by a blocked hit: no ability (and no kick) until the blockstun is over
     e.abilityP = e.kickP = false;
@@ -1790,6 +1803,14 @@ function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   }
   const a1 = e.abilityP;
   const a2 = e.kickP;
+  const chord = inp.attack && ((f.hero === 'naruto' ? inp.kick : inp.ability)) && (e.attackP || a1 || a2 || f.btnBuf1 > 0 || f.btnBuf2 > 0);
+  if (transformed(f) && f.master < 0 && chord) {
+    e.attackP = e.abilityP = e.kickP = false;
+    f.btnBuf1 = f.btnBuf2 = 0;
+    const openingPunch = f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0;
+    if (f.formComboCd <= 0 && (canAct(f) || openingPunch)) startFormCombo(w, f, inp);
+    return;
+  }
   e.abilityP = false;
   e.kickP = false;
   if (!transformed(f)) {
@@ -1830,10 +1851,9 @@ function beginMove(w: World, f: Fighter, inp: Intent, kind: Fighter['specialKind
 function startSecond(w: World, f: Fighter, inp: Intent): void {
   const s = secondAbility(f);
   if (!s || f.master >= 0) return; // (shadow clones only know the Rasengan)
-  // pressing it again while clones are out calls them back
+  // A nearby clone throws Naruto; holding the button recalls the squad.
   if (s.kind === 'clones' && f.cloneCount > 0) {
-    w.emit({ t: 'recall', f: f.id, n: recallClones(w, f) });
-    f.cloneCount = 0;
+    if (canAct(f) && f.formComboCd <= 0 && w.fighters.some(c => c.master === f.id && c.alive && !c.gone && Math.hypot(c.x-f.x,c.y-f.y) <= FORM_COMBO.cloneRange)) startFormCombo(w, f, inp);
     return;
   }
   if (f.secondCd > 0 || !canAct(f)) return;
@@ -1881,7 +1901,67 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
   w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });
 }
 
+function startFormCombo(w: World, f: Fighter, inp: Intent): void {
+  if (!beginMove(w,f,inp,'formCombo')) return;
+  f.formComboCd=FORM_COMBO.cooldown;
+  f.charge=0;
+  f.lockOn=-1;
+  let nearest=FORM_COMBO.range;
+  for(const o of w.fighters){
+    if(!o.alive||o.gone||o===f||sameTeam(f,o)||o.master===f.id)continue;
+    const dist=Math.hypot(o.x-f.x,o.y-f.y);
+    if(dist<nearest&&w.map.clearShot(f.x,f.y-f.h/2,o.x,o.y-o.h/2)){nearest=dist;f.lockOn=o.id;}
+  }
+  const target=f.lockOn>=0?w.fighters[f.lockOn]:null;
+  f.anchorX=target?.x??f.x+f.facing*160;
+  f.anchorY=target?.y??f.y-20;
+  if(f.hero==='naruto'){
+    if(f.cloneCount===0)summonClones(w,f);
+    // Up selects an orb for traversal; otherwise prefer the enemy, then the nearest orb.
+    let orbDist=target&&inp.moveY>=-.5?0:FORM_COMBO.range;
+    for(const item of w.items)if(item.active&&item.weaponId==='powerorb'){
+      const dist=Math.hypot(item.x-f.x,item.y-f.y);
+      if(dist<orbDist){orbDist=dist;f.anchorX=item.x;f.anchorY=item.y;f.lockOn=-1;}
+    }
+  }
+  if(f.anchorX!==f.x)f.facing=f.anchorX>f.x?1:-1;
+  w.emit({t:'superStart',f:f.id,name: f.hero==='sasuke'?'KIRIN':f.hero==='naruto'?'CLONE SLINGSHOT':f.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE',level:f.powerLevel});
+}
+
 function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
+  if (f.specialKind === 'formCombo') {
+    const t = f.stateTime;
+    if (t >= FORM_COMBO.windup && f.charge === 0) {
+      f.charge = 1;
+      const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
+      if (target?.alive && !target.gone && f.hero === 'sasuke') {
+        applyHit(w, target, { damage: FORM_COMBO.damage * meleeMuls(f).dmg, kbX: f.facing * 100, kbY: 160, attacker: f.id, weapon: 'kirin', kind: 'melee', stun: 0.45, x: target.x, y: target.y-target.h/2 });
+      } else if (f.hero !== 'sasuke') {
+        if (f.hero === 'goku') {
+          const b = baseAbility(f)?.blink;
+          const dest = b && blinkDestination(w, f, { ...b, range: FORM_COMBO.range }, f.anchorX-f.x, f.anchorY-f.y);
+          if (dest) {
+            w.emit({t:'blink',f:f.id,fromX:f.x,fromY:f.y-12,toX:dest.x,toY:dest.y-12});
+            f.x = dest.x; f.y = dest.y; blinkStrike(w, f, b!);
+          }
+        } else {
+          const dx=f.anchorX-f.x, dy=f.anchorY-f.y, len=Math.hypot(dx,dy)||1;
+          f.vx=dx/len*FORM_COMBO.speed; f.vy=dy/len*FORM_COMBO.speed;
+          if(f.hero==='naruto')f.vy-=.5*GRAVITY*w.settings.gravityScale*(len/FORM_COMBO.speed);
+          f.grounded=false;
+        }
+      }
+    }
+    if (t >= FORM_COMBO.windup && f.hero !== 'sasuke') {
+      for (const o of w.fighters) if (o.alive && !o.gone && o!==f && !sameTeam(f,o) && o.master!==f.id && !f.swingHit.includes(o.id) && Math.hypot(o.x-f.x,o.y-f.y)<FORM_COMBO.radius) {
+        f.swingHit.push(o.id);
+        applyHit(w,o,{damage:FORM_COMBO.damage*meleeMuls(f).dmg,kbX:f.facing*300,kbY:-140,attacker:f.id,weapon:f.hero+':formCombo',kind:'melee',stun:.3,x:o.x,y:o.y-o.h/2});
+      }
+    } else { f.vx=0; f.vy=0; }
+    integrate(w,f,dt);
+    if(t>=FORM_COMBO.duration)endSpecial(w,f);
+    return;
+  }
   f.abilT += dt;
   switch (f.specialKind) {
     case 'rasengan':
@@ -2006,6 +2086,8 @@ function stGatling(w: World, f: Fighter, dt: number): void {
 }
 
 function stBomb(w: World, f: Fighter, dt: number): void {
+  const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
+  if (f.charge >= 0 && target?.alive && !target.gone) f.facing = target.x >= f.x ? 1 : -1;
   if ((f.hero === 'goku' || f.hero === 'sasuke') && f.power !== 'hero') return endSpecial(w, f);
   const b = heroDef(f.hero)?.super.bomb;
   if (!b) return endSpecial(w, f);

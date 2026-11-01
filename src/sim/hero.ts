@@ -17,6 +17,7 @@ import {
   SUPER_AREA,
   SUSANOO_LAUNCH,
   KURAMA_LAUNCH,
+  SASUKE_ARROW,
   type AbilityDefinition,
   type BaseAbility,
   type BeamStats,
@@ -121,14 +122,14 @@ const LOCK_CONE = 0.95;
 export function ultimateTarget(w: World, f: Fighter, range: number): Fighter | null {
   const sx = f.x, sy = f.y - SHOULDER_Y_STAND - 3;
   let best: Fighter | null = null;
-  let bestDist = range;
+  let bestDist = f.hero === 'sasuke' && f.powerLevel >= 3 ? SASUKE_ARROW.lockRange : range;
   for (const o of w.fighters) {
     if (!isEnemy(w, f, o)) continue;
     const dx = (o.x - sx) * f.facing;
     const dy = o.y - o.h * .5 - sy;
     if (dx < 4) continue; // behind or beside
     const dist = Math.hypot(dx, dy);
-    if (dist > bestDist || Math.abs(Math.atan2(dy, dx)) > LOCK_CONE) continue;
+    if (dist > bestDist || Math.abs(Math.atan2(dy, dx)) > (f.hero === 'sasuke' && f.powerLevel >= 3 ? 1.45 : LOCK_CONE)) continue;
     if (!clearView(w, sx, sy, o.x, o.y - o.h * .5)) continue;
     best = o;
     bestDist = dist;
@@ -144,7 +145,8 @@ export function leadAngle(f: Fighter, sx: number, sy: number, o: Fighter, speed:
   const cx = o.x, cy = o.y - o.h * .5;
   const t = Math.hypot(cx - sx, cy - sy) / speed;
   const ax = cx + o.vx * t * 0.6, ay = cy + o.vy * t * 0.35;
-  return Math.max(-1.2, Math.min(1.2, Math.atan2(ay - sy, Math.max(4, (ax - sx) * f.facing))));
+  const limit = f.hero === 'sasuke' && f.powerLevel >= 3 ? 1.5 : 1.2;
+  return Math.max(-limit, Math.min(limit, Math.atan2(ay - sy, Math.max(4, (ax - sx) * f.facing))));
 }
 
 /** Set the ultimate's aim as it starts: manual with Up / Down held, otherwise locked onto the enemy being faced. */
@@ -154,7 +156,12 @@ export function aimUltimate(w: World, f: Fighter, moveY: number, kind: 'chakra' 
     f.stretchAngle = kind === 'ki' ? (moveY < 0 ? -manual : f.grounded ? 0 : manual) : 0;
     return;
   }
-  const target = ultimateTarget(w, f, range);
+  let target = ultimateTarget(w, f, range);
+  if (!target && (f.hero === 'sasuke' || f.hero === 'naruto')) {
+    f.facing = f.facing === 1 ? -1 : 1;
+    target = ultimateTarget(w, f, range);
+    if (!target) f.facing = f.facing === 1 ? -1 : 1;
+  }
   f.stretchAngle = 0;
   if (!target) return;
   f.lockOn = target.id;
@@ -881,6 +888,9 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   const spirit = b.kind === 'ki';
   const kurama = f.hero === 'naruto' && level === 4;
   const archer = f.hero === 'sasuke' && level >= 3;
+  const locked = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
+  if (locked?.alive && !locked.gone) f.facing = locked.x >= f.x ? 1 : -1;
+  const speed = b.speed * (archer ? SASUKE_ARROW.speedMul : 1);
   const bow = SUSANOO_LAUNCH[level >= 4 ? 4 : 3];
   const sx = f.x + f.facing * (kurama ? KURAMA_LAUNCH.ahead : archer ? bow.ahead : spirit ? size + 12 : 8);
   const sy = f.y - (kurama ? KURAMA_LAUNCH.up : archer ? bow.up : SHOULDER_Y_STAND + 2);
@@ -898,19 +908,20 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   // aimed when the move started (manual with Up / Down, else locked onto the enemy being faced); the shot leaves the
   // bow / mouth / hand, so it re-aims from there at where the locked enemy is by now
   const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
-  const angle = target && target.alive && !target.gone ? leadAngle(f, sx, sy, target, b.speed) : f.stretchAngle;
+  const angle = target && target.alive && !target.gone ? leadAngle(f, sx, sy, target, speed) : f.stretchAngle;
+  f.stretchAngle = angle;
   w.spawnBullet({
     x: sx,
     y: sy,
-    vx: f.facing * b.speed * Math.cos(angle),
-    vy: Math.sin(angle) * b.speed,
+    vx: f.facing * speed * Math.cos(angle),
+    vy: Math.sin(angle) * speed,
     ox: sx,
     oy: sy,
     owner: f.id,
     weapon,
     // (only props feel the contact damage: on a fighter the blast is the whole hit)
     damage: blast.damage,
-    range: b.range ?? 320,
+    range: archer ? SASUKE_ARROW.lockRange : b.range ?? 320,
     falloff: 1,
     knock: 300 * m.knock,
     ricochet: false,

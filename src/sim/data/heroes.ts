@@ -287,6 +287,8 @@ export const SUSANOO_LAUNCH: Record<3 | 4, { ahead: number; up: number }> = {
  * fighter's feet. The pixel-art Kurama (art/avatarSprites.ts) is drawn around it.
  */
 export const KURAMA_LAUNCH = { ahead: 66, up: 46 };
+export const SASUKE_ARROW = { speedMul: 1.8, lockRange: 720 };
+export const FORM_COMBO = { cooldown: 6, windup: 0.24, duration: 0.7, range: 360, damage: 22, radius: 30, speed: 520, cloneRange: 70, recallHold: 0.55 };
 
 export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {
@@ -297,7 +299,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     comboName: 'UCHIHA COMBO', combo: heroCombo('ki'),
     base: {
       kind: 'rasengan', weapon: 'chidori', name: 'CHIDORI',
-      desc: 'LIGHTNING PALM DASH. STUNS FOR 2 SECONDS AND ARCS TO NEARBY ENEMIES (MORE IN HIGHER FORMS). HOLD TO EXTEND; TWO USES.',
+      desc: 'LIGHTNING PALM DASH. STUNS FOR 1 SECOND; SHOCKS UP TO TWO EXTRA ENEMIES. FROM FORM 1: CHIDORI + PUNCH CALLS KIRIN.',
       cooldown: 0.4, charges: { max: 2, recharge: 2.8 },
       dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 360, recover: 0.22, damage: 14, knockX: 140, knockY: -60, stun: 1, radius: 6, spread: { count: 1, countPerLevel: 1, maxCount: 2, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
     },
@@ -340,7 +342,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     second: {
       kind: 'clones',
       name: 'SHADOW CLONES',
-      desc: 'REAL CLONES THAT FIGHT WITH RASENGAN. MORE IN EVERY FORM; AGAIN TO RECALL.',
+      desc: 'REAL CLONES THAT FIGHT WITH RASENGAN. HOLD TO DISMISS. TAP NEAR CLONES TO BE THROWN; FROM FORM 1: CLONES + PUNCH. HOLD UP TO TARGET A POWER ORB.',
       cooldown: 6,
       clones: { count: 2, perLevel: 1, finalCount: 2, hpFrac: 0.2 },
     },
