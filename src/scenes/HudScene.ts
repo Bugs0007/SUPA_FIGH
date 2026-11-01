@@ -401,7 +401,7 @@ export class HudScene extends Phaser.Scene {
       this.roundText.setText(m.overtime ? `${MODE_NAMES[m.cfg.mode]}  -  OVERTIME` : `${MODE_NAMES[m.cfg.mode]}  -  ${clock}${goal}`).setTint(tl <= 10 && m.phase === 'fight' ? 0xea4a4a : 0xffffff);
     } else {
       const sd = ms.match.world.suddenDeath > 0 ? '  -  SUDDEN DEATH' : '';
-      this.roundText.setText(`ROUND ${m.round}  -  FIRST TO ${m.cfg.roundsToWin}${sd}`).setTint(sd ? 0xea4a4a : 0xffffff);
+      this.roundText.setText(`ROUND ${m.round}  -  ${m.cfg.roundsToWin===0?'UNLIMITED':`FIRST TO ${m.cfg.roundsToWin}`}${sd}`).setTint(sd ? 0xea4a4a : 0xffffff);
     }
     const teams: number[] = [];
     m.cfg.fighters.forEach((f, i) => {
@@ -411,8 +411,7 @@ export class HudScene extends Phaser.Scene {
     const g = this.gfx;
     g.clear();
     while (this.scoreTexts.length < teams.length) this.scoreTexts.push(this.add.bitmapText(0, 0, 'smo', ''));
-    const pip = 4;
-    const entryW = (t: number) => textWidth(this.teamName(t).name, 'smo') + 4 + (dm ? (m.cfg.mode === 'gungame' ? 24 : 14) : m.cfg.roundsToWin * (pip + 1));
+    const entryW = (t: number) => textWidth(this.teamName(t).name, 'smo') + 4 + (m.cfg.mode==='gungame'?24:Math.max(14,textWidth(String(m.scores.get(t)??0),'smo')));
     const shown = teams.slice(0, 10);
     const total = shown.reduce((s, t) => s + entryW(t) + 10, -10);
     let x = Math.round(VIEW_W / 2 - total / 2);
@@ -421,20 +420,15 @@ export class HudScene extends Phaser.Scene {
       const txt = this.scoreTexts[i].setText(tn.name).setTint(tn.color).setPosition(x, 12).setVisible(true);
       const score = m.scores.get(t) ?? 0;
       let px = x + txt.width + 3;
-      if (dm) {
+      {
         while (this.dmScores.length <= i) this.dmScores.push(this.add.bitmapText(0, 0, 'smo', ''));
         const label = m.cfg.mode === 'gungame' ? `${Math.min(score + 1, GUN_LADDER.length)}/${GUN_LADDER.length}` : String(score);
         this.dmScores[i].setText(label).setPosition(px, 12).setVisible(true).setTint(m.cfg.mode === 'koth' && m.hillTeam === t ? 0x5ac85a : 0xfff4a0);
-      } else this.dmScores[i]?.setVisible(false);
-      for (let r = 0; r < (dm ? 0 : m.cfg.roundsToWin); r++) {
-        g.fillStyle(hexToNum(P.ink), 1).fillRect(px - 1, 12, pip + 2, pip + 3);
-        g.fillStyle(r < score ? tn.color : 0x3a3448, 1).fillRect(px, 13, pip, pip + 1);
-        px += pip + 1;
       }
       x += entryW(t) + 10;
     });
     for (let i = shown.length; i < this.scoreTexts.length; i++) this.scoreTexts[i].setVisible(false);
-    for (let i = dm ? shown.length : 0; i < this.dmScores.length; i++) this.dmScores[i].setVisible(false);
+    for (let i = shown.length; i < this.dmScores.length; i++) this.dmScores[i].setVisible(false);
 
     // ---- kill feed
     let fy = 26;

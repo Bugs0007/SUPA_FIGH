@@ -241,7 +241,7 @@ export class LobbyScene extends Phaser.Scene {
         return true;
       case 'length':
         if (c.mode === 'coop') return false;
-        if (c.mode === 'brawl') c.roundsToWin = Math.max(1, Math.min(10, c.roundsToWin + d));
+        if (c.mode === 'brawl') c.roundsToWin = (c.roundsToWin+d+11)%11;
         else c.timeLimit = cycle(TIME_OPTIONS, c.timeLimit, d);
         return true;
       case 'sudden':
@@ -311,7 +311,7 @@ export class LobbyScene extends Phaser.Scene {
       mode: ['MODE', MODE_NAMES[c.mode]],
       length:
         c.mode === 'brawl'
-          ? ['FIRST TO', `${c.roundsToWin} ROUNDS`]
+          ? ['FIRST TO', c.roundsToWin===0?'UNLIMITED':`${c.roundsToWin} ROUNDS`]
           : c.mode === 'coop'
             ? ['LENGTH', 'SURVIVE 15 WAVES']
             : ['TIME LIMIT', `${Math.floor(c.timeLimit / 60)}:${String(c.timeLimit % 60).padStart(2, '0')}`],

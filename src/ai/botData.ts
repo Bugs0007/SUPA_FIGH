@@ -97,6 +97,10 @@ export const BOT_FIGHT = {
   wBase: 3,
   wSecond: 2,
   wCombo: 4,
+  ultPunish:3,
+  ultFleeWeight:.3,
+  evadeLookahead:.65,
+  evadeHold:.45,
   vsGuardSuper: 2,
 };
 

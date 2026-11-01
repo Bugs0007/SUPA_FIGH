@@ -1,9 +1,10 @@
 import { formLevel } from './formLevel';
+import { drawKirin } from '../art/kirinArt';
 import Phaser from 'phaser';
 import { BOOST_COLORS, formFx, type FormFx } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { SHOULDER_Y_STAND } from '../sim/constants';
-import { heroDef, avatarLaunch } from '../sim/data/heroes';
+import { heroDef, avatarLaunch, KIRIN, FORM_COMBO } from '../sim/data/heroes';
 import type { Fighter } from '../sim/fighter';
 import { baseAbility, beamOrigin, dashDir, rasenganPoint } from '../sim/hero';
 import type { World } from '../sim/world';
@@ -366,21 +367,9 @@ export class HeroFx {
   private formComboArt(v:FighterView,x:number,y:number,time:number):void{
     const f=v.fighter,t=f.stateTime,d=f.facing;
     if(f.hero==='sasuke'){
-      const target=f.lockOn>=0?this.world.fighters[f.lockOn]:null;
-      const tx=target?.x??f.anchorX,ty=target?target.y-target.h/2:f.anchorY-11;
-      const progress=Math.min(1,t/.24),headY=ty-90*(1-progress);
-      // A descending lightning dragon: jagged spine, swept horns and a biting jaw.
-      for(let i=0;i<20;i++){
-        const yy=headY-i*4,xx=tx+Math.sin(i*1.8+time*28)*5;
-        this.front.fillStyle(0x4d80ff,.5).fillRect(Math.round(xx)-3,Math.round(yy),7,5);
-        this.front.fillStyle(0xd9f7ff,.9).fillRect(Math.round(xx),Math.round(yy),2,5);
-      }
-      this.front.fillStyle(0x86caff,.85).fillRect(Math.round(tx)-10,Math.round(headY)-9,20,9)
-        .fillRect(Math.round(tx)-12,Math.round(headY)-17,3,10).fillRect(Math.round(tx)+9,Math.round(headY)-17,3,10);
-      for(const s of [-1,1])this.front.fillStyle(0xffffff,1).fillRect(Math.round(tx)+s*5,Math.round(headY)-6,2,1);
-      const jaw=t<.24?7:2;
-      this.front.fillStyle(0xe5fcff,.95).fillRect(Math.round(tx)-8,Math.round(headY)+jaw,16,2);
-      for(const s of [-1,1])this.front.fillStyle(0xffffff,1).fillRect(Math.round(tx)+s*6,Math.round(headY)-2,2,5);
+      const tx=f.anchorX,ty=f.anchorY-11;
+      if(t<FORM_COMBO.windup)this.ring(this.back,tx,f.anchorY,KIRIN.radius+KIRIN.radiusPerForm*(formLevel(f)-1),0x8cd8ff,.35,.25);
+      drawKirin(this.front,tx,ty,t,formLevel(f),time);
     }else if(f.hero==='naruto'){
       this.choreography.slingshot(v,x,y);
       for(let i=0;i<5;i++)this.back.fillStyle(0xffd05a,.3).fillRect(Math.round(x)-d*(10+i*7),Math.round(y)-16+i%3*4,5,1);

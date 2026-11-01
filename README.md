@@ -226,3 +226,6 @@ Kirin holds a hit enemy stunned for 1.5 seconds.
 Bots now use all four form combos and Naruto's clone throw for power-orb traversal. Clone Slingshot spins horizontally; Kurama's Bijudama forms at its mouth without supporting hands.
 
 Avatar ultimates aim vertically as well as horizontally: Susanoo tilts its body and bow, and Kurama raises or lowers its head. Preview with ?scene=art&page=moves&hero=naruto&move=super&aim=-0.9 (negative aims up, positive aims down).
+
+### Balance simulations
+Match Setup and LAN Brawl rooms offer **UNLIMITED** after 10 rounds (or before 1). The match keeps starting new rounds until you quit, and the top scoreboard shows numeric round wins. Naruto's ultimate travels twice as fast. Power orbs can be collected during Rasengan, Chidori and Clone Slingshot, including by bots. Bots account for projectile size and blast radius when dodging and favour ultimate shots against enemies committed to attacks or stunned. Kirin grows with each form; Naruto's forms 1–3 use tail whips for their melee combos.

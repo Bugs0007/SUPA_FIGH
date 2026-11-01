@@ -383,3 +383,7 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] Clone swing is horizontal; Bijudama has no supporting chakra hands; Kurama has upright ears, a tapered muzzle and a snarling brow. High-speed Chidori uses swept contact detection.
 
 - [x] D95: vertical Susanoo body/bow tilt and articulated Kurama head aiming, live target tracking and shared moving muzzle coordinates; up/down gallery previews.
+
+- [x] D96: unlimited local/LAN Brawl with numeric round scores; faster Naruto ultimate; swept orb pickups during hero movement and bot orb dashes.
+- [x] D96: improved bot evasion and ultimate timing; per-form Kirin size / strike radius and dragon art; Naruto forms 1–3 tail-whip combos.
+- [ ] Manual balance survey across forms and maps using unlimited matches.

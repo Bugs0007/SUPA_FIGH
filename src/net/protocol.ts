@@ -194,7 +194,7 @@ export function sanitizeConfig(v: unknown): Partial<RoomConfig> | null {
   const out: Partial<RoomConfig> = {};
   if (typeof v.mapId === 'string' && v.mapId in MAPS) out.mapId = v.mapId;
   if (typeof v.mode === 'string' && (MODES as readonly string[]).includes(v.mode)) out.mode = v.mode as GameMode;
-  if ('roundsToWin' in v) out.roundsToWin = Math.round(num(v.roundsToWin, 1, 9, 5));
+  if ('roundsToWin' in v) out.roundsToWin = Math.round(num(v.roundsToWin, 0, 10, 5));
   if ('timeLimit' in v) out.timeLimit = Math.round(num(v.timeLimit, 30, 600, 180));
   if ('friendlyFire' in v) out.friendlyFire = v.friendlyFire === true;
   if ('weaponSpawnRate' in v) out.weaponSpawnRate = num(v.weaponSpawnRate, 0, 2, 1);

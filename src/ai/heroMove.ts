@@ -140,7 +140,8 @@ export class HeroMobility {
     if (!base || f.baseCd > 0 || (base.charges && f.baseUsed >= base.charges.max)) return false;
 
     // --- Naruto: Rasengan dash across a long clear lane at our own height
-    if (base.kind === 'rasengan' && base.dash && f.grounded && Math.abs(dy) <= 10 && Math.abs(dx) >= 110) {
+    const orbTarget=w.items.some(i=>i.active&&i.weaponId==='powerorb'&&Math.hypot(i.x-x,i.y-y)<20);
+    if (base.kind === 'rasengan' && base.dash && f.grounded && Math.abs(dy) <= (orbTarget?18:10) && Math.abs(dx) >= (orbTarget?60:110)) {
       const d = base.dash;
       const dir = dx > 0 ? 1 : -1;
       const reach = Math.min(Math.abs(dx) - 6, d.speed * d.maxTime * 0.85);

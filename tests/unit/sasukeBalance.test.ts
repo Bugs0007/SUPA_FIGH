@@ -318,7 +318,7 @@ describe('ultimates lock onto the enemy being faced', () => {
       for (const f of w.fighters) f.vx = f.vy = f.invuln = 0;
       for (let i = 0; i < 2; i++) transform(w, w.fighters[0]);
       w.events.length = 0;
-      press(w, { ability: true, kick: true }, 70);
+      press(w, { ability: true, kick: true }, hero==='naruto'?45:70);
       const b = w.bullets.find((q) => q.active && q.weapon === `${hero}:super`);
       expect(b, 'the ultimate was fired').toBeDefined();
       expect(b!.vy).toBeLessThan(0); // towards the enemy standing higher up

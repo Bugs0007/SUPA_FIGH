@@ -49,10 +49,21 @@ export class HeroComboArt {
       return true;
     }
     if(f.hero==='naruto'&&lv>0){
-      // The red chakra cloaks grow a smaller clawed arm.
-      const hx=x+side*(reach-3)*extension,hy=handY;
-      this.avatar.arm(this.front,{kind:'claw',s:[x-side*3,y-17],e:this.elbow(x-side*3,y-17,hx,hy,upper?-6:-3),h:[hx,hy],d:side,thick:lv===1?3:4},opacity);
-      this.streaks(hx,hy,side,reach,lv===3?0xd8483f:0xff6a62,opacity);
+      // A tail unfurls from the lower back, coils during anticipation, then whips through the hit arc.
+      const progress=Math.min(1,t/end),sweep=progress*Math.PI*1.5;
+      const tipX=x+side*(reach-2)*extension,tipY=handY+(upper?-6:3)*Math.sin(sweep);
+      const color=lv===3?0x6e2638:lv===2?0xb52232:0xe4473d;
+      for(let i=0;i<=28;i++){
+        const u=i/28,inv=1-u;
+        const cx=x-side*(12+Math.sin(sweep)*9),cy=y-8-(upper?22:9)*Math.sin(sweep);
+        const xx=inv*inv*(x-side*4)+2*inv*u*cx+u*u*tipX;
+        const yy=inv*inv*(y-7)+2*inv*u*cy+u*u*tipY;
+        const width=Math.max(1,Math.round((lv+3)*(1-u)));
+        this.front.fillStyle(0x4a1529,opacity*.8).fillRect(Math.round(xx)-1,Math.round(yy)-Math.floor(width/2)-1,width+2,width+2);
+        this.front.fillStyle(color,opacity*.9).fillRect(Math.round(xx),Math.round(yy)-Math.floor(width/2),width,width);
+        if(i%3===0)this.front.fillStyle(0xffa083,opacity*.65).fillRect(Math.round(xx),Math.round(yy)-Math.floor(width/2),1,1);
+      }
+      this.streaks(tipX,tipY,side,reach,lv===3?0xd8483f:0xff6a62,opacity);
       return true;
     }
     if(f.hero==='goku'&&lv>0){

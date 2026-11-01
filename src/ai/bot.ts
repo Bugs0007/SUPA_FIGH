@@ -108,7 +108,7 @@ export class BotController implements Controller {
   private aimStart = 0;
   private holdTicks = 0;
   private throwAngle: number | null = null;
-  private dodged = new WeakSet<object>();
+  private dodged = new WeakMap<object,number>();
   private crouchUntil = 0;
   private meleeNext = 0;
   /** loot goal bookkeeping: give up on items we can't get */
@@ -119,6 +119,8 @@ export class BotController implements Controller {
   private chargeTicks = 0;
   private hold: 'ability' | 'kick' | 'both' = 'ability';
   private comboHold = false;
+  private evadeUntil=0;
+  private evadeDir=1;
   private readonly isClone: boolean;
   /** consecutive ticks the bot sent no input at all while it should be doing something (watchdog) */
   private idleTicks = 0;
@@ -260,6 +262,7 @@ export class BotController implements Controller {
     this.ignoreItems.clear();
     this.chargeTicks = 0;
     this.comboHold = false;
+    this.evadeUntil=0;
     this.hazardNodes.clear();
     this.prev = emptyIntent();
     this.idleTicks = 0;
@@ -599,9 +602,9 @@ export class BotController implements Controller {
       if (f.state === 'climb' || (f.grounded && (this.now * 60) % 20 < 1)) this.tap('jump');
       return;
     }
+    if (this.dodge(w,f))return;
     if (this.chargeTicks <= 0 && this.aimTicks <= 0 && f.state !== 'special' && this.guardStep(w, f)) return;
     if (this.spaceStep(w, f)) return;
-    if (this.dodge(w, f)) return;
 
     switch (this.goal.t) {
       case 'fight':
@@ -859,7 +862,9 @@ export class BotController implements Controller {
         const a = my < 0 ? sp.fist.upAngle : my > 0 ? sp.fist.downAngle : 0;
         ok = pointBlank || (dist <= (superFistFor(f.hero, f.powerLevel)?.range ?? sp.fist.range) && Math.abs(ang - a) <= 0.3);
       } else ok = dist <= (sp.beam?.range ?? 300) && level <= 20;
-      if (ok) cands.push({ hold: 'both', ticks: 4, mx: face, my, weight: BOT_FIGHT.wSuper * (guard ? BOT_FIGHT.vsGuardSuper : 1) });
+      const vulnerable=e.state==='flinch'||e.state==='knockdown'||e.state==='melee'&&e.stateTime>swingHit(e).windup;
+      const escaping=e.vx*face>80&&near>100;
+      if (ok) cands.push({ hold: 'both', ticks: 4, mx: face, my, weight: BOT_FIGHT.wSuper * (vulnerable?BOT_FIGHT.ultPunish:escaping?BOT_FIGHT.ultFleeWeight:1) * (guard ? BOT_FIGHT.vsGuardSuper : 1) });
     }
 
     // --- ability 2 (kick button)
@@ -1005,10 +1010,14 @@ export class BotController implements Controller {
       default:
         return null;
     }
+    if(e.specialKind==='formCombo'&&e.hero==='sasuke'&&e.lockOn===f.id&&e.stateTime<FORM_COMBO.windup){
+      return {e,kind:'super',eta:FORM_COMBO.windup-e.stateTime,key:key('kirin')};
+    }
     if (superGuard(e)) {
       // an ultimate charging up: a guard can't take that, get out of its way
-      if (!facing || adx > 140 || level > 60) return null;
-      return { e, kind: 'super', eta: 0.3, key: key('s') };
+      if (!facing || adx > 550 || level > 220) return null;
+      const windup=heroDef(e.hero)?.super.bomb?.windup??.5;
+      return { e, kind: 'super', eta: Math.max(0,windup-e.stateTime), key: key('s') };
     }
     const t = e.stateTime;
     switch (e.specialKind) {
@@ -1096,8 +1105,10 @@ export class BotController implements Controller {
     }
     this.threatGo = false;
     if (t.kind === 'super') {
-      this.startSpace(w, f, t.e);
-      return false;
+      this.evadeUntil=this.now+BOT_FIGHT.evadeHold;
+      this.evadeDir=f.x<t.e.x?-1:1;
+      this.out.moveX=this.evadeDir;this.out.jump=f.grounded;this.out.block=false;
+      return true;
     }
     const s = f.state;
     if (this.now < this.guardRest || f.guard < BOT_FIGHT.guardLow) return false;
@@ -1314,31 +1325,37 @@ export class BotController implements Controller {
 
   /** Incoming projectile: crouch under it or jump over it (skill-limited). Returns true if busy. */
   private dodge(w: World, f: Fighter): boolean {
+    if(this.now<this.evadeUntil&&(f.state==='normal'||f.state==='crouch'||f.state==='block')){
+      this.out.block=false;this.out.moveX=this.evadeDir;this.out.jump=f.grounded||f.vy<0;return true;
+    }
     if (this.now < this.crouchUntil && f.grounded && f.state !== 'aim') {
       this.out.moveY = 1;
       return true;
     }
-    if (f.state !== 'normal' && f.state !== 'crouch') return false;
+    if (f.state !== 'normal' && f.state !== 'crouch' && f.state!=='block') return false;
     const cx = f.x;
     const cy = f.y - f.h / 2;
     for (const b of w.bullets) {
-      if (!b.active || b.owner === f.id || this.dodged.has(b)) continue;
+      if (!b.active || b.owner === f.id || this.dodged.get(b)===b.serial) continue;
+      const owner=w.fighters[b.owner];if(owner&&sameTeam(f,owner))continue;
       const sp2 = b.vx * b.vx + b.vy * b.vy;
       if (sp2 < 1) continue;
-      const t = clamp(((cx - b.x) * b.vx + (cy - b.y) * b.vy) / sp2, 0, 0.4);
-      if (t < 0.06) continue;
+      const t = ((cx - b.x) * b.vx + (cy - b.y) * b.vy) / sp2;
+      if (t < 0 || t>BOT_FIGHT.evadeLookahead) continue;
       const px = b.x + b.vx * t - cx;
       const py = b.y + b.vy * t - cy;
-      if (Math.hypot(px, py) > 13) continue;
-      this.dodged.add(b);
-      if (!this.rng.chance(this.diff.dodge)) continue;
+      if (Math.hypot(px, py) > 13+b.size+(b.explosion?.radius??0)*.6) continue;
+      this.dodged.set(b,b.serial);
+      if (!this.rng.chance(b.tier>=2?Math.min(.95,this.diff.dodge+this.diff.disengage*.8):this.diff.dodge)) continue;
       const horizontal = Math.abs(b.vy) < Math.abs(b.vx) * 0.35;
-      if (horizontal && f.grounded && b.kind !== 'rocket' && b.y < f.y - 10) {
+      if (horizontal && f.grounded && !b.explosion && b.size<4 && b.kind !== 'rocket' && b.y < f.y - 10) {
         this.crouchUntil = this.now + 0.35;
         this.out.moveY = 1;
       } else if (f.grounded) {
-        this.tap('jump');
-        this.out.moveX = this.rng.sign();
+        this.evadeUntil=this.now+BOT_FIGHT.evadeHold;
+        this.evadeDir=Math.abs(b.vy)>Math.abs(b.vx)*.5?(b.x<f.x?1:-1):(b.vx>0?1:-1);
+        if(f.x<40)this.evadeDir=1;else if(f.x>w.map.pxW-40)this.evadeDir=-1;
+        this.out.block=false;this.tap('jump');this.out.moveX=this.evadeDir;
       }
       return true;
     }
@@ -1399,7 +1416,7 @@ export class BotController implements Controller {
   private navigate(w: World, f: Fighter, x: number, y: number, heroTravel = true): void {
     const g = this.graph!;
     if(heroTravel&&!this.isClone&&f.hero==='naruto'&&transformed(f)&&f.formComboCd<=0&&this.canMove(f)&&this.goal.t==='loot'){
-      const orb=w.items[this.goal.item],dist=Math.hypot(x-f.x,y-f.y);
+      const orbId=this.goal.item,orb=w.items.find(i=>i.id===orbId),dist=Math.hypot(x-f.x,y-f.y);
       if(orb?.active&&orb.weaponId==='powerorb'&&dist>70&&dist<=FORM_COMBO.range&&w.map.clearShot(f.x,f.y-15,orb.x,orb.y)){
         this.startMove(f,{hold:'kick',combo:true,ticks:2,mx:x>=f.x?1:-1,my:-1,weight:1});return;
       }

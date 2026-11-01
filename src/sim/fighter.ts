@@ -115,7 +115,7 @@ import { fallKills, outOfWorld, throwIn } from './fall';
 import { damageProp, onProp, pushProp, releaseProp, supportOnProps, type Prop } from './prop';
 import { conveyorPush, useCannon } from './gimmicks';
 import { copyIntent, emptyIntent, type Intent } from './intent';
-import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, type Body, type MoveResult } from './physics';
+import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, segmentAabb, type Body, type MoveResult } from './physics';
 import type { World } from './world';
 
 export type FState =
@@ -745,6 +745,9 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
 
   if (f.alive && !superGuard(f) && outOfWorld(w, f) && !fallKills(w, f)) throwIn(w, f);
   if (f.alive && (f.state === 'normal' || f.state === 'crouch' || f.state === 'roll')) autoPickup(w, f);
+  if(f.alive&&f.master<0&&!w.settings.noPickups&&(f.hero==='naruto'||f.hero==='sasuke')&&f.state==='special'&&(f.specialKind==='rasengan'||f.hero==='naruto'&&f.specialKind==='formCombo')){
+    for(const orb of w.items)if(orb.active&&orb.weaponId==='powerorb'&&!orb.live&&segmentAabb(f.px,f.py-f.h/2,f.x,f.y-f.h/2,orb.x-orb.w/2-f.w/2,orb.y-orb.h-f.h/2,orb.x+orb.w/2+f.w/2,orb.y+f.h/2)>=0)w.pickUp(f,orb,false);
+  }
   copyIntent(f.prev, inp);
 }
 
@@ -1942,7 +1945,9 @@ function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
       f.charge = 1;
       const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
       if (target?.alive && !target.gone && f.hero === 'sasuke') {
-        applyHit(w, target, { damage: FORM_COMBO.damage * meleeMuls(f).dmg, kbX: 0, kbY: 0, attacker: f.id, weapon: 'kirin', kind: 'melee', stun: KIRIN.stun, x: target.x, y: target.y-target.h/2 });
+        const radius=KIRIN.radius+KIRIN.radiusPerForm*(f.powerLevel-1);
+        for(const o of w.fighters)if(o.alive&&!o.gone&&o!==f&&o.master!==f.id&&!sameTeam(f,o)&&Math.hypot(o.x-f.anchorX,o.y-o.h/2-(f.anchorY-target.h/2))<=radius)
+          applyHit(w, o, { damage: FORM_COMBO.damage * meleeMuls(f).dmg, kbX: 0, kbY: 0, attacker: f.id, weapon: 'kirin', kind: 'melee', stun: KIRIN.stun, x: o.x, y: o.y-o.h/2 });
       } else if (f.hero !== 'sasuke') {
         if (f.hero === 'goku') {
           const b = baseAbility(f)?.blink;

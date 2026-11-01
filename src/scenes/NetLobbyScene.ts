@@ -292,7 +292,7 @@ export class NetLobbyScene extends Phaser.Scene {
       case 'mode':
         return send({ mode: cycle(MODES, cfg.mode, d) });
       case 'length':
-        return cfg.mode === 'brawl' ? send({ roundsToWin: Math.max(1, Math.min(9, cfg.roundsToWin + d)) }) : send({ timeLimit: cycle(TIMES, TIMES.includes(cfg.timeLimit) ? cfg.timeLimit : 180, d) });
+        return cfg.mode === 'brawl' ? send({ roundsToWin: (cfg.roundsToWin+d+11)%11 }) : send({ timeLimit: cycle(TIMES, TIMES.includes(cfg.timeLimit) ? cfg.timeLimit : 180, d) });
       case 'bots': {
         const max = Math.max(0, MAX_FIGHTERS - this.humans());
         return this.setBots(cfg, Math.max(0, Math.min(max, cfg.bots.length + d)), skill, heroes);
@@ -467,7 +467,7 @@ export class NetLobbyScene extends Phaser.Scene {
       case 'mode':
         return MODE_NAMES[cfg.mode];
       case 'length':
-        return cfg.mode === 'brawl' ? `${cfg.roundsToWin} WINS` : cfg.mode === 'deathmatch' ? `${Math.floor(cfg.timeLimit / 60)}:${String(cfg.timeLimit % 60).padStart(2, '0')}` : 'AUTO';
+        return cfg.mode === 'brawl' ? cfg.roundsToWin===0?'UNLIMITED':`${cfg.roundsToWin} WINS` : cfg.mode === 'deathmatch' ? `${Math.floor(cfg.timeLimit / 60)}:${String(cfg.timeLimit % 60).padStart(2, '0')}` : 'AUTO';
       case 'bots':
         return String(cfg.bots.length);
       case 'skill':

@@ -306,7 +306,7 @@ export function avatarTargetAngle(hero:string,level:number,x:number,y:number):nu
 export const SASUKE_ARROW = { speedMul: 1.8, lockRange: 720 };
 export const FORM_COMBO = { cooldown: 6, windup: 0.24, duration: 0.7, range: 360, damage: 22, radius: 30, speed: 520, cloneRange: 70, recallHold: 0.55 };
 export const CLONE_SLINGSHOT = { windup: 0.6, duration: 1, speed: 1040, turns: 1.5, swingRadius: 22 };
-export const KIRIN = { stun: 1.5 };
+export const KIRIN = { stun: 1.5, radius:18, radiusPerForm:6, scaleBase:.8, scalePerForm:.3 };
 
 export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {
@@ -369,7 +369,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['RASENSHURIKEN', 'TAILED BEAST BOMB', 'TAILED BEAST BOMB', 'KURAMA BIJUDAMA'],
       desc: 'A GIANT CHAKRA BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      bomb: { windup: 0.45, speed: 190, size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
+      bomb: { windup: 0.45, speed: 380, size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
     },
     forms: [
       { name: 'ONE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.15, knockMul: 1.1, reach: 0 },

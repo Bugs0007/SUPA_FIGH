@@ -469,6 +469,10 @@ export class FighterView {
           back = 1.5;
           weaponAngle = front;
         }
+        if(heroCombo&&f.hero==='naruto'&&formLevel(f)>0&&formLevel(f)<4){
+          frame=formLevel(f)>1?BF.FOX_IDLE0:BF.WINDUP;
+          front=1.4;back=1.7;frontLen=backLen=0;leanTarget=inActive?.12:-.06;
+        }
         if(heroCombo&&((f.hero==='sasuke'&&formLevel(f)>=3)||(f.hero==='naruto'&&formLevel(f)===4))){
           frame=BF.WINDUP;
           front=.9;back=1.2;frontLen=0;backLen=0;

@@ -20,6 +20,7 @@ export interface MatchConfig {
   mapId: string;
   mode: GameMode;
   fighters: FighterSpawn[];
+  /** Brawl win target; 0 keeps starting rounds indefinitely. */
   roundsToWin: number;
   friendlyFire: boolean;
   weaponSpawnRate: number;
@@ -771,7 +772,7 @@ export class Match {
       const s = (this.scores.get(winner) ?? 0) + 1;
       this.scores.set(winner, s);
       for (const i of this.membersOf(winner)) this.stats[i].roundsWon++;
-      if (s >= this.cfg.roundsToWin) this.matchWinner = winner;
+      if (this.cfg.roundsToWin > 0 && s >= this.cfg.roundsToWin) this.matchWinner = winner;
     }
     this.phase = 'roundEnd';
     this.phaseTime = 0;

@@ -100,6 +100,7 @@ export class HeroMoveGallery {
       let center = 10;
       let cy = 124;
       if(this.mode==='special'){zoom=1.3;center=14;cy=103;}
+      if(this.mode==='special'&&this.hero==='sasuke'){zoom=.75;center=14;cy=90;}
       if(this.mode==='combo'&&this.hero==='sasuke'&&i>=3){
         zoom=i===4?1.15:1.45;center=0;cy=108;
       } else if (this.mode === 'super' && i > 0 && this.hero === 'luffy') {

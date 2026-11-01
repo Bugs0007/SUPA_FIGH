@@ -10,6 +10,8 @@ import type { World } from './world';
 
 export interface Bullet {
   active: boolean;
+  /** Generation of this pooled slot, so AI decisions apply to one shot rather than the slot forever. */
+  serial: number;
   x: number;
   y: number;
   px: number;
@@ -72,6 +74,7 @@ export interface BulletSpawn {
 export function newBullet(): Bullet {
   return {
     active: false,
+    serial: 0,
     x: 0,
     y: 0,
     px: 0,
@@ -104,6 +107,7 @@ export function newBullet(): Bullet {
 
 export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
   b.active = true;
+  b.serial=(b.serial??0)+1;
   b.x = b.px = s.x;
   b.y = b.py = s.y;
   b.vx = s.vx;

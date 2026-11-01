@@ -73,11 +73,13 @@ describe('server: rooms and lobby', () => {
     expect(a.last('room')!.peers[0].name).toBe('x'.repeat(12));
     a.config({ roundsToWin: 999, mapId: 'nope', timeLimit: -5, bots: Array(30).fill({ hero: 'zzz', difficulty: 'godlike' }) });
     const c = a.last('room')!.config;
-    expect(c.roundsToWin).toBe(9);
+    expect(c.roundsToWin).toBe(10);
     expect(c.mapId).toBe('test'); // unknown map ignored
     expect(c.timeLimit).toBe(30);
     expect(c.bots.length).toBeLessThanOrEqual(10);
     expect(c.bots[0]).toEqual({ hero: '', difficulty: 'normal' });
+    a.config({roundsToWin:0});
+    expect(a.last('room')!.config.roundsToWin).toBe(0);
 
     const before = a.msgs.length;
     a.sendRaw('not json');
