@@ -56,9 +56,10 @@ export function drawKirin(g:RectPainter,x:number,y:number,t:number,level:number,
 /** The existing area hit becomes a branching lightning burst on the same frame. */
 export function drawKirinImpact(g:RectPainter,x:number,y:number,t:number,level:number,time:number):void{
   const age=t-FORM_COMBO.windup;
-  if(age<0||age>=KIRIN.impactTime)return;
+  if(age<0||t>=FORM_COMBO.windup+KIRIN.impactTime)return;
   const p=age/KIRIN.impactTime,fade=1-p;
   const radius=KIRIN.radius+KIRIN.radiusPerForm*(Math.max(1,level)-1);
+  const blast=KIRIN.blastRadius+KIRIN.blastRadiusPerForm*(Math.max(1,level)-1);
   const pixel=(xx:number,yy:number,size:number,c:number,a:number)=>{
     g.fillStyle(c,a);g.fillRect(Math.round(xx),Math.round(yy),size,size);
   };
@@ -78,16 +79,66 @@ export function drawKirinImpact(g:RectPainter,x:number,y:number,t:number,level:n
     const nextX=i===skySteps?x:x+Math.sin(i*2.1+Math.floor(time*18))*7;
     bolt(skyX,skyY,nextX,nextY);skyX=nextX;skyY=nextY;
   }
-  // A white-blue flash at contact, followed by expanding ground arcs and forked bolts.
-  for(let dy=-12;dy<=12;dy+=2){
-    const width=Math.round(Math.sqrt(144-dy*dy)*(1-p)*1.4);
-    if(width>0){g.fillStyle(0xdafaff,fade*.85);g.fillRect(Math.round(x-width),Math.round(y+dy),width*2,2);}
+  // An actual expanding detonation, not just a small flash surrounded by sparks.
+  const disc=(cx:number,cy:number,r:number,ry:number,color:number,alpha:number)=>{
+    if(alpha<=0||r<1)return;
+    g.fillStyle(color,alpha);
+    const h=Math.ceil(r*ry);
+    for(let row=-h;row<=h;row+=2){
+      const half=Math.round(r*Math.sqrt(Math.max(0,1-(row/h)**2)));
+      if(half>0)g.fillRect(Math.round(cx-half),Math.round(cy+row),half*2,2);
+    }
+  };
+  const expansion=1-(1-Math.min(1,age/.14))**3;
+  const coreRadius=blast*(.22+.78*expansion);
+  const coreAlpha=Math.max(0,1-Math.max(0,age-.12)/.26);
+  const coreY=y-coreRadius*.6;
+  // Blue pressure shell, cyan energy cloud and a hot white centre.
+  // Uneven lobes break the silhouette into a bursting cloud instead of an energy ball.
+  for(let lobe=0;lobe<7;lobe++){
+    const a=Math.PI+.12+lobe*(Math.PI-.24)/6;
+    const r=coreRadius*(.27+.07*Math.cos(lobe*5));
+    const cx=x+Math.cos(a)*coreRadius*.85,cy=coreY+Math.sin(a)*coreRadius*.85;
+    disc(cx,cy,r,.95,0x2669cc,coreAlpha*.9);
+    disc(cx,cy,r*.78,.95,0x75dfff,coreAlpha);
+  }
+  for(const side of [-1,1])disc(x+side*coreRadius*.58,coreY+coreRadius*.1,coreRadius*.48,.85,0x3b8aee,coreAlpha*.85);
+  disc(x,coreY,coreRadius, .9,0x2669cc,coreAlpha*.9);
+  disc(x,coreY,coreRadius*.83,.9,0x75dfff,coreAlpha);
+  disc(x,coreY,coreRadius*.58,.9,0xf0ffff,coreAlpha);
+  // Tall irregular jets flare out of the blast while the core expands.
+  for(let ray=0;ray<11;ray++){
+    const angle=Math.PI+ray*Math.PI/10;
+    const reach=blast*(.9+Math.sin(ray*7)*.25)*(.4+expansion*.8);
+    const tipX=x+Math.cos(angle)*reach,tipY=y+Math.sin(angle)*reach;
+    if(age<.32)bolt(x+Math.cos(angle)*coreRadius*.4,coreY,tipX,tipY);
+  }
+  // Two broad shock fronts travel away from the detonation along the ground.
+  for(const delay of [0,.09]){
+    const q=Math.max(0,age-delay);
+    if(age<delay)continue;
+    const r=blast*(.25+Math.min(1,q/.5)*1.45),thickness=Math.max(2,6*(1-p));
+    g.fillStyle(delay?0x66bfff:0xdcffff,fade*(delay?.6:.9));
+    for(let row=-Math.ceil(r*.3);row<=r*.3;row+=2){
+      const outer=Math.round(r*Math.sqrt(Math.max(0,1-(row/(r*.3))**2)));
+      const innerR=Math.max(1,r-thickness);
+      const inner=Math.abs(row)<innerR*.3?Math.round(innerR*Math.sqrt(Math.max(0,1-(row/(innerR*.3))**2))):0;
+      if(outer>inner){
+        g.fillRect(Math.round(x-outer),Math.round(y+11+row),outer-inner,2);
+        g.fillRect(Math.round(x+inner),Math.round(y+11+row),outer-inner,2);
+      }
+    }
+  }
+  // Rising blue-grey dust makes the blast settle rather than vanish on one frame.
+  for(let cloud=0;cloud<7;cloud++){
+    const a=cloud*Math.PI*2/7;
+    disc(x+Math.cos(a)*blast*(.35+p*.45),y-8-p*blast*.65+Math.sin(a)*blast*.18,blast*(.12+p*.12),.8,cloud%2?0x36557f:0x7097bc,Math.sin(Math.PI*p)*.28);
   }
   for(let arm=0;arm<8;arm++){
     const angle=arm*Math.PI*2/8;
     let prevX=x,prevY=y;
     for(let step=1;step<=5;step++){
-      const d=step/5*radius*(.9+p*.8);
+      const d=step/5*Math.max(radius,blast*.8)*(.9+p*.8);
       const zig=Math.sin(step*2.3+arm*3+Math.floor(time*18))*(2+step);
       const xx=x+Math.cos(angle)*d-Math.sin(angle)*zig;
       const yy=y+Math.sin(angle)*d*.65+Math.cos(angle)*zig;

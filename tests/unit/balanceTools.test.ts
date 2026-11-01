@@ -75,6 +75,22 @@ it('Kirin has a mirrored side profile with its snout pointing in the caster dire
     expect((nose[0]-200)*facing).toBeGreaterThan(10);
   }
 });
+it('Kirin detonates with an expanding hot core, wide shock fronts and a fading aftermath',()=>{
+  const frame=(age:number)=>{
+    let color=0;const boxes:{color:number;x:number;y:number;w:number;h:number}[]=[];
+    drawKirinImpact({fillStyle:c=>{color=c;},fillRect:(x,y,w,h)=>boxes.push({color,x,y,w,h})},200,300,FORM_COMBO.windup+age,4,0);
+    return boxes;
+  };
+  const hotWidth=(age:number)=>Math.max(0,...frame(age).filter(b=>b.color===0xf0ffff).map(b=>b.w));
+  expect(hotWidth(.12)).toBeGreaterThan(70);
+  expect(hotWidth(.12)).toBeGreaterThan(hotWidth(0)*3);
+  expect(hotWidth(.5)).toBe(0);
+  const fronts=frame(.4).filter(b=>b.color===0xdcffff);
+  expect(Math.min(...fronts.map(b=>b.x))).toBeLessThan(100);
+  expect(Math.max(...fronts.map(b=>b.x+b.w))).toBeGreaterThan(300);
+  expect(frame(.6).some(b=>b.color===0x36557f)).toBe(true);
+  expect(frame(KIRIN.impactTime+.01)).toHaveLength(0);
+});
 it('Kirin has a broad continuous body all the way from the ceiling to its descending head',()=>{
   for(const level of [1,4]){
     let color=0;const body:number[][]=[];

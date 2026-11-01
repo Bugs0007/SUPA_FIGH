@@ -677,6 +677,9 @@ export class Juice {
         this.r.heroFx.startKirinImpact(e.x, e.y, e.level);
         fx.sparks(e.x, e.y, 0, -1, 18 + e.level * 5, 0x9ceaff, 260);
         fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.18, s0: 1, s1: 2 + e.level * .3, a0: 1, a1: 0, tint: 0xdafaff, add: true, depth: 64 });
+        fx.spawn({ frame: 'ring', x: e.x, y: e.y + 11, life: .45, s0: .5, s1: 4 + e.level, a0: 1, a1: 0, tint: 0xb9f5ff, depth: 64 });
+        fx.chips(e.x, e.y + 11, 12 + e.level * 3);
+        fx.smoke(e.x, e.y, 7 + e.level, 0x7294b8);
         this.sfx('energyHit', e.x, 1, .7);
         this.cam.addTrauma(.3);
         break;
