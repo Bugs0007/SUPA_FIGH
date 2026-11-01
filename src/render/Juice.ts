@@ -1,6 +1,6 @@
 import { BOOST_COLORS, formFx } from '../art/heroArt';
 import { powerColors } from './HeroFx';
-import { HEROES, heroAttackLabel } from '../sim/data/heroes';
+import { HEROES, KIRIN, heroAttackLabel } from '../sim/data/heroes';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_W } from '../game/display';
@@ -680,8 +680,8 @@ export class Juice {
         fx.spawn({ frame: 'ring', x: e.x, y: e.y + 11, life: .45, s0: .5, s1: 4 + e.level, a0: 1, a1: 0, tint: 0xb9f5ff, depth: 64 });
         fx.chips(e.x, e.y + 11, 12 + e.level * 3);
         fx.smoke(e.x, e.y, 7 + e.level, 0x7294b8);
-        this.sfx('energyHit', e.x, 1, .7);
-        this.cam.addTrauma(.3);
+        audio.play('kirinExplosion', { volume: 1, pan: this.pan(e.x), pitch: 1 - Math.max(0,e.level-1)*.025, pitchVar: .025, priority: true });
+        this.cam.addTrauma(KIRIN.shakeBase+Math.max(1,Math.min(4,e.level))*KIRIN.shakePerForm);
         break;
       }
       case 'shockwave': {

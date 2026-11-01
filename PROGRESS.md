@@ -408,3 +408,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D104: Naruto/Sasuke bot upward and diagonal dashes keep their aim through windup, supersede ladder scripts, collect overhead orbs and evade incoming projectiles / ultimates; Naruto uses upward Clone Launch for orb travel.
 
 - [x] D105: replay follows the finishing attack through contact; environmental finishes hand off to the victim after the final blow, with the clip extended to include that blow.
+
+- [x] D107: dedicated Kirin lightning-crack / thunder explosion sound, priority playback under combat audio load, stronger per-form impact shake and live screen-shake setting updates.

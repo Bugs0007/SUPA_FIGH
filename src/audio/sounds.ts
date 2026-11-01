@@ -141,6 +141,14 @@ export const SOUNDS: Record<string, SfxDef> = {
     { wave: 'noise', freq: 700, slide: -1.5, punch: 0.8, decay: 0.5, lowpass: 0.5, volume: 0.8 },
     { wave: 'sine', freq: 90, slide: -2, decay: 0.35, volume: 0.8 },
   ],
+  kirinExplosion: [
+    // Lightning crack, explosive body, low thunder roll and a trailing electrical hiss.
+    { wave:'noise',freq:3200,highpass:.62,attack:.001,sustain:.025,decay:.12,punch:.9,volume:.7 },
+    { wave:'noise',freq:700,lowpass:.32,sustain:.09,decay:1,punch:1,volume:.85 },
+    { wave:'sine',freq:76,slide:-.8,sustain:.08,decay:.85,volume:.9 },
+    { wave:'noise',freq:160,delay:.06,lowpass:.08,sustain:.06,decay:1.2,volume:.6 },
+    { wave:'noise',freq:2400,highpass:.65,delay:.12,decay:.38,tremolo:45,volume:.2 },
+  ],
   ignite: [{ wave: 'noise', freq: 600, slide: 1.5, attack: 0.04, sustain: 0.05, decay: 0.25, lowpass: 0.35, volume: 0.45 }],
   hiss: [{ wave: 'noise', freq: 5000, attack: 0.02, sustain: 0.1, decay: 0.3, highpass: 0.5, volume: 0.25 }],
   clang: [

@@ -9,6 +9,8 @@ export interface PlayOpts {
   pitchVar?: number;
   /** -1..1 stereo pan */
   pan?: number;
+  /** Rare major impacts must remain audible when ordinary combat has filled the voice budget. */
+  priority?: boolean;
 }
 
 /** WebAudio sound player. Buffers are synthesized once; every play is pitch-randomized. */
@@ -71,7 +73,7 @@ export class AudioManager {
     const now = ctx.currentTime;
     const last = this.lastPlayed.get(id) ?? -1;
     if (now - last < 0.025) return; // de-dupe identical sounds in the same instant
-    if (this.active > 28) return;
+    if (this.active > 28 && !o.priority) return;
     this.lastPlayed.set(id, now);
 
     const src = ctx.createBufferSource();

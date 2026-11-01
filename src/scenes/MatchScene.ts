@@ -282,6 +282,7 @@ export class MatchScene extends Phaser.Scene {
 
   override update(_time: number, deltaMs: number): void {
     if (this.trailer && !this.trailer.live) return;
+    this.camDir.shakeScale = settings.screenShake;
     const dt = Math.min(deltaMs / 1000, 0.1);
     this.elapsed += dt;
     this.handleDebugKeys();
