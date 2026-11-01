@@ -979,12 +979,13 @@ export function blinkDestination(w: World, f: Fighter, b: BlinkStats, dx: number
     }
   }
   if (best) {
-    // appear on the far side of them, in the line of the jump
-    for (const back of [14, 10, 18]) {
-      const tx = best.x + ux * back;
-      const ty = Math.abs(uy) > 0.5 ? best.y + uy * back : best.y;
+    // Behind their guard is determined by THEIR facing, not our approach direction.
+    for (const back of [14, 18, 22]) for(const lift of [0,8,16]) {
+      const tx = best.x - best.facing * back;
+      const ty = best.y - lift;
       if (fits(tx, ty)) return { x: tx, y: ty, target: best.id };
     }
+    return null; // Never substitute a landing in front of a locked target's guard.
   }
   for (let d = b.range; d >= b.minRange; d -= 4) {
     const x = f.x + ux * d;

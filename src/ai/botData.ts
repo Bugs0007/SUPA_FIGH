@@ -101,6 +101,8 @@ export const BOT_FIGHT = {
   ultFleeWeight:.3,
   evadeLookahead:.65,
   evadeHold:.45,
+  dashEvadeRise:100,
+  dashEvadeMargin:.08,
   vsGuardSuper: 2,
 };
 

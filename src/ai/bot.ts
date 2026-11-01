@@ -12,14 +12,14 @@ import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND,
 import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { heroDef, FORM_COMBO, SASUKE_ARROW, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
+import { heroDef, FORM_COMBO, CLONE_SLINGSHOT, SASUKE_ARROW, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
 import { amaterasuReach, baseAbility, dashDir, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
 import type { World } from '../sim/world';
 import { BOT_FIGHT, DIFFICULTIES, PERSONALITIES, weaponAi, type Difficulty, type DifficultyDef, type Personality } from './botData';
-import { HeroMobility } from './heroMove';
+import { HeroMobility, clearHeroLane, dashRoute } from './heroMove';
 import { MANEUVERS, navFor, type NavEdge, type NavGraph, type NavNode } from './nav';
 
 export interface BotOptions {
@@ -407,7 +407,13 @@ export class BotController implements Controller {
       const def = weaponDef(it.weaponId);
       if (def.gun && it.ammo <= 0) continue;
       const node = g.nearest(it.x, it.y);
-      if (!node || costs[node.id] === Infinity) continue;
+      let travel=node?costs[node.id]:Infinity;
+      if(it.weaponId===POWER_ORB){
+        const shortcut=dashRoute(w,f,it.x,it.y,true);
+        if(shortcut)travel=Math.min(travel,shortcut.seconds+(transformed(f)?SUPER_WINDOW:0));
+        if(f.hero==='naruto'&&transformed(f)&&f.formComboCd<=0&&Math.hypot(it.x-f.x,it.y-f.y)<=FORM_COMBO.range&&clearHeroLane(w,f,it.x,it.y))travel=Math.min(travel,CLONE_SLINGSHOT.windup+Math.hypot(it.x-f.x,it.y-f.y)/CLONE_SLINGSHOT.speed);
+      }
+      if(!Number.isFinite(travel))continue;
       const ai = weaponAi(it.weaponId);
       const cur = f.inv[def.slot];
       let gain = ai.value - (cur ? weaponAi(cur.id).value : 0);
@@ -417,7 +423,7 @@ export class BotController implements Controller {
       if (def.gadget?.kind === 'medkit') gain += (100 - f.hp) * 0.4;
       if (ai.kind === 'melee') gain += this.persona.meleeLove;
       if (gain <= 3) continue;
-      const score = (gain * (0.4 + this.persona.greed)) / (1 + costs[node.id] * 1.5);
+      const score = (gain * (0.4 + this.persona.greed)) / (1 + travel * 1.5);
       if (score > itemScore) {
         itemScore = score;
         item = i;
@@ -818,7 +824,7 @@ export class BotController implements Controller {
 
   /** Free to start a hero move (fighter.ts canAct): standing / crouching / flying, a guard out of blockstun, a combo hit's recovery. */
   private canMove(f: Fighter): boolean {
-    if (f.state === 'normal' || f.state === 'crouch') return true;
+    if (f.state === 'normal' || f.state === 'crouch' || f.state === 'climb') return true;
     if (f.state === 'block') return f.blockStun <= 0;
     if (f.state === 'melee') {
       const hit = swingHit(f);
@@ -904,7 +910,8 @@ export class BotController implements Controller {
       } else if (b.kind === 'blink' && b.blink) {
         // instant transmission locks on and lands behind them (a guard faces the wrong way then)
         const aim = blinkAim(f, e, b.blink.range + b.blink.assist);
-        if (aim) cands.push({ hold: 'ability', ticks: 1, mx: aim.mx, my: aim.my, weight: wb * (guard ? 2 : 1) });
+        const alreadyBehind=(f.x-e.x)*e.facing<0&&near<=40&&level<20;
+        if (aim&&!alreadyBehind) cands.push({ hold: 'ability', ticks: 1, mx: aim.mx, my: aim.my, weight: wb * (guard ? 2 : 1) });
       } else if (b.kind === 'pistol' && b.stretch && level <= 8) {
         // a shove (no damage): makes space up close, or reaches out to them
         const far = near >= 26 && near <= (b.stretch.maxRange ?? 100) - 40;
@@ -1105,6 +1112,7 @@ export class BotController implements Controller {
     }
     this.threatGo = false;
     if (t.kind === 'super') {
+      if(this.dashEvade(w,f,t.eta))return true;
       this.evadeUntil=this.now+BOT_FIGHT.evadeHold;
       this.evadeDir=f.x<t.e.x?-1:1;
       this.out.moveX=this.evadeDir;this.out.jump=f.grounded;this.out.block=false;
@@ -1332,7 +1340,7 @@ export class BotController implements Controller {
       this.out.moveY = 1;
       return true;
     }
-    if (f.state !== 'normal' && f.state !== 'crouch' && f.state!=='block') return false;
+    if (f.state !== 'normal' && f.state !== 'crouch' && f.state!=='block' && f.state!=='climb') return false;
     const cx = f.x;
     const cy = f.y - f.h / 2;
     for (const b of w.bullets) {
@@ -1347,6 +1355,7 @@ export class BotController implements Controller {
       if (Math.hypot(px, py) > 13+b.size+(b.explosion?.radius??0)*.6) continue;
       this.dodged.set(b,b.serial);
       if (!this.rng.chance(b.tier>=2?Math.min(.95,this.diff.dodge+this.diff.disengage*.8):this.diff.dodge)) continue;
+      if(this.dashEvade(w,f,t,Math.abs(b.vy)>Math.abs(b.vx)?(b.x<f.x?1:-1):0))return true;
       const horizontal = Math.abs(b.vy) < Math.abs(b.vx) * 0.35;
       if (horizontal && f.grounded && !b.explosion && b.size<4 && b.kind !== 'rocket' && b.y < f.y - 10) {
         this.crouchUntil = this.now + 0.35;
@@ -1360,6 +1369,16 @@ export class BotController implements Controller {
       return true;
     }
     return false;
+  }
+
+  private dashEvade(w:World,f:Fighter,eta:number,side=0):boolean{
+    const d=baseAbility(f)?.dash;
+    if(!d||this.isClone||this.chargeTicks>0||eta<d.windup+(transformed(f)?SUPER_WINDOW:0)+BOT_FIGHT.dashEvadeMargin)return false;
+    const rise=BOT_FIGHT.dashEvadeRise;
+    if(!this.mobility.tryDash(w,f,f.x+side*rise,f.y-rise,this.now,this.out,true))return false;
+    this.script=null;this.path=[];this.guardOn=false;this.out.block=false;this.out.attack=false;this.out.kick=false;
+    this.taps.delete('attack');this.taps.delete('jump');
+    return true;
   }
 
   // ------------------------------------------------------------------ other goals
@@ -1417,13 +1436,17 @@ export class BotController implements Controller {
     const g = this.graph!;
     if(heroTravel&&!this.isClone&&(f.hero==='naruto'||f.hero==='luffy')&&transformed(f)&&f.formComboCd<=0&&this.canMove(f)&&this.goal.t==='loot'){
       const orbId=this.goal.item,orb=w.items.find(i=>i.id===orbId),dist=Math.hypot(x-f.x,y-f.y);
-      if(orb?.active&&orb.weaponId==='powerorb'&&dist>70&&dist<=FORM_COMBO.range&&w.map.clearShot(f.x,f.y-15,orb.x,orb.y)){
+      if(orb?.active&&orb.weaponId==='powerorb'&&dist>70&&dist<=FORM_COMBO.range&&clearHeroLane(w,f,orb.x,orb.y)){
+        this.script=null;this.path=[];
         this.startMove(f,{hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:x>=f.x?1:-1,my:f.hero==='naruto'?-1:0,weight:1});return;
       }
     }
     if (f.state === 'aim' && f.aimHeld) {
       this.out.attack = false;
       return;
+    }
+    if(heroTravel&&f.hero&&!this.isClone&&this.mobility.consider(w,f,g,x,y,this.now,this.out,this.now<this.noPathUntil)){
+      this.script=null;this.path=[];this.progressT=this.now;this.progressX=f.x;this.progressY=f.y;return;
     }
     if (this.script) {
       this.runScript(f);
@@ -1438,13 +1461,6 @@ export class BotController implements Controller {
       if (Math.abs(x - f.x) > 3) this.out.moveX = Math.sign(x - f.x);
       this.path = [];
       this.trackProgress(w, f, true);
-      return;
-    }
-    // heroes: fly / wall-walk / Rasengan-dash / grapple instead of the scripted jumps when that gets there faster
-    if (heroTravel && f.hero && !this.isClone && this.mobility.consider(w, f, g, x, y, this.now, this.out, this.now < this.noPathUntil)) {
-      this.progressT = this.now;
-      this.progressX = f.x;
-      this.progressY = f.y;
       return;
     }
     if (!here && f.grounded && f.state !== 'climb') {

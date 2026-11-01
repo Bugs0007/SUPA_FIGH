@@ -114,13 +114,14 @@ describe('Goku: instant transmission', () => {
     expect(w.map.rectSolid(f.x - f.w / 2, f.y - f.h, f.x + f.w / 2, f.y - 0.5)).toBe(false);
   });
 
-  it('locks onto a fighter in that direction: appears behind them and strikes', () => {
+  it.each([-1,1] as const)('appears behind an enemy facing %s without an arrival strike', (facing) => {
     const w = world('goku');
     put(w, 0, 10 * TILE);
     put(w, 1, 10 * TILE + 90);
     settle(w);
     const f = w.fighters[0];
     const o = w.fighters[1];
+    o.facing=facing;
     const ox = o.x;
     let hit = false;
     hold(w, 1, { ability: true, moveX: 1 });
@@ -128,10 +129,10 @@ describe('Goku: instant transmission', () => {
       w.step([]);
       if (w.events.some((e) => e.t === 'hit' && e.weapon === 'blink' && e.victim === 1)) hit = true;
     }
-    expect(f.x).toBeGreaterThan(ox); // on the far side
-    expect(f.facing).toBe(-1); // turned back toward them
-    expect(hit).toBe(true);
-    expect(o.hp).toBeLessThan(o.maxHp);
+    expect((f.x-ox)*facing).toBeLessThan(0);
+    expect(f.facing).toBe(f.x<ox?1:-1);
+    expect(hit).toBe(false);
+    expect(o.hp).toBe(o.maxHp);
   });
 
   it('is invulnerable for a moment after the jump', () => {
@@ -141,6 +142,18 @@ describe('Goku: instant transmission', () => {
     settle(w);
     tp(w, { moveX: 1 });
     expect(w.fighters[0].invuln).toBeGreaterThan(0.05);
+  });
+  it('a normal punch after teleporting behind a guarding enemy bypasses their forward guard',()=>{
+    const w=world('goku');put(w,0,10*TILE);put(w,1,10*TILE+90);settle(w);
+    const [f,o]=w.fighters;o.facing=1;
+    w.step([intent({ability:true,moveX:1}),intent({block:true})]);
+    for(let t=0;t<14;t++)w.step([intent(),intent({block:true})]);
+    expect(f.x).toBeLessThan(o.x);expect(o.hp).toBe(o.maxHp);
+    w.events.length=0;
+    w.step([intent({attack:true}),intent({block:true})]);
+    for(let t=0;t<15;t++)w.step([intent(),intent({block:true})]);
+    expect(o.hp).toBeLessThan(o.maxHp);
+    expect(w.events.some(e=>e.t==='block'||e.t==='parry')).toBe(false);
   });
 });
 

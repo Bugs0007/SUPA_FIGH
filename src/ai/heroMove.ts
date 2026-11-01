@@ -1,7 +1,7 @@
 // Hero traversal for bots: the moves a human uses to get around, not to fight (those live in bot.ts useBase).
 //
 //   Goku    hold Up in the air to fly (ascend + steer), release to glide down
-//   Naruto  walk up a wall (hold toward it + Up); Rasengan as a fast gravity-free dash along a clear lane
+//   Naruto / Sasuke: eight-direction Rasengan / Chidori travel before slower ladder/wall routes
 //   Luffy   Gum-Gum grapple: hold the ability toward a platform / wall / ladder to be pulled there, or under a
 //           ceiling to swing from it
 //
@@ -10,7 +10,7 @@
 
 import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from '../sim/constants';
 import { wallContact, type Fighter } from '../sim/fighter';
-import { heroDef } from '../sim/data/heroes';
+import { heroDef, SUPER_WINDOW } from '../sim/data/heroes';
 import { baseAbility, grabProbe, gripTarget, holdFlies, type Grip } from '../sim/hero';
 import type { Intent } from '../sim/intent';
 import type { World } from '../sim/world';
@@ -44,6 +44,33 @@ interface Move {
 }
 
 const GRAPPLE_HOLD_TICKS = 9;
+
+export function clearHeroLane(w:World,f:Fighter,x:number,y:number):boolean{
+  const dx=x-f.x,dy=y-f.y,steps=Math.max(1,Math.ceil(Math.hypot(dx,dy)/6));
+  for(let i=0;i<=steps;i++){
+    const px=f.x+dx*i/steps,py=f.y+dy*i/steps;
+    if(px-f.w/2<2||px+f.w/2>w.map.pxW-2||py-FIGHTER_H<2||py>w.map.pxH-2||w.map.rectSolid(px-f.w/2,py-FIGHTER_H,px+f.w/2,py-.01))return false;
+  }
+  return true;
+}
+
+/** A body-sized clear lane in one of the eight directions the real dash can use. */
+export function dashRoute(w:World,f:Fighter,x:number,y:number,short=false):{mx:number;my:number;reach:number;seconds:number}|null{
+  const base=baseAbility(f),d=base?.dash;
+  if(!d||f.master>=0||f.baseCd>0||f.carry>=0||(base?.charges&&f.baseUsed>=base.charges.max))return null;
+  const dx=x-f.x,dy=y-f.y,dist=Math.hypot(dx,dy);
+  if(dist<(short?36:100))return null;
+  const a=Math.round(Math.atan2(dy,dx)/(Math.PI/4))*Math.PI/4;
+  const ux=Math.cos(a),uy=Math.sin(a);
+  if(f.grounded&&uy>.1)return null;
+  const along=dx*ux+dy*uy,cross=Math.abs(dx*uy-dy*ux);
+  if(cross>(short?12:20))return null;
+  const reach=Math.min(along,d.speed*d.maxTime*.85);
+  // An upward dash must actually reach the destination, not spend its cooldown falling back down.
+  if(Math.abs(uy)>.1&&along>reach+12)return null;
+  if(!clearHeroLane(w,f,f.x+ux*reach,f.y+uy*reach))return null;
+  return {mx:Math.abs(ux)<.1?0:Math.sign(ux),my:Math.abs(uy)<.1?0:Math.sign(uy),reach,seconds:d.windup+reach/d.speed};
+}
 
 export class HeroMobility {
   private m: Move | null = null;
@@ -110,12 +137,15 @@ export class HeroMobility {
    */
   consider(w: World, f: Fighter, g: NavGraph, x: number, y: number, now: number, out: Intent, noPath: boolean): boolean {
     if (this.m || !f.hero || now < this.nextTry) return false;
-    if (f.state !== 'normal' || f.carry >= 0 || f.burn > 0) return false;
+    if ((f.state !== 'normal' && f.state !== 'climb') || f.carry >= 0 || f.burn > 0) return false;
     const def = heroDef(f.hero);
     if (!def) return false;
     const dx = x - f.x;
     const dy = y - f.y;
     const base = baseAbility(f);
+    const orbTarget=w.items.some(i=>i.active&&i.weaponId==='powerorb'&&Math.hypot(i.x-x,i.y-y)<20);
+    // Direct vertical travel beats ladders, wall walking and flight when the body fits the lane.
+    if((dy < -24||orbTarget)&&this.tryDash(w,f,x,y,now,out,orbTarget))return true;
     this.nextTry = now + 0.2;
 
     // --- flight: anything noticeably above us, or a place the graph can't reach
@@ -139,19 +169,11 @@ export class HeroMobility {
 
     if (!base || f.baseCd > 0 || (base.charges && f.baseUsed >= base.charges.max)) return false;
 
-    // --- Naruto: Rasengan dash across a long clear lane at our own height
-    const orbTarget=w.items.some(i=>i.active&&i.weaponId==='powerorb'&&Math.hypot(i.x-x,i.y-y)<20);
-    if (base.kind === 'rasengan' && base.dash && f.grounded && Math.abs(dy) <= (orbTarget?18:10) && Math.abs(dx) >= (orbTarget?60:110)) {
-      const d = base.dash;
-      const dir = dx > 0 ? 1 : -1;
-      const reach = Math.min(Math.abs(dx) - 6, d.speed * d.maxTime * 0.85);
-      const endX = f.x + dir * reach;
-      const cy = f.y - 14;
-      if (w.map.clearShot(f.x, cy, endX + dir * 8, cy) && w.map.clearShot(f.x, f.y - 5, endX + dir * 8, f.y - 5) && g.nodeUnder(endX, f.y, 6)) {
-        this.m = newMove('dash', now, x, y);
-        this.m.dir = dir;
-        this.m.holdFor = d.windup + reach / d.speed;
-        return this.stepDash(f, out, this.m, now);
+    if (base.kind === 'rasengan' && base.dash && Math.abs(dy)<=10) {
+      const endX=f.x+Math.sign(dx)*Math.min(Math.abs(dx),base.dash.speed*base.dash.maxTime*.85);
+      if(g.nodeUnder(endX,f.y,6)){
+        this.nextTry=now;
+        if(this.tryDash(w,f,x,y,now,out,orbTarget))return true;
       }
     }
 
@@ -165,6 +187,18 @@ export class HeroMobility {
       }
     }
     return false;
+  }
+
+  /** Also used by threat reactions; retains vertical aim through buffering and windup. */
+  tryDash(w:World,f:Fighter,x:number,y:number,now:number,out:Intent,short=false):boolean{
+    if(this.m||now<this.nextTry||!['normal','crouch','climb','block'].includes(f.state)||f.state==='block'&&f.blockStun>0)return false;
+    const route=dashRoute(w,f,x,y,short),d=baseAbility(f)?.dash;
+    if(!route||!d)return false;
+    this.m=newMove('dash',now,x,y);
+    this.m.mx=route.mx;this.m.my=route.my;
+    this.m.holdFor=d.windup+Math.max(d.time,route.reach/d.speed)+(f.power==='hero'?SUPER_WINDOW:0)+.04;
+    out.block=false;
+    return this.stepDash(f,out,this.m,now);
   }
 
   // ------------------------------------------------------------------ the moves
@@ -231,7 +265,8 @@ export class HeroMobility {
     const t = (now - m.t0) as number;
     const special = f.state === 'special';
     if (m.age > 12 && !special) return this.end(now, 0);
-    if (m.age <= 3) out.moveX = m.dir;
+    out.moveX=m.mx;
+    out.moveY=m.my;
     out.ability = t < m.holdFor + 0.02;
     if (t > 2.5) return this.end(now, 0);
     return true;

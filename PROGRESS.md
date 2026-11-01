@@ -403,3 +403,6 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] D102: pause standings for all ten players with points, kills, deaths, damage, round wins, last placement / points and health / form health; protocol v3 prevents old scoring clients joining.
 
 - [x] Kirin impact redesigned as an expanding white/cyan detonation with twin ground shockwaves, lightning jets, debris and a lingering dust aftermath.
+
+- [x] D104: Goku normal teleport repositions behind enemy facing without an arrival hit; manual follow-up punches bypass forward guard.
+- [x] D104: Naruto/Sasuke bot upward and diagonal dashes keep their aim through windup, supersede ladder scripts, collect overhead orbs and evade incoming projectiles / ultimates; Naruto uses upward Clone Launch for orb travel.

@@ -51,7 +51,7 @@ export interface BaseAbility {
   };
   /** Gum-Gum Pistol: a stretching arm that hits, grabs (walls, ceilings, platforms, ladders) and pulls / swings */
   stretch?: StretchStats;
-  /** Instant transmission: teleport up to `range` px (8 directions); lands a short strike on arrival */
+  /** Instant transmission: teleport up to `range` px (8 directions), behind a locked enemy without attacking. */
   blink?: BlinkStats;
 }
 
@@ -62,6 +62,7 @@ export interface BlinkStats {
   assist: number;
   /** seconds of invulnerability around the jump */
   iframes: number;
+  /** Arrival attack stats for Vanish Strike; normal Instant Transmission does not attack. */
   damage: number;
   knockX: number;
   knockY: number;
@@ -443,7 +444,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     base: {
       kind: 'blink',
       name: 'INSTANT TRANSMISSION',
-      desc: 'TELEPORT IN THE DIRECTION YOU HOLD. LOCKS ONTO A FIGHTER IN THAT DIRECTION AND HITS ON ARRIVAL.',
+      desc: 'TELEPORT IN THE DIRECTION YOU HOLD. APPEAR BEHIND A LOCKED ENEMY WITHOUT ATTACKING, THEN CHOOSE YOUR FOLLOW-UP.',
       cooldown: 2.2,
       blink: { range: 120, minRange: 24, assist: 40, iframes: 0.18, damage: 7, knockX: 240, knockY: -150, stun: 0.3, radius: 14 },
     },

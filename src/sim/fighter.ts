@@ -1781,10 +1781,10 @@ function stBlock(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void 
 
 // ------------------------------------------------------------------ hero buttons (D51, D58)
 
-/** Can a hero start an ability now? Standing, crouching, or in the recovery of a combo hit. */
+/** Can a hero start an ability now? Standing, crouching, climbing, or in a combo hit's recovery. */
 function canAct(f: Fighter): boolean {
   if (f.carry >= 0) return false;
-  if (f.state === 'normal' || f.state === 'crouch') return true;
+  if (f.state === 'normal' || f.state === 'crouch' || f.state === 'climb') return true;
   if (f.state === 'block') return f.blockStun <= 0; // guard-cancel into an ability (not during blockstun)
   if (f.state === 'melee') {
     const m = meleeStats(f);
@@ -2357,7 +2357,7 @@ function startBase(w: World, f: Fighter, inp: Intent): void {
   }
 }
 
-/** Instant transmission: vanish, reappear up to `range` px away (behind a locked-on fighter) and strike. */
+/** Normal instant transmission repositions behind a locked enemy without an arrival attack. */
 function startBlink(w: World, f: Fighter, inp: Intent, b: NonNullable<ReturnType<typeof baseAbility>>['blink'] & object): void {
   const mx = axis(inp.moveX);
   const my = axis(inp.moveY);
@@ -2387,7 +2387,6 @@ function startBlink(w: World, f: Fighter, inp: Intent, b: NonNullable<ReturnType
   f.swingHit.length = 0;
   f.swingProps.length = 0;
   f.abilT = 0;
-  blinkStrike(w, f, b);
 }
 
 function stBlink(w: World, f: Fighter, dt: number): void {
