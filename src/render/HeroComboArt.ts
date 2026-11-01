@@ -7,6 +7,8 @@ import { AvatarArt } from './AvatarArt';
 import { LuffyAbilityArt } from './LuffyAbilityArt';
 
 type G=Phaser.GameObjects.Graphics;
+/** flame frames per second on the spirit arms */
+const SPIRIT_ARM_FPS=8;
 
 /** Draw the same anticipation, contact window and recovery that the melee hitbox uses. */
 export class HeroComboArt {
@@ -23,24 +25,27 @@ export class HeroComboArt {
     const reach=f.w/2+hit.range+(lv>0?h.forms[lv-1].reach:0);
     const side=f.facing, upper=f.combo===2,finisher=!!hit.kick;
     const handY=y-(finisher?10:upper?13:16);
+    // the spirit arms' three-step punch (D88): an open claw in the windup, fingers curling as it reaches, a fist on contact
+    const step:0|1|2=t<hit.windup*.55?0:t<hit.windup?1:2,frame=Math.floor(time*SPIRIT_ARM_FPS);
     if(f.hero==='luffy'){
       this.luffy.combo(v,x,y,reach,extension,opacity,upper,finisher);
       return true;
     }
     if(f.hero==='sasuke'&&lv>=3){
-      // Susanoo throws the punch: a spectral arm from above the fighter's shoulder, in the same pixels as everything else.
+      // Susanoo throws the punch: a translucent skeletal (Mangekyo) or armoured (Perfect) arm from above the shoulder.
       if(opacity>.02){
         const hx=x+side*(reach-3)*extension,hy=handY-3;
-        this.avatar.arm(this.front,{kind:'susanoo',s:[x-side*4,y-23],e:this.elbow(x-side*4,y-23,hx,hy,upper?-9:-5),h:[hx,hy],d:side,thick:lv===4?7:5},opacity);
+        this.avatar.arm(this.front,{kind:lv===4?'susanoo':'susanooBone',s:[x-side*4,y-23],e:this.elbow(x-side*4,y-23,hx,hy,upper?-9:-5),h:[hx,hy],d:side,thick:lv===4?7:5,step,frame},opacity);
         this.streaks(hx,hy,side,reach,0xd8ccff,opacity);
       }
       return true;
     }
     if(f.hero==='naruto'&&lv===4){
-      // Kurama's chakra: a gold arm with a clawed fist, and the other arm drawing back behind the fighter.
+      // Kurama's chakra: a translucent gold arm with a seal ring and flames licking off it, claw -> curl -> fist.
       const hx=x+side*(reach-3)*extension,hy=handY-1;
-      this.avatar.arm(this.front,{kind:'kurama',s:[x-side*4,y-21],e:this.elbow(x-side*4,y-21,hx,hy,upper?-8:-4),h:[hx,hy],d:side,thick:5},opacity);
+      this.avatar.arm(this.front,{kind:'kurama',s:[x-side*4,y-21],e:this.elbow(x-side*4,y-21,hx,hy,upper?-8:-4),h:[hx,hy],d:side,thick:7,step,frame},opacity);
       this.streaks(hx,hy,side,reach,0xffe89b,opacity);
+      if(step===2&&t<end)this.impact(hx+side*6,hy,side,0xfff2b0,opacity);
       return true;
     }
     if(f.hero==='naruto'&&lv>0){
@@ -72,6 +77,17 @@ export class HeroComboArt {
   /** The elbow of a punching arm: halfway along, pushed up (negative) or down so the arm bends instead of being a ruler. */
   private elbow(sx:number,sy:number,hx:number,hy:number,bend:number):[number,number]{
     return [Math.round((sx+hx)/2),Math.round((sy+hy)/2+bend)];
+  }
+
+  /** Two impact arcs just ahead of a landing fist (the third step of the chakra punch), single pixels. */
+  private impact(x:number,y:number,d:number,color:number,alpha:number):void{
+    for(const [r,a] of [[5,.9],[8,.55]] as const){
+      this.front.fillStyle(color,alpha*a);
+      for(let k=-3;k<=3;k++){
+        const ang=k*.32;
+        this.front.fillRect(Math.round(x+d*(Math.cos(ang)*r-r+2)),Math.round(y+Math.sin(ang)*r),1,1);
+      }
+    }
   }
 
   /** Whoosh marks behind the fist: a few dashes on whole pixels. */

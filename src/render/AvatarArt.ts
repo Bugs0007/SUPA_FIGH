@@ -6,8 +6,14 @@ type G = Phaser.GameObjects.Graphics;
 
 /** Susanoo's animation: flame / wing frames per second, how long the muzzle flash shows, and the rising embers */
 export const SUSANOO_FX = { fps: 8, flash: 0.1, embers: 7, emberRate: 0.9, emberRise: 18 };
+/** Kurama's flame / tail frames per second */
+export const KURAMA_FX = { fps: 8 };
 
-/** Paints the pixel-art spirits and arms of art/avatarSprites.ts. Local coordinates always face the opponent. */
+/**
+ * Paints the translucent pixel-art spirits and arms of art/avatarSprites.ts (D88). The sprites are baked once per
+ * animation frame (runs with their own opacity); painting them is a list of whole-pixel rects. Local coordinates always
+ * face the opponent.
+ */
 export class AvatarArt {
   constructor(
     private back: G,
@@ -23,7 +29,7 @@ export class AvatarArt {
   /**
    * Sasuke's Susanoo standing over the fighter (feet on the fighter's feet), drawn at exactly one art pixel per world
    * pixel. `charge` 0..1 draws the bow; once released (`sinceShot` >= 0 s) the string snaps with a muzzle flash, then
-   * rests. The whole spirit fades as one `alpha`. The only extra layer is a few violet embers rising off it.
+   * rests. The whole spirit fades as one `alpha` (times its own translucency). A few violet embers rise off it.
    */
   susanoo(x: number, y: number, d: number, level: number, alpha: number, time: number, charge = 1, sinceShot = -1): void {
     const lvl = level >= 4 ? 4 : 3;
@@ -35,22 +41,23 @@ export class AvatarArt {
     const fy = Math.round(y);
     paintRuns(this.back, sprite, d > 0 ? fx - SUSANOO.ax : fx + SUSANOO.ax, fy - SUSANOO.ay, d < 0, alpha);
 
-    // embers: single pixels rising off the flame tail and the shoulders, stepping on whole pixels
-    const k = SUSANOO.scale[lvl];
+    // embers: single pixels rising off the flames and the shoulders, stepping on whole pixels
     for (let i = 0; i < SUSANOO_FX.embers; i++) {
       const phase = (time * SUSANOO_FX.emberRate + i * 0.37) % 1;
-      const u = (-26 + ((i * 11) % 30)) * k + Math.round(Math.sin(i * 2.3 + time * 3));
-      const v = (-6 - ((i * 7) % 26)) * k - phase * SUSANOO_FX.emberRise;
-      this.back.fillStyle(phase < 0.5 ? SUSANOO_INK.flash2 : SUSANOO_MATS[7].light, alpha * (1 - phase)).fillRect(fx + Math.round(d * u), fy + Math.round(v), 1, phase < 0.3 ? 2 : 1);
+      const u = -28 + ((i * 11) % 50) + Math.round(Math.sin(i * 2.3 + time * 3));
+      const v = -10 - ((i * 7) % 40) - phase * SUSANOO_FX.emberRise;
+      this.back.fillStyle(phase < 0.5 ? SUSANOO_INK.flash2 : SUSANOO_MATS[0].tones[1], alpha * (1 - phase)).fillRect(fx + Math.round(d * u), fy + Math.round(v), 1, phase < 0.3 ? 2 : 1);
     }
   }
 
-  /** Nine-tailed avatar: only exists for Naruto's final ultimate. Its mouth matches the real launch point. */
-  kurama(x: number, y: number, d: number, alpha: number, time: number): void {
-    const sprite = kuramaSprite(Math.floor(time * 6));
-    // the eye sits in front of and above the fighter; the tails and shoulders trail behind
-    const ex = Math.round(x + d * KURAMA.eyeAhead);
-    const ey = Math.round(y - KURAMA.eyeUp);
-    paintRuns(this.back, sprite, d > 0 ? ex - KURAMA.cx : ex + KURAMA.cx, ey - KURAMA.cy, d < 0, alpha);
+  /**
+   * Nine-tailed avatar: only exists for Naruto's final ultimate. It crouches over the fighter (his feet on its anchor);
+   * `roar` = the Bijudama pose, head up and jaws open around the sim's launch point.
+   */
+  kurama(x: number, y: number, d: number, alpha: number, time: number, roar = false): void {
+    const sprite = kuramaSprite(Math.floor(time * KURAMA_FX.fps), roar);
+    const fx = Math.round(x);
+    const fy = Math.round(y);
+    paintRuns(this.back, sprite, d > 0 ? fx - KURAMA.ax : fx + KURAMA.ax, fy - KURAMA.ay, d < 0, alpha);
   }
 }
