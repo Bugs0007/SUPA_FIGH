@@ -3,7 +3,7 @@ import Phaser from 'phaser';
 import { BOOST_COLORS, formFx, type FormFx } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { SHOULDER_Y_STAND } from '../sim/constants';
-import { heroDef, KURAMA_LAUNCH } from '../sim/data/heroes';
+import { heroDef, avatarLaunch } from '../sim/data/heroes';
 import type { Fighter } from '../sim/fighter';
 import { baseAbility, beamOrigin, dashDir, rasenganPoint } from '../sim/hero';
 import type { World } from '../sim/world';
@@ -643,10 +643,11 @@ export class HeroFx {
     if(f.hero==='naruto'&&formLevel(f)===4){
       const b=heroDef('naruto')!.super.bomb!;
       const fade=f.charge<0?Math.max(0,1-(f.stateTime-b.windup)/.3):1;
-      this.avatars.kurama(x,y,f.facing,fade,time,f.charge>=0);
+      this.avatars.kurama(x,y,f.facing,fade,time,f.charge>=0,f.stretchAngle);
       if(f.charge>=0){
         const k=Math.max(.08,Math.min(1,f.charge)),r=(b.size+b.sizePerLevel*3)*k;
-        const cx=x+f.facing*KURAMA_LAUNCH.ahead,cy=y-KURAMA_LAUNCH.up;
+        const muzzle=avatarLaunch('naruto',4,f.stretchAngle);
+        const cx=x+f.facing*muzzle.ahead,cy=y-muzzle.up;
         this.disc(this.orbs,cx,cy,r+2,0xffda7b,.55);
         this.disc(this.orbs,cx,cy,r+1,0x6a3348);
         this.disc(this.orbs,cx,cy,r,0x211427);

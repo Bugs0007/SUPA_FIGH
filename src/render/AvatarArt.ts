@@ -1,6 +1,8 @@
 import type Phaser from 'phaser';
-import { armSprite, KURAMA, kuramaSprite, SUSANOO, SUSANOO_INK, SUSANOO_MATS, susanooSprite, type ArmSpec } from '../art/avatarSprites';
+import { armSprite, KURAMA, KURAMA_AIM_PAD, kuramaSprite, SUSANOO, SUSANOO_INK, SUSANOO_MATS, susanooSprite, type ArmSpec } from '../art/avatarSprites';
 import { paintRuns } from '../art/pixelRaster';
+import { aimSpirit } from '../art/aimSpirit';
+import { SUSANOO_LAUNCH, avatarAim } from '../sim/data/heroes';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -31,7 +33,7 @@ export class AvatarArt {
    * pixel. `charge` 0..1 draws the bow; once released (`sinceShot` >= 0 s) the string snaps with a muzzle flash, then
    * rests. The whole spirit fades as one `alpha` (times its own translucency). A few violet embers rise off it.
    */
-  susanoo(x: number, y: number, d: number, level: number, alpha: number, time: number, charge = 1, sinceShot = -1): void {
+  susanoo(x: number, y: number, d: number, level: number, alpha: number, time: number, charge = 1, sinceShot = -1, aim=0): void {
     const lvl = level >= 4 ? 4 : 3;
     const stage =
       sinceShot >= 0 ? (sinceShot < SUSANOO_FX.flash ? SUSANOO.shot : SUSANOO.rest) : Math.min(SUSANOO.stages - 1, Math.floor(Math.max(0, charge) * SUSANOO.stages));
@@ -39,7 +41,9 @@ export class AvatarArt {
     const sprite = susanooSprite(lvl, stage, frame);
     const fx = Math.round(x);
     const fy = Math.round(y);
-    paintRuns(this.back, sprite, d > 0 ? fx - SUSANOO.ax : fx + SUSANOO.ax, fy - SUSANOO.ay, d < 0, alpha);
+    const launch=SUSANOO_LAUNCH[lvl];
+    const pose=aimSpirit(sprite,'susanoo',SUSANOO.ax,SUSANOO.ay,SUSANOO.ax+launch.ahead,SUSANOO.ay-launch.up,aim);
+    paintRuns(this.back, pose.baked, d > 0 ? fx-SUSANOO.ax-pose.pad : fx+SUSANOO.ax+pose.pad, fy-SUSANOO.ay-pose.pad, d<0, alpha);
 
     // embers: single pixels rising off the flames and the shoulders, stepping on whole pixels
     for (let i = 0; i < SUSANOO_FX.embers; i++) {
@@ -54,10 +58,11 @@ export class AvatarArt {
    * Nine-tailed avatar: only exists for Naruto's final ultimate. It crouches over the fighter (his feet on its anchor);
    * `roar` = the Bijudama pose, head up and jaws open around the sim's launch point.
    */
-  kurama(x: number, y: number, d: number, alpha: number, time: number, roar = false): void {
-    const sprite = kuramaSprite(Math.floor(time * KURAMA_FX.fps), roar);
+  kurama(x: number, y: number, d: number, alpha: number, time: number, roar = false, aim=0): void {
+    const a=avatarAim(aim),sprite = kuramaSprite(Math.floor(time * KURAMA_FX.fps), roar,a);
     const fx = Math.round(x);
     const fy = Math.round(y);
-    paintRuns(this.back, sprite, d > 0 ? fx - KURAMA.ax : fx + KURAMA.ax, fy - KURAMA.ay, d < 0, alpha);
+    const pad=a===0?0:KURAMA_AIM_PAD;
+    paintRuns(this.back,sprite,d>0?fx-KURAMA.ax-pad:fx+KURAMA.ax+pad,fy-KURAMA.ay-pad,d<0,alpha);
   }
 }

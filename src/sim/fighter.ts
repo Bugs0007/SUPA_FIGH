@@ -75,7 +75,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, FORM_COMBO, CLONE_SLINGSHOT, KIRIN, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, FORM_COMBO, CLONE_SLINGSHOT, KIRIN, SASUKE_ARROW, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -92,6 +92,7 @@ import {
   superGuard,
   usesAmaterasu,
   aimUltimate,
+  avatarShotAngle,
   meleeMuls,
   gatlingHit,
   grabProbe,
@@ -2099,6 +2100,10 @@ function stBomb(w: World, f: Fighter, dt: number): void {
   if ((f.hero === 'goku' || f.hero === 'sasuke') && f.power !== 'hero') return endSpecial(w, f);
   const b = heroDef(f.hero)?.super.bomb;
   if (!b) return endSpecial(w, f);
+  if(f.charge>=0&&target?.alive&&!target.gone){
+    const archer=f.hero==='sasuke'&&f.powerLevel>=3;
+    if(archer||f.hero==='naruto'&&f.powerLevel===4)f.stretchAngle=avatarShotAngle(f,target,b.speed*(archer?SASUKE_ARROW.speedMul:1));
+  }
   holdStill(f, dt);
   integrate(w, f, dt);
   // f.charge = orb size 0..1 (render) until it flies

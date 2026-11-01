@@ -15,9 +15,9 @@ import {
   heroDef,
   maxLevel,
   SUPER_AREA,
-  SUSANOO_LAUNCH,
-  KURAMA_LAUNCH,
   SASUKE_ARROW,
+  avatarLaunch,
+  avatarTargetAngle,
   type AbilityDefinition,
   type BaseAbility,
   type BeamStats,
@@ -127,9 +127,10 @@ export function ultimateTarget(w: World, f: Fighter, range: number): Fighter | n
     if (!isEnemy(w, f, o)) continue;
     const dx = (o.x - sx) * f.facing;
     const dy = o.y - o.h * .5 - sy;
-    if (dx < 4) continue; // behind or beside
+    const avatar=f.hero==='sasuke'&&f.powerLevel>=3||f.hero==='naruto'&&f.powerLevel===4;
+    if (dx < (avatar?0:4)) continue;
     const dist = Math.hypot(dx, dy);
-    if (dist > bestDist || Math.abs(Math.atan2(dy, dx)) > (f.hero === 'sasuke' && f.powerLevel >= 3 ? 1.45 : LOCK_CONE)) continue;
+    if (dist > bestDist || Math.abs(Math.atan2(dy, dx)) > (avatar?Math.PI/2:LOCK_CONE)) continue;
     if (!clearView(w, sx, sy, o.x, o.y - o.h * .5)) continue;
     best = o;
     bestDist = dist;
@@ -145,8 +146,13 @@ export function leadAngle(f: Fighter, sx: number, sy: number, o: Fighter, speed:
   const cx = o.x, cy = o.y - o.h * .5;
   const t = Math.hypot(cx - sx, cy - sy) / speed;
   const ax = cx + o.vx * t * 0.6, ay = cy + o.vy * t * 0.35;
-  const limit = f.hero === 'sasuke' && f.powerLevel >= 3 ? 1.5 : 1.2;
+  const limit = f.hero === 'sasuke' && f.powerLevel >= 3 || f.hero === 'naruto' && f.powerLevel === 4 ? Math.PI/2 : 1.2;
   return Math.max(-limit, Math.min(limit, Math.atan2(ay - sy, Math.max(4, (ax - sx) * f.facing))));
+}
+
+export function avatarShotAngle(f:Fighter,o:Fighter,speed:number):number{
+  const t=Math.hypot(o.x-f.x,o.y-f.y)/speed;
+  return avatarTargetAngle(f.hero,f.powerLevel,(o.x+o.vx*t*.6-f.x)*f.facing,o.y-o.h*.5+o.vy*t*.35-f.y);
 }
 
 /** Set the ultimate's aim as it starts: manual with Up / Down held, otherwise locked onto the enemy being faced. */
@@ -892,9 +898,10 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   const locked = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
   if (locked?.alive && !locked.gone) f.facing = locked.x >= f.x ? 1 : -1;
   const speed = b.speed * (archer ? SASUKE_ARROW.speedMul : 1);
-  const bow = SUSANOO_LAUNCH[level >= 4 ? 4 : 3];
-  const sx = f.x + f.facing * (kurama ? KURAMA_LAUNCH.ahead : archer ? bow.ahead : spirit ? size + 12 : 8);
-  const sy = f.y - (kurama ? KURAMA_LAUNCH.up : archer ? bow.up : SHOULDER_Y_STAND + 2);
+  if((archer||kurama)&&locked?.alive&&!locked.gone)f.stretchAngle=avatarShotAngle(f,locked,speed);
+  const muzzle=avatarLaunch(f.hero,level,f.stretchAngle);
+  const sx = f.x + f.facing * (kurama||archer ? muzzle.ahead : spirit ? size + 12 : 8);
+  const sy = f.y - (kurama||archer ? muzzle.up : SHOULDER_Y_STAND + 2);
   const m = meleeMuls(f);
   const blast = superBlast(f, b, level);
   const weapon = f.hero + ':super';
@@ -909,7 +916,7 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   // aimed when the move started (manual with Up / Down, else locked onto the enemy being faced); the shot leaves the
   // bow / mouth / hand, so it re-aims from there at where the locked enemy is by now
   const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
-  const angle = target && target.alive && !target.gone ? leadAngle(f, sx, sy, target, speed) : f.stretchAngle;
+  const angle = target && target.alive && !target.gone && !(archer||kurama) ? leadAngle(f, sx, sy, target, speed) : f.stretchAngle;
   f.stretchAngle = angle;
   w.spawnBullet({
     x: sx,

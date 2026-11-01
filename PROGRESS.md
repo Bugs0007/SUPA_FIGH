@@ -381,3 +381,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 
 - [x] Bots deliberately select Kirin, Clone Slingshot, Jet Bazooka and Vanish Strike; Naruto can slingshot toward power orbs. Wider arrow locks are used by bots too.
 - [x] Clone swing is horizontal; Bijudama has no supporting chakra hands; Kurama has upright ears, a tapered muzzle and a snarling brow. High-speed Chidori uses swept contact detection.
+
+- [x] D95: vertical Susanoo body/bow tilt and articulated Kurama head aiming, live target tracking and shared moving muzzle coordinates; up/down gallery previews.

@@ -6,7 +6,7 @@
 // Parts are separate groups, so every bone, plate, feather, leg and tail gets its own bright rim over the mass behind.
 // Phaser-free: `AvatarArt` (render/) paints the baked runs. Everything faces +x; facing left mirrors it.
 
-import { SUSANOO_LAUNCH } from '../sim/data/heroes';
+import { SUSANOO_LAUNCH, avatarAim } from '../sim/data/heroes';
 import { bake, bakeSpirit, inkLine, Raster, type Baked, type Ink, type Material, type Pt, type SpiritMat } from './pixelRaster';
 
 type XY = [number, number];
@@ -437,9 +437,10 @@ export const KURAMA_MOUTH = KURAMA_MATS[K_MOUTH - 1].tones[0];
  */
 export const KURAMA = { ax: 104, ay: 86, w: 182, h: 90 };
 
-function kuramaRaster(frame: number, roar: boolean): Baked {
-  const { ax, ay } = KURAMA;
-  const r = new Raster(KURAMA.w, KURAMA.h);
+function kuramaRaster(frame: number, roar: boolean, aim=0): Baked {
+  const pad=aim===0?0:KURAMA_AIM_PAD;
+  const ax=KURAMA.ax+pad,ay=KURAMA.ay+pad;
+  const r = new Raster(KURAMA.w+pad*2, KURAMA.h+pad*2);
   const Q = (u: number, v: number): XY => [ax + u, ay + v];
   const P = (pts: XY[]): Pt[] => pts.map(([u, v]) => Q(u, v));
   const T = (pts: XY[], w0: number, w1: number): Pt[] => taper(pts.map(([u, v]) => Q(u, v)), w0, w1);
@@ -490,7 +491,7 @@ function kuramaRaster(frame: number, roar: boolean): Baked {
 
   // the head turns up for the Bijudama; the jaw drops open around its hinge
   const headPivot: XY = [28, -50];
-  const tilt = roar ? -0.12 : 0;
+  const tilt = (roar ? -0.12 : 0)+aim;
   const H = (p: XY): XY => rot(p, headPivot, tilt);
   const HQ = (pts: XY[]): Pt[] => pts.map((p) => Q(...H(p)));
   const hinge = H([40, -45]);
@@ -553,14 +554,22 @@ function kuramaRaster(frame: number, roar: boolean): Baked {
   tongue(r, ...Q(...H([28, -48])), -0.85, 0.5, 7 + wob([0, 2, 1, 3], frame), 5, 1, K_HEAD);
   tongue(r, ...Q(...H([26, -57])), -0.9, -0.3, 6 + wob([1, 3, 0, 2], frame), 5, -1, K_HEAD);
   const baked = bakeSpirit(r, KURAMA_MATS, KURAMA_HALO);
-  baked.runs = baked.runs.filter((run) => run.y < KURAMA.ay);
+  if(aim===0)baked.runs = baked.runs.filter((run) => run.y < KURAMA.ay);
   return baked;
 }
 
 /** Kurama, frame 0..3 (tails sway, flames lick); `roar` = the Bijudama pose (head up, jaws wide). Baked once each. */
-export function kuramaSprite(frame: number, roar = false): Baked {
+export const KURAMA_AIM_PAD=96;
+const kuramaAimCache=new Map<string,Baked>();
+export function kuramaSprite(frame: number, roar = false, aim=0): Baked {
   const f = ((frame % SPIRIT_FRAMES) + SPIRIT_FRAMES) % SPIRIT_FRAMES;
-  return cached(`k|${f}|${roar ? 1 : 0}`, () => kuramaRaster(f, roar));
+  const a=avatarAim(aim);
+  const key=`k|${f}|${roar ? 1 : 0}|${a}`;
+  if(a===0)return cached(key,()=>kuramaRaster(f,roar));
+  const old=kuramaAimCache.get(key);if(old)return old;
+  const b=kuramaRaster(f,roar,a);
+  if(kuramaAimCache.size>=64)kuramaAimCache.delete(kuramaAimCache.keys().next().value!);
+  kuramaAimCache.set(key,b);return b;
 }
 
 // ---- arms: the transformed punches. Kurama's chakra arm and Susanoo's skeletal / armoured arm are translucent spirits

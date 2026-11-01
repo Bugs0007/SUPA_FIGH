@@ -3,7 +3,7 @@ import { HERO_ART } from '../art/heroArt';
 import { moveLook } from '../art/heroMoves';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
-import { HEROES, CLONE_SLINGSHOT, superFistFor } from '../sim/data/heroes';
+import { HEROES, CLONE_SLINGSHOT, avatarLaunch, superFistFor } from '../sim/data/heroes';
 import { newBullet, type Bullet } from '../sim/projectile';
 import { getMap } from '../sim/map/maps';
 import { DEFAULT_WORLD_SETTINGS, World } from '../sim/world';
@@ -27,6 +27,7 @@ export class HeroMoveGallery {
   private lastLoop = -1;
   private spiritBalls: Bullet[] = [];
   private mode: MoveMode;
+  private aim=0;
   private targets:Phaser.GameObjects.Container[]=[];
   private targetFx:Phaser.GameObjects.Graphics;
   private labels: Phaser.GameObjects.BitmapText[] = [];
@@ -37,11 +38,12 @@ export class HeroMoveGallery {
 
   constructor(private scene: Phaser.Scene, readonly hero: string) {
     const params = new URLSearchParams(location.search);
+    this.aim=Math.max(-1.5,Math.min(1.5,Number(params.get('aim'))||0));
     this.mode = MODES.find(m=>m===params.get('move'))??'base';
     const before = new Set(scene.children.list);
     this.world = new World(getMap('test'), Array.from({ length: 5 }, (_, level) => ({ name: '', hero, isBot: false, team: 0, upJumps: false })), { ...DEFAULT_WORLD_SETTINGS, weaponSpawnRate: 0 }, 42);
     this.views = this.world.fighters.slice(0, 5).map((f, level) => {
-      f.x = f.px = 40 + level * 128;
+      f.x = f.px = 40 + level * 512;
       f.y = f.py = 140;
       f.facing = 1;
       f.invuln = 0;
@@ -118,6 +120,10 @@ export class HeroMoveGallery {
       } else if(this.hero==='naruto'&&this.mode==='super'&&i===4){
         zoom=.75;center=-10;cy=110;
       }
+      if(this.mode==='super'&&this.aim!==0){
+        if(this.hero==='sasuke'&&i>=3){zoom=.5;center=0;cy=120;}
+        if(this.hero==='naruto'&&i===4){zoom=.6;center=-15;cy=110;}
+      }
       cam.setViewport((i * 128 + 4) * k, 60 * k, 120 * k, 210 * k).setZoom(k * zoom).centerOn(this.views[i].fighter.x + center, cy);
     });
   }
@@ -157,7 +163,7 @@ export class HeroMoveGallery {
       f.state = phase > 0.5 && phase < 2.4 ? 'special' : 'normal';
       f.stateTime = firing ? 0.15 + (phase - 1.4) * 0.3 : Math.max(0, phase - 0.5) * 0.12;
       f.stretchLen = 0;
-      f.stretchAngle = 0;
+      f.stretchAngle = this.mode==='super'?this.aim:0;
       f.charge = Math.max(0.05, Math.min(1, (phase - 0.5) / 0.9));
       f.recoverAt = 0;
       if (this.mode === 'base') f.specialKind = this.hero === 'naruto' || this.hero === 'sasuke' ? 'rasengan' : this.hero === 'luffy' ? 'pistol' : 'blink';
@@ -183,11 +189,13 @@ export class HeroMoveGallery {
         ball.x = ball.px = f.x + 20 + (phase-1.4) * 16;
         ball.y = ball.py = f.y - 17;
         if(!second&&level>=3){
-          const s=level===4?1.28:.94;
-          ball.x=ball.px=f.x+52*s+(phase-1.4)*16;
-          ball.y=ball.py=f.y-26*s;
+          const muzzle=avatarLaunch('sasuke',level,this.aim),travel=(phase-1.4)*16;
+          ball.x=ball.px=f.x+muzzle.ahead+Math.cos(this.aim)*travel;
+          ball.y=ball.py=f.y-muzzle.up+Math.sin(this.aim)*travel;
         }
         ball.vx = second ? s.speed : b.speed;
+        ball.vy=0;
+        if(!second&&level>=3){ball.vx*=Math.cos(this.aim);ball.vy=b.speed*Math.sin(this.aim);}
         ball.traveled = Math.max(0,phase-1.4) * 16;
         if (ball.active) f.charge = -2;
         if(second&&level>=3&&firing)f.charge=-2;

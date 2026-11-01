@@ -224,3 +224,5 @@ Clone Slingshot uses one clone holding Naruto's hand, swinging him around before
 Kirin holds a hit enemy stunned for 1.5 seconds.
 
 Bots now use all four form combos and Naruto's clone throw for power-orb traversal. Clone Slingshot spins horizontally; Kurama's Bijudama forms at its mouth without supporting hands.
+
+Avatar ultimates aim vertically as well as horizontally: Susanoo tilts its body and bow, and Kurama raises or lowers its head. Preview with ?scene=art&page=moves&hero=naruto&move=super&aim=-0.9 (negative aims up, positive aims down).

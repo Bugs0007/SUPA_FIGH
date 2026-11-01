@@ -287,6 +287,22 @@ export const SUSANOO_LAUNCH: Record<3 | 4, { ahead: number; up: number }> = {
  * fighter's feet. The pixel-art Kurama (art/avatarSprites.ts) is drawn around it.
  */
 export const KURAMA_LAUNCH = { ahead: 66, up: 46 };
+export const KURAMA_NECK = { ahead: 28, up: 50 };
+export const avatarAim = (angle:number):number => Math.round(angle*64)/64;
+/** Facing-local muzzle position after a rigid body tilt or an articulated fox head turn. */
+export function avatarLaunch(hero:string,level:number,angle:number):{ahead:number;up:number}{
+  const base=hero==='sasuke'?SUSANOO_LAUNCH[level>=4?4:3]:KURAMA_LAUNCH;
+  const pivot=hero==='sasuke'?{ahead:0,up:0}:KURAMA_NECK;
+  const a=avatarAim(angle),c=Math.cos(a),s=Math.sin(a),x=base.ahead-pivot.ahead,y=pivot.up-base.up;
+  return {ahead:pivot.ahead+x*c-y*s,up:pivot.up-x*s-y*c};
+}
+/** Solve the firing angle with the moving muzzle offset included. */
+export function avatarTargetAngle(hero:string,level:number,x:number,y:number):number{
+  const base=hero==='sasuke'?SUSANOO_LAUNCH[level>=4?4:3]:KURAMA_LAUNCH;
+  const pivot=hero==='sasuke'?{ahead:0,up:0}:KURAMA_NECK;
+  const dx=x-pivot.ahead,dy=y+pivot.up,r=Math.hypot(dx,dy)||1;
+  return avatarAim(Math.atan2(dy,dx)-Math.asin(Math.max(-1,Math.min(1,(pivot.up-base.up)/r))));
+}
 export const SASUKE_ARROW = { speedMul: 1.8, lockRange: 720 };
 export const FORM_COMBO = { cooldown: 6, windup: 0.24, duration: 0.7, range: 360, damage: 22, radius: 30, speed: 520, cloneRange: 70, recallHold: 0.55 };
 export const CLONE_SLINGSHOT = { windup: 0.6, duration: 1, speed: 1040, turns: 1.5, swingRadius: 22 };
