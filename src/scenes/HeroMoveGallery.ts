@@ -55,7 +55,7 @@ export class HeroMoveGallery {
       return new FighterView(scene, f, HERO_ART[hero].look, 0xffffff, '');
     });
     this.fx = new Fx(scene, this.world.map, null, 220);
-    this.heroFx = new HeroFx(scene, this.world, this.views, this.fx, 0.42);
+    this.heroFx = new HeroFx(scene, this.world, this.views, this.fx, 0.42, true);
     this.targetFx=scene.add.graphics().setDepth(58);
     if(hero==='sasuke'||hero==='luffy')this.targets=this.views.map(v=>fighterPreview(scene,PLAYER_PRESETS[0],v.fighter.x+33,v.fighter.y,.8).setDepth(40).setVisible(false));
     if (hero === 'goku' || hero === 'sasuke') {

@@ -1,5 +1,5 @@
 import { formLevel } from './formLevel';
-import { drawKirin } from '../art/kirinArt';
+import { drawKirin, drawKirinImpact } from '../art/kirinArt';
 import Phaser from 'phaser';
 import { BOOST_COLORS, formFx, type FormFx } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
@@ -85,6 +85,11 @@ export class HeroFx {
   private avatars: AvatarArt;
   private comboArt: HeroComboArt;
   private orbForms = new Map<Bullet, { level: number; traveled: number }>();
+  private kirinImpacts: { x: number; y: number; level: number; age: number }[] = [];
+
+  startKirinImpact(x: number, y: number, level: number): void {
+    this.kirinImpacts.push({ x, y, level, age: 0 });
+  }
 
   constructor(
     scene: Phaser.Scene,
@@ -92,6 +97,7 @@ export class HeroFx {
     private views: FighterView[],
     private fx: Fx,
     private previewReach = 1,
+    private preview = false,
   ) {
     this.back = scene.add.graphics().setDepth(39);
     this.front = scene.add.graphics().setDepth(41);
@@ -106,6 +112,7 @@ export class HeroFx {
   destroy(): void {
     this.choreography.destroy();
     this.orbForms.clear();
+    this.kirinImpacts.length = 0;
     this.clashes = [];
     this.back.destroy();
     this.front.destroy();
@@ -345,6 +352,12 @@ export class HeroFx {
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
     this.drawClashes(dt);
+    for (let i = this.kirinImpacts.length - 1; i >= 0; i--) {
+      const impact = this.kirinImpacts[i];
+      drawKirinImpact(this.orbs, impact.x, impact.y, FORM_COMBO.windup + impact.age, impact.level, time);
+      impact.age += dt;
+      if (impact.age >= KIRIN.impactTime) this.kirinImpacts.splice(i, 1);
+    }
   }
 
   private spiritGuard(f: Fighter,x:number,y:number,time:number):void{
@@ -369,7 +382,7 @@ export class HeroFx {
     if(f.hero==='sasuke'){
       const tx=f.anchorX,ty=f.anchorY-11;
       if(t<FORM_COMBO.windup)this.ring(this.back,tx,f.anchorY,KIRIN.radius+KIRIN.radiusPerForm*(formLevel(f)-1),0x8cd8ff,.35,.25);
-      drawKirin(this.front,tx,ty,t,formLevel(f),time,f.facing);
+      drawKirin(this.orbs,tx,ty,t,formLevel(f),time,f.facing,this.preview);
     }else if(f.hero==='naruto'){
       this.choreography.slingshot(v,x,y);
       for(let i=0;i<5;i++)this.back.fillStyle(0xffd05a,.3).fillRect(Math.round(x)-d*(10+i*7),Math.round(y)-16+i%3*4,5,1);

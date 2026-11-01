@@ -396,3 +396,5 @@ Setup: `npm run host` on a laptop (ideally on Ethernet); note the printed addres
 - [x] Kirin side-profile dragon head and a branching lightning impact blast at the marked target location.
 
 - [x] D100: Luffy durability / movement buffs, stronger and more frequent Gatling / supers, guaranteed Gatling finisher, shared art / bot / combat reach and per-fighter herofight results.
+
+- [x] D101: ceiling-connected thick Kirin dragon body, forelegs, connected lightning bolts and a persistent event-driven impact that survives caster interruption; verified in real-match screenshots.

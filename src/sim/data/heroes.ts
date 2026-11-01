@@ -307,7 +307,7 @@ export const SASUKE_ARROW = { speedMul: 1.8, lockRange: 720 };
 export const FORM_COMBO = { cooldown: 6, windup: 0.24, duration: 0.7, range: 360, damage: 22, radius: 30, speed: 520, cloneRange: 70, recallHold: 0.55 };
 export const CLONE_SLINGSHOT = { windup: 0.6, duration: 1, speed: 1040, turns: 1.5, swingRadius: 22 };
 export const JET_BAZOOKA = { closeRange:42, targetRange:480, anchorRange:180, windup:.32, duration:1, speed:900, kickDamage:30, kickKnock:700, kickLift:-120, kickStun:.4, hitRadius:24 };
-export const KIRIN = { stun: 1.5, radius:18, radiusPerForm:6, scaleBase:.8, scalePerForm:.3 };
+export const KIRIN = { stun: 1.5, radius:18, radiusPerForm:6, scaleBase:.8, scalePerForm:.3, impactTime:.65 };
 
 export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {

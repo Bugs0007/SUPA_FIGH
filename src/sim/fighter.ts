@@ -2015,6 +2015,7 @@ function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
     const timing=f.hero==='naruto'?CLONE_SLINGSHOT:FORM_COMBO;
     if (t >= timing.windup && f.charge === 0) {
       f.charge = 1;
+      if (f.hero === 'sasuke') w.emit({ t: 'kirinStrike', f: f.id, x: f.anchorX, y: f.anchorY - 11, level: f.powerLevel });
       const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
       if (target?.alive && !target.gone && f.hero === 'sasuke') {
         const radius=KIRIN.radius+KIRIN.radiusPerForm*(f.powerLevel-1);

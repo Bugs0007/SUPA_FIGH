@@ -673,6 +673,14 @@ export class Juice {
         }
         break;
       }
+      case 'kirinStrike': {
+        this.r.heroFx.startKirinImpact(e.x, e.y, e.level);
+        fx.sparks(e.x, e.y, 0, -1, 18 + e.level * 5, 0x9ceaff, 260);
+        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y, life: 0.18, s0: 1, s1: 2 + e.level * .3, a0: 1, a1: 0, tint: 0xdafaff, add: true, depth: 64 });
+        this.sfx('energyHit', e.x, 1, .7);
+        this.cam.addTrauma(.3);
+        break;
+      }
       case 'shockwave': {
         // Luffy's giant fist lands: a ring the size of the area it hits, dust and steam
         const f = w.fighters[e.f];

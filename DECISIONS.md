@@ -829,3 +829,8 @@ Seeded survey: `herofight <form> test hard luffy <opponent> 4 60`, seeds 11 / 18
 | 4 | Goku | 6–7 | 10–5 |
 
 Reversed-slot Gear Fifth checks on neon (`<opponent> luffy 2 60`) finished Luffy–opponent 8–5 against Naruto, 8–3 against Sasuke and 6–4 against Goku.
+
+### D101 — Kirin silhouette and reliable lightning impact
+The descending dragon has a broad scaled body (17–26 local pixels wide versus a roughly 38-pixel head), dorsal spines and forelegs. Its body spans back to the map ceiling rather than ending in a short thin lightning trail. The head still descends from world y=0 to the marked location over the existing windup. Kirin renders above ordinary fighter effects.
+
+The simulation emits one kirinStrike event at the impact tick, even when the marked victim escapes. Juice starts a separate 0.65 s lightning effect with a continuous ceiling-to-target channel, connected branching ground bolts, flash, sparks and thunder sound. The effect persists if Sasuke is hit, dies or leaves his move afterward; it does not add another damage event. Gallery previews synthesize the same impact art from their seekable move time. A real-match browser regression captures the descending dragon and the impact after interrupting the caster.
