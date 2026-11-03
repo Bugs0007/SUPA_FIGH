@@ -319,7 +319,7 @@ export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {
     id: 'sasuke', name: 'SASUKE',
     blurb: 'SHARINGAN > CURSE MARK > MANGEKYO > RINNEGAN / PERFECT SUSANOO',
-    stats: { speed: 1.04, hp: 100 }, wallWalk: true,
+    stats: { speed: 1.04, hp: 108 }, wallWalk: true,
     sprintArmsBack: { base: true, levels: [1, 2, 3, 4] },
     comboName: 'UCHIHA COMBO', combo: heroCombo('ki'),
     base: {
