@@ -1821,7 +1821,7 @@ function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   const a1 = e.abilityP;
   const a2 = e.kickP;
   const chord = inp.attack && ((f.hero === 'naruto' ? inp.kick : inp.ability)) && (e.attackP || a1 || a2 || f.btnBuf1 > 0 || f.btnBuf2 > 0);
-  if (transformed(f) && f.master < 0 && chord) {
+  if ((transformed(f) || f.hero === 'sasuke') && f.master < 0 && chord) {
     e.attackP = e.abilityP = e.kickP = false;
     f.btnBuf1 = f.btnBuf2 = 0;
     const openingPunch = f.state === 'aim' || (f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0);

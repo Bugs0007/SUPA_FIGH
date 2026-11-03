@@ -314,20 +314,20 @@ export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {
     id: 'sasuke', name: 'SASUKE',
     blurb: 'SHARINGAN > CURSE MARK > MANGEKYO > RINNEGAN / PERFECT SUSANOO',
-    stats: { speed: 1.04, hp: 100 }, wallWalk: true,
+    stats: { speed: 1.04, hp: 108 }, wallWalk: true,
     sprintArmsBack: { base: true, levels: [1, 2, 3, 4] },
     comboName: 'UCHIHA COMBO', combo: heroCombo('ki'),
     base: {
       kind: 'rasengan', weapon: 'chidori', name: 'CHIDORI',
-      desc: 'LIGHTNING PALM DASH. STUNS FOR 1 SECOND; SHOCKS UP TO TWO EXTRA ENEMIES. FROM FORM 1: CHIDORI + PUNCH CALLS KIRIN.',
-      cooldown: 0.4, charges: { max: 2, recharge: 2.8 },
-      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 720, recover: 0.22, damage: 14, knockX: 140, knockY: -60, stun: 1, radius: 6, spread: { count: 1, countPerLevel: 1, maxCount: 2, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
+      desc: 'LIGHTNING PALM DASH. STUNS FOR 1 SECOND; SHOCKS UP TO TWO EXTRA ENEMIES. CHIDORI + PUNCH CALLS KIRIN.',
+      cooldown: 0.4, charges: { max: 3, recharge: 2.8 },
+      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 720, recover: 0.18, damage: 20, knockX: 140, knockY: -60, stun: 1, radius: 6, spread: { count: 1, countPerLevel: 1, maxCount: 2, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
     },
     second: {
       kind: 'fireball', name: 'FIRE STYLE: FIREBALL',
       desc: 'BIG FIREBALL THAT BURNS THE ARENA. FROM MANGEKYO: AMATERASU BURNS 3 ENEMIES (4 AT THE TOP FORM). UP / DOWN TO AIM.',
       cooldown: 3.8,
-      fireball: { windup: 0.28, recover: 0.2, speed: 240, range: 300, size: 9, sizePerLevel: 2.4, damage: 12, damagePerLevel: 2, radius: 28, radiusPerLevel: 6, ignite: 2.5, fire: 3, firePerLevel: 1 },
+      fireball: { windup: 0.20, recover: 0.2, speed: 320, range: 300, size: 9, sizePerLevel: 2.4, damage: 22, damagePerLevel: 2, radius: 36, radiusPerLevel: 6, ignite: 2.5, fire: 3, firePerLevel: 1 },
       amaterasu: { minLevel: 3, range: 360, rangePerLevel: 60, targets: 3, targetsPerLevel: 1, windup: 0, recover: 0.18, damage: 8, duration: 3, dps: 6, view: 1.25, patches: 2 },
     },
     super: {
@@ -337,10 +337,10 @@ export const HEROES: Record<string, HeroDefinition> = {
       bomb: { windup: 0.65, speed: 430, size: 4, sizePerLevel: 1.2, damage: 37, damagePerLevel: 13, radius: 54, radiusPerLevel: 10, range: 550, kind: 'ki' },
     },
     forms: [
-      { name: 'SHARINGAN', speedMul: 1.12, damageMul: 1.15, knockMul: 1.1, reach: 1 },
-      { name: 'CURSE MARK', speedMul: 1.17, damageMul: 1.3, knockMul: 1.2, reach: 2 },
-      { name: 'MANGEKYO SHARINGAN', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 14 },
-      { name: 'RINNEGAN / PERFECT SUSANOO', speedMul: 1.25, damageMul: 1.6, knockMul: 1.4, reach: 22, flies: true },
+      { name: 'SHARINGAN', speedMul: 1.22, damageMul: 1.77, knockMul: 1.1, reach: 5 },
+      { name: 'CURSE MARK', speedMul: 1.20, damageMul: 1.63, knockMul: 1.2, reach: 5 },
+      { name: 'MANGEKYO SHARINGAN', speedMul: 1.2, damageMul: 1.41, knockMul: 1.3, reach: 14 },
+      { name: 'RINNEGAN / PERFECT SUSANOO', speedMul: 1.25, damageMul: 1.45, knockMul: 1.4, reach: 22, flies: true },
     ],
   },
   naruto: {

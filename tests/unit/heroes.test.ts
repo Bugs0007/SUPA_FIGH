@@ -62,9 +62,9 @@ describe('hero data', () => {
       expect(h.combo.map((c) => !!c.kick), h.id).toEqual([false, false, false, true]);
       expect(h.combo[3].knockdown).toBe(true);
       expect(h.super.names.length, h.id).toBe(4);
-      // each form is stronger than the last
+      // Forms boost damage above base. Sasuke front-loads damage to balance his shorter early-form reach.
       for (let i = 1; i < h.forms.length; i++) {
-        expect(h.forms[i].damageMul, h.id).toBeGreaterThan(h.forms[i - 1].damageMul);
+        expect(h.forms[i].damageMul, h.id).toBeGreaterThan(h.id === 'sasuke' ? 1 : h.forms[i - 1].damageMul);
         expect(h.forms[i].speedMul, h.id).toBeGreaterThanOrEqual(1);
       }
       expect(heroAttackLabel(h.id + ':combo')).toBe(h.comboName);

@@ -332,7 +332,7 @@ describe('blocking (hold BLOCK)', () => {
     const blk = ev.find((e) => e.t === 'block');
     expect(blk).toBeDefined();
     expect(ev.some((e) => e.t === 'hit' && e.victim === 1)).toBe(false);
-    expect(b.hp).toBeCloseTo(100 - 14 * BLOCK.chipHeavy, 5);
+    expect(b.hp).toBeCloseTo(100 - 20 * BLOCK.chipHeavy, 5);
     expect(b.state).toBe('block');
     expect(heavyOnGuard({ kind: 'melee', weapon: 'chidori' })).toBe(true);
     expect(heavyOnGuard({ kind: 'bullet', weapon: 'goku:second' })).toBe(true);

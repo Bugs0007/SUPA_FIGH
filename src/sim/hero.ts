@@ -426,7 +426,7 @@ export function resolveOrbClashes(w: World): void {
   }
 }
 
-/** One clash's outcome, the same for both fighters. */
+/** Shared clash damage, knockback and default stun. */
 interface ClashHit {
   damage: number;
   /** knockback away from the other fighter, and the lift (negative = up) */
@@ -439,7 +439,7 @@ interface ClashHit {
 /**
  * The shared outcome of two orbs meeting (D81, made symmetric): both take the average of the two orbs' damage (each
  * scaled by its owner's form), both are blown apart by the stronger orb's knockback (its knockX / knockY after its
- * owner's form multiplier, the stronger = the larger hypot), and both get the longer stun with the same rule as a
+ * owner's form multiplier, the stronger = the larger hypot), and the default stun is the longer one and follows the same rule as a
  * hit (a stun of a second or more holds them dazed in place, a shorter one is a knockdown). Order-independent.
  */
 function clashHit(da: DashStats, pa: OrbPower, db: DashStats, pb: OrbPower): ClashHit {
@@ -483,7 +483,7 @@ function clashStrike(w: World, f: Fighter, o: Fighter, c: ClashHit, x: number, y
     attacker: o.id,
     weapon: baseWeaponId(baseAbility(o)!),
     kind: 'melee',
-    stun: c.stun,
+    stun: f.hero === 'sasuke' && o.hero === 'naruto' ? 0 : c.stun,
     knockdown: c.knockdown,
     x,
     y,

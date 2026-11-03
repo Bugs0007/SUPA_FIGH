@@ -41,8 +41,8 @@ describe('form button combos',()=>{
     expect(mirror.fighters[0].specialKind).toBe('formCombo');
     run(w,70);expect(f.state).not.toBe('special');
   });
-  it('Kirin bites once and consumes its own cooldown',()=>{
-    const w=arena('sasuke'),f=w.fighters[0],enemy=w.fighters[1];
+  it.each([0, 1])('Kirin at form %i hits once and consumes its own cooldown',(level)=>{
+    const w=arena('sasuke',level),f=w.fighters[0],enemy=w.fighters[1];
     w.step([intent({attack:true,ability:true})]);run(w,20);
     expect(enemy.hp).toBeLessThan(100);
     const hp=enemy.hp;run(w,25);expect(enemy.hp).toBe(hp);

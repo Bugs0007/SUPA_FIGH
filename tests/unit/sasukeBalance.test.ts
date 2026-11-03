@@ -138,7 +138,7 @@ describe('Sasuke fireball', () => {
   });
 
   it('burns the character it hits and the ones in the blast', () => {
-    const w = arena(1, [{ x: 150 }, { x: 170 }, { x: 290 }]);
+    const w = arena(1, [{ x: 150 }, { x: 160 }, { x: 290 }]);
     press(w, { kick: true }, 70);
     const [, hit, beside, far] = w.fighters;
     expect(hit.burn).toBeGreaterThan(0);

@@ -849,7 +849,7 @@ export class BotController implements Controller {
     const near = Math.abs(e.x - f.x);
     const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     if (!clear) return null;
-    if(transformed(f)&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
+    if((transformed(f)||f.hero==='sasuke')&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
       const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:f.hero==='luffy'?level<70:near>45&&level<70);
       if(fits)cands.push({hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:face,my:0,weight:BOT_FIGHT.wCombo});
     }

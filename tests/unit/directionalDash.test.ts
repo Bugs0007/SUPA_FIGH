@@ -196,7 +196,7 @@ describe('Rasengan / Chidori clash', () => {
     return { w, ev, clashes: ev.filter((e) => e.t === 'clash') };
   }
 
-  it('Naruto vs Sasuke: the same outcome for both, identical in either fighter order', () => {
+  it('Naruto vs Sasuke: equal damage and knockback in either fighter order', () => {
     const results = [false, true].map((swap) => {
       const order = swap ? 'sasuke first' : 'naruto first';
       const { w, ev, clashes } = clash(['naruto', 'sasuke'], swap);
@@ -206,7 +206,7 @@ describe('Rasengan / Chidori clash', () => {
       expect(clashes, order).toHaveLength(1);
       // both take the average of the two orbs' damage
       expect(naruto.hp, order).toBeCloseTo(100 - (N.damage + S.damage) / 2, 6);
-      expect(sasuke.hp, order).toBeCloseTo(naruto.hp, 6);
+      expect(sasuke.maxHp - sasuke.hp, order).toBeCloseTo(naruto.maxHp - naruto.hp, 6);
       const hits = ev.filter((e) => e.t === 'hit');
       expect(hits.filter((e) => e.t === 'hit' && e.victim === naruto.id && e.weapon === 'chidori')).toHaveLength(1);
       expect(hits.filter((e) => e.t === 'hit' && e.victim === sasuke.id && e.weapon === 'rasengan')).toHaveLength(1);
@@ -217,10 +217,7 @@ describe('Rasengan / Chidori clash', () => {
       expect(sasuke.specialKind === 'rasengan' && sasuke.state === 'special' && sasuke.recoverAt === 0).toBe(false);
       expect(naruto.swingHit).toContain(sasuke.id);
       expect(sasuke.swingHit).toContain(naruto.id);
-      // the same state, timers and (mirrored) speed for both
-      expect(naruto.state).toBe(sasuke.state);
-      expect(naruto.flinchTime).toBe(sasuke.flinchTime);
-      expect(naruto.stateTime).toBe(sasuke.stateTime);
+      // Knockback stays symmetric when Sasuke avoids the stun.
       expect(naruto.vx).toBeCloseTo(-sasuke.vx, 6);
       expect(naruto.vy).toBeCloseTo(sasuke.vy, 6);
       const c = clashes[0];
@@ -233,13 +230,14 @@ describe('Rasengan / Chidori clash', () => {
     expect(results[0]).toEqual(results[1]);
   });
 
-  it('Naruto vs Sasuke right after the clash: both blown apart by the Rasengan force, both dazed for the Chidori 1 s', () => {
+  it('Naruto vs Sasuke right after the clash: both blown apart, with only Naruto dazed for 1 s', () => {
     const w = arena(['naruto', 'sasuke'], [[120, FLOOR, 1], [300, FLOOR, -1]]);
     const [n, s] = w.fighters;
     steps(w, 50, [{ ability: true }, { ability: true }], () => n.hp < 100);
+    expect(n.state).toBe('flinch');
+    expect(n.flinchTime).toBe(S.stun);
+    expect(s.state).not.toBe('flinch');
     for (const f of [n, s]) {
-      expect(f.state).toBe('flinch');
-      expect(f.flinchTime).toBe(S.stun);
       // the stronger knockback (Rasengan's) and its lift, for both
       expect(Math.abs(f.vx)).toBeCloseTo(N.knockX, 6);
       expect(f.vy).toBeCloseTo(N.knockY, 6);
@@ -251,7 +249,7 @@ describe('Rasengan / Chidori clash', () => {
     steps(w, 20, []);
     expect(s.x - n.x).toBeGreaterThan(gap0 + 40);
     expect(n.state).toBe('flinch');
-    expect(s.state).toBe('flinch');
+    expect(s.state).not.toBe('flinch');
     steps(w, Math.round(S.stun * 60) - 18, []);
     expect(n.state).not.toBe('flinch');
     expect(s.state).not.toBe('flinch');
@@ -265,8 +263,8 @@ describe('Rasengan / Chidori clash', () => {
         // (left fighter first: `swap` puts it in the second slot)
         const [a, b] = w.fighters.slice(0, 2).sort((p, q) => p.x - q.x);
         expect(clashes, hero).toHaveLength(1);
-        expect(a.hp, hero).toBeCloseTo(100 - d.damage, 6);
-        expect(b.hp, hero).toBeCloseTo(100 - d.damage, 6);
+        expect(a.hp, hero).toBeCloseTo(a.maxHp - d.damage, 6);
+        expect(b.hp, hero).toBeCloseTo(b.maxHp - d.damage, 6);
         expect(a.state).toBe(hero === 'naruto' ? 'knockdown' : 'flinch');
         expect(b.state).toBe(a.state);
         expect(a.flinchTime).toBe(b.flinchTime);
@@ -286,7 +284,7 @@ describe('Rasengan / Chidori clash', () => {
     const c = ev.find((e) => e.t === 'clash');
     expect(c).toBeDefined();
     expect(n.hp).toBeCloseTo(100 - (N.damage + S.damage) / 2, 6);
-    expect(s.hp).toBeCloseTo(n.hp, 6);
+    expect(s.maxHp - s.hp).toBeCloseTo(n.maxHp - n.hp, 6);
   });
 
   it('an orb from behind is a plain hit, not a clash', () => {
@@ -295,9 +293,9 @@ describe('Rasengan / Chidori clash', () => {
     const [n, s] = w.fighters;
     const ev = steps(w, 5, [{ ability: true }]);
     ev.push(...steps(w, 25, [{ ability: true }, { ability: true }]));
-    expect(s.state === 'special' || s.hp < 100).toBe(true);
+    expect(s.state === 'special' || s.hp < s.maxHp).toBe(true);
     expect(ev.some((e) => e.t === 'clash')).toBe(false);
-    expect(s.hp).toBe(100 - N.damage);
+    expect(s.hp).toBe(s.maxHp - N.damage);
     expect(n.hp).toBe(100);
   });
 });

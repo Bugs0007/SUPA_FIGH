@@ -200,7 +200,7 @@ describe('shadow clones cannot block or parry', () => {
 
 // ------------------------------------------------------------------ symmetric orb clash
 
-describe('Rasengan / Chidori clash with forms: one outcome for both', () => {
+describe('Rasengan / Chidori clash with forms', () => {
   /** Naruto at form `nl` and Sasuke at form `sl` dash at each other on the floor; `swap` = Sasuke in slot 0. */
   function clash(nl: number, sl: number, swap: boolean) {
     const heroes = swap ? ['sasuke', 'naruto'] : ['naruto', 'sasuke'];
@@ -226,7 +226,7 @@ describe('Rasengan / Chidori clash with forms: one outcome for both', () => {
     return { w, n, s, ev, formHp };
   }
 
-  it('Naruto in form 2 vs a base Sasuke: the average damage, the stronger (form-scaled) Rasengan push, the Chidori 1 s daze', () => {
+  it('Naruto in form 2 vs a base Sasuke: the average damage, the stronger (form-scaled) Rasengan push, and stun only for Naruto', () => {
     const out = [false, true].map((swap) => {
       const { n, s, ev, formHp } = clash(2, 0, swap);
       expect(ev.filter((e) => e.t === 'clash')).toHaveLength(1);
@@ -240,10 +240,9 @@ describe('Rasengan / Chidori clash with forms: one outcome for both', () => {
       const lostN = n.maxHp - n.hp + (formHp.n - n.formHp);
       const lostS = s.maxHp - s.hp + (formHp.s - s.formHp);
       expect(lostN).toBeCloseTo(lostS, 6);
-      for (const f of [n, s]) {
-        expect(f.state).toBe('flinch');
-        expect(f.flinchTime).toBe(S.stun);
-      }
+      expect(n.state).toBe('flinch');
+      expect(n.flinchTime).toBe(S.stun);
+      expect(s.state).not.toBe('flinch');
       expect(n.vx).toBeCloseTo(-s.vx, 6);
       expect(n.vy).toBeCloseTo(s.vy, 6);
       expect(Math.abs(n.vx)).toBeGreaterThan(N.knockX); // form-scaled knockback

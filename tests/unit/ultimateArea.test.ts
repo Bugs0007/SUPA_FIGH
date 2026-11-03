@@ -196,10 +196,10 @@ describe('who the super never hurts', () => {
   });
 });
 
-describe('single-target damage stays close to before the area change', () => {
-  // measured before the change (direct hit + its own blast), one enemy at 200 px
-  const BEFORE: Record<string, number[]> = {
-    sasuke: [42, 64.8, 91.4, 121.5],
+describe('single-target ultimate damage', () => {
+  // Direct hit on one enemy at 200 px, with the tuned Sasuke form multipliers.
+  const EXPECTED: Record<string, number[]> = {
+    sasuke: [65.49, 81.5, 88.83, 110.2],
     naruto: [30.7, 51.6, 76.4, 104.7],
     goku: [45.8, 69.4, 96.8, 128],
   };
@@ -208,7 +208,7 @@ describe('single-target damage stays close to before the area change', () => {
       for (let level = 1; level <= 4; level++) {
         const { dmg } = fire(arena(hero, level, [{ x: 200 }]));
         const d = dmg.get(1) ?? 0;
-        expect(Math.abs(d - BEFORE[hero][level - 1]) / BEFORE[hero][level - 1], `form ${level}: ${d}`).toBeLessThan(0.03);
+        expect(Math.abs(d - EXPECTED[hero][level - 1]) / EXPECTED[hero][level - 1], `form ${level}: ${d}`).toBeLessThan(0.03);
       }
     });
   }
