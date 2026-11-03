@@ -51,6 +51,7 @@ export interface MatchSceneData {
   players: PlayerSetup[];
   /** LAN play: the match is the server's, shown through this (see src/net/remoteSim.ts). Absent = local play. */
   net?: RemoteSim;
+  simulationSpeed?: number;
 }
 
 /** A fighter this device does not control (remote humans, bots): nothing to poll. */
@@ -201,7 +202,7 @@ export class MatchScene extends Phaser.Scene {
     this.elapsed = 0;
     this.renderedWorld = null;
     audio.timePitch = 1;
-    this.speed = Number(params.get('speed') ?? 1) || 1;
+    this.speed = setup.simulationSpeed ?? (Number(params.get('speed') ?? 1) || 1);
     this.players = setup.players;
     this.looks = setup.players.map((p) => ({ look: p.look, color: p.color, label: p.label }));
     this.net = setup.net ?? null;
@@ -296,13 +297,13 @@ export class MatchScene extends Phaser.Scene {
     }
 
     if (!this.paused || this.frameStep) {
-      if (this.hitstop > 0) {
+      if (this.setupData.simulationSpeed === undefined && this.hitstop > 0) {
         this.hitstop -= dt;
       } else {
         this.acc += dt * (this.trailer ? Math.min(this.match.timeScale, this.trailer.timeScale()) : this.match.timeScale) * this.speed;
         if (this.frameStep) this.acc = DT;
         let steps = 0;
-        const maxSteps = Math.max(8, Math.ceil(this.speed * 3));
+        const maxSteps = Math.min(240, Math.max(8, Math.ceil(this.speed * 3)));
         while (this.acc >= DT && steps < maxSteps) {
           for (let i = 0; i < this.controllers.length; i++) this.intents[i] = this.controllers[i].poll();
           this.trailer?.shape(this.intents);
@@ -446,7 +447,7 @@ export class MatchScene extends Phaser.Scene {
 
   private startReplay(): boolean {
     const rec = this.match.lastRecording;
-    if (!settings.replays || !rec || rec.finalKillTick <= 0 || this.speed > 1) return false;
+    if (this.setupData.simulationSpeed !== undefined || !settings.replays || !rec || rec.finalKillTick <= 0 || this.speed > 1) return false;
     const killIdx = rec.finalKillTick - 1;
     this.replay = {
       rec,
@@ -554,7 +555,7 @@ export class MatchScene extends Phaser.Scene {
       audio.play(this.paused ? 'uiBack' : 'uiOk');
     }
     if (keyboard.justPressed('F1')) this.wr.debug = !this.wr.debug;
-    if (keyboard.justPressed('F2')) this.speed = this.speed >= 4 ? 1 : this.speed * 2;
+    if (this.setupData.simulationSpeed === undefined && keyboard.justPressed('F2')) this.speed = this.speed >= 4 ? 1 : this.speed * 2;
     if (keyboard.justPressed('F3')) {
       this.paused = true;
       this.frameStep = true;

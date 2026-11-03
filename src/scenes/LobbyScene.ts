@@ -37,7 +37,7 @@ import { bakeMapPreview } from '../art/mapPreview';
 const SLOT_COLS = ['kind', 'team', 'skill', 'look', 'form'] as const;
 const SLOT_COL_X = [36, 130, 186, 244, 298];
 const SLOT_COL_W = [88, 50, 52, 50, 38];
-const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'fall', 'start', 'controls'] as const;
+const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'fall', 'start', 'controls', 'simulate'] as const;
 /** rules panel row pitch (px): 11 rows still clear the map preview below */
 const SET_H = 16;
 type Setting = (typeof SETTINGS)[number];
@@ -171,7 +171,7 @@ export class LobbyScene extends Phaser.Scene {
     } else {
       if (lr) changed = this.changeSetting(set, lr);
       if (menu.confirm()) {
-        if (set === 'start') return this.start();
+        if (set === 'start' || set === 'simulate') return this.start(set === 'simulate');
         if (set === 'controls') {
           saveLobby(this.cfg);
           this.scene.start('controls', { from: 'lobby' });
@@ -271,8 +271,12 @@ export class LobbyScene extends Phaser.Scene {
     }
   }
 
-  private start(): void {
-    const problem = lobbyProblem(this.cfg);
+  private start(simulate = false): void {
+    const cfg: LobbyCfg = simulate
+      ? { ...this.cfg, slots: this.cfg.slots.map((s) => s.kind === 'empty' ? s : { ...s, kind: 'bot' }) }
+      : this.cfg;
+    const problem = this.matchProblem(cfg, simulate);
+
     if (problem) {
       audio.play('uiBack');
       this.cameras.main.shake(120, 0.004);
@@ -280,7 +284,22 @@ export class LobbyScene extends Phaser.Scene {
     }
     saveLobby(this.cfg);
     audio.play('uiOk');
-    this.scene.start('match', lobbyToMatch(this.cfg, Math.floor(Math.random() * 1e9)));
+    const setup = lobbyToMatch(cfg, Math.floor(Math.random() * 1e9));
+    if (simulate) {
+      const input = window.prompt('Simulation speed multiplier (1 or higher)', '4');
+      if (input === null) return;
+      const multiplier = Number(input);
+      if (!Number.isFinite(multiplier) || multiplier < 1) {
+        window.alert('Enter a finite multiplier of 1 or higher.');
+        return;
+      }
+      setup.simulationSpeed = multiplier;
+    }
+    this.scene.start('match', setup);
+  }
+
+  private matchProblem(cfg: LobbyCfg, simulate: boolean): string | null {
+    return simulate && cfg.mode === 'coop' ? 'SELECT A COMPETITIVE MODE TO SIMULATE' : lobbyProblem(cfg);
   }
 
   private render(): void {
@@ -324,6 +343,7 @@ export class LobbyScene extends Phaser.Scene {
       fall: ['FALL DEATH', c.fallDeath ? 'ON' : 'OFF (THROWN BACK)'],
       start: ['', '>> START MATCH <<'],
       controls: ['', 'CONTROLS...'],
+      simulate: ['', 'SIMULATE MATCH...'],
     };
     panel(g, 344, 38, 292, SETTINGS.length * SET_H + 22, hexToNum(P.purple1), this.setting() !== null);
     SETTINGS.forEach((st, i) => {
@@ -333,7 +353,7 @@ export class LobbyScene extends Phaser.Scene {
       const [label, value] = vals[st];
       const label_ = this.settingLabels[i];
       const val = this.settingValues[i];
-      if (st === 'start' || st === 'controls') {
+      if (st === 'start' || st === 'controls' || st === 'simulate') {
         label_.setText('');
         val.setOrigin(0.5, 0).setX(490).setText(value).setTint(st === 'start' ? hexToNum(P.green2) : sel ? 0xffffff : 0xc3c9dc);
       } else {
@@ -342,7 +362,10 @@ export class LobbyScene extends Phaser.Scene {
       }
     });
     this.drawMapPreview();
-    const problem = lobbyProblem(c);
+    const simulate = this.setting() === 'simulate';
+    const problem = this.matchProblem(simulate
+      ? { ...c, slots: c.slots.map((s) => s.kind === 'empty' ? s : { ...s, kind: 'bot' }) }
+      : c, simulate);
     this.status.setText(problem ?? '').setVisible(!!problem);
     const pads = connectedPads().length;
     const ps = pads > 0 && padStyleOf() === 'ps';
