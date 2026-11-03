@@ -19,6 +19,7 @@ import { LobbyScene } from './scenes/LobbyScene';
 import { NetLobbyScene } from './scenes/NetLobbyScene';
 import { TrailerOverlay } from './trailer/overlay';
 import { installTrailerDriver } from './trailer/driver';
+import { lobbyFromHash } from './scenes/shareLink';
 
 keyboard.attach(window);
 
@@ -65,6 +66,17 @@ const game = new Phaser.Game({
 });
 game.registry.set('scale', k);
 if (new URLSearchParams(location.search).has('trailer')) installTrailerDriver(game);
+
+// A share link pasted into a tab that already has the game open only changes the hash: load it into Match Setup
+// (never over a running match).
+window.addEventListener('hashchange', () => {
+  const shared = lobbyFromHash(location.hash);
+  if (!shared) return;
+  const menu = game.scene.getScenes(true).find((sc) => ['title', 'lobby', 'creator', 'controls', 'settings', 'netlobby'].includes(sc.scene.key));
+  if (!menu) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  menu.scene.start('lobby', { shared });
+});
 
 // Menus read justPressed() during scene updates; clear edges once per game step.
 game.events.on(Phaser.Core.Events.PRE_STEP, () => padMenu.update());

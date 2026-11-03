@@ -1,4 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
+import { defaultLobby } from '../../src/scenes/lobby';
+import { shareUrl } from '../../src/scenes/shareLink';
 
 type Handle = { match: () => { cfg: { mode: string }; world: { tick: number; fighters: unknown[] } } | null; scene: () => string[] };
 
@@ -129,4 +131,22 @@ test('pause menu: settings overlay, then quit to title', async ({ page }) => {
   await press(page, 'Enter');
   await onScene(page, 'title');
   expect(errors).toEqual([]);
+});
+
+test('a share link opens Match Setup with that setup loaded and strips the hash', async ({ page }) => {
+  await page.goto('/?timer=1');
+  await onScene(page, 'title');
+  const c = defaultLobby();
+  c.mode = 'koth';
+  c.slots[2].hero = 'goku';
+  // pasted into the open tab: only the hash changes
+  await page.evaluate((hash) => (location.hash = hash), new URL(shareUrl(c, 'http://x/')).hash);
+  await onScene(page, 'lobby');
+  expect(page.url()).not.toContain('#setup');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('scrapyard.lobby') ?? 'null'));
+  expect(saved.mode).toBe('koth');
+  expect(saved.slots[2].hero).toBe('goku');
+  // opened in a fresh tab: the boot scene reads the hash
+  await page.goto(shareUrl(c, new URL('/?timer=1', page.url()).toString()));
+  await onScene(page, 'lobby');
 });

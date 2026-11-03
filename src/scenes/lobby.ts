@@ -62,6 +62,8 @@ export interface LobbyCfg {
 
 export const MAX_SLOTS = 10;
 
+export const MODE_ORDER: GameMode[] = ['brawl', 'deathmatch', 'koth', 'juggernaut', 'gungame', 'coop'];
+
 export function defaultLobby(): LobbyCfg {
   const slots: SlotCfg[] = Array.from({ length: MAX_SLOTS }, (_, i) => ({
     kind: i === 0 ? 'kb0' : i === 1 ? (isTouchDevice() ? 'bot' : 'kb1') : i < 5 ? 'bot' : 'empty',

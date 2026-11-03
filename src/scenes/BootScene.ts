@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { Art } from '../art';
 import { EXTERNAL_SHEETS } from '../art/externalSheets';
+import { lobbyFromHash } from './shareLink';
 
 /** Bakes every procedural texture, then hands off to the title (or straight to a match). */
 export class BootScene extends Phaser.Scene {
@@ -20,6 +21,13 @@ export class BootScene extends Phaser.Scene {
     const params = new URLSearchParams(location.search);
     // ?trailer=1 goes straight to the clean trailer match (see src/trailer)
     const target = params.has('trailer') ? 'match' : params.get('scene');
+    // a share link (#setup=...) opens straight into Match Setup with that setup loaded
+    const shared = lobbyFromHash(location.hash);
+    if (shared && !params.has('trailer')) {
+      history.replaceState(null, '', location.pathname + location.search);
+      this.scene.start('lobby', { shared });
+      return;
+    }
     this.scene.start(target && ['match', 'art', 'lobby', 'controls', 'creator', 'settings'].includes(target) ? target : 'title');
   }
 }

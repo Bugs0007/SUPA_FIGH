@@ -20,6 +20,8 @@ import { defaultSetup } from './MatchScene';
 import { hint, HintBar } from './kit';
 import { PLAYER_COLORS, Puppet } from './ui';
 import { bakeMapPreview } from '../art/mapPreview';
+/** the maker's portfolio (title screen shout-out) */
+export const CREDIT_URL = 'https://bhagath.vercel.app';
 const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
 const BUTTONS = [
   { label: 'QUICK MATCH', action: 'quick' },
@@ -144,6 +146,15 @@ export class TitleScene extends Phaser.Scene {
     this.warn = this.add.bitmapText(VIEW_W / 2, 335, 'sm', '').setOrigin(0.5, 0).setTint(0x8d95b0).setDepth(5);
     this.bar = new HintBar(this, VIEW_H - 15, 30);
     this.add.bitmapText(VIEW_W - 4, 4, 'sm', 'V' + __APP_VERSION__).setOrigin(1, 0).setTint(0x5a5668).setDepth(5);
+    // shout-out: tap / click opens the maker's portfolio in a new tab
+    const credit = this.add.bitmapText(4, 4, 'sm', `MADE BY BHAGATH - ${CREDIT_URL.replace('https://', '').toUpperCase()}`).setTint(0xf8c840).setDepth(5);
+    const creditZone = this.add.zone(0, 0, credit.width + 8, 14).setOrigin(0).setDepth(7).setInteractive({ useHandCursor: true });
+    creditZone.on('pointerover', () => credit.setTint(0xffffff));
+    creditZone.on('pointerout', () => credit.setTint(0xf8c840));
+    creditZone.on('pointerdown', () => {
+      audio.play('uiOk');
+      window.open(CREDIT_URL, '_blank', 'noopener,noreferrer');
+    });
     this.refresh();
   }
   /** Touch / mouse: tap a row to change it (like pressing OK on it) and a button to go. */

@@ -27,6 +27,7 @@ Open the game. The main menu has a card for each keyboard player and a quick-mat
 - **Quick Match** starts with those settings (0–8 and Tab still work as shortcuts).
 - **Match Setup** opens the lobby. There you set the players, teams, map, mode, rounds and chaos cards.
   Hero slots also have a **START FORM** (base up to the top power-up form), so you can match forms against each other without collecting power orbs.
+  **SHARE LINK (COPY)** at the bottom of the rules panel copies a plain hyperlink of the whole setup (map, mode, rules, fighters, looks). Anyone who opens it lands in Match Setup with that setup loaded and presses START; nothing is stored on a server (the setup lives in the URL after `#setup=`).
 - **Controls** lets you rebind every action for both keyboard layouts and up to 4 gamepads.
 - **Settings** covers volumes, screen shake, gore, damage numbers, replays and fullscreen.
 
@@ -240,3 +241,6 @@ From form 1, press **Pistol + Punch**. Near an enemy, Luffy grabs them and kicks
 Match Setup and LAN rooms offer **Random (each round)** in the map selector. Arenas play in a shuffled rotation, visiting every map before repeating with no consecutive duplicates.
 
 Same-form balance studies: see [methodology and commands](reports/balance/README.md). The headless survey tests all 55 duel / three-way / four-way combinations across base and four transformed forms, retaining draws and per-scenario results.
+
+---
+Made by [Bhagath](https://bhagath.vercel.app). The title screen links to the portfolio too.

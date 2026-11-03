@@ -10,15 +10,15 @@ import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { saveSettings, settings } from '../game/settings';
 import { getMap, MAP_LIST } from '../sim/map/maps';
-import { MODE_NAMES, type GameMode } from '../sim/match';
+import { MODE_NAMES } from '../sim/match';
 
-const MODE_ORDER: GameMode[] = ['brawl', 'deathmatch', 'koth', 'juggernaut', 'gungame', 'coop'];
 import {
   DIFF_ORDER,
   lobbyProblem,
   lobbyToMatch,
   loadLobby,
   MAX_SLOTS,
+  MODE_ORDER,
   saveLobby,
   slotStartForm,
   SLOT_KIND_LABELS,
@@ -33,13 +33,14 @@ import { hint, HintBar, panel, rowBar } from './kit';
 import { inputDevice, PAD_NAMES } from '../input/devices';
 import { bindZoom, fighterPreview } from './ui';
 import { bakeMapPreview } from '../art/mapPreview';
+import { shareUrl } from './shareLink';
 
 const SLOT_COLS = ['kind', 'team', 'skill', 'look', 'form'] as const;
 const SLOT_COL_X = [36, 130, 186, 244, 298];
 const SLOT_COL_W = [88, 50, 52, 50, 38];
-const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'fall', 'start', 'controls', 'simulate'] as const;
-/** rules panel row pitch (px): 11 rows still clear the map preview below */
-const SET_H = 16;
+const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'fall', 'start', 'controls', 'simulate', 'share'] as const;
+/** rules panel row pitch (px): 13 rows still clear the map preview below */
+const SET_H = 15;
 type Setting = (typeof SETTINGS)[number];
 
 const padStyleOf = () => inputDevice.pad;
@@ -63,15 +64,22 @@ export class LobbyScene extends Phaser.Scene {
   private preview!: Phaser.GameObjects.Image;
   private previewMap = '';
   private blurb!: Phaser.GameObjects.BitmapText;
+  /** transient message in the rules panel (share link copied...) */
+  private notice = '';
+  private noticeT = 0;
 
   constructor() {
     super('lobby');
   }
 
-  create(): void {
+  /** `shared`: a setup opened from a share link (replaces the saved lobby). */
+  create(data?: { shared?: LobbyCfg }): void {
     bindZoom(this, VIEW_W, VIEW_H);
     this.cameras.main.setBackgroundColor(P.night);
-    this.cfg = loadLobby();
+    this.cfg = data?.shared ?? loadLobby();
+    if (data?.shared) saveLobby(this.cfg);
+    this.notice = data?.shared ? 'SHARED SETUP LOADED' : '';
+    this.noticeT = data?.shared ? 3 : 0;
     this.row = 0;
     this.col = 0;
     this.t = 0;
@@ -101,8 +109,8 @@ export class LobbyScene extends Phaser.Scene {
     });
     this.bar = new HintBar(this);
     this.joinText = this.add.bitmapText(8, 330, 'sm', '').setTint(0x8d95b0);
-    this.status = this.add.bitmapText(354, 48 + SETTINGS.length * SET_H + 3, 'smo', '').setTint(0xea4a4a).setDepth(2);
-    this.preview = this.add.image(490,285,'__DEFAULT').setDepth(1);
+    this.status = this.add.bitmapText(354, 48 + SETTINGS.length * SET_H + 1, 'smo', '').setTint(0xea4a4a).setDepth(2);
+    this.preview = this.add.image(490, 291, '__DEFAULT').setDepth(1);
     this.blurb = this.add.bitmapText(344, 330, 'sm', '').setTint(0x8d95b0);
     this.refreshPreviews();
     this.render();
@@ -112,7 +120,7 @@ export class LobbyScene extends Phaser.Scene {
   private drawMapPreview(): void {
     if (this.previewMap === this.cfg.mapId) return;
     this.previewMap = this.cfg.mapId;
-    this.preview.setTexture(bakeMapPreview(this,this.cfg.mapId)).setDisplaySize(172,86);
+    this.preview.setTexture(bakeMapPreview(this,this.cfg.mapId)).setDisplaySize(150, 75);
     this.preview.setVisible(this.cfg.mapId !== 'random');
     this.blurb.setText(this.cfg.mapId === 'random' ? 'RANDOM - EACH ROUND' : getMap(this.cfg.mapId).name.toUpperCase()).setOrigin(.5,0).setX(490);
   }
@@ -135,6 +143,7 @@ export class LobbyScene extends Phaser.Scene {
 
   override update(_time: number, deltaMs: number): void {
     this.t += deltaMs / 1000;
+    this.noticeT = Math.max(0, this.noticeT - deltaMs / 1000);
     this.joinPads();
     let changed = false;
     if (menu.back()) {
@@ -171,6 +180,10 @@ export class LobbyScene extends Phaser.Scene {
     } else {
       if (lr) changed = this.changeSetting(set, lr);
       if (menu.confirm()) {
+        if (set === 'share') {
+          void this.copyShareLink();
+          return;
+        }
         if (set === 'start' || set === 'simulate') return this.start(set === 'simulate');
         if (set === 'controls') {
           saveLobby(this.cfg);
@@ -298,6 +311,25 @@ export class LobbyScene extends Phaser.Scene {
     this.scene.start('match', setup);
   }
 
+  /** Put the share link on the clipboard (or show it in a prompt when the browser refuses). */
+  private async copyShareLink(): Promise<void> {
+    const url = shareUrl(this.cfg, location.href);
+    saveLobby(this.cfg);
+    audio.play('uiOk');
+    try {
+      await navigator.clipboard.writeText(url);
+      this.flash('LINK COPIED - PASTE IT TO A FRIEND');
+    } catch {
+      window.prompt('Copy this link and send it to your friends:', url);
+      this.flash('SHARE LINK READY');
+    }
+  }
+
+  private flash(text: string): void {
+    this.notice = text;
+    this.noticeT = 3;
+  }
+
   private matchProblem(cfg: LobbyCfg, simulate: boolean): string | null {
     return simulate && cfg.mode === 'coop' ? 'SELECT A COMPETITIVE MODE TO SIMULATE' : lobbyProblem(cfg);
   }
@@ -344,8 +376,9 @@ export class LobbyScene extends Phaser.Scene {
       start: ['', '>> START MATCH <<'],
       controls: ['', 'CONTROLS...'],
       simulate: ['', 'SIMULATE MATCH...'],
+      share: ['', 'SHARE LINK (COPY)'],
     };
-    panel(g, 344, 38, 292, SETTINGS.length * SET_H + 22, hexToNum(P.purple1), this.setting() !== null);
+    panel(g, 344, 38, 292, SETTINGS.length * SET_H + 19, hexToNum(P.purple1), this.setting() !== null);
     SETTINGS.forEach((st, i) => {
       const sel = this.row === MAX_SLOTS + i;
       const y = 50 + i * SET_H;
@@ -353,7 +386,7 @@ export class LobbyScene extends Phaser.Scene {
       const [label, value] = vals[st];
       const label_ = this.settingLabels[i];
       const val = this.settingValues[i];
-      if (st === 'start' || st === 'controls' || st === 'simulate') {
+      if (st === 'start' || st === 'controls' || st === 'simulate' || st === 'share') {
         label_.setText('');
         val.setOrigin(0.5, 0).setX(490).setText(value).setTint(st === 'start' ? hexToNum(P.green2) : sel ? 0xffffff : 0xc3c9dc);
       } else {
@@ -366,7 +399,8 @@ export class LobbyScene extends Phaser.Scene {
     const problem = this.matchProblem(simulate
       ? { ...c, slots: c.slots.map((s) => s.kind === 'empty' ? s : { ...s, kind: 'bot' }) }
       : c, simulate);
-    this.status.setText(problem ?? '').setVisible(!!problem);
+    const note = this.noticeT > 0 ? this.notice : '';
+    this.status.setText(note || (problem ?? '')).setTint(note ? 0x5ac85a : 0xea4a4a).setVisible(!!(note || problem));
     const pads = connectedPads().length;
     const ps = pads > 0 && padStyleOf() === 'ps';
     this.joinText.setText(
