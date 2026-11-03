@@ -1,0 +1,3950 @@
+{
+  "roundsPerCell": 200,
+  "seed": 27109,
+  "overrides": {
+    "sasuke": {
+      "stats": {
+        "hp": 108
+      },
+      "base": {
+        "dash": {
+          "damage": 20,
+          "recover": 0.18
+        }
+      },
+      "second": {
+        "fireball": {
+          "damage": 22,
+          "speed": 320,
+          "windup": 0.2,
+          "radius": 36
+        }
+      },
+      "forms": {
+        "0": {
+          "damageMul": 1.55,
+          "speedMul": 1.18
+        },
+        "1": {
+          "damageMul": 1.55,
+          "speedMul": 1.2
+        },
+        "2": {
+          "damageMul": 1.36
+        },
+        "3": {
+          "damageMul": 1.4
+        }
+      }
+    }
+  },
+  "simulationSha256": "6383abab26d4c1584582117a3f808a187be519d305df970fa983b65a6757af06",
+  "scenarioRules": "Tournament Hall only, three Chidori charges and base Kirin. No new weapons or power orbs; existing map props and their drops remain; cyclic slot swaps over permuted seat orders; hard/expert; fall death on/off; natural form loss; 75s sudden death; 180s cap; draws/timeouts are not wins",
+  "started": "2026-11-03T09:12:20.101Z",
+  "elapsedSeconds": 79.424,
+  "cells": [
+    {
+      "form": 0,
+      "group": [
+        "naruto",
+        "sasuke"
+      ],
+      "rounds": 200,
+      "wins": {
+        "naruto": 101,
+        "sasuke": 94
+      },
+      "draws": 5,
+      "timeouts": 0,
+      "seconds": 2585.983333333335,
+      "damage": {
+        "naruto": 13790.927545639111,
+        "sasuke": 23583.08192844272
+      },
+      "kills": {
+        "rasengan": 47,
+        "naruto:combo": 57,
+        "chidori": 29,
+        "sasuke:combo": 21,
+        "fire": 33,
+        "sasuke:second": 13,
+        "kirin": 4,
+        "bazooka": 1
+      },
+      "moves": {
+        "naruto:rasengan": 1229,
+        "sasuke:rasengan": 1932,
+        "sasuke:superStart": 350,
+        "naruto:clone": 489,
+        "sasuke:chargeStart": 203
+      },
+      "points": {
+        "naruto": 103,
+        "sasuke": 97
+      },
+      "blocks": [
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 0
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 0
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 1
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 1
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 1
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        }
+      ],
+      "scenarios": {
+        "dojo:hard:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 24,
+            "sasuke": 27
+          },
+          "draws": 3
+        },
+        "dojo:expert:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 24,
+            "sasuke": 29
+          },
+          "draws": 1
+        },
+        "dojo:hard:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 27,
+            "sasuke": 19
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 26,
+            "sasuke": 19
+          },
+          "draws": 1
+        }
+      }
+    },
+    {
+      "form": 1,
+      "group": [
+        "naruto",
+        "sasuke"
+      ],
+      "rounds": 200,
+      "wins": {
+        "naruto": 120,
+        "sasuke": 79
+      },
+      "draws": 1,
+      "timeouts": 0,
+      "seconds": 2821.449999999999,
+      "damage": {
+        "naruto": 18808.799255069767,
+        "sasuke": 32426.907684982238
+      },
+      "kills": {
+        "sasuke:combo": 27,
+        "chidori": 16,
+        "naruto:combo": 46,
+        "sasuke:second": 17,
+        "naruto:formCombo": 8,
+        "rasengan": 55,
+        "naruto:super": 7,
+        "kirin": 2,
+        "fire": 13,
+        "sasuke:super": 9,
+        "sniper": 1
+      },
+      "moves": {
+        "sasuke:rasengan": 1833,
+        "naruto:rasengan": 1220,
+        "sasuke:superStart": 512,
+        "naruto:clone": 708,
+        "sasuke:chargeStart": 177,
+        "naruto:superStart": 309
+      },
+      "points": {
+        "naruto": 120,
+        "sasuke": 79
+      },
+      "blocks": [
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 0
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        }
+      ],
+      "scenarios": {
+        "dojo:hard:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 31,
+            "sasuke": 23
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 39,
+            "sasuke": 14
+          },
+          "draws": 1
+        },
+        "dojo:hard:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 27,
+            "sasuke": 19
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 23,
+            "sasuke": 23
+          },
+          "draws": 0
+        }
+      }
+    },
+    {
+      "form": 2,
+      "group": [
+        "naruto",
+        "sasuke"
+      ],
+      "rounds": 200,
+      "wins": {
+        "naruto": 110,
+        "sasuke": 89
+      },
+      "draws": 1,
+      "timeouts": 0,
+      "seconds": 2769.016666666668,
+      "damage": {
+        "naruto": 22244.64352764001,
+        "sasuke": 41376.956066149025
+      },
+      "kills": {
+        "rasengan": 51,
+        "chidori": 27,
+        "sasuke:super": 19,
+        "sasuke:second": 12,
+        "naruto:combo": 35,
+        "fire": 15,
+        "naruto:super": 11,
+        "chandelier": 1,
+        "sasuke:combo": 14,
+        "kirin": 4,
+        "naruto:formCombo": 10,
+        "pistol": 2
+      },
+      "moves": {
+        "naruto:rasengan": 1185,
+        "sasuke:superStart": 548,
+        "sasuke:rasengan": 1746,
+        "naruto:clone": 823,
+        "sasuke:chargeStart": 153,
+        "naruto:superStart": 295
+      },
+      "points": {
+        "naruto": 110,
+        "sasuke": 89
+      },
+      "blocks": [
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 1
+          },
+          "draws": 1
+        }
+      ],
+      "scenarios": {
+        "dojo:hard:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 36,
+            "sasuke": 18
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 29,
+            "sasuke": 25
+          },
+          "draws": 0
+        },
+        "dojo:hard:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 25,
+            "sasuke": 21
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 20,
+            "sasuke": 25
+          },
+          "draws": 1
+        }
+      }
+    },
+    {
+      "form": 4,
+      "group": [
+        "naruto",
+        "sasuke"
+      ],
+      "rounds": 200,
+      "wins": {
+        "naruto": 111,
+        "sasuke": 88
+      },
+      "draws": 1,
+      "timeouts": 0,
+      "seconds": 2752.166666666668,
+      "damage": {
+        "naruto": 29677.59849148872,
+        "sasuke": 56713.812319148296
+      },
+      "kills": {
+        "chidori": 21,
+        "naruto:combo": 41,
+        "naruto:super": 25,
+        "kirin": 7,
+        "sasuke:super": 33,
+        "amaterasu": 7,
+        "rasengan": 32,
+        "naruto:formCombo": 12,
+        "sasuke:combo": 10,
+        "fire": 7,
+        "pistol": 1,
+        "sasuke:second": 3,
+        "katana": 1,
+        "sniper": 1
+      },
+      "moves": {
+        "sasuke:rasengan": 1583,
+        "naruto:rasengan": 1021,
+        "sasuke:superStart": 549,
+        "sasuke:chargeStart": 291,
+        "sasuke:amaterasu": 294,
+        "naruto:superStart": 322,
+        "naruto:clone": 435
+      },
+      "points": {
+        "naruto": 112,
+        "sasuke": 88
+      },
+      "blocks": [
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 1
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        }
+      ],
+      "scenarios": {
+        "dojo:hard:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 29,
+            "sasuke": 25
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 31,
+            "sasuke": 23
+          },
+          "draws": 0
+        },
+        "dojo:hard:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 29,
+            "sasuke": 17
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 22,
+            "sasuke": 23
+          },
+          "draws": 1
+        }
+      }
+    },
+    {
+      "form": 3,
+      "group": [
+        "naruto",
+        "sasuke"
+      ],
+      "rounds": 200,
+      "wins": {
+        "naruto": 109,
+        "sasuke": 88
+      },
+      "draws": 3,
+      "timeouts": 0,
+      "seconds": 2795.9166666666656,
+      "damage": {
+        "naruto": 25907.248155017092,
+        "sasuke": 51484.70743256556
+      },
+      "kills": {
+        "sasuke:combo": 16,
+        "rasengan": 51,
+        "naruto:super": 12,
+        "naruto:combo": 38,
+        "chidori": 28,
+        "sasuke:super": 18,
+        "fire": 9,
+        "naruto:formCombo": 10,
+        "sasuke:second": 3,
+        "kirin": 6,
+        "amaterasu": 11,
+        "rifle": 1
+      },
+      "moves": {
+        "sasuke:rasengan": 1687,
+        "naruto:rasengan": 1152,
+        "sasuke:superStart": 563,
+        "sasuke:chargeStart": 274,
+        "sasuke:amaterasu": 307,
+        "naruto:clone": 1035,
+        "naruto:superStart": 333
+      },
+      "points": {
+        "naruto": 109,
+        "sasuke": 90
+      },
+      "blocks": [
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 0
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 1
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 0
+          },
+          "draws": 1
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 2,
+            "sasuke": 0
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 1,
+            "sasuke": 1
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        },
+        {
+          "wins": {
+            "naruto": 0,
+            "sasuke": 2
+          },
+          "draws": 0
+        }
+      ],
+      "scenarios": {
+        "dojo:hard:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 33,
+            "sasuke": 21
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOn": {
+          "n": 54,
+          "wins": {
+            "naruto": 29,
+            "sasuke": 22
+          },
+          "draws": 3
+        },
+        "dojo:hard:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 29,
+            "sasuke": 17
+          },
+          "draws": 0
+        },
+        "dojo:expert:fallOff": {
+          "n": 46,
+          "wins": {
+            "naruto": 18,
+            "sasuke": 28
+          },
+          "draws": 0
+        }
+      }
+    }
+  ]
+}

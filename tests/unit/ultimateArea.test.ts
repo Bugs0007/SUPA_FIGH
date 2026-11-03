@@ -1,6 +1,6 @@
 // Supers hit an AREA, not one fighter (user report: Sasuke's ult on a gang of Naruto's shadow clones took out only one).
 import { describe, expect, it } from 'vitest';
-import { HEROES, SUPER_AREA, superFistFor } from '../../src/sim/data/heroes';
+import { HEROES, SUPER_AREA, superFistFor, superBombDamage } from '../../src/sim/data/heroes';
 import type { SimEvent } from '../../src/sim/events';
 import { areaFrac, COVER, explode } from '../../src/sim/explosion';
 import { superBlast, summonClones, transform } from '../../src/sim/hero';
@@ -52,7 +52,7 @@ function fire(w: World, ticks = 150): { dmg: Map<number, number>; events: SimEve
 function core(hero: string, level: number): number {
   const h = HEROES[hero];
   const mul = h.forms[level - 1].damageMul;
-  return h.super.kind === 'fist' ? superFistFor(hero, level)!.damage * mul : (h.super.bomb!.damage + h.super.bomb!.damagePerLevel * (level - 1)) * mul;
+  return h.super.kind === 'fist' ? superFistFor(hero, level)!.damage * mul : superBombDamage(h.super.bomb!, level) * mul;
 }
 
 const HERO_IDS = ['sasuke', 'naruto', 'goku', 'luffy'];
@@ -81,7 +81,7 @@ describe('every super hits the whole group (the user scenario)', () => {
   }
 
   it("Sasuke's top-form arrow wipes out a gang of Naruto's shadow clones at point-blank", () => {
-    // an enemy Naruto far behind his clones; five clones (20 % health each) crowd right in front of Sasuke
+    // an enemy Naruto far behind his clones; five clones (configured fractional health each) crowd right in front of Sasuke
     const w = arena('sasuke', 4, [{ x: 440, hero: 'naruto' }]);
     const naruto = w.fighters[1];
     for (let i = 0; i < 3; i++) transform(w, naruto);
@@ -196,19 +196,14 @@ describe('who the super never hurts', () => {
   });
 });
 
-describe('single-target damage stays close to before the area change', () => {
-  // measured before the change (direct hit + its own blast), one enemy at 200 px
-  const BEFORE: Record<string, number[]> = {
-    sasuke: [42, 64.8, 91.4, 121.5],
-    naruto: [30.7, 51.6, 76.4, 104.7],
-    goku: [45.8, 69.4, 96.8, 128],
-  };
+describe('single-target supers follow the authored damage without a second contact hit', () => {
   for (const hero of HERO_IDS.filter(id => id !== 'luffy')) {
-    it(`${hero}: within 3 % at every form`, () => {
+    it(`${hero}: within 3 % of its core damage at every form`, () => {
       for (let level = 1; level <= 4; level++) {
-        const { dmg } = fire(arena(hero, level, [{ x: 200 }]));
+        const { dmg, events } = fire(arena(hero, level, [{ x: 200 }]));
         const d = dmg.get(1) ?? 0;
-        expect(Math.abs(d - BEFORE[hero][level - 1]) / BEFORE[hero][level - 1], `form ${level}: ${d}`).toBeLessThan(0.03);
+        expect(Math.abs(d-core(hero,level))/core(hero,level), `form ${level}: ${d}`).toBeLessThan(0.03);
+        expect(events.filter(e=>e.t==='hit'&&!e.corpse&&e.weapon===hero+':super'&&e.victim===1)).toHaveLength(1);
       }
     });
   }
@@ -216,10 +211,10 @@ describe('single-target damage stays close to before the area change', () => {
 
 describe("Luffy's giant fist", () => {
   it('delivers the upgraded single-target damage at every Gear without double-hitting', () => {
-    const expected = [27.6, 46.2, 65.1, 86.7];
+
     for (let level = 1; level <= 4; level++) {
       const { dmg } = fire(arena('luffy', level, [{ x: 200 }]));
-      expect(dmg.get(1)).toBeCloseTo(expected[level - 1], 1);
+      expect(dmg.get(1)).toBeCloseTo(core('luffy', level), 1);
     }
   });
   it('hits every fighter the arm sweeps through (each once, full damage)', () => {

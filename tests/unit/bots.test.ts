@@ -73,6 +73,7 @@ describe('bots and hero powers (M9)', () => {
     const [f, d] = w.fighters;
     f.x = f.px = 80;
     d.x = d.px = hero === 'luffy' ? 120 : 180;
+    if (hero === 'goku') f.baseCd = 999; // isolate the ranged choice instead of teleporting straight into melee
     const bot = new BotController(() => w, 0, { difficulty: 'hard', seed: 3 });
     let used = false;
     for (let t = 0; t < 60 * 8 && !used; t++) {

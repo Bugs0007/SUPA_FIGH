@@ -8,6 +8,7 @@ interface F {
   y: number;
   alive: boolean;
   state: string;
+  goal?: string;
 }
 type Handle = { match: () => { round: number; phase: string; world: { tick: number; fighters: F[] } } | null; scene: () => string[] };
 
@@ -29,22 +30,29 @@ test('8 bots finish rounds at 4x without getting stuck', async ({ page }) => {
   // sample positions; a bot that hasn't moved 12 px in 8 s of sim time (while alive, standing) is stuck
   const last = new Map<number, { x: number; y: number; tick: number }>();
   let worst = 0;
+  let lastRound = 0;
+  let worstAt: unknown;
   for (let i = 0; i < 400; i++) {
     const snap = await page.evaluate(() => {
       const m = (window as unknown as { __GAME__: Handle }).__GAME__.match()!;
-      return { round: m.round, tick: m.world.tick, fighters: m.world.fighters.map((f) => ({ x: f.x, y: f.y, alive: f.alive, state: f.state })) };
+      return { round: m.round, tick: m.world.tick, fighters: m.world.fighters.map((f,i) => ({ x: f.x, y: f.y, alive: f.alive, state: f.state, goal: (window as any).__GAME__.game.scene.getScene('match').controllers[i]?.debug?.().goal })) };
     });
     if (snap.round >= 3) break;
+    // World ticks restart each round; an old position anchor must never cross that boundary.
+    if (snap.round !== lastRound) { last.clear(); lastRound = snap.round; }
     snap.fighters.forEach((f, id) => {
       const l = last.get(id);
       if (!f.alive || !l || Math.hypot(f.x - l.x, f.y - l.y) > 12 || snap.tick < l.tick) last.set(id, { x: f.x, y: f.y, tick: snap.tick });
-      else worst = Math.max(worst, (snap.tick - l.tick) / 60);
+      else {
+        const age=(snap.tick-l.tick)/60;
+        if(age>worst){worst=age;worstAt={id,round:snap.round,tick:snap.tick,anchor:l,fighter:f};}
+      }
     });
     await page.waitForTimeout(250);
   }
   const round = await page.evaluate(() => (window as unknown as { __GAME__: Handle }).__GAME__.match()!.round);
   expect(round).toBeGreaterThanOrEqual(3);
-  expect(worst).toBeLessThan(12);
+  expect(worst,JSON.stringify(worstAt)).toBeLessThan(12);
   await page.screenshot({ path: 'tests/e2e/screenshots/bots.png' });
   expect(errors).toEqual([]);
 });

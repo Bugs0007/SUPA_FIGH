@@ -4,8 +4,8 @@
   "version": "0.12.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev": "vite --config vite.config.ts",
+    "build": "tsc --noEmit && vite build --config vite.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -14,9 +14,11 @@
     "sim": "vite-node scripts/botsim.ts",
     "herofight": "vite-node scripts/heroFight.ts",
     "balance": "vite-node scripts/balance.ts",
+    "balance:forms": "npm run balance:forms:build && node tests/e2e/screenshots/balance/runner.mjs",
     "trailer": "node scripts/trailer/build.mjs",
     "server": "vite-node server/main.ts",
-    "host": "vite-node server/host.ts"
+    "host": "vite-node server/host.ts",
+    "balance:forms:build": "esbuild scripts/formBalance.ts --bundle --platform=node --format=esm --outfile=tests/e2e/screenshots/balance/runner.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0",
@@ -28,6 +30,7 @@
     "@types/node": "^22.20.4",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/ws": "^8.18.2",
+    "esbuild": "^0.25.12",
     "typescript": "^5.9.3",
     "vite": "^6.4.3",
     "vitest": "^3.2.7"

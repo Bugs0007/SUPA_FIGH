@@ -1821,7 +1821,7 @@ function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   const a1 = e.abilityP;
   const a2 = e.kickP;
   const chord = inp.attack && ((f.hero === 'naruto' ? inp.kick : inp.ability)) && (e.attackP || a1 || a2 || f.btnBuf1 > 0 || f.btnBuf2 > 0);
-  if (transformed(f) && f.master < 0 && chord) {
+  if ((transformed(f) || f.hero === 'sasuke') && f.master < 0 && chord) {
     e.attackP = e.abilityP = e.kickP = false;
     f.btnBuf1 = f.btnBuf2 = 0;
     const openingPunch = f.state === 'aim' || (f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0);
@@ -1882,7 +1882,7 @@ function startSecond(w: World, f: Fighter, inp: Intent): void {
     if (!beginMove(w, f, inp, 'fireball')) return;
     f.charge = 0;
     f.stretchAngle = aimAngle(f, inp);
-    f.secondCd = s.cooldown;
+    f.secondCd = usesAmaterasu(f) ? s.amaterasu?.cooldown ?? s.cooldown : s.cooldown;
     w.emit({ t: 'chargeStart', f: f.id });
     if (usesAmaterasu(f) && !s.amaterasu?.windup) {
       // Amaterasu is instant: the black flames take their targets on the press
@@ -2150,7 +2150,7 @@ function stBeam(w: World, f: Fighter, dt: number, isSuper: boolean): void {
   if (t < b.grow + b.hold) {
     // a stronger hero projectile crossing the beam stops it there while it passes (sim/clash.ts)
     const reach = f.beamCut >= 0 ? Math.min(len, f.beamCut) : len;
-    f.stretchLen = beamHits(w, f, f.stretchAngle, reach, half, dmg, knock, f.hero + (isSuper ? ':super' : ':second'), !!b.breakTiles);
+    f.stretchLen = beamHits(w, f, f.stretchAngle, reach, half, dmg, knock, f.hero + (isSuper ? ':super' : ':second'), !!b.breakTiles, b.crowdDamageByLevel?.[f.power === 'hero' ? f.powerLevel : 0] ?? 1);
     f.beamWidth = half;
   } else {
     f.beamWidth = half * Math.max(0, 1 - (t - b.grow - b.hold) / fade);
@@ -2398,7 +2398,7 @@ function stBlink(w: World, f: Fighter, dt: number): void {
   // a beat of recovery in place, then back to normal
   holdStill(f, dt);
   integrate(w, f, dt);
-  if (f.stateTime >= 0.16) endSpecial(w, f);
+  if (f.stateTime >= (baseAbility(f)?.blink?.recover ?? 0.16)) endSpecial(w, f);
 }
 
 /** A beam / giant fist stopped by a clash in the air (sim/clash.ts): the move ends at once. */

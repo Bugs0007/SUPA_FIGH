@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BotController } from '../../src/ai/bot';
 import { BOT_FIGHT } from '../../src/ai/botData';
 import { applyHit, heavyOnGuard } from '../../src/sim/combat';
+import { HEROES } from '../../src/sim/data/heroes';
 import { BLOCK, DT } from '../../src/sim/constants';
 import { SLOT } from '../../src/sim/data/weapons';
 import type { SimEvent } from '../../src/sim/events';
@@ -332,7 +333,7 @@ describe('blocking (hold BLOCK)', () => {
     const blk = ev.find((e) => e.t === 'block');
     expect(blk).toBeDefined();
     expect(ev.some((e) => e.t === 'hit' && e.victim === 1)).toBe(false);
-    expect(b.hp).toBeCloseTo(100 - 14 * BLOCK.chipHeavy, 5);
+    expect(b.hp).toBeCloseTo(100 - HEROES.sasuke.base.dash!.damage * BLOCK.chipHeavy, 5);
     expect(b.state).toBe('block');
     expect(heavyOnGuard({ kind: 'melee', weapon: 'chidori' })).toBe(true);
     expect(heavyOnGuard({ kind: 'bullet', weapon: 'goku:second' })).toBe(true);

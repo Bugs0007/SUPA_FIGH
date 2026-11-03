@@ -56,6 +56,8 @@ export interface BaseAbility {
 }
 
 export interface BlinkStats {
+  /** Recovery after a passive teleport; attacking Vanish Strike has its own timing. */
+  recover?: number;
   range: number;
   minRange: number;
   /** locks onto the nearest enemy in the aimed direction within range + assist and appears behind them */
@@ -110,6 +112,8 @@ export interface BeamStats {
   damage: [number, number];
   knock: [number, number];
   breakTiles?: boolean;
+  /** Damage shared when a beam catches multiple opposing teams; indexed by form, base = 0. */
+  crowdDamageByLevel?: number[];
 }
 
 /** ABILITY 2 (KICK button for heroes). */
@@ -125,13 +129,14 @@ export interface SecondAbility {
    * `finalCount` clones that are exact copies of Naruto's CURRENT health, every other form makes clones with
    * `hpFrac` of his max health. The cooldown only starts once all clones are dead or recalled (ability 2 again).
    */
-  clones?: { count: number; perLevel: number; finalCount: number; hpFrac: number };
+  clones?: { count: number; perLevel: number; finalCount: number; hpFrac: number; baseDamageMul?: number; finalDamageMul?: number; controlMul?: number; /** Base-count per-clone damage; larger swarms share the same total budget. */ damageMul?: number };
   /** flurry of stretched punches: duration, seconds between punches, reach, per-hit damage, re-hit delay */
-  gatling?: { time: number; every: number; range: number; damage: number; knockX: number; rehit: number; finalKnock: number };
+  gatling?: { time: number; every: number; range: number; damage: number; knockX: number; rehit: number; finalKnock: number; crowdDamageByLevel?: number[]; crowdDamageMul?: number };
   /** `radius` is the blast, `fire` burning patches it scatters (it also sets fighters in the blast alight for `ignite` s) */
-  fireball?: { windup: number; recover: number; speed: number; range: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; ignite: number; fire: number; firePerLevel: number };
+  fireball?: { windup: number; recover: number; speed: number; range: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; ignite: number; fire: number; firePerLevel: number; spareOwner?: boolean };
   /** Higher forms replace the projectile with a line-of-sight eye jutsu. Range is in world pixels. */
   amaterasu?: {
+    cooldown?: number;
     minLevel: number;
     /** range and number of enemies at `minLevel`; both grow by `...PerLevel` for every form above it */
     range: number;
@@ -163,7 +168,7 @@ export interface SuperAbility {
    * (+ `damagePerLevel` per form above the first, x the form's damage multiplier) is the WHOLE hit: the projectile goes
    * off on the first enemy it touches and everyone inside `radius` takes one blast hit (SUPER_AREA falloff).
    */
-  bomb?: { windup: number; speed: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki' };
+  bomb?: { damageByLevel?: number[]; windup: number; speed: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki' };
   /** giant fist: hits everyone the arm sweeps through, then a shockwave of `shock` px (+ per form) where the fist lands */
   fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number; fistGrowth?: number; rangeGrowth?: number; shock: number; shockPerLevel: number };
   beam?: BeamStats & { widthPerLevel: number; damagePerLevel: number };
@@ -319,16 +324,16 @@ export const HEROES: Record<string, HeroDefinition> = {
     comboName: 'UCHIHA COMBO', combo: heroCombo('ki'),
     base: {
       kind: 'rasengan', weapon: 'chidori', name: 'CHIDORI',
-      desc: 'LIGHTNING PALM DASH. STUNS FOR 1 SECOND; SHOCKS UP TO TWO EXTRA ENEMIES. FROM FORM 1: CHIDORI + PUNCH CALLS KIRIN.',
-      cooldown: 0.4, charges: { max: 2, recharge: 2.8 },
-      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 720, recover: 0.22, damage: 14, knockX: 140, knockY: -60, stun: 1, radius: 6, spread: { count: 1, countPerLevel: 1, maxCount: 2, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
+      desc: 'LIGHTNING PALM DASH. STUNS FOR 1 SECOND; SHOCKS UP TO TWO EXTRA ENEMIES. CHIDORI + PUNCH CALLS KIRIN.',
+      cooldown: 0.4, charges: { max: 3, recharge: 2.8 },
+      dash: { windup: 0.18, time: 0.25, maxTime: 0.85, speed: 720, recover: 0.18, damage: 18, knockX: 140, knockY: -60, stun: 1, radius: 6, spread: { count: 1, countPerLevel: 1, maxCount: 2, radius: 40, radiusPerLevel: 14, damageFrac: 0.5 } },
     },
     second: {
       kind: 'fireball', name: 'FIRE STYLE: FIREBALL',
       desc: 'BIG FIREBALL THAT BURNS THE ARENA. FROM MANGEKYO: AMATERASU BURNS 3 ENEMIES (4 AT THE TOP FORM). UP / DOWN TO AIM.',
-      cooldown: 3.8,
-      fireball: { windup: 0.28, recover: 0.2, speed: 240, range: 300, size: 9, sizePerLevel: 2.4, damage: 12, damagePerLevel: 2, radius: 28, radiusPerLevel: 6, ignite: 2.5, fire: 3, firePerLevel: 1 },
-      amaterasu: { minLevel: 3, range: 360, rangePerLevel: 60, targets: 3, targetsPerLevel: 1, windup: 0, recover: 0.18, damage: 8, duration: 3, dps: 6, view: 1.25, patches: 2 },
+      cooldown: 3,
+      fireball: { windup: 0.18, recover: 0.2, speed: 330, range: 300, size: 9, sizePerLevel: 2.4, damage: 24, damagePerLevel: 2, radius: 44, radiusPerLevel: 6, ignite: 2.5, fire: 3, firePerLevel: 1, spareOwner: true },
+      amaterasu: { minLevel: 3, cooldown: 4.2, range: 360, rangePerLevel: 60, targets: 3, targetsPerLevel: 1, windup: 0, recover: 0.18, damage: 8, duration: 3, dps: 4.5, view: 1.25, patches: 2 },
     },
     super: {
       kind: 'bomb', names: ['CHIDORI SHARP SPEAR', 'ONYX CHIDORI SPEAR', 'SUSANOO ARROW', "INDRA'S ARROW"],
@@ -339,8 +344,8 @@ export const HEROES: Record<string, HeroDefinition> = {
     forms: [
       { name: 'SHARINGAN', speedMul: 1.12, damageMul: 1.15, knockMul: 1.1, reach: 1 },
       { name: 'CURSE MARK', speedMul: 1.17, damageMul: 1.3, knockMul: 1.2, reach: 2 },
-      { name: 'MANGEKYO SHARINGAN', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 14 },
-      { name: 'RINNEGAN / PERFECT SUSANOO', speedMul: 1.25, damageMul: 1.6, knockMul: 1.4, reach: 22, flies: true },
+      { name: 'MANGEKYO SHARINGAN', speedMul: 1.2, damageMul: 1.35, knockMul: 1.3, reach: 14 },
+      { name: 'RINNEGAN / PERFECT SUSANOO', speedMul: 1.25, damageMul: 1.5, knockMul: 1.4, reach: 22, flies: true },
     ],
   },
   naruto: {
@@ -364,7 +369,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       name: 'SHADOW CLONES',
       desc: 'REAL CLONES THAT FIGHT WITH RASENGAN. HOLD TO DISMISS. TAP NEAR CLONES TO BE THROWN; FROM FORM 1: CLONES + PUNCH. HOLD UP TO TARGET A POWER ORB.',
       cooldown: 6,
-      clones: { count: 2, perLevel: 1, finalCount: 2, hpFrac: 0.2 },
+      clones: { count: 2, perLevel: 1, finalCount: 2, hpFrac: 0.15, baseDamageMul: 0.4, damageMul: 0.5, finalDamageMul: 0.5, controlMul: 0.55 },
     },
     super: {
       kind: 'bomb',
@@ -374,9 +379,9 @@ export const HEROES: Record<string, HeroDefinition> = {
       bomb: { windup: 0.45, speed: 380, size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
     },
     forms: [
-      { name: 'ONE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.15, knockMul: 1.1, reach: 0 },
-      { name: 'FOUR-TAIL CLOAK', speedMul: 1.15, damageMul: 1.3, knockMul: 1.2, reach: 1 },
-      { name: 'SIX-TAIL FORM', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 1 },
+      { name: 'THREE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.12, knockMul: 1.1, reach: 2 },
+      { name: 'FOUR-TAIL CLOAK', speedMul: 1.15, damageMul: 1.15, knockMul: 1.2, reach: 4 },
+      { name: 'SIX-TAIL FORM', speedMul: 1.2, damageMul: 1.45, knockMul: 1.3, reach: 10 },
       { name: 'KURAMA MODE', speedMul: 1.28, damageMul: 1.6, knockMul: 1.4, reach: 18, flies: true },
     ],
   },
@@ -384,7 +389,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     id: 'luffy',
     name: 'LUFFY',
     blurb: 'GEAR SECOND > GEAR THIRD > GEAR FOURTH > GEAR FIFTH',
-    stats: { speed: 1.05, hp: 115 },
+    stats: { speed: 1.05, hp: 105 },
     comboName: 'RUBBER COMBO',
     combo: heroCombo('steam', true),
     base: {
@@ -417,20 +422,20 @@ export const HEROES: Record<string, HeroDefinition> = {
       name: 'GUM-GUM GATLING',
       desc: 'A LONG-REACH FLURRY THAT KEEPS ENEMIES CLOSE, THEN LAUNCHES THEM WITH A HEAVY FINISHER. REACH GROWS WITH EACH GEAR.',
       cooldown: 2.8,
-      gatling: { time: 0.7, every: 0.06, range: 84, damage: 3.5, knockX: 25, rehit: 0.12, finalKnock: 420 },
+      gatling: { time: 0.7, every: 0.06, range: 84, damage: 3.2, knockX: 25, rehit: 0.12, finalKnock: 420, crowdDamageMul: 0.75, crowdDamageByLevel: [0.5] },
     },
     super: {
       kind: 'fist',
       names: ['JET PISTOL', 'ELEPHANT GUN', 'KING KONG GUN', 'BAJRANG GUN'],
       desc: 'A GIANT FIST THAT FLATTENS EVERYTHING IN ITS PATH.',
       cooldown: 6.5,
-      fist: { range: 150, out: 0.13, hold: 0.12, back: 0.14, damage: 24, knockX: 460, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 9, shock: 38, shockPerLevel: 12 },
+      fist: { range: 150, out: 0.13, hold: 0.12, back: 0.14, damage: 28, knockX: 460, knockY: -200, upAngle: -0.5, downAngle: 0.5, rocketSpeed: 0, rocketTime: 0, fist: 5, fistPerLevel: 0, fistGrowth: 2, rangeGrowth: 1.6, damagePerLevel: 10, shock: 38, shockPerLevel: 12 },
     },
     forms: [
-      { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.15, knockMul: 1.15, reach: 4 },
+      { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.3, knockMul: 1.15, reach: 4 },
       { name: 'GEAR THIRD', speedMul: 1.15, damageMul: 1.4, knockMul: 1.35, reach: 8 },
-      { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.55, knockMul: 1.45, reach: 12 },
-      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.7, knockMul: 1.6, reach: 16, flies: true },
+      { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.75, knockMul: 1.45, reach: 12 },
+      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.95, knockMul: 1.6, reach: 16, flies: true },
     ],
   },
   goku: {
@@ -440,33 +445,33 @@ export const HEROES: Record<string, HeroDefinition> = {
     stats: { speed: 1.0, hp: 100 },
     alwaysFlies: true,
     comboName: 'SAIYAN COMBO',
-    combo: heroCombo('ki'),
+    combo: heroCombo('ki').map(h => ({ ...h, damage: h.damage * 1.8 })),
     base: {
       kind: 'blink',
       name: 'INSTANT TRANSMISSION',
       desc: 'TELEPORT IN THE DIRECTION YOU HOLD. APPEAR BEHIND A LOCKED ENEMY WITHOUT ATTACKING, THEN CHOOSE YOUR FOLLOW-UP.',
       cooldown: 2.2,
-      blink: { range: 120, minRange: 24, assist: 40, iframes: 0.18, damage: 7, knockX: 240, knockY: -150, stun: 0.3, radius: 14 },
+      blink: { range: 120, minRange: 24, assist: 40, recover: 0.08, iframes: 0.26, damage: 7, knockX: 240, knockY: -150, stun: 0.3, radius: 14 },
     },
     second: {
       kind: 'beam',
       name: 'KAMEHAMEHA',
       desc: 'HOLD TO CHARGE, LET GO TO FIRE AN ENERGY BEAM.',
-      cooldown: 3.5,
-      beam: { minCharge: 0.25, maxCharge: 1.2, range: 230, grow: 0.12, hold: 0.28, width: [3, 6], damage: [8, 20], knock: [180, 360] },
+      cooldown: 2.6,
+      beam: { minCharge: 0.16, maxCharge: 0.8, range: 280, grow: 0.08, hold: 0.24, width: [5, 8], damage: [16, 30], knock: [180, 360], crowdDamageByLevel: [0.75] },
     },
     super: {
       kind: 'bomb',
       names: ['SPIRIT BOMB', 'SUPER SPIRIT BOMB', 'GIANT SPIRIT BOMB', 'UNIVERSAL SPIRIT BOMB'],
       desc: 'GATHER ENERGY OVERHEAD, THEN THROW A GIANT EXPLOSIVE SPIRIT BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      bomb: { windup: 0.95, speed: 260, size: 18, sizePerLevel: 6, damage: 37, damagePerLevel: 13, radius: 60, radiusPerLevel: 12, range: 520, kind: 'ki' },
+      bomb: { damageByLevel: [32], windup: 0.95, speed: 260, size: 18, sizePerLevel: 6, damage: 37, damagePerLevel: 13, radius: 60, radiusPerLevel: 12, range: 520, kind: 'ki' },
     },
     forms: [
-      { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.25, knockMul: 1.25, reach: 3 },
-      { name: 'SUPER SAIYAN 2', speedMul: 1.2, damageMul: 1.4, knockMul: 1.35, reach: 5 },
-      { name: 'SUPER SAIYAN 3', speedMul: 1.2, damageMul: 1.55, knockMul: 1.45, reach: 8 },
-      { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.7, knockMul: 1.55, reach: 12, flies: true },
+      { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.05, knockMul: 1.25, reach: 3 },
+      { name: 'SUPER SAIYAN 2', speedMul: 1.2, damageMul: 1.15, knockMul: 1.35, reach: 5 },
+      { name: 'SUPER SAIYAN 3', speedMul: 1.2, damageMul: 1.35, knockMul: 1.45, reach: 8 },
+      { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.5, knockMul: 1.55, reach: 12, flies: true },
     ],
   },
 };
@@ -534,4 +539,19 @@ export function maxClones(hero: string): number {
   let m = c.finalCount;
   for (let l = 0; l < h.forms.length; l++) m = Math.max(m, cloneSpec(hero, l)!.count);
   return m;
+}
+
+/** Optional per-form overrides keep early super tuning independent of higher-form scaling. */
+export function superBombDamage(b: NonNullable<SuperAbility['bomb']>, level: number): number {
+  const n = Math.max(0, level - 1);
+  return b.damageByLevel?.[n] ?? b.damage + b.damagePerLevel * n;
+}
+
+/** Chakra is divided among the configured number of copies, not multiplied by every extra clone. */
+export function cloneDamageScale(hero: string, level: number): number {
+  const c = HEROES[hero]?.second.clones, spec = cloneSpec(hero, level);
+  if (!c || !spec) return 1;
+  const damage = level === 0 ? c.baseDamageMul ?? c.damageMul ?? 1
+    : spec.full ? c.finalDamageMul ?? c.damageMul ?? 1 : c.damageMul ?? 1;
+  return damage * c.count / spec.count;
 }

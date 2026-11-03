@@ -88,7 +88,7 @@ describe('Chidori stuns', () => {
   });
 
   for (let level = 0; level <= 4; level++) {
-    it(`form ${level}: the shock stuns exactly the nearest ${Math.min(2, 1 + level)} other enemies within ${40 + 14 * level} px of the victim`, () => {
+    it(`form ${level}: the shock stuns exactly the nearest ${Math.min(2, 1 + level)} other enemies within ${S.base.dash!.spread!.radius + S.base.dash!.spread!.radiusPerLevel * level} px of the victim`, () => {
       const reach = chidoriReach(S.base.dash!.spread!, level);
       // the victim at 130, then six more enemies stacked behind it at growing distances
       const dists = [14, 28, 42, 56, 70, 84];
@@ -139,12 +139,27 @@ describe('Sasuke fireball', () => {
 
   it('burns the character it hits and the ones in the blast', () => {
     const w = arena(1, [{ x: 150 }, { x: 170 }, { x: 290 }]);
-    press(w, { kick: true }, 70);
+    const events = press(w, { kick: true }, 70);
     const [, hit, beside, far] = w.fighters;
     expect(hit.burn).toBeGreaterThan(0);
-    expect(beside.burn).toBeGreaterThan(0); // standing in the blast
+    // A stronger blast can knock the neighbor down, extinguishing it before the observation ends.
+    expect(events.some(e => e.t === 'ignite' && e.f === beside.id)).toBe(true);
     expect(far.burn).toBe(0);
+    expect(events.some(e => e.t === 'ignite' && e.f === far.id)).toBe(false);
     expect(hit.burnBy).toBe(0);
+  });
+
+  it.each([0, 1, 2])('form %i Fireball blast spares its caster at close range', level => {
+    const w = arena(level, [{ x: 110 }]);
+    const events: SimEvent[] = [];
+    for (let tick = 0; tick < 60; tick++) {
+      const next = press(w, tick === 0 ? { kick: true } : {}, 1);
+      events.push(...next);
+      if (next.some(e => e.t === 'explosion')) break;
+    }
+    expect(events.some(e => e.t === 'explosion' && e.weapon === 'sasuke:second')).toBe(true);
+    expect(events.some(e => e.t === 'hit' && e.weapon === 'sasuke:second' && e.victim === 1)).toBe(true);
+    expect(events.filter(e => e.t === 'hit' && e.kind === 'explosion' && e.victim === 0)).toHaveLength(0);
   });
 
   it('scatters fire that sets the arena alight: wooden floor, wooden walls and crates', () => {

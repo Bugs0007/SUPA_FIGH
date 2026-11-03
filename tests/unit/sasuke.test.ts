@@ -61,7 +61,7 @@ describe('Sasuke', () => {
       w.events.length = 0;
     }
     expect(launches).toBe(1);
-    expect(f.secondCd).toBeGreaterThan(2);
+    expect(f.secondCd).toBeCloseTo(HEROES.sasuke.second.cooldown - 69 / 60, 5);
     expect(seen.some(e => e.t === 'hit' && e.weapon === 'sasuke:second')).toBe(true);
     expect(target.hp).toBeLessThan(90);
     press(w, { kick: true }, 40);

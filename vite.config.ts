@@ -7,6 +7,7 @@ const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 
 export default defineConfig({
   // Relative base so the static build works from any sub-path (GitHub Pages, Netlify, itch).
   base: './',
+  resolve: { extensions: ['.mjs', '.mts', '.ts', '.tsx', '.js', '.jsx', '.json'] },
   server: { port: 5173, strictPort: false },
   define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   build: {

@@ -2,7 +2,7 @@
 // Goku's instant transmission, Luffy's grapple probe and Naruto's shadow-clone fighters.
 // Data in data/heroes.ts. The state machine lives in sim/fighter.ts.
 
-import { applyHit, hitWasBlocked, sameTeam } from './combat';
+import { applyHit, hitWasBlocked, sameTeam, teamKey } from './combat';
 import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from './constants';
 import {
   cloneSpec,
@@ -15,6 +15,7 @@ import {
   heroDef,
   maxLevel,
   SUPER_AREA,
+  superBombDamage,
   SASUKE_ARROW,
   avatarLaunch,
   avatarTargetAngle,
@@ -426,7 +427,7 @@ export function resolveOrbClashes(w: World): void {
   }
 }
 
-/** One clash's outcome, the same for both fighters. */
+/** Shared clash damage, knockback and default stun. */
 interface ClashHit {
   damage: number;
   /** knockback away from the other fighter, and the lift (negative = up) */
@@ -439,7 +440,7 @@ interface ClashHit {
 /**
  * The shared outcome of two orbs meeting (D81, made symmetric): both take the average of the two orbs' damage (each
  * scaled by its owner's form), both are blown apart by the stronger orb's knockback (its knockX / knockY after its
- * owner's form multiplier, the stronger = the larger hypot), and both get the longer stun with the same rule as a
+ * owner's form multiplier, the stronger = the larger hypot), and the default stun is the longer one and follows the same rule as a
  * hit (a stun of a second or more holds them dazed in place, a shorter one is a knockdown). Order-independent.
  */
 function clashHit(da: DashStats, pa: OrbPower, db: DashStats, pb: OrbPower): ClashHit {
@@ -483,7 +484,7 @@ function clashStrike(w: World, f: Fighter, o: Fighter, c: ClashHit, x: number, y
     attacker: o.id,
     weapon: baseWeaponId(baseAbility(o)!),
     kind: 'melee',
-    stun: c.stun,
+    stun: f.hero === 'sasuke' && o.hero === 'naruto' ? 0 : c.stun,
     knockdown: c.knockdown,
     x,
     y,
@@ -670,6 +671,13 @@ export function stretchAt(s: StretchStats, t: number): number {
  * Gum-Gum Gatling: one round of punches in front (every `every` seconds). Targets can be hit again
  * after `rehit`. `final` = the last punch of the flurry (big knockback).
  */
+function crowdDamageScale(w: World, f: Fighter, targets: readonly Fighter[], multiplier: number): number {
+  // Clones and their owner are one opponent; ordinary duels always retain full damage.
+  const groups = new Set(targets.filter(o => o.alive).map(o => w.fighters[o.master >= 0 ? o.master : o.id])
+    .filter(o => !sameTeam(o, f)).map(teamKey));
+  return groups.size > 1 ? multiplier : 1;
+}
+
 export function gatlingHit(w: World, f: Fighter, g: NonNullable<SecondAbility['gatling']>, final: boolean): void {
   const near = f.x + f.facing * (f.w / 2 - 2);
   const far = f.x + f.facing * (f.w / 2 + gatlingReach(f));
@@ -685,14 +693,16 @@ export function gatlingHit(w: World, f: Fighter, g: NonNullable<SecondAbility['g
     pushProp(p, f.facing * g.knockX * m.knock, -40);
     damageProp(w, p, g.damage * m.dmg, f.id);
   }
-  for (const o of w.fighters) {
-    if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
-    if (o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) continue;
-    // stop at walls: no punching through them
-    if (!w.map.clearShot(f.x, f.y - 14, o.x, o.y - 12)) continue;
+  const targets = w.fighters.filter(o => o !== f && !o.gone &&
+    !(o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) &&
+    w.map.clearShot(f.x, f.y - 14, o.x, o.y - 12));
+  const crowd = crowdDamageScale(w, f, targets,
+    g.crowdDamageByLevel?.[f.power === 'hero' ? f.powerLevel : 0] ?? g.crowdDamageMul ?? 1);
+  for (const o of targets) {
+    if (f.swingHit.includes(o.id)) continue;
     f.swingHit.push(o.id);
     const connected = applyHit(w, o, {
-      damage: g.damage * m.dmg * (final ? 2 : 1),
+      damage: g.damage * m.dmg * (final ? 2 : 1) * crowd,
       kbX: f.facing * (final ? g.finalKnock : g.knockX) * m.knock,
       kbY: final ? -160 : -20,
       attacker: f.id,
@@ -760,6 +770,7 @@ export function beamHits(
   knock: number,
   weapon: string,
   breakTiles = false,
+  crowdMultiplier = 1,
 ): number {
   const { x: x0, y: y0 } = beamOrigin(f);
   const dx = Math.cos(angle) * f.facing;
@@ -788,13 +799,15 @@ export function beamHits(
     pushProp(p, dx * knock * m.knock, dy * knock - 60);
     damageProp(w, p, damage * m.dmg, f.id);
   }
-  for (const o of w.fighters) {
-    if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
-    if (segmentAabb(x0, y0, x1, y1, o.x - o.w / 2 - half, o.y - o.h - half, o.x + o.w / 2 + half, o.y + half) < 0) continue;
+  const targets = w.fighters.filter(o => o !== f && !o.gone &&
+    segmentAabb(x0, y0, x1, y1, o.x - o.w / 2 - half, o.y - o.h - half, o.x + o.w / 2 + half, o.y + half) >= 0);
+  const crowd = crowdDamageScale(w, f, targets, crowdMultiplier);
+  for (const o of targets) {
+    if (f.swingHit.includes(o.id)) continue;
     f.swingHit.push(o.id);
     const hx = Math.max(o.x - o.w / 2, Math.min(o.x + o.w / 2, x1));
     const connected = applyHit(w, o, {
-      damage: damage * m.dmg,
+      damage: damage * m.dmg * crowd,
       kbX: dx * knock * m.knock,
       kbY: dy * knock * m.knock - knock * 0.35,
       attacker: f.id,
@@ -841,7 +854,7 @@ export function fireJutsu(w: World, f: Fighter): void {
     owner: f.id, weapon: f.hero + ':second', damage, range: s.range, falloff: 1,
     knock: 150 * m.knock, ricochet: false, pierce: 0, kind: 'ki', gravity: 0, size,
     ignite: s.ignite, tier: 1, form: level,
-    explosion: { radius: s.radius + level * s.radiusPerLevel, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18, fire: s.fire + s.firePerLevel * level, ignite: s.ignite },
+    explosion: { radius: s.radius + level * s.radiusPerLevel, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18, fire: s.fire + s.firePerLevel * level, ignite: s.ignite, spareOwner: s.spareOwner },
   });
   w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.8 + level * 0.2 });
 }
@@ -858,7 +871,7 @@ export function superBlast(f: Fighter, b: NonNullable<SuperAbility['bomb']>, lev
   const l = Math.max(1, level) - 1;
   return {
     radius: b.radius + b.radiusPerLevel * l,
-    damage: (b.damage + b.damagePerLevel * l) * meleeMuls(f).dmg,
+    damage: superBombDamage(b, level) * meleeMuls(f).dmg,
     knock: 420 + 40 * l,
     breakRadius: 12 + 4 * l,
     shake: 0.5 + 0.1 * l,

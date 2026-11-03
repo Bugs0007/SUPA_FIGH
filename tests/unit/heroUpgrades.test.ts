@@ -122,7 +122,7 @@ describe('Naruto: shadow clones are real fighters', () => {
     const n = w.fighters[0];
     n.hp = n.maxHp / 2;
     summonClones(w, n);
-    for (const c of clones(w)) expect(c.hp).toBeCloseTo(c.maxHp / 2, 0);
+    for (const c of clones(w)) expect(c.hp).toBe(Math.round(c.maxHp / 2));
   });
 
   it('clones never damage their master or each other', () => {

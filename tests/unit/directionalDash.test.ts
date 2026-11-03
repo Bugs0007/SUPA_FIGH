@@ -217,10 +217,7 @@ describe('Rasengan / Chidori clash', () => {
       expect(sasuke.specialKind === 'rasengan' && sasuke.state === 'special' && sasuke.recoverAt === 0).toBe(false);
       expect(naruto.swingHit).toContain(sasuke.id);
       expect(sasuke.swingHit).toContain(naruto.id);
-      // the same state, timers and (mirrored) speed for both
-      expect(naruto.state).toBe(sasuke.state);
-      expect(naruto.flinchTime).toBe(sasuke.flinchTime);
-      expect(naruto.stateTime).toBe(sasuke.stateTime);
+      // Knockback stays symmetric when Sasuke avoids the stun.
       expect(naruto.vx).toBeCloseTo(-sasuke.vx, 6);
       expect(naruto.vy).toBeCloseTo(sasuke.vy, 6);
       const c = clashes[0];
@@ -233,13 +230,14 @@ describe('Rasengan / Chidori clash', () => {
     expect(results[0]).toEqual(results[1]);
   });
 
-  it('Naruto vs Sasuke right after the clash: both blown apart by the Rasengan force, both dazed for the Chidori 1 s', () => {
+  it('Naruto vs Sasuke right after the clash: both blown apart, with only Naruto dazed for 1 s', () => {
     const w = arena(['naruto', 'sasuke'], [[120, FLOOR, 1], [300, FLOOR, -1]]);
     const [n, s] = w.fighters;
     steps(w, 50, [{ ability: true }, { ability: true }], () => n.hp < 100);
+    expect(n.state).toBe('flinch');
+    expect(n.flinchTime).toBe(S.stun);
+    expect(s.state).not.toBe('flinch');
     for (const f of [n, s]) {
-      expect(f.state).toBe('flinch');
-      expect(f.flinchTime).toBe(S.stun);
       // the stronger knockback (Rasengan's) and its lift, for both
       expect(Math.abs(f.vx)).toBeCloseTo(N.knockX, 6);
       expect(f.vy).toBeCloseTo(N.knockY, 6);
@@ -251,7 +249,7 @@ describe('Rasengan / Chidori clash', () => {
     steps(w, 20, []);
     expect(s.x - n.x).toBeGreaterThan(gap0 + 40);
     expect(n.state).toBe('flinch');
-    expect(s.state).toBe('flinch');
+    expect(s.state).not.toBe('flinch');
     steps(w, Math.round(S.stun * 60) - 18, []);
     expect(n.state).not.toBe('flinch');
     expect(s.state).not.toBe('flinch');

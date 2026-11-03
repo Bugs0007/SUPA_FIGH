@@ -409,7 +409,7 @@ describe('super (both abilities together, transformed only)', () => {
     const dmg = (kick: boolean) => {
       const w = heroWorld('goku');
       levelUp(w, w.fighters[0], 1);
-      place(w.fighters[1], 370);
+      place(w.fighters[1], 100 + HEROES.goku.second.beam!.range + 40);
       const hp = w.fighters[1].hp;
       const seen = press(w, kick ? { ability: true, kick: true } : { kick: true }, kick ? 2 : 80, 140);
       if (kick) expect(seen.some(e => e.t === 'explosion')).toBe(true);

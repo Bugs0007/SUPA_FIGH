@@ -1,5 +1,5 @@
 import { BLOCK, LAST_HIT_CREDIT } from './constants';
-import { heroAttackLabel } from './data/heroes';
+import { heroAttackLabel, heroDef, cloneDamageScale } from './data/heroes';
 import type { HitKind } from './events';
 import type { Fighter } from './fighter';
 import { absorbForm, dismissClone, superGuard } from './hero';
@@ -143,9 +143,13 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   if (hit.attacker >= 0) {
     const a = w.fighters[hit.attacker];
     if (a && a.master >= 0) {
-      // clones never hurt their master or each other
+      // Clones never hurt their master or each other. Swarms share a fixed damage budget.
       if (v.id === a.master || v.master === a.master) return false;
-      hit = { ...hit, attacker: a.master };
+      const clones = heroDef(a.hero)?.second.clones;
+      const control = clones?.controlMul ?? 1;
+      hit = { ...hit, damage: hit.damage * cloneDamageScale(a.hero, a.cloneForm),
+        kbX: hit.kbX * control, kbY: hit.kbY * control, stun: (hit.stun ?? 0) * control,
+        knockdown: control < 1 ? false : hit.knockdown, attacker: a.master };
     }
   }
   const hx = hit.x ?? v.x;

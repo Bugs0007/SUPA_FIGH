@@ -66,7 +66,7 @@ export const HERO_ART: Record<string, HeroArt> = {
       eyes: '#4b98db',
     },
     forms: [
-      // 1: red eyes, sharper whiskers; a tail is shaped by the crimson aura (no physical tail)
+      // 1: red eyes, sharper whiskers; three tails are shaped by the crimson aura
       { face: 'foxeyes', eyes: '#ea3a2a', skin: '#f2b890' },
       // Four tails: a crimson beast silhouette with white eyes, no clothes or headband.
       { face: 'foxeyes', eyes: '#fff4dd', skin: '#a81724', top: 'chakra', hat: 'none', hair: 'fox', topColor: '#ad182b', accentColor: '#420d21', pantsColor: '#921324', shoesColor: '#671225', hairColor: '#b81929' },
@@ -76,7 +76,7 @@ export const HERO_ART: Record<string, HeroArt> = {
       { face: 'foxeyes', eyes: '#de7b29', skin: '#ffe4a0', topColor: '#ffcf43', accentColor: '#251820', pantsColor: '#f8c028', shoesColor: '#251820', hairColor: '#fff2a0', hatColor: '#251820', trim: '#fff2a0' },
     ],
     fx: [
-      { aura: ['#ff2a2a', '#c8101a'], tails: 1, ghostTails: true, tailColors: ['#ff3a2a', '#ff9a60'], power: 1 },
+      { aura: ['#ff2a2a', '#c8101a'], tails: 3, ghostTails: true, tailColors: ['#ff3a2a', '#ff9a60'], power: 1 },
       { aura: ['#bc1633', '#ff6a52'], tails: 4, tailColors: ['#95152c', '#ff6254'], power: 2, extra: 'fire' },
       { aura: ['#7a1a2a', '#e83a3a'], tails: 6, tailColors: ['#351423', '#d93748'], power: 3, extra: 'fire' },
       { aura: ['#ffd84a', '#fff8c0'], tails: 0, tailColors: ['#f8c028', '#fff8c0'], power: 4, extra: 'lightning' },

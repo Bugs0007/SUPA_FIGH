@@ -389,7 +389,7 @@ export class BotController implements Controller {
       const node = g.nearest(m.x, m.y);
       const travel = node ? costs[node.id] : Infinity;
       const dist = Math.hypot(m.x - f.x, m.y - f.y);
-      const score = -dist / 100 - Math.min(travel, 20) * 0.5 + (m.seen ? 2 : 0) - e.hp / 50 - (this.now - m.t);
+      const score = -dist / 100 - Math.min(travel, 20) * 0.5 + (m.seen ? 2 : 0) - e.hp / 50 - (e.master >= 0 ? BOT_FIGHT.cloneTargetPenalty : 0) + (f.lastAttacker === id && w.time-f.lastHitTime < BOT_FIGHT.retaliationTime ? BOT_FIGHT.retaliationWeight : 0) - (this.now - m.t);
       if (score > targetScore) {
         targetScore = score;
         target = id;
@@ -849,7 +849,7 @@ export class BotController implements Controller {
     const near = Math.abs(e.x - f.x);
     const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     if (!clear) return null;
-    if(transformed(f)&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
+    if((transformed(f)||f.hero==='sasuke')&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
       const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:f.hero==='luffy'?level<70:near>45&&level<70);
       if(fits)cands.push({hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:face,my:0,weight:BOT_FIGHT.wCombo});
     }
@@ -878,7 +878,7 @@ export class BotController implements Controller {
     if (f.secondCd <= 0) {
       const w2 = BOT_FIGHT.wSecond;
       if (s2.kind === 'beam' && s2.beam) {
-        if (near >= 12 && dist <= s2.beam.range && level <= 16) {
+        if ((near >= BOT_FIGHT.beamSafeNear || guard) && dist <= s2.beam.range && level <= 16) {
           // close up: the shortest charge (it has to come out before they move)
           const t = dist < 90 ? Math.ceil(s2.beam.minCharge / DT) + 2 : Math.round(this.rng.range(0.3, 1.2) / DT);
           cands.push({ hold: 'kick', ticks: t, mx: face, my: 0, weight: w2 });
@@ -894,8 +894,16 @@ export class BotController implements Controller {
           // the eye jutsu burns whoever is in Sasuke's view (up to `view` above / below ahead): any range up to its reach
           const inView = dist <= 1 || Math.abs(Math.atan2(vy, vx * face)) <= s2.amaterasu.view;
           if (dist <= amaterasuReach(f).range && inView) cands.push({ hold: 'kick', ticks: 2, mx: face, my: 0, weight: w2 });
-        } else if (s2.fireball && dist >= 30 && dist <= s2.fireball.range * 0.9 && Math.abs(ang - a) <= 0.25) {
-          cands.push({ hold: 'kick', ticks: 2, mx: face, my, weight: w2 });
+        } else if (s2.fireball) {
+          const radius = s2.fireball.radius + (f.power === 'hero' ? f.powerLevel : 0) * s2.fireball.radiusPerLevel;
+          const targets = w.fighters.filter(o => o !== f && o.alive && !o.gone && !sameTeam(o, f) &&
+            Math.hypot(o.x-e.x, o.y-o.h/2-(e.y-e.h/2)) <= radius).length;
+          // At close range the wide projectile still overlaps the bodies: the angular cone alone rejects valid shots.
+          const crowdClose = BOT_FIGHT.fireballCrowdPointBlank && targets > 1 && near <= 30 && level <= BOT_FIGHT.level;
+          if ((dist >= 30 || crowdClose) && dist <= s2.fireball.range * 0.9 && (Math.abs(ang-a) <= 0.25 || crowdClose)) {
+            const weight = w2 * Math.min(BOT_FIGHT.fireballCrowdCap, 1 + Math.max(0, targets-1) * BOT_FIGHT.fireballCrowdWeight);
+            cands.push({ hold: 'kick', ticks: 2, mx: face, my, weight });
+          }
         }
       }
     }
@@ -1589,7 +1597,7 @@ export class BotController implements Controller {
 
   /** Stuck detection: no progress for a while → jump, then penalize the edge and re-plan. */
   private trackProgress(w: World, f: Fighter, direct: boolean): void {
-    if (f.state !== 'normal' && f.state !== 'climb') {
+    if (f.state !== 'normal' && f.state !== 'climb' && f.state !== 'crouch') {
       this.progressT = this.now;
       return;
     }
@@ -1601,6 +1609,22 @@ export class BotController implements Controller {
       return;
     }
     const stuck = this.now - this.progressT;
+    if (stuck > STUCK_TIME && f.state === 'crouch') {
+      // Jumping cannot free a body pinned under a low ceiling. Crawl back out before replanning.
+      this.unstickUntil = this.now + BOT_FIGHT.crawlEscapeTime;
+      this.unstickDir = -(Math.sign(this.out.moveX) || f.facing);
+      if (this.goal.t === 'loot') this.ignoreItems.set(this.goal.item, this.now + BOT_FIGHT.unreachableLootIgnore);
+      this.goal = { t: 'roam', node: -1 };
+      this.nextThink = this.unstickUntil;
+      this.script = null;
+      this.path = [];
+      this.out.moveX = this.unstickDir;
+      this.out.moveY = 0;
+      this.out.jump = false;
+      this.progressT = this.now;
+      this.stuckLevel = 0;
+      return;
+    }
     if (stuck > STUCK_TIME && this.stuckLevel === 0) {
       this.stuckLevel = 1;
       this.tap('jump');

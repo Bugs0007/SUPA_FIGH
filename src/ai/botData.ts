@@ -60,6 +60,19 @@ export const DIFFICULTIES: Record<Difficulty, DifficultyDef> = {
  * Distances in px, times in s.
  */
 export const BOT_FIGHT = {
+  /** Prefer a recent aggressor; do not chase fragile clones at the expense of their master. */
+  retaliationTime: 3,
+  retaliationWeight: 2,
+  cloneTargetPenalty: 0.8,
+  /** Charge Kamehameha outside immediate punching range unless punishing a guard. */
+  beamSafeNear: 42,
+  /** Prefer Fireball when its blast clears a real cluster, including an incoming clone group. */
+  fireballCrowdWeight: 0.75,
+  fireballCrowdCap: 3,
+  fireballCrowdPointBlank: true,
+  /** Crawl backward before replanning when pinned under a low ceiling. */
+  crawlEscapeTime: 0.7,
+  unreachableLootIgnore: 15,
   /** an enemy this close in front (and about level) can start a combo on us any moment */
   meleeThreat: 34,
   level: 14,
