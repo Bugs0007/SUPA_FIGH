@@ -1,15 +1,13 @@
 import type Phaser from 'phaser';
-import { armSprite, KURAMA, KURAMA_AIM_PAD, kuramaParts, SUSANOO, SUSANOO_INK, SUSANOO_MATS, susanooArms, susanooCore, susanooSprite, susanooWings, type ArmSpec } from '../art/avatarSprites';
+import { armSprite,  SUSANOO, SUSANOO_INK, SUSANOO_MATS, susanooArms, susanooCore, susanooSprite, susanooWings, type ArmSpec } from '../art/avatarSprites';
 import { paintRuns } from '../art/pixelRaster';
 import { easeOut, paintReveal, rising, spreading } from '../art/spiritForm';
-import { avatarAim } from '../sim/data/heroes';
+import { paintFinalSpirit } from '../art/finalSpiritArt';
 
 type G = Phaser.GameObjects.Graphics;
 
 /** Susanoo animation: flame / wing frames per second, how long the muzzle flash shows, and the rising embers */
 export const SUSANOO_FX = { fps: 8, flash: 0.1, embers: 14, emberRate: 0.9, emberRise: 26 };
-/** Kurama flame / tail frames per second */
-export const KURAMA_FX = { fps: 8 };
 /**
  * The ultimate wind-up (`ULT_WINDUP`) split by its progress (`charge` 0..1): the spirit forms around the fighter over
  * the first `end` of it, then the bow is drawn / the Bijudama grows in the jaws over the rest.
@@ -105,6 +103,17 @@ export class AvatarArt {
     const c = Math.max(0, Math.min(1, charge));
     const p = shot ? 1 : Math.min(1, c / SPIRIT_FORM.end);
     const height = SUSANOO.height[lvl];
+    if (lvl === 4) {
+      const draw = shot ? Math.max(0, 1 - sinceShot * 18) : easeOut((c - SPIRIT_FORM.end) / (1 - SPIRIT_FORM.end));
+      const lift = shot ? 1 : easeOut((c - SPIRIT_FORM.end * .76) / .23);
+      paintFinalSpirit(this.back, {
+        kind: 's', x: fx, y: fy, facing: d, alpha, time, reveal: p,
+        draw, aim: aim + (1 - lift) * .23, released: shot,
+      });
+      if (p < 1) this.sigil(fx, fy, p, time, 'susanoo', height, alpha);
+      else if (!shot) this.flash(fx, fy, c - SPIRIT_FORM.end, height, 'susanoo', alpha);
+      return;
+    }
     if (p >= 1) {
       const stage = shot ? (sinceShot < SUSANOO_FX.flash ? SUSANOO.shot : SUSANOO.rest) : Math.min(SUSANOO.stages - 1, Math.floor(((c - SPIRIT_FORM.end) / (1 - SPIRIT_FORM.end)) * SUSANOO.stages));
       paintRuns(this.back, susanooSprite(lvl, stage, frame, aim), ox, oy, flip, alpha);
@@ -129,37 +138,15 @@ export class AvatarArt {
     this.sigil(fx, fy, p, time, 'susanoo', height, alpha);
   }
 
-  /**
-   * Nine-tailed avatar: only exists for Naruto's final ultimate. It crouches over the fighter (his feet on its anchor);
-   * `charge` 0..1 is the wind-up: it forms around him (ground sigil, body rising, the nine tails fanning out), then
-   * `roar` = the Bijudama pose, head up and jaws open around the sim's launch point.
-   */
-  kurama(x: number, y: number, d: number, alpha: number, time: number, roar = false, aim = 0, charge = 1): void {
-    const frame = Math.floor(time * KURAMA_FX.fps);
-    const fx = Math.round(x);
-    const fy = Math.round(y);
+  /** The fox manifests from the ground and opens its jaw before the Bijudama starts gathering. */
+  kurama(x: number, y: number, d: number, alpha: number, time: number, _roar = false, aim = 0, charge = 1, recovery = 0): void {
     const c = Math.max(0, Math.min(1, charge));
     const p = Math.min(1, c / SPIRIT_FORM.end);
-    const flip = d < 0;
-    if (p >= 1) {
-      const a = avatarAim(aim);
-      const pad = a === 0 ? 0 : KURAMA_AIM_PAD;
-      const ox = d > 0 ? fx - KURAMA.ax - pad : fx + KURAMA.ax + pad;
-      const parts = kuramaParts(frame, roar, a);
-      paintRuns(this.back, parts.tails, ox, fy - KURAMA.ay - pad, flip, alpha);
-      paintRuns(this.back, parts.body, ox, fy - KURAMA.ay - pad, flip, alpha);
-      this.flash(fx, fy, c - SPIRIT_FORM.end, KURAMA.height, 'kurama', alpha);
-      return;
-    }
-    const ox = d > 0 ? fx - KURAMA.ax : fx + KURAMA.ax;
-    const oy = fy - KURAMA.ay;
-    const parts = kuramaParts(frame, false, 0);
-    const a = alpha * (0.5 + 0.5 * p);
-    // its tails fan out of the base of the spine (design point (-42, -30))
-    const tailX = KURAMA.ax - 42 * KURAMA.scale;
-    const tailY = KURAMA.ay - 30 * KURAMA.scale;
-    paintReveal(this.back, parts.tails, ox, oy, flip, a, spreading(tailX, tailY, easeOut((p - 0.42) / 0.55) * 140, 12, 9), EDGE.kurama);
-    paintReveal(this.back, parts.body, ox, oy, flip, a, rising(KURAMA.ay, easeOut((p - 0.04) / 0.76) * (KURAMA.height + 14), 12, 3), EDGE.kurama);
-    this.sigil(fx, fy, p, time, 'kurama', KURAMA.height, alpha);
+    const opening = easeOut((c - .47) / .28) * (1 - easeOut(recovery / .28));
+    const fx = Math.round(x);
+    const fy = Math.round(y);
+    paintFinalSpirit(this.back, { kind: 'k', x: fx, y: fy, facing: d, alpha, time, reveal: p, draw: opening, aim });
+    if (p < 1) this.sigil(fx, fy, p, time, 'kurama', 226, alpha);
+    else this.flash(fx, fy, c - SPIRIT_FORM.end, 226, 'kurama', alpha);
   }
 }

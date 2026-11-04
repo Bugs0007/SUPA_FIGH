@@ -1,6 +1,6 @@
 import { describe,expect,it } from 'vitest';
 import { applyHit } from '../../src/sim/combat';
-import { HEROES, KURAMA_LAUNCH } from '../../src/sim/data/heroes';
+import { HEROES, FINAL_KURAMA_LAUNCH } from '../../src/sim/data/heroes';
 import { ignite } from '../../src/sim/fire';
 import { amaterasuTarget,fireBomb,superGuard,transform } from '../../src/sim/hero';
 import { World } from '../../src/sim/world';
@@ -128,7 +128,7 @@ it('Kurama launches the final Bijudama from the avatar mouth',()=>{
   const w=arena('naruto',4),f=w.fighters[0];
   fireBomb(w,f,HEROES.naruto.super.bomb!,4);
   const b=w.bullets.find(b=>b.active)!;
-  expect(b.x).toBe(f.x+KURAMA_LAUNCH.ahead);expect(b.y).toBe(f.y-KURAMA_LAUNCH.up);
+  expect(b.x).toBe(f.x+FINAL_KURAMA_LAUNCH.ahead);expect(b.y).toBe(f.y-FINAL_KURAMA_LAUNCH.up);
 });
 
 it('Chidori stays blue in every form, with a distinct deterministic chirping sound',()=>{

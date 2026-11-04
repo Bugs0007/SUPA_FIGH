@@ -652,8 +652,8 @@ export class HeroFx {
     if(f.hero==='naruto'&&formLevel(f)===4){
       const b=heroDef('naruto')!.super.bomb!;
       const fade=f.charge<0?Math.max(0,1-(f.stateTime-b.windup)/.3):1;
-      const formed=f.charge<0||f.charge>=SPIRIT_FORM.end;
-      this.avatars.kurama(x,y,f.facing,fade,time,formed,f.stretchAngle,f.charge<0?1:f.charge);
+      const recovery=f.charge<0?Math.max(0,f.stateTime-b.windup):0;
+      this.avatars.kurama(x,y,f.facing,fade,time,f.charge<0||f.charge>=SPIRIT_FORM.end,f.stretchAngle,f.charge<0?1:f.charge,recovery);
       if(f.charge>=SPIRIT_FORM.end){
         const k=Math.max(.08,Math.min(1,(f.charge-SPIRIT_FORM.end)/(1-SPIRIT_FORM.end))),r=(b.size+b.sizePerLevel*3)*k;
         const muzzle=avatarLaunch('naruto',4,f.stretchAngle);

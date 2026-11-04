@@ -299,18 +299,23 @@ export const SUSANOO_PIVOT: Record<3 | 4, { ahead: number; up: number }> = {
  */
 export const KURAMA_LAUNCH = { ahead: 125, up: 87 };
 export const KURAMA_NECK = { ahead: 53, up: 95 };
+// Launch geometry for the final-form sprite sheet. The older raster offsets above still serve its art previews.
+export const PERFECT_SUSANOO_LAUNCH = { ahead: 107, up: 109 };
+export const PERFECT_SUSANOO_PIVOT = { ahead: -28, up: 110 };
+export const FINAL_KURAMA_LAUNCH = { ahead: 124, up: 38 };
+export const FINAL_KURAMA_NECK = { ahead: 54, up: 47 };
 export const avatarAim = (angle:number):number => Math.round(angle*64)/64;
 /** Facing-local muzzle position after a rigid body tilt or an articulated fox head turn. */
 export function avatarLaunch(hero:string,level:number,angle:number):{ahead:number;up:number}{
-  const base=hero==='sasuke'?SUSANOO_LAUNCH[level>=4?4:3]:KURAMA_LAUNCH;
-  const pivot=hero==='sasuke'?SUSANOO_PIVOT[level>=4?4:3]:KURAMA_NECK;
+  const base=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_LAUNCH:SUSANOO_LAUNCH[3]):FINAL_KURAMA_LAUNCH;
+  const pivot=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_PIVOT:SUSANOO_PIVOT[3]):FINAL_KURAMA_NECK;
   const a=avatarAim(angle),c=Math.cos(a),s=Math.sin(a),x=base.ahead-pivot.ahead,y=pivot.up-base.up;
   return {ahead:pivot.ahead+x*c-y*s,up:pivot.up-x*s-y*c};
 }
 /** Solve the firing angle with the moving muzzle offset included. */
 export function avatarTargetAngle(hero:string,level:number,x:number,y:number):number{
-  const base=hero==='sasuke'?SUSANOO_LAUNCH[level>=4?4:3]:KURAMA_LAUNCH;
-  const pivot=hero==='sasuke'?SUSANOO_PIVOT[level>=4?4:3]:KURAMA_NECK;
+  const base=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_LAUNCH:SUSANOO_LAUNCH[3]):FINAL_KURAMA_LAUNCH;
+  const pivot=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_PIVOT:SUSANOO_PIVOT[3]):FINAL_KURAMA_NECK;
   const dx=x-pivot.ahead,dy=y+pivot.up,r=Math.hypot(dx,dy)||1;
   return avatarAim(Math.atan2(dy,dx)-Math.asin(Math.max(-1,Math.min(1,(pivot.up-base.up)/r))));
 }
@@ -323,8 +328,8 @@ export const SASUKE_ARROW = { speedMul: 1.8, lockRange: ULT_MAP_RANGE };
  * view while it is out. null = this hero's ultimate has no spirit at that form.
  */
 export function spiritBounds(hero: string, level: number): { back: number; front: number; up: number } | null {
-  if (hero === 'sasuke' && level >= 3) return level >= 4 ? { back: 125, front: 120, up: 200 } : { back: 100, front: 115, up: 175 };
-  if (hero === 'naruto' && level >= 4) return { back: 200, front: 150, up: 190 };
+  if (hero === 'sasuke' && level >= 3) return level >= 4 ? { back: 231, front: 135, up: 205 } : { back: 100, front: 115, up: 175 };
+  if (hero === 'naruto' && level >= 4) return { back: 214, front: 150, up: 226 };
   return null;
 }
 
