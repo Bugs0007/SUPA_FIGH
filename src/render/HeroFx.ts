@@ -15,7 +15,8 @@ import { HeroChoreography } from './HeroChoreography';
 import type { Bullet } from '../sim/projectile';
 import { LuffyAbilityArt } from './LuffyAbilityArt';
 import { SasukeAbilityArt } from './SasukeAbilityArt';
-import { AvatarArt, SPIRIT_FORM } from './AvatarArt';
+import { AvatarArt, bijudamaGather, SPIRIT_FORM } from './AvatarArt';
+import { airBob } from '../art/finalSpiritArt';
 import { spiritWarmup } from '../art/avatarSprites';
 import { HeroComboArt, drawBlackFlames } from './HeroComboArt';
 import { superGuard } from '../sim/hero';
@@ -653,15 +654,13 @@ export class HeroFx {
       const b=heroDef('naruto')!.super.bomb!;
       const fade=f.charge<0?Math.max(0,1-(f.stateTime-b.windup)/.3):1;
       const recovery=f.charge<0?Math.max(0,f.stateTime-b.windup):0;
-      this.avatars.kurama(x,y,f.facing,fade,time,f.charge<0||f.charge>=SPIRIT_FORM.end,f.stretchAngle,f.charge<0?1:f.charge,recovery);
-      if(f.charge>=SPIRIT_FORM.end){
-        const k=Math.max(.08,Math.min(1,(f.charge-SPIRIT_FORM.end)/(1-SPIRIT_FORM.end))),r=(b.size+b.sizePerLevel*3)*k;
-        const muzzle=avatarLaunch('naruto',4,f.stretchAngle);
-        const cx=x+f.facing*muzzle.ahead,cy=y-muzzle.up;
-        this.disc(this.orbs,cx,cy,r+2,0xffda7b,.55);
-        this.disc(this.orbs,cx,cy,r+1,0x6a3348);
-        this.disc(this.orbs,cx,cy,r,0x211427);
-        this.disc(this.orbs,cx-r*.25,cy-r*.25,r*.32,0xe5a6ca,.65);
+      const air=!f.grounded;
+      const tilt=this.avatars.kurama(x,y,f.facing,fade,time,f.charge<0||f.charge>=SPIRIT_FORM.end,f.stretchAngle,f.charge<0?1:f.charge,recovery,air);
+      const gather=bijudamaGather(f.charge);
+      if(f.charge>=0&&gather.k>0){
+        // the orb sits in the jaws, so it follows the head as it comes down from the roar
+        const muzzle=avatarLaunch('naruto',4,f.stretchAngle+tilt);
+        this.avatars.bijudama(this.orbs,x+f.facing*muzzle.ahead,y-muzzle.up+(air?airBob(time):0),(b.size+b.sizePerLevel*3)*gather.size,gather.k,time);
       }
       return;
     }

@@ -305,17 +305,51 @@ export const PERFECT_SUSANOO_PIVOT = { ahead: -28, up: 110 };
 export const FINAL_KURAMA_LAUNCH = { ahead: 124, up: 38 };
 export const FINAL_KURAMA_NECK = { ahead: 54, up: 47 };
 export const avatarAim = (angle:number):number => Math.round(angle*64)/64;
+/**
+ * The Perfect Susanoo aims like an archer: the upper body leans into the shot about the waist (a share of the aim,
+ * capped), and the bow arm swings the rest about the front shoulder. The arrow always leaves along the full aim.
+ */
+export const PERFECT_SUSANOO_RIG = { waist: { ahead: 0, up: 80 }, shoulder: { ahead: -6, up: 112 }, lean: 0.38, maxLean: 0.36 };
+/** the torso lean for a (quantized) aim angle */
+export const susanooLean = (a:number):number => Math.max(-PERFECT_SUSANOO_RIG.maxLean, Math.min(PERFECT_SUSANOO_RIG.maxLean, a*PERFECT_SUSANOO_RIG.lean));
+type Local = {ahead:number;up:number};
+/** p turned by angle a (+ = down) about pivot o */
+const turn=(p:Local,o:Local,a:number):Local=>{
+  const c=Math.cos(a),s=Math.sin(a),x=p.ahead-o.ahead,y=o.up-p.up;
+  return {ahead:o.ahead+x*c-y*s,up:o.up-x*s-y*c};
+};
+/** where the Perfect Susanoo's front shoulder is once the torso leans */
+export function susanooShoulder(a:number):Local{
+  const R=PERFECT_SUSANOO_RIG;
+  return turn(R.shoulder,R.waist,susanooLean(a));
+}
+/** the Perfect Susanoo's arrow tip at aim a: the leaned shoulder, then the bow arm turned by the whole aim */
+function susanooLaunch(a:number):Local{
+  const s=susanooShoulder(a),arm=turn(PERFECT_SUSANOO_LAUNCH,PERFECT_SUSANOO_RIG.shoulder,a);
+  return {ahead:s.ahead+arm.ahead-PERFECT_SUSANOO_RIG.shoulder.ahead,up:s.up+arm.up-PERFECT_SUSANOO_RIG.shoulder.up};
+}
 /** Facing-local muzzle position after a rigid body tilt or an articulated fox head turn. */
 export function avatarLaunch(hero:string,level:number,angle:number):{ahead:number;up:number}{
-  const base=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_LAUNCH:SUSANOO_LAUNCH[3]):FINAL_KURAMA_LAUNCH;
-  const pivot=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_PIVOT:SUSANOO_PIVOT[3]):FINAL_KURAMA_NECK;
-  const a=avatarAim(angle),c=Math.cos(a),s=Math.sin(a),x=base.ahead-pivot.ahead,y=pivot.up-base.up;
-  return {ahead:pivot.ahead+x*c-y*s,up:pivot.up-x*s-y*c};
+  const a=avatarAim(angle);
+  if(hero==='sasuke'&&level>=4)return susanooLaunch(a);
+  const base=hero==='sasuke'?SUSANOO_LAUNCH[3]:FINAL_KURAMA_LAUNCH;
+  const pivot=hero==='sasuke'?SUSANOO_PIVOT[3]:FINAL_KURAMA_NECK;
+  return turn(base,pivot,a);
 }
 /** Solve the firing angle with the moving muzzle offset included. */
 export function avatarTargetAngle(hero:string,level:number,x:number,y:number):number{
-  const base=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_LAUNCH:SUSANOO_LAUNCH[3]):FINAL_KURAMA_LAUNCH;
-  const pivot=hero==='sasuke'?(level>=4?PERFECT_SUSANOO_PIVOT:SUSANOO_PIVOT[3]):FINAL_KURAMA_NECK;
+  if(hero==='sasuke'&&level>=4){
+    // the muzzle swings with the aim (lean + arm), so solve for the angle whose shot line passes through the target:
+    // bisect the signed miss (target's distance off the line), which grows steadily as the aim turns down
+    const miss=(a:number)=>{const m=susanooLaunch(a);return (x-m.ahead)*Math.sin(a)-(y+m.up)*Math.cos(a);};
+    let lo=-Math.PI/2,hi=Math.PI/2;
+    if(miss(lo)>0)return avatarAim(lo);
+    if(miss(hi)<0)return avatarAim(hi);
+    for(let i=0;i<32;i++){const mid=(lo+hi)/2;if(miss(mid)<0)lo=mid;else hi=mid;}
+    return avatarAim((lo+hi)/2);
+  }
+  const base=hero==='sasuke'?SUSANOO_LAUNCH[3]:FINAL_KURAMA_LAUNCH;
+  const pivot=hero==='sasuke'?SUSANOO_PIVOT[3]:FINAL_KURAMA_NECK;
   const dx=x-pivot.ahead,dy=y+pivot.up,r=Math.hypot(dx,dy)||1;
   return avatarAim(Math.atan2(dy,dx)-Math.asin(Math.max(-1,Math.min(1,(pivot.up-base.up)/r))));
 }

@@ -4,12 +4,29 @@ import { PLAYER_PRESETS, randomAppearance } from '../art/appearance';
 import { ARM_GUARD, armFrame, BF, BODY_FRAMES, FRAME_META } from '../art/fighterArt';
 import { WEAPON_ART } from '../art/weaponArt';
 import { formCount, formLook, HERO_ART } from '../art/heroArt';
-import { HEROES, ULT_WINDUP } from '../sim/data/heroes';
-import { AvatarArt, SPIRIT_FORM } from '../render/AvatarArt';
+import { avatarLaunch, HEROES, ULT_WINDUP } from '../sim/data/heroes';
+import { AvatarArt, bijudamaGather, SPIRIT_FORM } from '../render/AvatarArt';
+import { airBob } from '../art/finalSpiritArt';
+import { paintRuns } from '../art/pixelRaster';
+import { KURAMA_OPTIONS, SUSANOO_OPTIONS, type SpiritOption } from '../art/spiritOptions';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { HeroMoveGallery } from './HeroMoveGallery';
 import { drawTails } from '../render/HeroFx';
 import { formFx } from '../art/heroArt';
+
+/** greedy word wrap into lines of at most `max` characters */
+function wrapNote(text: string, max: number): string {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(' ')) {
+    if (line && (line + ' ' + word).length > max) {
+      out.push(line);
+      line = word;
+    } else line = line ? line + ' ' + word : word;
+  }
+  out.push(line);
+  return out.join(String.fromCharCode(10));
+}
 
 /** Dev-only sprite inspector: /?scene=art (fighters), &page=weapons, &page=heroes */
 export class ArtDebugScene extends Phaser.Scene {
@@ -21,6 +38,8 @@ export class ArtDebugScene extends Phaser.Scene {
   create(): void {
     this.gallery = null;
     this.spiritAvatars = null;
+    this.optionGfx = null;
+    this.optionSprites = [];
     this.spiritFighter = null;
     this.spiritGfx = null;
     const k = (this.registry.get('scale') as number) ?? 1;
@@ -30,6 +49,10 @@ export class ArtDebugScene extends Phaser.Scene {
       const hero = new URLSearchParams(location.search).get('hero') ?? 'naruto';
       this.cameras.main.setBackgroundColor('#0b101d');
       this.gallery = new HeroMoveGallery(this, Object.hasOwn(HERO_ART, hero) ? hero : 'naruto');
+      return;
+    }
+    if (page === 'options') {
+      this.optionsPage();
       return;
     }
     if (page === 'spirits') {
@@ -67,6 +90,37 @@ export class ArtDebugScene extends Phaser.Scene {
   override update(_time: number, delta: number): void {
     this.gallery?.update(Math.min(delta / 1000, 0.05));
     if (this.spiritAvatars) this.drawSpirits(Math.min(delta / 1000, 0.05));
+    if (this.optionGfx) this.drawOptions(Math.min(delta / 1000, 0.05));
+  }
+
+  private optionSprites: { opt: SpiritOption; x: number; y: number }[] = [];
+  private optionGfx: Phaser.GameObjects.Graphics | null = null;
+  private optionTime = 0;
+
+  /** Design studies: ?scene=art&page=options&spirit=susanoo|kurama shows five takes side by side (see art/spiritOptions.ts). */
+  private optionsPage(): void {
+    this.cameras.main.setBackgroundColor('#141a2a');
+    const which = new URLSearchParams(location.search).get('spirit') === 'kurama' ? KURAMA_OPTIONS : SUSANOO_OPTIONS;
+    const cols = Math.max(1, Math.floor(VIEW_W / which[0].w));
+    this.optionGfx = this.add.graphics();
+    this.optionTime = 0;
+    this.optionSprites = which.map((opt, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = Math.round(VIEW_W / cols / 2 + col * (VIEW_W / cols));
+      const y = (which === SUSANOO_OPTIONS ? 168 : 128 + row * 162);
+      this.add.bitmapText(x, y + 6, 'smo', opt.name).setOrigin(0.5, 0).setTint(0xffdf8a);
+      this.add.bitmapText(x, y + 17, 'sm', wrapNote(opt.note, 28)).setOrigin(0.5, 0).setTint(0xa5b7d2).setCenterAlign();
+      return { opt, x, y };
+    });
+  }
+
+  private drawOptions(dt: number): void {
+    this.optionTime += dt;
+    const f = Math.floor(this.optionTime * 6) % 4;
+    const g = this.optionGfx!;
+    g.clear();
+    for (const { opt, x, y } of this.optionSprites) paintRuns(g, opt.bake(f), x - opt.ax, y - opt.ay);
   }
 
   private spiritAvatars: AvatarArt | null = null;
@@ -94,6 +148,8 @@ export class ArtDebugScene extends Phaser.Scene {
     const q = new URLSearchParams(location.search);
     const which = q.get('spirit') ?? 'susanoo4';
     const aim = Number(q.get('aim')) || 0;
+    // ?air=1: the airborne posture (the fighter hovers 70 px up)
+    const air = q.get('air') === '1';
     const fixed = q.get('charge');
     this.spiritTime += dt;
     const loop = ULT_WINDUP + 1.6;
@@ -102,7 +158,7 @@ export class ArtDebugScene extends Phaser.Scene {
     g.clear();
     g.fillStyle(0x2a3350, 1).fillRect(0, 300, VIEW_W, 60);
     const x = which === 'kurama' ? 250 : 220;
-    const y = 300;
+    const y = air ? 230 : 300;
     // the fighter it forms around
     const look = which === 'kurama' ? HERO_ART.naruto.look : HERO_ART.sasuke.look;
     const tex = Art.fighter(this, look);
@@ -110,8 +166,15 @@ export class ArtDebugScene extends Phaser.Scene {
       this.spiritFighter = this.add.image(x, y, tex.body, BF.IDLE0).setOrigin(0.5, 1).setDepth(5);
     }
     const sinceShot = fixed === null && t > ULT_WINDUP ? t - ULT_WINDUP : -1;
-    if (which === 'kurama') this.spiritAvatars!.kurama(x, y, 1, sinceShot > 0.3 ? Math.max(0, 1 - (sinceShot - 0.3) / 0.4) : 1, this.spiritTime, charge >= SPIRIT_FORM.end, aim, charge);
-    else this.spiritAvatars!.susanoo(x, y, 1, which === 'susanoo3' ? 3 : 4, sinceShot > 0.3 ? Math.max(0, 1 - (sinceShot - 0.3) / 0.4) : 1, this.spiritTime, charge, sinceShot, aim);
+    if (which === 'kurama') {
+      const tilt = this.spiritAvatars!.kurama(x, y, 1, sinceShot > 0.3 ? Math.max(0, 1 - (sinceShot - 0.3) / 0.4) : 1, this.spiritTime, charge >= SPIRIT_FORM.end, aim, charge, Math.max(0, sinceShot), air);
+      const gather = bijudamaGather(charge);
+      if (sinceShot < 0 && gather.k > 0) {
+        const m = avatarLaunch('naruto', 4, aim + tilt);
+        this.spiritAvatars!.bijudama(g, x + m.ahead, y - m.up + (air ? airBob(this.spiritTime) : 0), 9.5 * gather.size, gather.k, this.spiritTime);
+      }
+    }
+    else this.spiritAvatars!.susanoo(x, y, 1, which === 'susanoo3' ? 3 : 4, sinceShot > 0.3 ? Math.max(0, 1 - (sinceShot - 0.3) / 0.4) : 1, this.spiritTime, charge, sinceShot, aim, air);
   }
 
   private spiritFighter: Phaser.GameObjects.Image | null = null;

@@ -264,7 +264,8 @@ describe('ultimates lock onto the enemy being faced', () => {
     let bullet: { vx: number; vy: number } | undefined;
     for (let i = 0; i < 80 && !bullet; i++) {
       w.step(w.fighters.map((_, n) => (n === 0 ? intent(i === 0 ? { ability: true, kick: true, ...input } : {}) : intent())));
-      const b = w.bullets.find((q) => q.active && q.weapon === 'sasuke:super');
+      // the pool keeps a spent arrow's heading, so one that hit on its very first tick (a near target) still counts
+      const b = w.bullets.find((q) => q.weapon === 'sasuke:super');
       if (b) bullet = { vx: b.vx, vy: b.vy };
       w.events.length = 0;
     }

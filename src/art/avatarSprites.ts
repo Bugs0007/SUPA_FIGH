@@ -16,19 +16,19 @@ export { SUSANOO, susanooArms, susanooCore, susanooSprite, susanooWings } from '
 import { susanooArms, susanooCore } from './susanooArt';
 
 // ---- Kurama: translucent golden chakra, black seal markings, nine flame tails
-const K_TAIL_A = 1;
-const K_TAIL_B = 2;
-const K_TAIL_C = 3;
-const K_FAR = 4;
-const K_BODY = 5;
-const K_LEG = 6;
-const K_HEAD = 7;
-const K_JAW = 8;
-const K_EAR = 9;
-const K_MARK = 10;
-const K_MOUTH = 11;
-const K_FANG = 12;
-const K_EYE = 13;
+export const K_TAIL_A = 1;
+export const K_TAIL_B = 2;
+export const K_TAIL_C = 3;
+export const K_FAR = 4;
+export const K_BODY = 5;
+export const K_LEG = 6;
+export const K_HEAD = 7;
+export const K_JAW = 8;
+export const K_EAR = 9;
+export const K_MARK = 10;
+export const K_MOUTH = 11;
+export const K_FANG = 12;
+export const K_EYE = 13;
 /**
  * Kurama glows: saturated orange bands (yellow-orange mixed with a dark sky goes brown, so the inner bands lean red),
  * wider bright bands than the violet spirit, and still see-through in the middle

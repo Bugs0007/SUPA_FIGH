@@ -4,7 +4,7 @@ import { Seen, noise, paintReveal, rising, spreading } from '../../src/art/spiri
 import { SUSANOO, susanooArms, susanooCore, susanooSprite, susanooWings } from '../../src/art/susanooArt';
 import { SUSANOO_GLOW } from '../../src/art/spiritKit';
 import type { Baked } from '../../src/art/pixelRaster';
-import { avatarLaunch } from '../../src/sim/data/heroes';
+import { avatarAim, avatarLaunch, avatarTargetAngle, PERFECT_SUSANOO_LAUNCH, PERFECT_SUSANOO_RIG, susanooLean, susanooShoulder } from '../../src/sim/data/heroes';
 
 const at = (b: Baked, x: number, y: number) => b.runs.find((r) => r.y === y && r.x <= x && r.x + r.w > x);
 /** how many separate horizontal stretches of the sprite are on pixel row y */
@@ -29,7 +29,8 @@ describe('Susanoo parts', () => {
   });
 
   it('aiming swings only the arms and bow about the shoulder: the arrowhead stays on the rotated launch point', () => {
-    for (const level of [3, 4] as const) {
+    // level 3 only: the Perfect Susanoo (level 4) is drawn from the final sheet on its own rig (see the test below)
+    for (const level of [3] as const) {
       for (const angle of [-1.5, -0.8, 0.8, 1.5]) {
         const arms = susanooArms(level, 0, angle);
         const m = avatarLaunch('sasuke', level, angle);
@@ -44,6 +45,26 @@ describe('Susanoo parts', () => {
     }
     expect(susanooSprite(4, 0, 0, -1)).not.toBe(susanooSprite(4, 0, 0, 1));
   });
+});
+
+it('the Perfect Susanoo leans into the shot and its arrow tip follows the rig', () => {
+  const R = PERFECT_SUSANOO_RIG;
+  expect(avatarLaunch('sasuke', 4, 0)).toEqual(PERFECT_SUSANOO_LAUNCH);
+  // the lean is a capped share of the aim, the same both ways
+  expect(susanooLean(0.4)).toBeCloseTo(0.4 * R.lean);
+  expect(susanooLean(1.5)).toBe(R.maxLean);
+  expect(susanooLean(-1.5)).toBe(-R.maxLean);
+  for (const a of [-1.4, -0.7, 0.7, 1.4]) {
+    // the tip stays a bow-arm's length from the (leaned) shoulder, whatever the aim
+    const m = avatarLaunch('sasuke', 4, a);
+    const s = susanooShoulder(avatarAim(a));
+    const arm = Math.hypot(PERFECT_SUSANOO_LAUNCH.ahead - R.shoulder.ahead, PERFECT_SUSANOO_LAUNCH.up - R.shoulder.up);
+    expect(Math.hypot(m.ahead - s.ahead, m.up - s.up)).toBeCloseTo(arm, 6);
+    // and the shot is solved through the target: aiming at a point straight along the line gives that line
+    const tx = m.ahead + Math.cos(avatarAim(a)) * 200;
+    const ty = -m.up + Math.sin(avatarAim(a)) * 200;
+    expect(Math.abs(avatarTargetAngle('sasuke', 4, tx, ty) - avatarAim(a))).toBeLessThanOrEqual(1 / 64 + 1e-9);
+  }
 });
 
 describe('the show-up animation', () => {
