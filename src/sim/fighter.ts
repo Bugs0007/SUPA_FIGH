@@ -75,7 +75,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, FORM_COMBO, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, SASUKE_ARROW, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, FORM_COMBO, bombRange, bombSpeed, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -1914,7 +1914,7 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
   f.specialCd = sp.cooldown;
   if (sp.kind === 'bomb') f.charge = 0; // Reset the idle sentinel so the charging orb is visible.
   if (sp.kind === 'fist') f.stretchAngle = inp.moveY < -0.5 ? (sp.fist?.upAngle ?? -0.5) : inp.moveY > 0.5 && !f.grounded ? (sp.fist?.downAngle ?? 0.5) : 0;
-  if (sp.kind === 'bomb') aimUltimate(w, f, inp.moveY, sp.bomb?.kind, sp.bomb?.range ?? 550, 0.45);
+  if (sp.kind === 'bomb') aimUltimate(w, f, inp.moveY, sp.bomb?.kind, sp.bomb && f.hero === 'naruto' ? Math.max(550, bombRange(f.hero, sp.bomb, f.powerLevel)) : sp.bomb?.range ?? 550, 0.45);
   w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });
 }
 
@@ -2195,7 +2195,7 @@ function stBomb(w: World, f: Fighter, dt: number): void {
   if (!b) return endSpecial(w, f);
   if(f.charge>=0&&target?.alive&&!target.gone){
     const archer=f.hero==='sasuke'&&f.powerLevel>=3;
-    if(archer||f.hero==='naruto'&&f.powerLevel===4)f.stretchAngle=avatarShotAngle(f,target,b.speed*(archer?SASUKE_ARROW.speedMul:1));
+    if(archer||f.hero==='naruto'&&f.powerLevel===4)f.stretchAngle=avatarShotAngle(f,target,bombSpeed(f.hero,b,f.powerLevel));
   }
   holdStill(f, dt);
   integrate(w, f, dt);

@@ -3,7 +3,7 @@ import { HERO_ART } from '../art/heroArt';
 import { moveLook } from '../art/heroMoves';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
-import { HEROES, CLONE_SLINGSHOT, JET_BAZOOKA, avatarLaunch, superFistFor } from '../sim/data/heroes';
+import { HEROES, CLONE_SLINGSHOT, JET_BAZOOKA, ULT_WINDUP, avatarLaunch, superFistFor } from '../sim/data/heroes';
 import { newBullet, type Bullet } from '../sim/projectile';
 import { getMap } from '../sim/map/maps';
 import { DEFAULT_WORLD_SETTINGS, World } from '../sim/world';
@@ -14,8 +14,39 @@ import { drawBlackFlames } from '../render/HeroComboArt';
 import { fighterPreview } from './ui';
 import { PLAYER_PRESETS } from '../art/appearance';
 
-const MODES=['base','second','super','combo','special','guard'] as const;
-type MoveMode=(typeof MODES)[number];
+export const MODES=['base','second','super','combo','special','guard'] as const;
+export type MoveMode=(typeof MODES)[number];
+
+/** Greedy word wrap into lines of at most `max` characters. */
+function wrapLines(text: string, max: number): string {
+  const out: string[] = [];
+  let line = '';
+  for (const word of text.split(' ').filter(Boolean)) {
+    if (line && (line + ' ' + word).length > max) {
+      out.push(line);
+      line = word;
+    } else line = line ? line + ' ' + word : word;
+  }
+  if (line) out.push(line);
+  return out.join('\n');
+}
+
+/** One line of text under the columns of the in-game fighter viewer. */
+function describe(hero: string, mode: MoveMode): string {
+  const h = HEROES[hero];
+  switch (mode) {
+    case 'base': return h.base.desc;
+    case 'second': return h.second.desc;
+    case 'super': return `${h.super.desc} ${hero === 'luffy' ? '' : `LOADS IN ${ULT_WINDUP} SECONDS: BLOCK, RUN OR BREAK IT.`}`;
+    case 'combo': return `${h.comboName}: PUNCH, PUNCH, PUNCH, THEN A KICK THAT KNOCKS DOWN.`;
+    case 'guard': return 'HOLD BLOCK TO GUARD: HEAVY ATTACKS AND ULTIMATES STILL CHIP YOUR HEALTH.';
+    default:
+      return hero === 'sasuke' ? 'CHIDORI + PUNCH CALLS KIRIN: LIGHTNING THAT HOLDS THE ENEMY STUNNED.'
+        : hero === 'naruto' ? 'SHADOW CLONES + PUNCH: A CLONE SWINGS NARUTO INTO THE ENEMY (CLONE SLINGSHOT).'
+        : hero === 'luffy' ? 'PISTOL + PUNCH: GRAB AND KICK AN ENEMY, OR SLINGSHOT FROM AN ANCHOR (JET BAZOOKA).'
+        : 'INSTANT TRANSMISSION + PUNCH: VANISH AND STRIKE FROM BEHIND (VANISH STRIKE).';
+  }
+}
 
 /** An animated art-study page using the exact same rigs and effects as a match. */
 export class HeroMoveGallery {
@@ -37,11 +68,14 @@ export class HeroMoveGallery {
   private stage: Phaser.GameObjects.GameObject[];
   private ui: Phaser.GameObjects.GameObject[];
 
-  constructor(private scene: Phaser.Scene, readonly hero: string) {
-    const params = new URLSearchParams(location.search);
+  private note: Phaser.GameObjects.BitmapText | null = null;
+
+  /** `embedded`: the in-game fighter viewer (no URL parameters, no developer hotkeys, a description under the columns). */
+  constructor(private scene: Phaser.Scene, readonly hero: string, private embedded = false, move: MoveMode = 'base') {
+    const params = new URLSearchParams(embedded ? '' : location.search);
     this.jetPreview=params.get('jet')==='kick'?'kick':'sling';
     this.aim=Math.max(-1.5,Math.min(1.5,Number(params.get('aim'))||0));
-    this.mode = MODES.find(m=>m===params.get('move'))??'base';
+    this.mode = embedded ? move : MODES.find(m=>m===params.get('move'))??'base';
     const before = new Set(scene.children.list);
     this.world = new World(getMap('test'), Array.from({ length: 5 }, (_, level) => ({ name: '', hero, isBot: false, team: 0, upJumps: false })), { ...DEFAULT_WORLD_SETTINGS, weaponSpawnRate: 0 }, 42);
     this.views = this.world.fighters.slice(0, 5).map((f, level) => {
@@ -81,7 +115,8 @@ export class HeroMoveGallery {
       button.on('pointerdown', () => this.select(mode));
       this.buttons.push(button);
     }
-    scene.add.bitmapText(320, 335, 'sm', '1-3: ABILITY  4: COMBO  5: SPECIAL  6: GUARD  N/L/G/S: HERO').setOrigin(0.5).setTint(0xa5b7d2);
+    if (embedded) this.note = scene.add.bitmapText(320, 318, 'sm', '').setOrigin(0.5, 0).setTint(0xc4d3e9).setCenterAlign();
+    else scene.add.bitmapText(320, 335, 'sm', '1-3: ABILITY  4: COMBO  5: SPECIAL  6: GUARD  N/L/G/S: HERO').setOrigin(0.5).setTint(0xa5b7d2);
     this.ui = scene.children.list.filter(o => !uiBefore.has(o));
     for (let level = 0; level <= 4; level++) {
       const cam = scene.cameras.add().setName(`hero-study-${level}`);
@@ -117,15 +152,15 @@ export class HeroMoveGallery {
         center = (r + 22) / 2;
         cy = 105;
       } else if (this.hero === 'sasuke' && this.mode === 'super' && i >= 3) {
-        zoom = i === 4 ? .7 : 1.3;
-        center = 0;
-        cy = 83;
+        zoom = .5;
+        center = -4;
+        cy = 52;
       } else if(this.hero==='naruto'&&this.mode==='super'&&i===4){
-        zoom=.75;center=-10;cy=110;
+        zoom=.34;center=-26;cy=40;
       }
       if(this.mode==='super'&&this.aim!==0){
-        if(this.hero==='sasuke'&&i>=3){zoom=.5;center=0;cy=120;}
-        if(this.hero==='naruto'&&i===4){zoom=.6;center=-15;cy=110;}
+        if(this.hero==='sasuke'&&i>=3){zoom=.42;center=-4;cy=52;}
+        if(this.hero==='naruto'&&i===4){zoom=.3;center=-26;cy=40;}
       }
       cam.setViewport((i * 128 + 4) * k, 60 * k, 120 * k, 210 * k).setZoom(k * zoom).centerOn(this.views[i].fighter.x + center, cy);
     });
@@ -144,13 +179,19 @@ export class HeroMoveGallery {
       if(mode==='special'&&this.hero==='luffy'&&i>0)label.setText(this.jetPreview==='kick'?'JET GRAB KICK':'JET SLINGSHOT');
       if (mode === 'super' && i > 0 && this.hero === 'luffy') label.setText(`${name}\nRANGE ${superFistFor('luffy', i)!.range} / FIST ${superFistFor('luffy', i)!.fist}`);
     });
+    this.note?.setText(wrapLines(describe(this.hero, mode), 86));
     this.layout();
+  }
+
+  /** Next / previous move tab (the fighter viewer's left / right). */
+  cycle(d: number): void {
+    this.select(MODES[(MODES.indexOf(this.mode) + d + MODES.length) % MODES.length]);
   }
 
   update(dt: number): void {
     for (const [key, mode] of [['Digit1', 'base'], ['Digit2', 'second'], ['Digit3', 'super'],['Digit4','combo'],['Digit5','special'],['Digit6','guard']] as const) if (keyboard.justPressed(key)) this.select(mode);
     if (keyboard.justPressed('Digit0')) this.select(this.mode);
-    for (const [key, hero] of [['KeyN', 'naruto'], ['KeyL', 'luffy'], ['KeyG', 'goku'], ['KeyS', 'sasuke']] as const) if (keyboard.justPressed(key)) {
+    if (!this.embedded) for (const [key, hero] of [['KeyN', 'naruto'], ['KeyL', 'luffy'], ['KeyG', 'goku'], ['KeyS', 'sasuke']] as const) if (keyboard.justPressed(key)) {
       const url = new URL(location.href);
       url.searchParams.set('hero', hero);
       url.searchParams.set('move', this.mode);
@@ -158,17 +199,22 @@ export class HeroMoveGallery {
       return;
     }
     this.t += dt;
-    const loop = Math.floor(this.t / 3.6);
-    const phase = this.t % 3.6;
-    const firing = phase >= 1.4 && phase < 2.4;
+    // a gathered ultimate loads for ULT_WINDUP seconds (the spirits form during it), the rest of the moves loop in 3.6 s
+    const superMode = this.mode === 'super' && this.hero !== 'luffy';
+    const wind = superMode ? ULT_WINDUP : 0.9;
+    const fireAt = 0.5 + wind;
+    const period = fireAt + 2.2;
+    const loop = Math.floor(this.t / period);
+    const phase = this.t % period;
+    const firing = phase >= fireAt && phase < fireAt + 1;
     for (const [level, v] of this.views.entries()) {
       const f = v.fighter;
       f.vx = f.vy = 0;
-      f.state = phase > 0.5 && phase < 2.4 ? 'special' : 'normal';
-      f.stateTime = firing ? 0.15 + (phase - 1.4) * 0.3 : Math.max(0, phase - 0.5) * 0.12;
+      f.state = phase > 0.5 && phase < fireAt + 1 ? 'special' : 'normal';
+      f.stateTime = superMode ? (firing ? ULT_WINDUP + (phase - fireAt) * 0.3 : Math.max(0, phase - 0.5)) : firing ? 0.15 + (phase - fireAt) * 0.3 : Math.max(0, phase - 0.5) * 0.12;
       f.stretchLen = 0;
       f.stretchAngle = this.mode==='super'?this.aim:0;
-      f.charge = Math.max(0.05, Math.min(1, (phase - 0.5) / 0.9));
+      f.charge = Math.max(0.05, Math.min(1, (phase - 0.5) / wind));
       f.recoverAt = 0;
       if (this.mode === 'base') f.specialKind = this.hero === 'naruto' || this.hero === 'sasuke' ? 'rasengan' : this.hero === 'luffy' ? 'pistol' : 'blink';
       else if (this.mode === 'second') f.specialKind = this.hero === 'naruto' ? 'cast' : this.hero === 'luffy' ? 'gatling' : this.hero === 'sasuke' ? 'fireball' : firing ? 'beam' : 'beamCharge';
@@ -190,17 +236,17 @@ export class HeroMoveGallery {
         ball.active = firing && (second&&level<3 || this.mode === 'super' && level > 0);
         ball.weapon = 'sasuke:' + (second ? 'second' : 'super');
         ball.size = second ? s.size + level * s.sizePerLevel : b.size + b.sizePerLevel * Math.max(0,level-1);
-        ball.x = ball.px = f.x + 20 + (phase-1.4) * 16;
+        ball.x = ball.px = f.x + 20 + (phase-fireAt) * 16;
         ball.y = ball.py = f.y - 17;
         if(!second&&level>=3){
-          const muzzle=avatarLaunch('sasuke',level,this.aim),travel=(phase-1.4)*16;
+          const muzzle=avatarLaunch('sasuke',level,this.aim),travel=(phase-fireAt)*16;
           ball.x=ball.px=f.x+muzzle.ahead+Math.cos(this.aim)*travel;
           ball.y=ball.py=f.y-muzzle.up+Math.sin(this.aim)*travel;
         }
         ball.vx = second ? s.speed : b.speed;
         ball.vy=0;
         if(!second&&level>=3){ball.vx*=Math.cos(this.aim);ball.vy=b.speed*Math.sin(this.aim);}
-        ball.traveled = Math.max(0,phase-1.4) * 16;
+        ball.traveled = Math.max(0,phase-fireAt) * 16;
         if (ball.active) f.charge = -2;
         if(second&&level>=3&&firing)f.charge=-2;
       }
@@ -209,10 +255,10 @@ export class HeroMoveGallery {
         const b = HEROES.goku.super.bomb!;
         ball.active = this.mode === 'super' && level > 0 && firing;
         ball.size = b.size + b.sizePerLevel * Math.max(0, level - 1);
-        ball.x = ball.px = f.x + ball.size + 12 + (phase - 1.4) * 18;
+        ball.x = ball.px = f.x + ball.size + 12 + (phase - fireAt) * 18;
         ball.y = ball.py = f.y - 19;
         ball.vx = 260;
-        ball.traveled = Math.max(0, phase - 1.4) * 18;
+        ball.traveled = Math.max(0, phase - fireAt) * 18;
         if (ball.active) f.charge = -2;
       }
       if(this.mode==='combo'){

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { ULT_WINDUP } from '../../src/sim/data/heroes';
 
 // M11: each hero through the real input path: eat power orbs one by one (each is the next form: look +
 // aura change) -> ability 2 on the kick key -> the super with both ability keys -> the form expires and
@@ -85,7 +86,7 @@ for (const h of HEROES) {
     if (h.second === 'clone') expect(rec.clones, 'level 3 Naruto makes 5 real clone fighters').toBe(5);
     else if (h.second === 'beam') expect(rec.beam).toBeGreaterThan(2);
     await press(page, ['KeyB', 'KeyH'], 4);
-    await waitTicks(page, h.hero === 'goku' ? 70 : 30);
+    await waitTicks(page, h.hero === 'goku' ? 70 + Math.round(ULT_WINDUP * 60) : 30); // (the gathered ultimates load for ULT_WINDUP first)
     expect(await page.evaluate(() => (window as any).__REC__.sup), 'the super went on cooldown').toBeGreaterThan(4);
     if (h.hero === 'goku') expect(await page.evaluate(() => (window as any).__REC__.spirit), 'Spirit Bomb launched after its charge').toBeGreaterThan(18);
     await page.screenshot({ path: `tests/e2e/screenshots/hero-${h.hero}-super.png` });

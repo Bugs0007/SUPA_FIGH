@@ -1,4 +1,5 @@
 import { expect,test,type Page } from '@playwright/test';
+import { ULT_WINDUP } from '../../src/sim/data/heroes';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 async function ticks(page:Page,n:number){
@@ -41,7 +42,7 @@ for(const hero of ['naruto','luffy','goku','sasuke'])test(`${hero}: real control
   await page.keyboard.up('KeyB');await page.keyboard.up('KeyH');
   expect(shield).toEqual({connected:false,hp:true,form:true,state:'special'});
   await page.screenshot({path:`tests/e2e/screenshots/refined-${hero}-ultimate.png`});
-  await ticks(page,90);
+  await ticks(page,90+Math.round(ULT_WINDUP*60));
   expect(await page.evaluate(async()=>{
     const {superGuard}=await import('/src/sim/hero.ts' as string);
     return superGuard((window as any).__GAME__.match().world.fighters[0]);

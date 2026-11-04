@@ -1,6 +1,6 @@
 // Supers hit an AREA, not one fighter (user report: Sasuke's ult on a gang of Naruto's shadow clones took out only one).
 import { describe, expect, it } from 'vitest';
-import { HEROES, SUPER_AREA, superFistFor, superBombDamage } from '../../src/sim/data/heroes';
+import { HEROES, ULT_WINDUP, SUPER_AREA, superFistFor, superBombDamage } from '../../src/sim/data/heroes';
 import type { SimEvent } from '../../src/sim/events';
 import { areaFrac, COVER, explode } from '../../src/sim/explosion';
 import { superBlast, summonClones, transform } from '../../src/sim/hero';
@@ -39,7 +39,8 @@ function fire(w: World, ticks = 150): { dmg: Map<number, number>; events: SimEve
   const weapon = w.fighters[0].hero + ':super';
   const dmg = new Map<number, number>();
   const events: SimEvent[] = [];
-  for (let i = 0; i < ticks; i++) {
+  // (the gathered ultimates take ULT_WINDUP seconds before they fire)
+  for (let i = 0; i < ticks + Math.round(ULT_WINDUP * 60); i++) {
     w.step(w.fighters.map((_, n) => intent(n === 0 && i === 0 ? { ability: true, kick: true } : {})));
     for (const e of w.events) if (e.t === 'hit' && e.weapon === weapon && !e.corpse) dmg.set(e.victim, (dmg.get(e.victim) ?? 0) + e.damage);
     events.push(...w.events);

@@ -9,7 +9,9 @@ import type { SimEvent } from '../../src/sim/events';
 import { packIntent, type Intent } from '../../src/sim/intent';
 import { Match } from '../../src/sim/match';
 import { World } from '../../src/sim/world';
-import { FLAT, intent, run } from './helpers';
+import { FLAT, shortUltimateWindups, intent, run } from './helpers';
+
+shortUltimateWindups(); // (about aim / damage / collisions, not the long real wind-up)
 
 const FLOOR_Y = 9 * TILE;
 

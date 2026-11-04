@@ -1,12 +1,14 @@
 // Hero ranged attacks meeting in the air: equal calibers clash in a big blast, a higher caliber overpowers the other.
 import { describe, expect, it } from 'vitest';
 import { caliber } from '../../src/sim/clash';
-import { CLASH } from '../../src/sim/data/heroes';
+import { CLASH, HEROES, bombSpeed } from '../../src/sim/data/heroes';
 import type { SimEvent } from '../../src/sim/events';
 import type { Intent } from '../../src/sim/intent';
-import { transform } from '../../src/sim/hero';
+import { superBlast, transform } from '../../src/sim/hero';
 import { World } from '../../src/sim/world';
-import { FLAT, intent, run } from './helpers';
+import { FLAT, shortUltimateWindups, intent, run } from './helpers';
+
+shortUltimateWindups(); // (about aim / damage / collisions, not the long real wind-up)
 
 interface Who {
   hero?: string;
@@ -106,7 +108,17 @@ describe('a higher caliber overpowers', () => {
   for (const [ult, fire] of [[4, 0], [1, 2]] as const) {
     it(`a form-${ult} super arrow tears through a form-${fire} fireball and hits its caster`, () => {
       const w = duel([{ hero: 'sasuke', x: 60, level: ult, team: 1 }, { hero: 'sasuke', x: 420, level: fire, team: 2 }]);
-      const events = play(w, 150, (t, i) => (t === 0 ? (i === 0 ? SUPER : { kick: true }) : {}));
+      if (ult >= 3) {
+        // (the Susanoo's arrow leaves its bow high above the fighter and is aimed at the enemy: for this test it is released level with the fireball)
+        const f = w.fighters[0];
+        const b = HEROES.sasuke.super.bomb!;
+        w.spawnBullet({
+          x: f.x + 20, y: 124, vx: bombSpeed('sasuke', b, ult), vy: 0, ox: f.x + 20, oy: 124, owner: 0, weapon: 'sasuke:super',
+          damage: 40, range: 720, falloff: 1, knock: 300, ricochet: false, pierce: 0, kind: 'ki', gravity: 0,
+          size: b.size + b.sizePerLevel * (ult - 1), explosion: superBlast(f, b, ult), tier: 2, form: ult,
+        });
+      }
+      const events = play(w, 150, (t, i) => (t === 0 && (ult < 3 || i === 1) ? (i === 0 ? SUPER : { kick: true }) : {}));
       expect(clashes(events)).toHaveLength(0);
       expect(fizzles(events)).toHaveLength(1);
       expect(hitsBy(events, 'sasuke:second', 0)).toBe(0); // the fireball never arrived
@@ -121,7 +133,19 @@ describe('a higher caliber overpowers', () => {
       const w = duel(order === 'sasuke first' ? [s, n] : [n, s]);
       const si = order === 'sasuke first' ? 0 : 1;
       const ni = 1 - si;
-      const events = play(w, 200, (t) => (t === 0 ? SUPER : {}));
+      // both shots are released level with each other (the aimed Susanoo arrow starts high and the lock-on makes the
+      // meeting point depend on every speed, which is not what this test is about)
+      for (const [i, hero, level] of [[si, 'sasuke', 4], [ni, 'naruto', 3]] as const) {
+        const f = w.fighters[i];
+        const b = HEROES[hero].super.bomb!;
+        const dir = f.facing;
+        w.spawnBullet({
+          x: f.x + dir * 20, y: 120, vx: dir * bombSpeed(hero, b, level), vy: 0, ox: f.x + dir * 20, oy: 120, owner: i, weapon: hero + ':super',
+          damage: 40, range: 600, falloff: 1, knock: 300, ricochet: false, pierce: 0, kind: hero === 'sasuke' ? 'ki' : 'chakra', gravity: 0,
+          size: b.size + b.sizePerLevel * (level - 1), explosion: superBlast(f, b, level), tier: 2, form: level,
+        });
+      }
+      const events = play(w, 200);
       expect(clashes(events)).toHaveLength(0);
       expect(fizzles(events)).toHaveLength(1);
       expect(hitsBy(events, 'naruto:super', si)).toBe(0);

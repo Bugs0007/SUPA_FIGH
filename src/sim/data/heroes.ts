@@ -168,7 +168,7 @@ export interface SuperAbility {
    * (+ `damagePerLevel` per form above the first, x the form's damage multiplier) is the WHOLE hit: the projectile goes
    * off on the first enemy it touches and everyone inside `radius` takes one blast hit (SUPER_AREA falloff).
    */
-  bomb?: { damageByLevel?: number[]; windup: number; speed: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki' };
+  bomb?: { damageByLevel?: number[]; windup: number; speed: number; /** per-form projectile speed / reach (index = level - 1), else `speed` / `range` */ speedByLevel?: number[]; rangeByLevel?: number[]; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki' };
   /** giant fist: hits everyone the arm sweeps through, then a shockwave of `shock` px (+ per form) where the fist lands */
   fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number; fistGrowth?: number; rangeGrowth?: number; shock: number; shockPerLevel: number };
   beam?: BeamStats & { widthPerLevel: number; damagePerLevel: number };
@@ -284,32 +284,58 @@ const heroCombo = (fx: 'chakra' | 'steam' | 'ki', stretch = false): MeleeHit[] =
  * fighter's feet. The pixel-art Susanoo (art/avatarSprites.ts) is drawn around this point: its arrowhead sits on it.
  */
 export const SUSANOO_LAUNCH: Record<3 | 4, { ahead: number; up: number }> = {
-  3: { ahead: 46, up: 42 },
-  4: { ahead: 54, up: 46 },
+  3: { ahead: 88, up: 82 },
+  4: { ahead: 93, up: 102 },
+};
+/** The shoulder the Susanoo's arms and bow swing about when the shot is aimed up or down. */
+export const SUSANOO_PIVOT: Record<3 | 4, { ahead: number; up: number }> = {
+  3: { ahead: 25, up: 91 },
+  4: { ahead: 16, up: 102 },
 };
 
 /**
  * Where Naruto's final Bijudama leaves (Kurama mode): Kurama's open mouth, in whole pixels ahead of and above the
  * fighter's feet. The pixel-art Kurama (art/avatarSprites.ts) is drawn around it.
  */
-export const KURAMA_LAUNCH = { ahead: 66, up: 46 };
-export const KURAMA_NECK = { ahead: 28, up: 50 };
+export const KURAMA_LAUNCH = { ahead: 125, up: 87 };
+export const KURAMA_NECK = { ahead: 53, up: 95 };
 export const avatarAim = (angle:number):number => Math.round(angle*64)/64;
 /** Facing-local muzzle position after a rigid body tilt or an articulated fox head turn. */
 export function avatarLaunch(hero:string,level:number,angle:number):{ahead:number;up:number}{
   const base=hero==='sasuke'?SUSANOO_LAUNCH[level>=4?4:3]:KURAMA_LAUNCH;
-  const pivot=hero==='sasuke'?{ahead:0,up:0}:KURAMA_NECK;
+  const pivot=hero==='sasuke'?SUSANOO_PIVOT[level>=4?4:3]:KURAMA_NECK;
   const a=avatarAim(angle),c=Math.cos(a),s=Math.sin(a),x=base.ahead-pivot.ahead,y=pivot.up-base.up;
   return {ahead:pivot.ahead+x*c-y*s,up:pivot.up-x*s-y*c};
 }
 /** Solve the firing angle with the moving muzzle offset included. */
 export function avatarTargetAngle(hero:string,level:number,x:number,y:number):number{
   const base=hero==='sasuke'?SUSANOO_LAUNCH[level>=4?4:3]:KURAMA_LAUNCH;
-  const pivot=hero==='sasuke'?{ahead:0,up:0}:KURAMA_NECK;
+  const pivot=hero==='sasuke'?SUSANOO_PIVOT[level>=4?4:3]:KURAMA_NECK;
   const dx=x-pivot.ahead,dy=y+pivot.up,r=Math.hypot(dx,dy)||1;
   return avatarAim(Math.atan2(dy,dx)-Math.asin(Math.max(-1,Math.min(1,(pivot.up-base.up)/r))));
 }
 export const SASUKE_ARROW = { speedMul: 1.8, lockRange: 720 };
+
+/**
+ * Every hero ultimate that gathers (Sasuke's arrow, Naruto's Bijudama, Goku's Spirit Bomb) takes this long to load, so
+ * the others get the same fair window to run, block or break it. (Luffy's giant fist is not a gathered ultimate.) The
+ * spirits (Susanoo, Kurama) form around the fighter during it.
+ */
+export const ULT_WINDUP = 2.4;
+
+type BombStats = NonNullable<SuperAbility['bomb']>;
+/** Projectile speed of a hero's ultimate at a form level: per-form ladder, Sasuke's archer forms add the arrow multiplier. */
+export function bombSpeed(hero: string, b: BombStats, level: number): number {
+  const ladder = b.speedByLevel;
+  const base = ladder ? ladder[Math.max(0, Math.min(ladder.length, level) - 1)] : b.speed;
+  return base * (hero === 'sasuke' && level >= 3 ? SASUKE_ARROW.speedMul : 1);
+}
+/** How far the ultimate flies at a form level (Sasuke's archer forms: the arrow's lock range). */
+export function bombRange(hero: string, b: BombStats, level: number): number {
+  if (hero === 'sasuke' && level >= 3) return SASUKE_ARROW.lockRange;
+  const ladder = b.rangeByLevel;
+  return ladder ? ladder[Math.max(0, Math.min(ladder.length, level) - 1)] : b.range ?? 320;
+}
 export const FORM_COMBO = { cooldown: 6, windup: 0.24, duration: 0.7, range: 360, damage: 22, radius: 30, speed: 520, cloneRange: 70, recallHold: 0.55 };
 export const CLONE_SLINGSHOT = { windup: 0.6, duration: 1, speed: 1040, turns: 1.5, swingRadius: 22 };
 export const JET_BAZOOKA = { closeRange:42, targetRange:480, anchorRange:180, windup:.32, duration:1, speed:900, kickDamage:30, kickKnock:700, kickLift:-120, kickStun:.4, hitRadius:24 };
@@ -339,7 +365,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       kind: 'bomb', names: ['CHIDORI SHARP SPEAR', 'ONYX CHIDORI SPEAR', 'SUSANOO ARROW', "INDRA'S ARROW"],
       desc: 'AIM A LIGHTNING SPEAR. HIGHER FORMS SUMMON SUSANOO TO FIRE AN EXPLOSIVE ARROW.',
       cooldown: 9,
-      bomb: { windup: 0.65, speed: 430, size: 4, sizePerLevel: 1.2, damage: 37, damagePerLevel: 13, radius: 54, radiusPerLevel: 10, range: 550, kind: 'ki' },
+      bomb: { windup: ULT_WINDUP, speed: 430, size: 4, sizePerLevel: 1.2, damage: 37, damagePerLevel: 13, radius: 54, radiusPerLevel: 10, range: 550, kind: 'ki' },
     },
     forms: [
       { name: 'SHARINGAN', speedMul: 1.12, damageMul: 1.15, knockMul: 1.1, reach: 1 },
@@ -376,7 +402,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['RASENSHURIKEN', 'TAILED BEAST BOMB', 'TAILED BEAST BOMB', 'KURAMA BIJUDAMA'],
       desc: 'A GIANT CHAKRA BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      bomb: { windup: 0.45, speed: 380, size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
+      bomb: { windup: ULT_WINDUP, speed: 380, speedByLevel: [380, 500, 630, 774], rangeByLevel: [320, 440, 580, 720], size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
     },
     forms: [
       { name: 'THREE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.12, knockMul: 1.1, reach: 2 },
@@ -465,7 +491,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['SPIRIT BOMB', 'SUPER SPIRIT BOMB', 'GIANT SPIRIT BOMB', 'UNIVERSAL SPIRIT BOMB'],
       desc: 'GATHER ENERGY OVERHEAD, THEN THROW A GIANT EXPLOSIVE SPIRIT BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      bomb: { damageByLevel: [32], windup: 0.95, speed: 260, size: 18, sizePerLevel: 6, damage: 37, damagePerLevel: 13, radius: 60, radiusPerLevel: 12, range: 520, kind: 'ki' },
+      bomb: { damageByLevel: [32], windup: ULT_WINDUP, speed: 260, size: 18, sizePerLevel: 6, damage: 37, damagePerLevel: 13, radius: 60, radiusPerLevel: 12, range: 520, kind: 'ki' },
     },
     forms: [
       { name: 'SUPER SAIYAN', speedMul: 1.15, damageMul: 1.05, knockMul: 1.25, reach: 3 },

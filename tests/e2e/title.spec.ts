@@ -34,7 +34,7 @@ test('Sasuke and a new arena can be chosen from the title, including the full pr
   }
   await page.screenshot({ path: 'tests/e2e/screenshots/title-sasuke-valley.png' });
   // The whole button rectangle is clickable, including its blank right side.
-  await page.mouse.click(330, 640);
+  await page.mouse.click(210, 640);
   await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 10);
   const picked = await page.evaluate(() => {
     const m = (window as unknown as { __GAME__: Handle }).__GAME__.match()!;

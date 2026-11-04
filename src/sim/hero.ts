@@ -17,6 +17,8 @@ import {
   SUPER_AREA,
   superBombDamage,
   SASUKE_ARROW,
+  bombRange,
+  bombSpeed,
   avatarLaunch,
   avatarTargetAngle,
   type AbilityDefinition,
@@ -915,7 +917,7 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   const archer = f.hero === 'sasuke' && level >= 3;
   const locked = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
   if (locked?.alive && !locked.gone) f.facing = locked.x >= f.x ? 1 : -1;
-  const speed = b.speed * (archer ? SASUKE_ARROW.speedMul : 1);
+  const speed = bombSpeed(f.hero, b, level);
   if((archer||kurama)&&locked?.alive&&!locked.gone)f.stretchAngle=avatarShotAngle(f,locked,speed);
   const muzzle=avatarLaunch(f.hero,level,f.stretchAngle);
   const sx = f.x + f.facing * (kurama||archer ? muzzle.ahead : spirit ? size + 12 : 8);
@@ -947,7 +949,7 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
     weapon,
     // (only props feel the contact damage: on a fighter the blast is the whole hit)
     damage: blast.damage,
-    range: archer ? SASUKE_ARROW.lockRange : b.range ?? 320,
+    range: bombRange(f.hero, b, level),
     falloff: 1,
     knock: 300 * m.knock,
     ricochet: false,

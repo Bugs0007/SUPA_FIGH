@@ -28,6 +28,6 @@ export class BootScene extends Phaser.Scene {
       this.scene.start('lobby', { shared });
       return;
     }
-    this.scene.start(target && ['match', 'art', 'lobby', 'controls', 'creator', 'settings'].includes(target) ? target : 'title');
+    this.scene.start(target && ['match', 'art', 'lobby', 'fighters', 'controls', 'creator', 'settings'].includes(target) ? target : 'title');
   }
 }

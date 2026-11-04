@@ -15,7 +15,8 @@ import { HeroChoreography } from './HeroChoreography';
 import type { Bullet } from '../sim/projectile';
 import { LuffyAbilityArt } from './LuffyAbilityArt';
 import { SasukeAbilityArt } from './SasukeAbilityArt';
-import { AvatarArt } from './AvatarArt';
+import { AvatarArt, SPIRIT_FORM } from './AvatarArt';
+import { spiritWarmup } from '../art/avatarSprites';
 import { HeroComboArt, drawBlackFlames } from './HeroComboArt';
 import { superGuard } from '../sim/hero';
 
@@ -107,9 +108,15 @@ export class HeroFx {
     this.sasukeArt = new SasukeAbilityArt(this.back, this.front);
     this.avatars = new AvatarArt(this.back,this.front);
     this.comboArt = new HeroComboArt(this.back,this.front,this.luffyArt);
+    // bake the big spirits a little at a time while nothing is happening, so the first ultimate does not stall on them
+    const steps = [...new Set(world.fighters.map((f) => f.hero))].flatMap((h) => spiritWarmup(h ?? ''));
+    steps.forEach((step, i) => window.setTimeout(() => (this.dead ? undefined : step()), 400 + i * 35));
   }
 
+  private dead = false;
+
   destroy(): void {
+    this.dead = true;
     this.choreography.destroy();
     this.orbForms.clear();
     this.kirinImpacts.length = 0;
@@ -645,9 +652,10 @@ export class HeroFx {
     if(f.hero==='naruto'&&formLevel(f)===4){
       const b=heroDef('naruto')!.super.bomb!;
       const fade=f.charge<0?Math.max(0,1-(f.stateTime-b.windup)/.3):1;
-      this.avatars.kurama(x,y,f.facing,fade,time,f.charge>=0,f.stretchAngle);
-      if(f.charge>=0){
-        const k=Math.max(.08,Math.min(1,f.charge)),r=(b.size+b.sizePerLevel*3)*k;
+      const formed=f.charge<0||f.charge>=SPIRIT_FORM.end;
+      this.avatars.kurama(x,y,f.facing,fade,time,formed,f.stretchAngle,f.charge<0?1:f.charge);
+      if(f.charge>=SPIRIT_FORM.end){
+        const k=Math.max(.08,Math.min(1,(f.charge-SPIRIT_FORM.end)/(1-SPIRIT_FORM.end))),r=(b.size+b.sizePerLevel*3)*k;
         const muzzle=avatarLaunch('naruto',4,f.stretchAngle);
         const cx=x+f.facing*muzzle.ahead,cy=y-muzzle.up;
         this.disc(this.orbs,cx,cy,r+2,0xffda7b,.55);

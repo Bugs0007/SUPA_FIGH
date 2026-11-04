@@ -4,7 +4,8 @@ import { PLAYER_PRESETS, randomAppearance } from '../art/appearance';
 import { ARM_GUARD, armFrame, BF, BODY_FRAMES, FRAME_META } from '../art/fighterArt';
 import { WEAPON_ART } from '../art/weaponArt';
 import { formCount, formLook, HERO_ART } from '../art/heroArt';
-import { HEROES } from '../sim/data/heroes';
+import { HEROES, ULT_WINDUP } from '../sim/data/heroes';
+import { AvatarArt, SPIRIT_FORM } from '../render/AvatarArt';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { HeroMoveGallery } from './HeroMoveGallery';
 import { drawTails } from '../render/HeroFx';
@@ -19,6 +20,9 @@ export class ArtDebugScene extends Phaser.Scene {
 
   create(): void {
     this.gallery = null;
+    this.spiritAvatars = null;
+    this.spiritFighter = null;
+    this.spiritGfx = null;
     const k = (this.registry.get('scale') as number) ?? 1;
     this.cameras.main.setZoom(k).centerOn(VIEW_W / 2, VIEW_H / 2).setBackgroundColor('#3a3448');
     const page = new URLSearchParams(location.search).get('page');
@@ -26,6 +30,10 @@ export class ArtDebugScene extends Phaser.Scene {
       const hero = new URLSearchParams(location.search).get('hero') ?? 'naruto';
       this.cameras.main.setBackgroundColor('#0b101d');
       this.gallery = new HeroMoveGallery(this, Object.hasOwn(HERO_ART, hero) ? hero : 'naruto');
+      return;
+    }
+    if (page === 'spirits') {
+      this.spiritsPage();
       return;
     }
     if (page === 'weapons') {
@@ -58,7 +66,55 @@ export class ArtDebugScene extends Phaser.Scene {
 
   override update(_time: number, delta: number): void {
     this.gallery?.update(Math.min(delta / 1000, 0.05));
+    if (this.spiritAvatars) this.drawSpirits(Math.min(delta / 1000, 0.05));
   }
+
+  private spiritAvatars: AvatarArt | null = null;
+  private spiritGfx: Phaser.GameObjects.Graphics | null = null;
+  private spiritTime = 0;
+
+  /**
+   * The big spirits as the match draws them: ?scene=art&page=spirits&spirit=susanoo4|susanoo3|kurama, optionally
+   * `charge=0..1` to freeze the wind-up at a point (else it loops: forming, drawing, firing) and `aim` (radians).
+   */
+  private spiritsPage(): void {
+    this.cameras.main.setBackgroundColor('#141a2a');
+    this.spiritGfx = this.add.graphics();
+    this.spiritAvatars = new AvatarArt(this.spiritGfx, this.spiritGfx);
+    this.spiritTime = 0;
+    const q = new URLSearchParams(location.search);
+    const zoom = Number(q.get('zoom')) || 1;
+    const k = (this.registry.get('scale') as number) ?? 1;
+    const which = q.get('spirit') ?? 'susanoo4';
+    if (zoom !== 1) this.cameras.main.setZoom(k * zoom).centerOn(which === 'kurama' ? 250 : 220, 300 - 70 + (Number(q.get('cy')) || 0));
+  }
+
+  private drawSpirits(dt: number): void {
+    const g = this.spiritGfx!;
+    const q = new URLSearchParams(location.search);
+    const which = q.get('spirit') ?? 'susanoo4';
+    const aim = Number(q.get('aim')) || 0;
+    const fixed = q.get('charge');
+    this.spiritTime += dt;
+    const loop = ULT_WINDUP + 1.6;
+    const t = this.spiritTime % loop;
+    const charge = fixed !== null ? Number(fixed) : Math.min(1, t / ULT_WINDUP);
+    g.clear();
+    g.fillStyle(0x2a3350, 1).fillRect(0, 300, VIEW_W, 60);
+    const x = which === 'kurama' ? 250 : 220;
+    const y = 300;
+    // the fighter it forms around
+    const look = which === 'kurama' ? HERO_ART.naruto.look : HERO_ART.sasuke.look;
+    const tex = Art.fighter(this, look);
+    if (!this.spiritFighter) {
+      this.spiritFighter = this.add.image(x, y, tex.body, BF.IDLE0).setOrigin(0.5, 1).setDepth(5);
+    }
+    const sinceShot = fixed === null && t > ULT_WINDUP ? t - ULT_WINDUP : -1;
+    if (which === 'kurama') this.spiritAvatars!.kurama(x, y, 1, sinceShot > 0.3 ? Math.max(0, 1 - (sinceShot - 0.3) / 0.4) : 1, this.spiritTime, charge >= SPIRIT_FORM.end, aim, charge);
+    else this.spiritAvatars!.susanoo(x, y, 1, which === 'susanoo3' ? 3 : 4, sinceShot > 0.3 ? Math.max(0, 1 - (sinceShot - 0.3) / 0.4) : 1, this.spiritTime, charge, sinceShot, aim);
+  }
+
+  private spiritFighter: Phaser.GameObjects.Image | null = null;
 
   /** Every hero: base look + each transformation form (idle, 3x) and the last form punching and kicking. */
   private heroesPage(): void {

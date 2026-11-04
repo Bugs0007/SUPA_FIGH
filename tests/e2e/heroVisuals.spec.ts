@@ -91,7 +91,7 @@ test('Kurama uses side-on Rasengan arms and no hands during Bijudama', async ({ 
     rig.spec.forms = [{ at: 0, who: 0, level: 4 }];
     rig.spec.start = 4;
     rig.spec.patches = [
-      { at: 0, dur: 300, who: 0, idle: true }, { at: 0, dur: 300, who: 1, idle: true },
+      { at: 0, dur: 700, who: 0, idle: true }, { at: 0, dur: 700, who: 1, idle: true },
       { at: 20, dur: 3, who: 0, idle: true, ability: true },
       { at: 100, dur: 3, who: 0, idle: true, ability: true, kick: true },
     ];
@@ -112,7 +112,7 @@ test('Kurama uses side-on Rasengan arms and no hands during Bijudama', async ({ 
     };
     }
     driver.begin();
-    for (let i = 0; i < 190; i++) driver.step();
+    for (let i = 0; i < 380; i++) driver.step(); // (the Bijudama loads for ULT_WINDUP = 2.4 s, then flies)
     return { states: [...states], unchanged, bombHands, aboveBody: fx.front.depth > scene.wr.views[0].root.depth, belowOrb: fx.front.depth < fx.orbs.depth };
   });
   expect(result.states).toEqual(expect.arrayContaining(['rasengan', 'rasengan-recovery', 'bomb-charge', 'bomb-release']));

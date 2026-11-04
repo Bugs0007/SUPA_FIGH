@@ -46,14 +46,14 @@ test('host and join through the menus, ready up, play, reconnect', async ({ brow
   const host = await open();
   const guest = await open();
 
-  // HOST GAME is the 3rd button, JOIN GAME the 4th (focus starts on the button row)
-  await press(host, 'ArrowRight', 2);
+  // HOST GAME is the 4th button, JOIN GAME the 5th (focus starts on the button row)
+  await press(host, 'ArrowRight', 3);
   await press(host, 'Enter');
   await host.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('netlobby'));
   await expect.poll(async () => (await room(host))?.code, { timeout: 10_000 }).toMatch(/^[A-Z2-9]{4}$/);
   const code = (await room(host))!.code;
 
-  await press(guest, 'ArrowRight', 3);
+  await press(guest, 'ArrowRight', 4);
   await press(guest, 'Enter');
   await guest.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('netlobby'));
   // the room list shows the host's room: Enter joins the first one
@@ -116,7 +116,7 @@ test("a server that isn't there shows the can't-connect screen, and retry works 
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto('/?timer=1&server=ws://127.0.0.1:9');
   await page.waitForFunction(() => (window as unknown as Win).__GAME__?.scene().includes('title'));
-  await press(page, 'ArrowRight', 3);
+  await press(page, 'ArrowRight', 4);
   await press(page, 'Enter');
   await page.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('netlobby'));
   await expect

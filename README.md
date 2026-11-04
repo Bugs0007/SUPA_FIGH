@@ -235,6 +235,12 @@ Avatar ultimates aim vertically as well as horizontally: Susanoo tilts its body 
 ### Balance simulations
 Match Setup and LAN Brawl rooms offer **UNLIMITED** after 10 rounds (or before 1). The match keeps starting new rounds until you quit, and the top scoreboard shows cumulative placement points. Pause to see every player's points, kills, deaths, damage dealt, round wins, last placement and points earned, plus health and form health. Online, the table updates while the server match continues. Naruto's ultimate travels twice as fast. Power orbs can be collected during Rasengan, Chidori and Clone Slingshot, including by bots. Bots account for projectile size and blast radius when dodging and favour ultimate shots against enemies committed to attacks or stunned. Kirin grows with each form; Naruto's forms 1–3 use tail whips for their melee combos.
 
+### Ultimates (both ability buttons)
+Every gathered ultimate (Sasuke's arrow, Naruto's Bijudama, Goku's Spirit Bomb) takes the same **2.4 seconds** to load, so there is always time to run, block or break it with a hit; Luffy's giant fist is not a gathered ultimate. During the load the caster is protected and the spirit forms: **Susanoo** (forms 3 and 4) and **Kurama** (Naruto's final form) rise out of a glowing sigil on the ground, the wings or the nine tails unfurl, and the bow is drawn or the Bijudama grows in the jaws. Both spirits are huge: the head alone is taller than a fighter. Susanoo's final form has legs, robes, layered armour, a crested helmet with a short tengu nose and great tiled wings; its arrow leaves the bow high above the fighter and swings up or down with the aim. Naruto's ultimate gets faster and reaches farther with every form (speed 380 > 500 > 630 > 774, reach 320 > 440 > 580 > 720) until the last form matches Sasuke's arrow.
+
+### Fighters screen
+**FIGHTERS** on the title screen shows one card per hero (portrait cycling through its forms, speed / health / ultimate bars and its three signature moves). Pick one to see its moveset animated form by form with the same rigs and effects as a match: left / right change the move tab (ability, kick key, ultimate, combo, special, guard), up / down change the fighter, Esc goes back.
+
 ### Jet Bazooka
 From form 1, press **Pistol + Punch**. Near an enemy, Luffy grabs them and kicks them away; hold a direction to aim the launch. At range he grips the nearest available floor, wall, platform or ladder, winds back, and slingshots toward the closest enemy or power orb. The slingshot requires a real anchor and collects orbs during flight. Gallery previews: add **jet=sling** or **jet=kick** to Luffy's special-move gallery URL.
 
@@ -243,4 +249,4 @@ Match Setup and LAN rooms offer **Random (each round)** in the map selector. Are
 Same-form balance studies: see [methodology and commands](reports/balance/README.md). The headless survey tests all 55 duel / three-way / four-way combinations across base and four transformed forms, retaining draws and per-scenario results.
 
 ---
-Made by [Bhagath](https://bhagath.vercel.app). The title screen links to the portfolio too.
+Made by [Bhagath](https://bhagath.vercel.app). The title screen has an **ABOUT THE CREATOR** button that opens the portfolio.

@@ -12,7 +12,7 @@ import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND,
 import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { heroDef, FORM_COMBO, CLONE_SLINGSHOT, SASUKE_ARROW, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
+import { heroDef, bombRange, FORM_COMBO, CLONE_SLINGSHOT, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
 import { amaterasuReach, baseAbility, dashDir, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
@@ -862,7 +862,7 @@ export class BotController implements Controller {
       const pointBlank = near <= 30 && level <= 16;
       let ok = false;
       let my = 0;
-      if (sp.kind === 'bomb') ok = pointBlank || (dist <= (f.hero==='sasuke'&&f.powerLevel>=3?SASUKE_ARROW.lockRange:sp.bomb?.range ?? 320) && near >= 4 && Math.abs(ang) <= (f.hero==='sasuke'&&f.powerLevel>=3?1.45:LOCK_CONE));
+      if (sp.kind === 'bomb') ok = pointBlank || (dist <= (sp.bomb ? bombRange(f.hero, sp.bomb, f.powerLevel) : 320) && near >= 4 && Math.abs(ang) <= (f.hero==='sasuke'&&f.powerLevel>=3?1.45:LOCK_CONE));
       else if (sp.kind === 'fist' && sp.fist) {
         my = upDown(ang);
         const a = my < 0 ? sp.fist.upAngle : my > 0 ? sp.fist.downAngle : 0;

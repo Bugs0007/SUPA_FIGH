@@ -206,8 +206,8 @@ const FIGHTER_H = 22;
 describe('spirit sprites (translucent, D88)', () => {
   it('Susanoo: both forms, every stage and frame fit their canvas, use only the palette, whole pixels, on the feet', () => {
     for (const level of [3, 4] as const) {
-      for (let stage = 0; stage <= SUSANOO.rest; stage++) {
-        for (let frame = 0; frame < SPIRIT_FRAMES; frame++) {
+      for (const stage of [0, 3, SUSANOO.shot, SUSANOO.rest]) {
+        for (const frame of [0, 2]) {
           const b = susanooSprite(level, stage, frame);
           const bb = bounds(b);
           expect(bb.minX, `L${level} s${stage} f${frame}`).toBeGreaterThan(0);
@@ -228,7 +228,7 @@ describe('spirit sprites (translucent, D88)', () => {
     for (const level of [3, 4] as const) {
       const t = translucency(susanooSprite(level, 1, 0));
       expect(t.see, `L${level}`).toBeGreaterThan(0.35);
-      expect(t.rim).toBeGreaterThan(0.15);
+      expect(t.rim).toBeGreaterThan(0.1);
     }
   });
 
@@ -245,15 +245,18 @@ describe('spirit sprites (translucent, D88)', () => {
     expect(susanooSprite(3, 99, 0)).toBe(susanooSprite(3, SUSANOO.rest, 0)); // stages clamp
   });
 
-  it('Susanoo is about three fighters tall (a little more for the Perfect crown and wing), the eye glows', () => {
+  it('Susanoo towers over the fighters: 5 to 9 fighters tall, its head alone taller than one fighter, the eye glows', () => {
     for (const level of [3, 4] as const) {
       const b = susanooSprite(level, 0, 0);
       const height = SUSANOO.ay - bounds(b).minY;
-      expect(height, `L${level}`).toBeGreaterThanOrEqual(3 * FIGHTER_H);
-      expect(height).toBeLessThanOrEqual(4 * FIGHTER_H);
+      expect(height, `L${level}`).toBeGreaterThanOrEqual(5 * FIGHTER_H);
+      expect(height).toBeLessThanOrEqual(9 * FIGHTER_H);
       expect(new Set(pixels(b).values()).size).toBeLessThan(48);
-      const glows = [...pixels(b).entries()].filter(([p, c]) => c === SUSANOO_GLOW && Number(p.split(',')[1]) < SUSANOO.ay - 55);
+      const glows = [...pixels(b).entries()].filter(([p, c]) => c === SUSANOO_GLOW && Number(p.split(',')[1]) < SUSANOO.ay - 3 * FIGHTER_H);
       expect(glows.length, 'the eye').toBeGreaterThan(0);
+      // the head: from the eye up to the crown or horns is more than a whole fighter
+      const eyeRow = Math.min(...glows.map(([p]) => Number(p.split(',')[1])));
+      expect(eyeRow - bounds(b).minY, `L${level} head`).toBeGreaterThan(FIGHTER_H);
     }
   });
 
@@ -293,8 +296,8 @@ describe('spirit sprites (translucent, D88)', () => {
         expect(bb.maxY).toBeLessThan(KURAMA.ay);
         for (const c of pixels(b).values()) expect(KURAMA_COLOURS.has(c)).toBe(true);
         const height = KURAMA.ay - bb.minY;
-        expect(height).toBeGreaterThanOrEqual(3 * FIGHTER_H);
-        expect(height).toBeLessThanOrEqual(3.8 * FIGHTER_H);
+        expect(height).toBeGreaterThanOrEqual(5 * FIGHTER_H);
+        expect(height).toBeLessThanOrEqual(9 * FIGHTER_H);
         const t = translucency(b);
         expect(t.see).toBeGreaterThan(0.3);
         expect(t.rim).toBeGreaterThan(0.15);

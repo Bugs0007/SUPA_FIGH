@@ -19,17 +19,20 @@ import { loadLobby, saveLobby } from './lobby';
 import { defaultSetup } from './MatchScene';
 import { hint, HintBar } from './kit';
 import { PLAYER_COLORS, Puppet } from './ui';
+import { textWidth } from '../art/font';
 import { bakeMapPreview } from '../art/mapPreview';
-/** the maker's portfolio (title screen shout-out) */
+/** the maker's portfolio (the ABOUT THE CREATOR button) */
 export const CREDIT_URL = 'https://bhagath.vercel.app';
 const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
 const BUTTONS = [
   { label: 'QUICK MATCH', action: 'quick' },
   { label: 'MATCH SETUP', action: 'lobby' },
+  { label: 'FIGHTERS', action: 'fighters' },
   { label: 'HOST GAME', action: 'host' },
   { label: 'JOIN GAME', action: 'join' },
   { label: 'CONTROLS', action: 'controls' },
   { label: 'SETTINGS', action: 'settings' },
+  { label: 'ABOUT THE CREATOR', action: 'about' },
 ] as const;
 type ButtonAction = (typeof BUTTONS)[number]['action'];
 /** Focus order (Up/Down). Left/Right changes the value; on the button row it picks a button. */
@@ -41,7 +44,20 @@ const CARD_Y = 50;
 const CARD_H = 108;
 const CENTER_X = 12;
 const CENTER_W = 384;
-const BUTTON_RECTS = [[12, 164], [184, 110], [302, 84], [394, 84], [486, 68], [562, 66]] as const;
+/** The button row (x, width): quick match a little wider, the rest sized to their label, the whole row spanning the screen. */
+const BUTTON_RECTS: [number, number][] = (() => {
+  const gap = 4, span = VIEW_W - 24;
+  const need = BUTTONS.map((b, i) => textWidth(b.label, 'pxo') * (i === 0 ? 1.2 : 1));
+  const extra = 24; // (quick match is the featured button)
+  const pad = Math.floor((span - extra - gap * (BUTTONS.length - 1) - need.reduce((a, b) => a + b, 0)) / BUTTONS.length);
+  let x = 12;
+  return need.map((n, i) => {
+    const w = Math.round(n + pad + (i === 0 ? extra : 0));
+    const rect: [number, number] = [x, w];
+    x += w + gap;
+    return rect;
+  });
+})();
 /** Short one-line pitch per fighter for the cards (heroes add their signature move below). */
 const SCRAPPER_DESC = 'NO POWERS. ALL GUTS. CUSTOMIZE THE LOOK IN MATCH SETUP.';
 function wrap(text: string, maxChars: number): string[] {
@@ -146,15 +162,6 @@ export class TitleScene extends Phaser.Scene {
     this.warn = this.add.bitmapText(VIEW_W / 2, 335, 'sm', '').setOrigin(0.5, 0).setTint(0x8d95b0).setDepth(5);
     this.bar = new HintBar(this, VIEW_H - 15, 30);
     this.add.bitmapText(VIEW_W - 4, 4, 'sm', 'V' + __APP_VERSION__).setOrigin(1, 0).setTint(0x5a5668).setDepth(5);
-    // shout-out: tap / click opens the maker's portfolio in a new tab
-    const credit = this.add.bitmapText(4, 4, 'sm', `MADE BY BHAGATH - ${CREDIT_URL.replace('https://', '').toUpperCase()}`).setTint(0xf8c840).setDepth(5);
-    const creditZone = this.add.zone(0, 0, credit.width + 8, 14).setOrigin(0).setDepth(7).setInteractive({ useHandCursor: true });
-    creditZone.on('pointerover', () => credit.setTint(0xffffff));
-    creditZone.on('pointerout', () => credit.setTint(0xf8c840));
-    creditZone.on('pointerdown', () => {
-      audio.play('uiOk');
-      window.open(CREDIT_URL, '_blank', 'noopener,noreferrer');
-    });
     this.refresh();
   }
   /** Touch / mouse: tap a row to change it (like pressing OK on it) and a button to go. */
@@ -304,6 +311,10 @@ export class TitleScene extends Phaser.Scene {
     }
     else if (action === 'lobby')
       this.scene.start('lobby');
+    else if (action === 'about')
+      window.open(CREDIT_URL, '_blank', 'noopener,noreferrer');
+    else if (action === 'fighters')
+      this.scene.start('fighters');
     else if (action === 'host' || action === 'join')
       this.scene.start('netlobby', { role: action });
     else
@@ -515,7 +526,7 @@ export class TitleScene extends Phaser.Scene {
       const on = this.row === 'buttons' && this.button === i;
       g.fillStyle(i === 0 ? 0xf4ca76 : on ? 0x385973 : 0x192b40, 1).fillRect(x, 309, w, 22);
       g.lineStyle(1, on ? 0xffe5ac : 0x55778d, on ? 1 : .5).strokeRect(x + .5, 309.5, w - 1, 21);
-      t.setPosition(x + w / 2, 320).setScale(i === 0 ? 1.35 : 1)
+      t.setPosition(x + w / 2, 320).setScale(i === 0 ? 1.2 : 1)
         .setTint(i === 0 ? 0x162337 : on ? 0xffe9c5 : 0xc1d2e4).setAlpha(1);
     });
     this.footerText(settings.quickPlayers + settings.quickBots);

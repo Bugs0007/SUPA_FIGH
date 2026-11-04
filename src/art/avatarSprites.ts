@@ -6,387 +6,14 @@
 // Parts are separate groups, so every bone, plate, feather, leg and tail gets its own bright rim over the mass behind.
 // Phaser-free: `AvatarArt` (render/) paints the baked runs. Everything faces +x; facing left mirrors it.
 
-import { SUSANOO_LAUNCH, avatarAim } from '../sim/data/heroes';
-import { bake, bakeSpirit, inkLine, Raster, type Baked, type Ink, type Material, type Pt, type SpiritMat } from './pixelRaster';
+import { avatarAim } from '../sim/data/heroes';
+import { bake, bakeSpirit, Raster, ScaledPen, type Baked, type Material, type Pt, type SpiritMat } from './pixelRaster';
 
-type XY = [number, number];
+import { type XY, plume, flame, taper, tongue, rot, wob, spirit, flat, SPIRIT_FRAMES, S_BONE, S_LIMB, S_LIMB2, S_ARMOR, S_PLATE, S_SEAM, S_GLOW, SUSANOO_MATS, SUSANOO_HALO, SUSANOO_INK, SUSANOO_COLOURS, SUSANOO_GLOW } from './spiritKit';
+export { SPIRIT_FRAMES, SUSANOO_MATS, SUSANOO_HALO, SUSANOO_INK, SUSANOO_COLOURS, SUSANOO_GLOW };
 
-/** flame / wing / tail animation frames (the spirits flicker through them at `AvatarArt`'s rate) */
-export const SPIRIT_FRAMES = 4;
-
-const spirit = (tones: SpiritMat['tones'], alpha: SpiritMat['alpha'], group: number, layer = 0, bands?: SpiritMat['bands']): SpiritMat =>
-  bands ? { tones, alpha, group, layer, bands } : { tones, alpha, group, layer };
-const flat = (c: number, a: number): SpiritMat => ({ tones: [c, c, c, c], alpha: [a, a, a, a], flat: true });
-
-/** opacity bands (rim, inner, body, core): structure (bones, plates, legs) and chakra mass (flames, tails) */
-const SOLID_A = [0.95, 0.82, 0.6, 0.46] as const;
-const MASS_A = [0.82, 0.62, 0.44, 0.3] as const;
-
-// ---- small shape helpers (all in raster pixels)
-
-/** a polygon around a polyline with a half width per point (plumes, tails, flames) */
-function plume(r: Raster, pts: readonly XY[], widths: readonly number[], m: number): void {
-  const left: Pt[] = [];
-  const right: Pt[] = [];
-  pts.forEach((p, k) => {
-    const a = pts[Math.max(0, k - 1)];
-    const b = pts[Math.min(pts.length - 1, k + 1)];
-    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    const nx = -(b[1] - a[1]) / l;
-    const ny = (b[0] - a[0]) / l;
-    left.push([p[0] + nx * widths[k], p[1] + ny * widths[k]]);
-    right.push([p[0] - nx * widths[k], p[1] - ny * widths[k]]);
-  });
-  r.poly([...left, ...right.reverse()], m);
-}
-
-/**
- * A rising flame (raster pixels): from base centre (x, y) up `h` px, `w` wide at its fattest (a quarter of the way up),
- * swaying sideways in an S that travels up with `phase` (the flicker), tapering to a curled point.
- */
-function flame(r: Raster, x: number, y: number, h: number, w: number, sway: number, phase: number, m: number): void {
-  const pts: XY[] = [];
-  const widths: number[] = [];
-  for (let k = 0; k <= 8; k++) {
-    const t = k / 8;
-    pts.push([x + Math.sin(t * Math.PI * 1.3 + phase) * sway * t, y - h * t]);
-    widths.push(Math.max(0.4, (w / 2) * (0.7 + 0.45 * Math.sin(Math.min(1, t * 2) * Math.PI * 0.5)) * Math.pow(1 - t, 0.85)));
-  }
-  plume(r, pts, widths, m);
-}
-
-/** a polygon around a polyline, its half width going from w0 at the start to w1 at the end */
-function taper(pts: readonly XY[], w0: number, w1: number): Pt[] {
-  const left: Pt[] = [];
-  const right: Pt[] = [];
-  for (let i = 0; i < pts.length; i++) {
-    const a = pts[Math.max(0, i - 1)];
-    const b = pts[Math.min(pts.length - 1, i + 1)];
-    const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-    const nx = -(b[1] - a[1]) / l;
-    const ny = (b[0] - a[0]) / l;
-    const w = w0 + ((w1 - w0) * i) / Math.max(1, pts.length - 1);
-    left.push([pts[i][0] + nx * w, pts[i][1] + ny * w]);
-    right.push([pts[i][0] - nx * w, pts[i][1] - ny * w]);
-  }
-  return [...left, ...right.reverse()];
-}
-
-/**
- * A flame tongue from base centre (x, y) along the unit direction (dx, dy): widest a third of the way out, the tip
- * bent `bend` px sideways (a lick that curls), `len` long and `w` wide at the base.
- */
-function tongue(r: Raster, x: number, y: number, dx: number, dy: number, len: number, w: number, bend: number, m: number): void {
-  const nx = -dy;
-  const ny = dx;
-  const at = (t: number, s: number): Pt => [x + dx * len * t + nx * s, y + dy * len * t + ny * s];
-  r.poly([at(0, -w / 2), at(0.32, -w / 2 - 0.6), at(0.72, -w * 0.15 + bend * 0.45), at(1, bend), at(0.62, w * 0.28 + bend * 0.5), at(0.3, w / 2 + 0.6), at(0, w / 2)], m);
-}
-
-/** rotate a point about a pivot (radians, screen coordinates: negative turns the front upward) */
-const rot = (p: XY, c: XY, a: number): XY => {
-  const cs = Math.cos(a);
-  const sn = Math.sin(a);
-  return [c[0] + (p[0] - c[0]) * cs - (p[1] - c[1]) * sn, c[1] + (p[0] - c[0]) * sn + (p[1] - c[1]) * cs];
-};
-
-/** per-frame wobble: a small repeating sequence picked by an index (deterministic, no randomness) */
-const wob = (seq: readonly number[], i: number) => seq[((i % seq.length) + seq.length) % seq.length];
-
-// ---- Susanoo: violet chakra over pale bone (Mangekyo) or layered armour (Perfect), a glowing eye, a chakra bow
-const S_FLAME = 1;
-const S_FLAME2 = 2;
-const S_BONE = 3;
-const S_LIMB = 4;
-const S_LIMB2 = 5;
-const S_ARMOR = 6;
-const S_PLATE = 7;
-const S_WING = 8;
-const S_WING2 = 9;
-const S_COVERT = 10;
-const S_BOW = 11;
-const S_SEAM = 12;
-const S_GLOW = 13;
-const VIOLET_FLAME = [0xdcb6ff, 0xae6ef9, 0x8444e2, 0x672ac4] as const;
-const VIOLET_FLAME2 = [0xd0a4ff, 0x9e5cf2, 0x7638d6, 0x5a22b4] as const;
-const VIOLET_BONE = [0xfaf2ff, 0xdcbcff, 0xb282f4, 0x9058e0] as const;
-const VIOLET_ARMOR = [0xf2e4ff, 0xcaa0ff, 0x9c68ea, 0x7a48d0] as const;
-const VIOLET_PLATE = [0xfcf4ff, 0xd8b2ff, 0xae7af2, 0x8a58dc] as const;
-const VIOLET_WING = [0xeedaff, 0xbe8eff, 0x9058e6, 0x6e3cc8] as const;
-const VIOLET_WING2 = [0xe0c8ff, 0xac78f8, 0x7e4adc, 0x6030b8] as const;
-export const SUSANOO_MATS: SpiritMat[] = [
-  spirit(VIOLET_FLAME, MASS_A, 1, 0), // flames and the chakra mass of the body
-  spirit(VIOLET_FLAME2, MASS_A, 2, 0), // the tongues between them
-  spirit(VIOLET_BONE, SOLID_A, 3, 1), // bones: ribs, spine, skull
-  spirit(VIOLET_BONE, SOLID_A, 4, 2), // the bow arm (over the ribs)
-  spirit(VIOLET_ARMOR, SOLID_A, 5, 2), // the drawing arm (rims over the other where they cross)
-  spirit(VIOLET_ARMOR, SOLID_A, 6, 1), // armour
-  spirit(VIOLET_PLATE, SOLID_A, 7, 1), // lighter plates (layers alternate with armour)
-  spirit(VIOLET_WING, MASS_A, 8, 0), // primary feathers
-  spirit(VIOLET_WING2, MASS_A, 9, 0), // the feathers between them
-  spirit(VIOLET_WING, SOLID_A, 10, 1), // the covert feathers along the wing's edge
-  spirit([0xffffff, 0xeedeff, 0xcca8ff, 0xb088f8], [1, 0.95, 0.85, 0.75], 11, 3), // the chakra bow
-  flat(0x2a0c52, 0.6), // seams, sockets, the dark between plates
-  flat(0xffffff, 1), // the eye, the arrowhead
-];
-/** the faint halo pixel around everything (the soft edge of the one-tail cloak) */
-export const SUSANOO_HALO = { c: 0x8040e0, a: 0.32 };
-/** the single-pixel string, arrow shaft, fletching and muzzle flash (painted over the sprite) */
-export const SUSANOO_INK = { string: 0xeee4ff, shaft: 0xfaf6ff, fletch: 0xb48cff, flash: 0xffffff, flash2: 0xd8c6ff };
-/** every colour the Susanoo may use (tests) */
-export const SUSANOO_COLOURS = new Set<number>([SUSANOO_HALO.c, ...Object.values(SUSANOO_INK), ...SUSANOO_MATS.flatMap((m) => [...m.tones])]);
-/** the arrowhead / eye colour (the glow) */
-export const SUSANOO_GLOW = 0xffffff;
-
-/**
- * The baked Susanoo's layout. The raster pixel (ax, ay) sits on the fighter's feet; the arrowhead's point is exactly
- * on `SUSANOO_LAUNCH` (sim/data/heroes.ts), where the sim spawns the arrow. Stages 0..3 draw the bow back, 4 is the shot
- * (string snapping, muzzle flash), 5 the bow at rest while the spirit fades. Per form: the bow's half height and bend,
- * and how far behind the bow tips the string's middle is pulled at each draw stage.
- */
-export const SUSANOO = {
-  ax: 96,
-  ay: 96,
-  w: 180,
-  h: 100,
-  stages: 4,
-  shot: 4,
-  rest: 5,
-  form: {
-    3: { half: 24, bend: 7, draw: [8, 17, 26, 34] },
-    4: { half: 30, bend: 8, draw: [8, 18, 28, 38] },
-  } as Record<3 | 4, { half: number; bend: number; draw: readonly number[] }>,
-};
-
-function susanooRaster(level: 3 | 4, stage: number, frame: number): Baked {
-  const { ax, ay } = SUSANOO;
-  const r = new Raster(SUSANOO.w, SUSANOO.h);
-  const ink: Ink[] = [];
-  const top = level === 4;
-  const spec = SUSANOO.form[level];
-  // body coordinates: u pixels ahead of the feet, v pixels up from them (negative)
-  const Q = (u: number, v: number): XY => [ax + u, ay + v];
-  const P = (pts: XY[]): Pt[] => pts.map(([u, v]) => Q(u, v));
-  const T = (pts: XY[], w0: number, w1: number): Pt[] => taper(pts.map(([u, v]) => Q(u, v)), w0, w1);
-  const R = (u: number, v: number): XY => [Math.round(ax + u), Math.round(ay + v)];
-  const line = (a: XY, b: XY, m: number, thick = 1) => r.line(a[0], a[1], b[0], b[1], m, thick);
-  // the bow is placed from the launch point, in whole pixels
-  const launch = SUSANOO_LAUNCH[level];
-  const lx = ax + launch.ahead;
-  const ly = ay - launch.up;
-  const gx = lx - 5; // the grip
-  const tipX = gx - spec.bend;
-  const drawing = stage < SUSANOO.stages;
-  const nockX = drawing ? tipX - spec.draw[stage] : tipX;
-  const front: XY = top ? [15, -52] : [13, -48];
-  const back: XY = top ? [-21, -52] : [-19, -48];
-
-  // Perfect: one great feathered wing rising behind the back shoulder, beating with the flame frames
-  if (top) {
-    const flap = wob([0, -0.06, -0.11, -0.06], frame);
-    const root: XY = [-14, -56];
-    const edge: XY[] = ([root, [-24, -70], [-35, -80], [-49, -83], [-62, -78]] as XY[]).map((p) => rot(p, root, flap));
-    const along = (t: number): XY => {
-      const s = Math.min(0.999, t) * (edge.length - 1);
-      const i = Math.floor(s);
-      const k = s - i;
-      return [edge[i][0] + (edge[i + 1][0] - edge[i][0]) * k, edge[i][1] + (edge[i + 1][1] - edge[i][1]) * k];
-    };
-    // three rows of feathers hang from the edge, down and back: long primaries, then secondaries and coverts over
-    // them (each row shorter, nearer the edge); neighbours alternate tones so every feather keeps its own rim
-    const rows: [number, number, number, number, number][] = [
-      // count, start length, peak length, half width, row material base (0 = alternate primaries)
-      [10, 20, 38, 4.6, 0],
-      [9, 13, 22, 4.2, 1],
-      [8, 8, 11, 3.6, 2],
-    ];
-    for (const [count, l0, l1, hw, row] of rows) {
-      for (let j = count - 1; j >= 0; j--) {
-        const t = (j + 0.5) / count;
-        const [bu, bv] = along(0.02 + t * 0.96);
-        const a = Math.PI / 2 + 0.02 + t * (0.55 - row * 0.1) - flap * 0.8;
-        const len = l0 + (l1 - l0) * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.5) - (t > 0.85 ? (t - 0.85) * 40 : 0);
-        const m = row === 2 ? S_COVERT : (j + row) % 2 ? S_WING2 : S_WING;
-        r.poly(T([[bu, bv], [bu + Math.cos(a) * len * 0.5 - 1, bv + Math.sin(a) * len * 0.5], [bu + Math.cos(a) * len, bv + Math.sin(a) * len]], hw, 0.9), m);
-      }
-    }
-    r.poly(T(edge, 3, 1.6), S_COVERT);
-  }
-
-  // the spirit has no legs: below the waist it is a column of violet flame, licking up around the torso
-  const flames: [number, number, number][] = top
-    ? [[-30, 20, 9], [-22, 34, 12], [-13, 28, 12], [-4, 36, 12], [5, 28, 12], [14, 34, 12], [23, 26, 11], [30, 16, 8]]
-    : [[-30, 24, 9], [-23, 40, 12], [-14, 52, 12], [-5, 30, 12], [4, 28, 12], [12, 48, 12], [20, 42, 11], [27, 26, 9]];
-  r.ellipse(...Q(-2, -3), top ? 30 : 28, 4, S_FLAME);
-  flames.forEach(([u, h, w], i) => {
-    const hh = h + wob([0, 3, 1, -2], i + frame);
-    flame(r, ...Q(u, 0), hh, w, 3 + (i % 3), (frame * Math.PI) / 2 + i * 1.7, i % 2 ? S_FLAME2 : S_FLAME);
-  });
-
-  if (top) {
-    // Perfect: three lamellar skirt panels over the flames, a belt, a breastplate and layered pauldrons
-    const panels: XY[][] = [
-      [[-21, -34], [-9, -34], [-10, -14], [-25, -16]],
-      [[-9, -34], [3, -34], [4, -12], [-10, -12]],
-      [[3, -34], [15, -34], [19, -16], [4, -14]],
-    ];
-    panels.forEach((p, i) => {
-      r.poly(P(p), i === 1 ? S_PLATE : S_ARMOR);
-      for (let v = -28; v <= -20; v += 5) line(R(p[0][0] + (i === 0 ? -1 : 1), v), R(p[1][0] - 1 + (i === 2 ? 1 : 0), v), S_SEAM);
-    });
-    r.poly(P([[-22, -58], [16, -58], [18, -48], [14, -36], [-18, -36], [-23, -48]]), S_ARMOR);
-    r.poly(P([[-19, -56], [-5, -56], [-5, -47], [-18, -48]]), S_PLATE);
-    r.poly(P([[-2, -56], [13, -56], [14, -48], [-2, -47]]), S_PLATE);
-    line(R(-15, -41), R(11, -41), S_SEAM);
-    r.poly(P([[-20, -36], [15, -36], [15, -32], [-20, -32]]), S_PLATE);
-    r.poly(P([[-5, -37.5], [1, -37.5], [1, -30.5], [-5, -30.5]]), S_ARMOR);
-    // the great pauldron: two overlapping rounded plates over the back shoulder
-    r.poly(P([[-34, -54], [-14, -57], [-10, -48], [-31, -45]]), S_ARMOR);
-    r.poly(P([[-35, -61], [-22, -64], [-12, -61], [-10, -54], [-33, -52]]), S_PLATE);
-  } else {
-    // Mangekyo: a ribcage around a dark chakra core, a spine, a pelvis
-    r.poly(P([[-21, -53], [15, -53], [17, -42], [12, -32], [5, -24], [5, -8], [-11, -8], [-11, -24], [-18, -32], [-23, -42]]), S_FLAME);
-    for (let v = -31; v <= -11; v += 3) r.poly(P([[-5.5, v], [-0.5, v], [-0.5, v + 2], [-5.5, v + 2]]), S_BONE);
-    r.poly(P([[-15, -15], [-4, -17], [-4, -10], [-12, -9]]), S_BONE);
-    r.poly(P([[-2, -17], [8, -15], [5, -9], [-2, -10]]), S_BONE);
-    r.poly(P([[-4.5, -51], [-1.5, -51], [-1.5, -34], [-4.5, -34]]), S_BONE);
-    for (let i = 0; i < 5; i++) {
-      // each rib leaves the sternum, arcs out and curls down at the side; the cage narrows toward the waist
-      const v = -48 + i * 4;
-      const reach = 17 - i * 1.7;
-      r.stroke([R(-4, v), R(-10, v - 1), R(-3 - reach, v + 1), R(-4 - reach, v + 4)], S_BONE, 2);
-      r.stroke([R(-2, v), R(4, v - 1), R(-3 + reach, v + 1), R(-2 + reach, v + 4)], S_BONE, 2);
-    }
-    r.stroke([R(back[0], -51), R(front[0], -51)], S_BONE, 2);
-    for (let v = -57; v <= -53; v += 2) r.poly(P([[-4.5, v], [-0.5, v], [-0.5, v + 1], [-4.5, v + 1]]), S_BONE);
-  }
-
-  // the head: a horned skull with a long tengu nose (Mangekyo), or a crested, crowned helmet with a tengu face plate
-  if (top) {
-    // a crest swept back off the helmet, three crown spikes, a lock of hair; the face is a pale tengu mask
-    r.poly(T([[-6, -72], [-15, -78], [-28, -82]], 2.6, 0.5), S_PLATE);
-    r.poly(T([[-9, -66], [-13, -60], [-14, -52]], 2, 0.7), S_PLATE);
-    for (const [u0, u1, h] of [[-6, -8, 7], [-1.5, -1.5, 9], [3, 5, 7]]) r.poly(P([[u0 - 1.6, -73], [u1, -73 - h], [u0 + 1.6, -73]]), S_PLATE);
-    r.poly(P([[-9, -62], [3, -62], [3, -58], [-9, -58]]), S_ARMOR);
-    r.ellipse(...Q(-2, -68), 8.5, 7.5, S_ARMOR);
-    r.poly(P([[0, -73], [9, -71], [10, -65], [8, -59], [1, -58], [-1, -65]]), S_BONE);
-    r.poly(T([[8, -67], [18, -65], [30, -62]], 2.8, 0.6), S_BONE);
-    line(R(0, -71), R(9, -70), S_SEAM);
-    line(R(3, -61), R(8, -61), S_SEAM);
-    r.rect(...R(3, -69), 4, 2, S_SEAM);
-    r.rect(...R(4, -69), 2, 1, S_GLOW);
-  } else {
-    r.poly(T([[3, -68], [8, -73], [9, -77], [7, -80]], 2.8, 0.6), S_BONE);
-    r.poly(T([[-7, -68], [-12, -73], [-14, -77], [-12, -80]], 2.8, 0.6), S_BONE);
-    r.ellipse(...Q(-1, -63), 9, 8, S_BONE);
-    r.poly(T([[6, -64], [15, -62], [25, -58]], 3, 0.6), S_BONE);
-    r.poly(P([[2, -61], [12, -61], [10, -57], [2, -57]]), S_BONE);
-    r.poly(P([[-4, -57], [10, -57], [9, -53], [1, -51], [-5, -53]]), S_BONE);
-    // a deep socket under a heavy brow, a cheekbone, a temple hole, the teeth
-    r.poly(P([[1, -69], [10, -68], [9, -62], [2, -62]]), S_SEAM);
-    line(R(0, -70), R(10, -69), S_BONE);
-    line(R(-8, -58), R(1, -60), S_SEAM);
-    line(R(0, -55), R(9, -55), S_SEAM);
-    for (const u of [2, 5, 8]) r.set(...R(u, -54), S_SEAM);
-    r.poly(P([[-7, -66], [-3, -67], [-4, -61]]), S_SEAM);
-    r.rect(...R(4, -66), 3, 2, S_GLOW);
-  }
-
-  // the arms: the bow arm reaches forward to the grip, the drawing arm pulls the string to the chest, its elbow going
-  // back as the bow bends
-  const elbowsDraw: XY[] = top ? [[8, -55], [-6, -57], [-18, -57], [-29, -55]] : [[6, -50], [-6, -52], [-17, -52], [-27, -50]];
-  const elbowDraw = drawing ? elbowsDraw[stage] : elbowsDraw[0];
-  const hand: XY = [nockX - ax, ly - ay];
-  const elbowBow: XY = top ? [32, -50] : [27, -47];
-  const wrist: XY = [gx - 2 - ax, ly - ay];
-  if (top) {
-    r.poly(T([front, elbowBow], 3.2, 2.8), S_ARMOR);
-    r.poly(T([elbowBow, wrist], 3, 2.6), S_PLATE);
-    for (const t of [0.3, 0.55, 0.8]) {
-      const u = elbowBow[0] + (wrist[0] - elbowBow[0]) * t;
-      const v = elbowBow[1] + (wrist[1] - elbowBow[1]) * t;
-      line(R(u, v - 2), R(u, v + 2), S_SEAM);
-    }
-    r.poly(P([[9, -57], [21, -55], [22, -49], [10, -48]]), S_PLATE);
-    r.poly(T([back, elbowDraw], 3.2, 2.8), S_LIMB2);
-    r.poly(T([elbowDraw, hand], 2.8, 2.4), S_LIMB2);
-    r.ellipse(...Q(hand[0] - 1, hand[1] + 0.5), 3.4, 3.4, S_LIMB2);
-  } else {
-    r.ellipse(...Q(...back), 3.5, 3.5, S_BONE);
-    r.ellipse(...Q(...front), 3.5, 3.5, S_BONE);
-    r.stroke([R(...front), R(...elbowBow)], S_LIMB, 3);
-    r.ellipse(...Q(...elbowBow), 2.5, 2.5, S_LIMB);
-    r.stroke([R(elbowBow[0], elbowBow[1] - 1), R(wrist[0], wrist[1] - 1)], S_LIMB, 1);
-    r.stroke([R(elbowBow[0], elbowBow[1] + 1), R(wrist[0], wrist[1] + 1)], S_LIMB, 1);
-    r.stroke([R(...back), R(...elbowDraw)], S_LIMB2, 3);
-    r.ellipse(...Q(...elbowDraw), 2.5, 2.5, S_LIMB2);
-    r.stroke([R(elbowDraw[0], elbowDraw[1] - 1), R(hand[0], hand[1] - 1)], S_LIMB2, 1);
-    r.stroke([R(elbowDraw[0], elbowDraw[1] + 1), R(hand[0], hand[1] + 1)], S_LIMB2, 1);
-    // bony knuckles closed on the string
-    r.ellipse(...Q(hand[0] - 1, hand[1] + 0.5), 2.4, 2.4, S_LIMB2);
-  }
-
-  // the bow: a recurved arc of chakra (the Perfect one thicker, with spurs on its back), the hand closed on its grip
-  const arc: XY[] = [[tipX + 3, ly - spec.half - 3]];
-  for (let i = 0; i <= 12; i++) {
-    const t = i / 6 - 1;
-    arc.push([Math.round(gx - spec.bend * t * t), Math.round(ly + t * spec.half)]);
-  }
-  arc.push([tipX + 3, ly + spec.half + 3]);
-  r.stroke(arc, S_BOW, top ? 3 : 2);
-  if (top) {
-    for (const t of [-0.75, -0.4, 0.4, 0.75]) {
-      const bx = gx - spec.bend * t * t;
-      const by = ly + t * spec.half;
-      r.poly([[bx + 1, by - 1.5], [bx + 4, by + Math.sign(t) * 1.5], [bx + 1, by + 1.5]], S_BOW);
-    }
-  }
-  r.ellipse(gx - 1.5, ly + 0.5, top ? 3.6 : 3, top ? 3.6 : 3, top ? S_ARMOR : S_LIMB);
-
-  // the string (single pixels, as on the fighters' bows), the arrow while drawing, a muzzle flash on the shot
-  const top0: XY = [tipX, ly - spec.half];
-  const bot0: XY = [tipX, ly + spec.half];
-  if (drawing) {
-    inkLine(ink, top0[0], top0[1], nockX, ly, SUSANOO_INK.string);
-    inkLine(ink, nockX, ly, bot0[0], bot0[1], SUSANOO_INK.string);
-    for (let c = 0; c < 4; c++) for (let j = -Math.min(c, 2); j <= Math.min(c, 2); j++) r.set(lx - c, ly + j, S_GLOW);
-    inkLine(ink, nockX + 1, ly, lx - 4, ly, SUSANOO_INK.shaft);
-    for (const [dx, dy] of [[1, -1], [2, -1], [3, -2], [1, 1], [2, 1], [3, 2]]) ink.push({ x: nockX + dx, y: ly + dy, c: SUSANOO_INK.fletch });
-  } else {
-    // just released, the string snaps past straight and quivers; then it rests straight
-    const mid = stage === SUSANOO.shot ? tipX + 1 : tipX;
-    inkLine(ink, top0[0], top0[1], mid, ly, SUSANOO_INK.string);
-    inkLine(ink, mid, ly, bot0[0], bot0[1], SUSANOO_INK.string);
-    if (stage === SUSANOO.shot) {
-      inkLine(ink, lx + 1, ly, lx + 7, ly, SUSANOO_INK.flash);
-      inkLine(ink, lx + 1, ly - 3, lx + 1, ly + 3, SUSANOO_INK.flash2);
-      for (const [dx, dy] of [[2, -1], [2, 1], [3, -2], [3, 2], [0, 0], [-1, 0]]) ink.push({ x: lx + dx, y: ly + dy, c: dx > 2 ? SUSANOO_INK.flash2 : SUSANOO_INK.flash });
-    }
-  }
-  const baked = bakeSpirit(r, SUSANOO_MATS, SUSANOO_HALO, ink);
-  baked.runs = baked.runs.filter((run) => run.y < ay);
-  return baked;
-}
-
-const spriteCache = new Map<string, Baked>();
-function cached(key: string, make: () => Baked): Baked {
-  let b = spriteCache.get(key);
-  if (!b) {
-    b = make();
-    spriteCache.set(key, b);
-  }
-  return b;
-}
-
-/**
- * The Susanoo for a form (3 = Mangekyo, 4 = Perfect): `stage` 0..3 draws the bow back, 4 = the shot, 5 = at rest;
- * animation frame 0..3 (the flames flicker, the wing beats). Baked once per (form, stage, frame).
- */
-export function susanooSprite(level: 3 | 4, stage: number, frame: number): Baked {
-  const s = Math.max(0, Math.min(SUSANOO.rest, Math.floor(stage)));
-  const f = ((frame % SPIRIT_FRAMES) + SPIRIT_FRAMES) % SPIRIT_FRAMES;
-  return cached(`s${level}|${s}|${f}`, () => susanooRaster(level, s, f));
-}
+export { SUSANOO, susanooArms, susanooCore, susanooSprite, susanooWings } from './susanooArt';
+import { susanooArms, susanooCore } from './susanooArt';
 
 // ---- Kurama: translucent golden chakra, black seal markings, nine flame tails
 const K_TAIL_A = 1;
@@ -435,12 +62,20 @@ export const KURAMA_MOUTH = KURAMA_MATS[K_MOUTH - 1].tones[0];
  * Kurama's layout: the raster pixel (ax, ay) sits on Naruto's feet (he stands inside the chest, between the legs, as in
  * the reference). The open mouth is right behind `KURAMA_LAUNCH` (sim/data/heroes.ts), where the Bijudama leaves.
  */
-export const KURAMA = { ax: 104, ay: 86, w: 182, h: 90 };
+export const KURAMA = { ax: 196, ay: 180, w: 350, h: 184, scale: 1.9, /** height of its tallest point (ears, tails) above the feet */ height: 176 };
 
-function kuramaRaster(frame: number, roar: boolean, aim=0): Baked {
+/**
+ * The tails and the rest of the body, baked as two sprites (the show-up animation raises the body first and fans the
+ * tails out after). Drawn in design units at `KURAMA.scale` times: its head alone is bigger than a whole fighter.
+ */
+function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: Baked } {
   const pad=aim===0?0:KURAMA_AIM_PAD;
-  const ax=KURAMA.ax+pad,ay=KURAMA.ay+pad;
-  const r = new Raster(KURAMA.w+pad*2, KURAMA.h+pad*2);
+  const ax=0,ay=0;
+  const rawB = new Raster(KURAMA.w+pad*2, KURAMA.h+pad*2);
+  const rawT = new Raster(KURAMA.w+pad*2, KURAMA.h+pad*2);
+  const anchor: Pt = [KURAMA.ax + pad, KURAMA.ay + pad];
+  const r = new ScaledPen(rawB, [0, 0], anchor, KURAMA.scale);
+  const rt = new ScaledPen(rawT, [0, 0], anchor, KURAMA.scale);
   const Q = (u: number, v: number): XY => [ax + u, ay + v];
   const P = (pts: XY[]): Pt[] => pts.map(([u, v]) => Q(u, v));
   const T = (pts: XY[], w0: number, w1: number): Pt[] => taper(pts.map(([u, v]) => Q(u, v)), w0, w1);
@@ -467,7 +102,7 @@ function kuramaRaster(frame: number, roar: boolean, aim=0): Baked {
       pts.push(centre(k / n));
       widths.push(1 + 6.4 * Math.sin(Math.PI * Math.min(1, 0.2 + (k / n) * 0.88)));
     }
-    plume(r, pts.map(([u, v]) => Q(u, v)), widths, m);
+    plume(rt, pts.map(([u, v]) => Q(u, v)), widths, m);
     // one big flick off the upper edge, swept toward the tip, and a curled flaming tip
     for (const [k, ll] of [[6, 8]] as const) {
       const p = pts[k];
@@ -481,12 +116,12 @@ function kuramaRaster(frame: number, roar: boolean, aim=0): Baked {
       const ny = tx * side;
       const ex = nx * 0.6 + tx * 0.8;
       const ey = ny * 0.6 + ty * 0.8;
-      tongue(r, ...Q(p[0] + nx * (widths[k] - 1), p[1] + ny * (widths[k] - 1)), ex, ey, ll + wob([0, 2, 1, 3], frame + k + i), 5, wob([-1, 0, 1, 0], frame + i) * 1.5, m);
+      tongue(rt, ...Q(p[0] + nx * (widths[k] - 1), p[1] + ny * (widths[k] - 1)), ex, ey, ll + wob([0, 2, 1, 3], frame + k + i), 5, wob([-1, 0, 1, 0], frame + i) * 1.5, m);
     }
     const [tu, tv] = centre(0.94);
     const [pu, pv] = centre(0.8);
     const tl = Math.hypot(tu - pu, tv - pv) || 1;
-    tongue(r, ...Q(tu, tv), (tu - pu) / tl, (tv - pv) / tl, 9 + wob([0, 2, 3, 1], frame + i), 3.2, (i % 2 ? 3 : -3) + wob([-1, 1, 0, 0], frame + i), m);
+    tongue(rt, ...Q(tu, tv), (tu - pu) / tl, (tv - pv) / tl, 9 + wob([0, 2, 3, 1], frame + i), 3.2, (i % 2 ? 3 : -3) + wob([-1, 1, 0, 0], frame + i), m);
   }
 
   // the head turns up for the Bijudama; the jaw drops open around its hinge
@@ -553,23 +188,58 @@ function kuramaRaster(frame: number, roar: boolean, aim=0): Baked {
   // cheek ruff: licks off the back of the head
   tongue(r, ...Q(...H([28, -48])), -0.85, 0.5, 7 + wob([0, 2, 1, 3], frame), 5, 1, K_HEAD);
   tongue(r, ...Q(...H([26, -57])), -0.9, -0.3, 6 + wob([1, 3, 0, 2], frame), 5, -1, K_HEAD);
-  const baked = bakeSpirit(r, KURAMA_MATS, KURAMA_HALO);
-  if(aim===0)baked.runs = baked.runs.filter((run) => run.y < KURAMA.ay);
-  return baked;
+  // the tails stop where the body begins (so the mass behind never shows through the translucent body)
+  for (let i = 0; i < rawT.m.length; i++) if (rawB.m[i]) rawT.m[i] = 0;
+  const feet = KURAMA.ay + pad;
+  const trim = (b: Baked): Baked => ({ ...b, runs: b.runs.filter((run) => run.y < feet) });
+  return { tails: trim(bakeSpirit(rawT, KURAMA_MATS, KURAMA_HALO)), body: trim(bakeSpirit(rawB, KURAMA_MATS, KURAMA_HALO)) };
 }
 
 /** Kurama, frame 0..3 (tails sway, flames lick); `roar` = the Bijudama pose (head up, jaws wide). Baked once each. */
-export const KURAMA_AIM_PAD=96;
-const kuramaAimCache=new Map<string,Baked>();
-export function kuramaSprite(frame: number, roar = false, aim=0): Baked {
+export const KURAMA_AIM_PAD = 100;
+const kuramaCache = new Map<string, { tails: Baked; body: Baked }>();
+/** Kurama as its two parts: the tails (behind), the body with the head. `aim` tilts the head. */
+export function kuramaParts(frame: number, roar = false, aim = 0): { tails: Baked; body: Baked } {
   const f = ((frame % SPIRIT_FRAMES) + SPIRIT_FRAMES) % SPIRIT_FRAMES;
-  const a=avatarAim(aim);
-  const key=`k|${f}|${roar ? 1 : 0}|${a}`;
-  if(a===0)return cached(key,()=>kuramaRaster(f,roar));
-  const old=kuramaAimCache.get(key);if(old)return old;
-  const b=kuramaRaster(f,roar,a);
-  if(kuramaAimCache.size>=64)kuramaAimCache.delete(kuramaAimCache.keys().next().value!);
-  kuramaAimCache.set(key,b);return b;
+  const a = avatarAim(aim);
+  const key = `k|${f}|${roar ? 1 : 0}|${a}`;
+  let p = kuramaCache.get(key);
+  if (!p) {
+    if (kuramaCache.size >= 72) kuramaCache.delete(kuramaCache.keys().next().value!);
+    p = kuramaPair(f, roar, a);
+    kuramaCache.set(key, p);
+  }
+  return p;
+}
+/**
+ * The sprites a hero's spirit needs, as small steps (one bake each) to run one after another while the match is idle, so
+ * the first ultimate does not stall on baking them: Susanoo's bodies and arms for Sasuke, Kurama's parts for Naruto.
+ */
+export function spiritWarmup(hero: string): (() => void)[] {
+  const steps: (() => void)[] = [];
+  for (let f = 0; f < SPIRIT_FRAMES; f++) {
+    if (hero === 'sasuke') {
+      steps.push(() => susanooCore(4, f), () => susanooCore(3, f));
+      if (f === 0) for (const level of [3, 4] as const) for (let s = 0; s < 4; s++) steps.push(() => susanooArms(level, s, 0));
+    } else if (hero === 'naruto') steps.push(() => kuramaParts(f, false, 0), () => kuramaParts(f, true, 0));
+  }
+  return steps;
+}
+
+const kuramaWhole = new Map<string, Baked>();
+/** Kurama as one sprite (tails behind the body), what the game paints once it is formed. */
+export function kuramaSprite(frame: number, roar = false, aim = 0): Baked {
+  const f = ((frame % SPIRIT_FRAMES) + SPIRIT_FRAMES) % SPIRIT_FRAMES;
+  const key = `${f}|${roar ? 1 : 0}|${avatarAim(aim)}`;
+  let b = kuramaWhole.get(key);
+  if (!b) {
+    const { tails, body } = kuramaParts(f, roar, aim);
+    const pad = avatarAim(aim) === 0 ? 0 : KURAMA_AIM_PAD;
+    if (kuramaWhole.size >= 72) kuramaWhole.delete(kuramaWhole.keys().next().value!);
+    b = { w: KURAMA.w + pad * 2, h: KURAMA.h + pad * 2, runs: [...tails.runs, ...body.runs] };
+    kuramaWhole.set(key, b);
+  }
+  return b;
 }
 
 // ---- arms: the transformed punches. Kurama's chakra arm and Susanoo's skeletal / armoured arm are translucent spirits

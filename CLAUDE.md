@@ -78,6 +78,8 @@ src/ai/       Bots (pure TS, no Phaser — run headless too). Same Controller/In
 src/art/      Procedural pixel-art generators that bake Phaser textures at boot.
               ArtProvider (art/index.ts) is the asset-loader abstraction: swap in real sprite
               sheets later by implementing the same interface.
+              avatarSprites.ts / susanooArt.ts / spiritKit.ts = the giant spirits (Susanoo: core + wings + arms, Kurama: body + tails), drawn big
+              and baked in parts; spiritForm.ts = the pixel-by-pixel show-up reveal (rise / spread) used while an ultimate loads;
               heroArt.ts = hero looks (base + one Appearance override and one FormFx per form: aura, tails, extras);
               externalSheets.ts = optional low-res PNG sheets per hero (format: docs/ASSETS.md).
 src/trailer/  Trailer mode (?trailer=1 clean bot match, ?trailer=1&shot=<id> scripted deterministic shots, driven
@@ -91,6 +93,7 @@ src/render/   Phaser-side views: FighterView, WorldRenderer, Fx (pooled particle
 src/scenes/   Boot (bake assets) -> Title menu -> [Lobby (+ Creator) | Controls | Settings] -> Match
               (+ Hud overlay above with the pause menu, Background parallax scene below).
               Settings/Controls also run as overlays over a paused match.
+              FightersScene.ts = hero cards + the embedded moveset viewer (HeroMoveGallery in embedded mode), opened from the title.
               kit.ts = shared menu kit (HintBar with keyboard / PS / Xbox / touch glyphs, panel, rowBar, meter).
               lobby.ts = Phaser-free lobby model (slots/rules -> MatchSceneData), unit tested.
               NetLobbyScene.ts = Host game / Join game (room lobby for LAN play); netSetup.ts = server match -> MatchSceneData.

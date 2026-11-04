@@ -4,7 +4,9 @@ import type { SimEvent } from '../../src/sim/events';
 import { endPower, holdFlies, transform } from '../../src/sim/hero';
 import type { Intent } from '../../src/sim/intent';
 import { World } from '../../src/sim/world';
-import { FLAT, intent, run } from './helpers';
+import { FLAT, shortUltimateWindups, intent, run } from './helpers';
+
+shortUltimateWindups(); // (about aim / damage / collisions, not the long real wind-up)
 
 function setup(level = 0): World {
   const w = new World(FLAT, [

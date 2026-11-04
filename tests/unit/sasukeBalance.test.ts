@@ -6,7 +6,9 @@ import { amaterasuReach, amaterasuTargets, chidoriReach, transform } from '../..
 import type { Intent } from '../../src/sim/intent';
 import { TK } from '../../src/sim/map/tiles';
 import { World } from '../../src/sim/world';
-import { FLAT, intent, run } from './helpers';
+import { FLAT, shortUltimateWindups, intent, run } from './helpers';
+
+shortUltimateWindups(); // (about aim / damage / collisions, not the long real wind-up)
 
 const S = HEROES.sasuke;
 
@@ -269,14 +271,19 @@ describe('ultimates lock onto the enemy being faced', () => {
     return { bullet };
   };
 
-  it('aims at an enemy standing higher up: the arrow rises and hits, where a straight shot would pass under', () => {
-    // on the raised platform of the test map
-    const w = arena(4, [{ x: 160, y: 80 }]);
+  it('aims at an enemy on the raised platform: the arrow leaves the bow high up, comes down onto them and hits', () => {
+    const w = arena(4, [{ x: 200, y: 80 }]);
     const { bullet } = fire(w);
     expect(bullet).toBeDefined();
-    expect(bullet!.vy).toBeLessThan(0);
+    expect(bullet!.vy).toBeGreaterThan(0); // the Susanoo's bow is above the platform
     run(w, 90);
     expect(w.fighters[1].hp).toBeLessThan(100); // it arrived
+  });
+
+  it('holding Up aims the arrow up by hand', () => {
+    const w = arena(4, [{ x: 200, y: 80 }]);
+    const { bullet } = fire(w, 4, { moveY: -1 });
+    expect(bullet!.vy).toBeLessThan(0);
   });
 
   it('locks onto the nearest enemy in front, never one behind or a teammate', () => {
@@ -308,7 +315,7 @@ describe('ultimates lock onto the enemy being faced', () => {
   });
 
   it('holding Up / Down still aims by hand (no lock-on)', () => {
-    const w = arena(4, [{ x: 160, y: 80 }]);
+    const w = arena(4, [{ x: 200, y: 80 }]);
     const { bullet } = fire(w, 4, { moveY: 1 });
     expect(bullet!.vy).toBeGreaterThanOrEqual(0);
   });

@@ -117,6 +117,72 @@ export class Raster {
   }
 }
 
+/** What the shape helpers draw with: a raster, or a `ScaledPen` that enlarges everything drawn through it. */
+export type Pen = Pick<Raster, 'poly' | 'line' | 'stroke' | 'ellipse' | 'rect' | 'set' | 'get' | 'erase'>;
+
+/**
+ * Draws a design made in small "design units" onto a bigger raster: a point (x, y) of the design lands at
+ * `anchor + (x - designAnchor) * scale`, radii and widths grow by `scale` (never thinner than one pixel). The art code
+ * keeps its coordinates, so a spirit can be re-proportioned just by changing the scale.
+ */
+export class ScaledPen implements Pen {
+  constructor(
+    readonly inner: Raster,
+    private readonly design: Pt,
+    private readonly anchor: Pt,
+    private readonly scale: number,
+  ) {}
+
+  private X(x: number): number {
+    return this.anchor[0] + (x - this.design[0]) * this.scale;
+  }
+
+  private Y(y: number): number {
+    return this.anchor[1] + (y - this.design[1]) * this.scale;
+  }
+
+  private pts(pts: readonly Pt[]): Pt[] {
+    return pts.map(([x, y]) => [this.X(x), this.Y(y)] as Pt);
+  }
+
+  private thick(t: number): number {
+    return Math.max(1, Math.round(t * this.scale));
+  }
+
+  get(x: number, y: number): number {
+    return this.inner.get(Math.round(this.X(x)), Math.round(this.Y(y)));
+  }
+
+  set(x: number, y: number, mat: number): void {
+    const n = this.thick(1);
+    this.inner.rect(Math.round(this.X(x)), Math.round(this.Y(y)), n, n, mat);
+  }
+
+  rect(x: number, y: number, w: number, h: number, mat: number): void {
+    this.inner.rect(Math.round(this.X(x)), Math.round(this.Y(y)), this.thick(w), this.thick(h), mat);
+  }
+
+  poly(pts: readonly Pt[], mat: number): void {
+    this.inner.poly(this.pts(pts), mat);
+  }
+
+  line(x0: number, y0: number, x1: number, y1: number, mat: number, thick = 1): void {
+    this.inner.line(this.X(x0), this.Y(y0), this.X(x1), this.Y(y1), mat, this.thick(thick));
+  }
+
+  stroke(pts: readonly Pt[], mat: number, thick = 1): void {
+    this.inner.stroke(this.pts(pts), mat, this.thick(thick));
+  }
+
+  ellipse(cx: number, cy: number, rx: number, ry: number, mat: number): void {
+    this.inner.ellipse(this.X(cx), this.Y(cy), rx * this.scale, ry * this.scale, mat);
+  }
+
+  erase(pts: readonly Pt[]): void {
+    this.inner.erase(this.pts(pts));
+  }
+}
+
 export interface Baked {
   w: number;
   h: number;

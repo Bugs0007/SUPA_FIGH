@@ -1,10 +1,12 @@
 import { describe,expect,it } from 'vitest';
 import { applyHit } from '../../src/sim/combat';
-import { HEROES } from '../../src/sim/data/heroes';
+import { HEROES, KURAMA_LAUNCH } from '../../src/sim/data/heroes';
 import { ignite } from '../../src/sim/fire';
 import { amaterasuTarget,fireBomb,superGuard,transform } from '../../src/sim/hero';
 import { World } from '../../src/sim/world';
-import { FLAT,intent,run } from './helpers';
+import { FLAT, shortUltimateWindups,intent,run } from './helpers';
+
+shortUltimateWindups(); // (about aim / damage / collisions, not the long real wind-up)
 import { moveLook } from '../../src/art/heroMoves';
 import { renderSfx } from '../../src/audio/sfxr';
 import { SOUNDS } from '../../src/audio/sounds';
@@ -126,7 +128,7 @@ it('Kurama launches the final Bijudama from the avatar mouth',()=>{
   const w=arena('naruto',4),f=w.fighters[0];
   fireBomb(w,f,HEROES.naruto.super.bomb!,4);
   const b=w.bullets.find(b=>b.active)!;
-  expect(b.x).toBe(f.x+66);expect(b.y).toBe(f.y-46);
+  expect(b.x).toBe(f.x+KURAMA_LAUNCH.ahead);expect(b.y).toBe(f.y-KURAMA_LAUNCH.up);
 });
 
 it('Chidori stays blue in every form, with a distinct deterministic chirping sound',()=>{

@@ -150,3 +150,30 @@ test('a share link opens Match Setup with that setup loaded and strips the hash'
   await page.goto(shareUrl(c, new URL('/?timer=1', page.url()).toString()));
   await onScene(page, 'lobby');
 });
+
+test('title: FIGHTERS shows hero cards and the moveset viewer, ABOUT THE CREATOR opens the portfolio', async ({ page, context }) => {
+  const errors = collectErrors(page);
+  await page.goto('/?timer=1');
+  await onScene(page, 'title');
+  // the new buttons are in the row
+  await page.evaluate(() => (window as unknown as { __GAME__: { game: { scene: { getScene(k: string): { scene: { start(k: string): void } } } } } }).__GAME__.game.scene.getScene('title').scene.start('fighters'));
+  await onScene(page, 'fighters');
+  await page.waitForTimeout(400);
+  await press(page, 'ArrowRight');
+  await press(page, 'Enter'); // open the picked fighter's moves
+  await page.waitForTimeout(600);
+  await press(page, 'ArrowRight', 2); // tabs
+  await press(page, 'ArrowDown'); // next fighter
+  await page.waitForTimeout(600);
+  await press(page, 'Escape'); // back to the cards
+  await page.waitForTimeout(300);
+  await press(page, 'Escape'); // back to the title
+  await onScene(page, 'title');
+  // ABOUT THE CREATOR: the last button
+  const popup = context.waitForEvent('page');
+  await press(page, 'ArrowLeft'); // wraps from QUICK MATCH to the last button
+  await press(page, 'Enter');
+  const tab = await popup.catch(() => null);
+  if (tab) expect(tab.url()).toContain('bhagath.vercel.app');
+  expect(errors, errors.join('\n')).toEqual([]);
+});
