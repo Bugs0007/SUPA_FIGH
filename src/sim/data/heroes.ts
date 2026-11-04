@@ -314,7 +314,19 @@ export function avatarTargetAngle(hero:string,level:number,x:number,y:number):nu
   const dx=x-pivot.ahead,dy=y+pivot.up,r=Math.hypot(dx,dy)||1;
   return avatarAim(Math.atan2(dy,dx)-Math.asin(Math.max(-1,Math.min(1,(pivot.up-base.up)/r))));
 }
-export const SASUKE_ARROW = { speedMul: 1.8, lockRange: 720 };
+/** The final ultimates (Susanoo's arrow, the Bijudama) fly the whole map: nobody is out of their reach. */
+export const ULT_MAP_RANGE = 4000;
+export const SASUKE_ARROW = { speedMul: 1.8, lockRange: ULT_MAP_RANGE };
+
+/**
+ * How far a spirit reaches around the fighter's feet (px behind, ahead, and up), for the camera to keep all of it in
+ * view while it is out. null = this hero's ultimate has no spirit at that form.
+ */
+export function spiritBounds(hero: string, level: number): { back: number; front: number; up: number } | null {
+  if (hero === 'sasuke' && level >= 3) return level >= 4 ? { back: 125, front: 120, up: 200 } : { back: 100, front: 115, up: 175 };
+  if (hero === 'naruto' && level >= 4) return { back: 200, front: 150, up: 190 };
+  return null;
+}
 
 /**
  * Every hero ultimate that gathers (Sasuke's arrow, Naruto's Bijudama, Goku's Spirit Bomb) takes this long to load, so
@@ -402,7 +414,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       names: ['RASENSHURIKEN', 'TAILED BEAST BOMB', 'TAILED BEAST BOMB', 'KURAMA BIJUDAMA'],
       desc: 'A GIANT CHAKRA BOMB. BIGGER IN EVERY FORM.',
       cooldown: 8,
-      bomb: { windup: ULT_WINDUP, speed: 380, speedByLevel: [380, 500, 630, 774], rangeByLevel: [320, 440, 580, 720], size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
+      bomb: { windup: ULT_WINDUP, speed: 380, speedByLevel: [380, 500, 630, 774], rangeByLevel: [320, 440, 580, ULT_MAP_RANGE], size: 5, sizePerLevel: 1.5, damage: 27, damagePerLevel: 13, radius: 56, radiusPerLevel: 10 },
     },
     forms: [
       { name: 'THREE-TAIL CLOAK', speedMul: 1.1, damageMul: 1.12, knockMul: 1.1, reach: 2 },

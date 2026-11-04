@@ -92,6 +92,7 @@ import {
   superGuard,
   usesAmaterasu,
   aimUltimate,
+  ultimateTarget,
   avatarShotAngle,
   meleeMuls,
   gatlingHit,
@@ -2197,8 +2198,15 @@ function stBomb(w: World, f: Fighter, dt: number): void {
     const archer=f.hero==='sasuke'&&f.powerLevel>=3;
     if(archer||f.hero==='naruto'&&f.powerLevel===4)f.stretchAngle=avatarShotAngle(f,target,bombSpeed(f.hero,b,f.powerLevel));
   }
+  // lost its target (dead / gone) while gathering: lock onto the next enemy in sight
+  if (f.charge >= 0 && f.lockOn >= 0 && !(target?.alive && !target.gone) && ((f.hero === 'sasuke' && f.powerLevel >= 3) || (f.hero === 'naruto' && f.powerLevel === 4))) {
+    const next = ultimateTarget(w, f, bombRange(f.hero, b, f.powerLevel));
+    if (next) f.lockOn = next.id;
+  }
   holdStill(f, dt);
-  integrate(w, f, dt);
+  // hover in the air until the shot is away (no slow sinking while it gathers)
+  if (!f.grounded) f.vy = 0;
+  integrate(w, f, dt, f.grounded);
   // f.charge = orb size 0..1 (render) until it flies
   if (f.charge >= -0.5) f.charge = Math.min(1, f.stateTime / b.windup);
   if (f.stateTime >= b.windup && f.charge !== -2) {

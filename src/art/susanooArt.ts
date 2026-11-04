@@ -35,7 +35,7 @@ export const SUSANOO = {
     4: { half: 46, bend: 12, draw: [11, 25, 39, 53] },
   } as Record<3 | 4, { half: number; bend: number; draw: readonly number[] }>,
   /** height above the feet of the tallest point of each form (the show-up animation reveals up to it) */
-  height: { 3: 160, 4: 180 } as Record<3 | 4, number>,
+  height: { 3: 160, 4: 190 } as Record<3 | 4, number>,
   /** where the wings grow from (form 4), in design pixels */
   wingRoot: [-14, -98] as XY,
 };
@@ -154,24 +154,36 @@ function perfect(r: Pen, frame: number): void {
   for (let u = -2; u <= 34; u += 6) seam([u, -111], [u + 1, -103]);
   for (let u = 1; u <= 31; u += 6) seam([u, -104], [u, -95]);
 
-  // the head: flame hair streaming back, a crested helmet, the pale tengu face plate with its (short) nose
-  lick(r, -12, -142, -0.9, -0.25, 36, 12, frame, 0);
-  lick(r, -13, -134, -0.97, 0.05, 32, 12, frame, 1, S_FLAME2);
-  lick(r, -12, -126, -0.9, 0.35, 26, 11, frame, 2);
-  lick(r, -4, -150, -0.35, -0.95, 24, 9, frame, 3, S_FLAME2);
-  lick(r, -9, -148, -0.8, -0.6, 26, 9, frame, 4);
-  r.ellipse(-2, -133, 15, 16, S_ARMOR);
-  r.poly(P([[-13, -147], [11, -147], [16, -139], [-15, -139]]), S_PLATE);
-  for (const [u0, u1, h] of [[-9, -11, 12], [-1.5, -1.5, 16], [6, 9, 12]]) r.poly(P([[u0 - 2.4, -146], [u1, -146 - h], [u0 + 2.4, -146]]), S_PLATE);
-  r.poly(P([[-14, -128], [-2, -130], [3, -118], [-8, -114], [-16, -121]]), S_PLATE);
-  r.poly(P([[2, -147], [17, -144], [21, -134], [17, -123], [4, -121], [-1, -131]]), S_BONE);
-  r.poly(taper([[17, -134], [21, -133.5], [27, -131]], 3, 0.8), S_BONE);
-  r.poly(P([[6, -140], [17, -139], [16, -134], [7, -135]]), S_SEAM);
-  r.line(5, -141, 18, -140, S_BONE);
-  r.rect(9, -137, 6, 2, S_GLOW);
-  seam([8, -125], [18, -124]);
-  r.poly(P([[10, -124], [12, -124], [11, -121]]), S_PLATE);
-  r.poly(P([[14, -124], [16, -124], [15, -121.5]]), S_PLATE);
+  // spikes along the shoulders
+  for (const pts of [[[18, -118], [26, -138], [33, -117]], [[31, -114], [45, -128], [41, -106]], [[-28, -110], [-36, -128], [-16, -112]]] as XY[][]) r.poly(P(pts), S_PLATE);
+
+  // the head: hunched forward between the pauldrons, a scowling helmet with great horns sweeping back, wild flame hair,
+  // a pale fanged mask with angry glowing eyes and a short, sharp nose
+  const HX = 5;
+  const HY = 6;
+  const H = (pts: XY[]): Pt[] => pts.map(([u, v]) => [u + HX, v + HY] as Pt);
+  const HT = (pts: XY[], w0: number, w1: number): Pt[] => taper(pts.map(([u, v]) => [u + HX, v + HY] as XY), w0, w1);
+  lick(r, -9 + HX, -140 + HY, -0.85, -0.5, 44, 13, frame, 0);
+  lick(r, -12 + HX, -132 + HY, -0.97, -0.1, 40, 13, frame, 1, S_FLAME2);
+  lick(r, -11 + HX, -124 + HY, -0.9, 0.3, 32, 12, frame, 2);
+  lick(r, -5 + HX, -148 + HY, -0.45, -0.9, 30, 10, frame, 3, S_FLAME2);
+  r.poly(P([[-12 + HX, -122 + HY], [8 + HX, -122 + HY], [8 + HX, -108], [-12 + HX, -108]]), S_ARMOR);
+  r.poly(HT([[-4, -146], [-12, -160], [-28, -171], [-48, -174]], 5, 0.6), S_PLATE);
+  r.poly(HT([[3, -147], [2, -161], [-5, -173], [-18, -181]], 4, 0.6), S_ARMOR);
+  r.poly(HT([[10, -145], [18, -154], [20, -164]], 3, 0.5), S_PLATE);
+  r.ellipse(-2 + HX, -133 + HY, 15, 15, S_ARMOR);
+  r.poly(H([[-14, -143], [14, -144], [24, -139], [19, -134], [-14, -137]]), S_PLATE);
+  r.poly(H([[2, -141], [18, -138], [23, -130], [19, -120], [4, -118], [-1, -128]]), S_BONE);
+  r.poly(HT([[19, -130], [23, -129], [28, -126]], 3, 0.6), S_BONE);
+  r.poly(H([[5, -139], [21, -135], [20, -130], [6, -133]]), S_SEAM);
+  r.poly(H([[8, -137], [20, -133.5], [19, -131.4], [9, -134.6]]), S_GLOW);
+  r.line(3 + HX, -142 + HY, 22 + HX, -135 + HY, S_SEAM, 2);
+  r.poly(H([[6, -123], [20, -121], [19, -117], [7, -119]]), S_SEAM);
+  for (const u of [8.5, 11.5, 14.5, 17.5]) r.poly(H([[u - 1.4, -122.5], [u + 1.4, -122], [u + 0.2, -118.5]]), S_BONE);
+  for (const u of [10, 13, 16]) r.poly(H([[u - 1.3, -117.5], [u + 1.3, -117.8], [u + 0.1, -121]]), S_BONE);
+  r.poly(H([[15, -123], [25, -121], [16, -117]]), S_PLATE);
+  r.poly(H([[-7, -126], [-16, -121], [-7, -116]]), S_PLATE);
+  r.poly(H([[-13, -146], [10, -147], [14, -141], [-15, -141]]), S_ARMOR);
 }
 
 /**
@@ -198,9 +210,10 @@ function wings(r: Pen, frame: number): void {
       const tx = root[0] + dx * len;
       const ty = root[1] + dy * len;
       const m = mats[(j + phase) % mats.length];
-      r.poly([[bx + nx * hw0, by + ny * hw0], [tx - dx * 3 + nx * hw1, ty - dy * 3 + ny * hw1], [tx + dx * 2, ty + dy * 2], [tx - dx * 3 - nx * hw1, ty - dy * 3 - ny * hw1], [bx - nx * hw0, by - ny * hw0]], m);
+      // blade-like feathers: a broad body running out to a long, sharp point
+      r.poly([[bx + nx * hw0, by + ny * hw0], [tx - dx * 10 + nx * hw1, ty - dy * 10 + ny * hw1], [tx + dx * 6, ty + dy * 6], [tx - dx * 10 - nx * hw1, ty - dy * 10 - ny * hw1], [bx - nx * hw0, by - ny * hw0]], m);
       if (ribs && len > 20) {
-        r.line(bx + dx * 7, by + dy * 7, tx - dx * 6, ty - dy * 6, S_SEAM, 1);
+        r.line(bx + dx * 7, by + dy * 7, tx - dx * 12, ty - dy * 12, S_SEAM, 1);
         for (const k of [0.42, 0.7]) {
           const cx = root[0] + dx * len * k;
           const cy = root[1] + dy * len * k;

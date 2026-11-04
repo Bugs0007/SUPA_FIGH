@@ -104,7 +104,7 @@ function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: 
     }
     plume(rt, pts.map(([u, v]) => Q(u, v)), widths, m);
     // one big flick off the upper edge, swept toward the tip, and a curled flaming tip
-    for (const [k, ll] of [[6, 8]] as const) {
+    for (const [k, ll] of [[3, 6], [6, 9]] as const) {
       const p = pts[k];
       const a = pts[k - 1];
       const b = pts[k + 1];
@@ -122,6 +122,14 @@ function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: 
     const [pu, pv] = centre(0.8);
     const tl = Math.hypot(tu - pu, tv - pv) || 1;
     tongue(rt, ...Q(tu, tv), (tu - pu) / tl, (tv - pv) / tl, 9 + wob([0, 2, 3, 1], frame + i), 3.2, (i % 2 ? 3 : -3) + wob([-1, 1, 0, 0], frame + i), m);
+    // dark seal rings across the tail
+    for (const t of [0.3, 0.5]) {
+      const [mu, mv] = centre(t);
+      const [pu, pv] = centre(t + 0.04);
+      const l = Math.hypot(pu - mu, pv - mv) || 1;
+      const w = widths[Math.round(t * n)] * 0.9;
+      rt.line(mu - ((pv - mv) / l) * w, mv + ((pu - mu) / l) * w, mu + ((pv - mv) / l) * w, mv - ((pu - mu) / l) * w, K_MARK, 0.5);
+    }
   }
 
   // the head turns up for the Bijudama; the jaw drops open around its hinge
@@ -146,6 +154,11 @@ function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: 
     flame(r, ...Q(u, v + 2), h + wob([0, 2, 3, 1], frame + i), 8, -3, (frame * Math.PI) / 2 + i, K_BODY);
   }
 
+  // a ridge of chakra flames along the spine
+  [[-38, -41], [-27, -44], [-15, -46], [-3, -49], [8, -53]].forEach(([u, v], i) => {
+    flame(r, u, v + 2, 13 + (i % 2) * 3 + wob([0, 2, 3, 1], frame + i), 7, -3 + (i % 3), (frame * Math.PI) / 2 + i * 1.1, K_BODY);
+  });
+
   // the near legs: a big haunch, a bent hind leg, a heavy planted front leg with big clawed paws
   r.ellipse(...Q(-32, -26), 14, 13, K_LEG);
   r.poly(T([[-41, -17], [-43, -9], [-38, -4]], 6, 5), K_LEG);
@@ -154,8 +167,8 @@ function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: 
   r.poly(T([[26, -22], [28, -13], [29, -6]], 7, 6), K_LEG);
   r.poly(P([[19, -10], [40, -10], [46, -5], [46, -1], [19, -1]]), K_LEG);
   for (const v of [-8, -5, -2]) {
-    r.line(...R(46, v), ...R(49, v + 1), K_FANG);
-    r.line(...R(-24, v), ...R(-21, v + 1), K_FANG);
+    r.line(...R(46, v), ...R(53, v + 2), K_FANG);
+    r.line(...R(-24, v), ...R(-17, v + 2), K_FANG);
   }
 
   // the seal markings: a ring on the shoulder, an arc over the haunch, a stripe down the back and down each leg
@@ -166,6 +179,11 @@ function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: 
   mark([[-44, -22], [-42, -33], [-33, -38], [-23, -35]], 2);
   mark([[24, -28], [27, -18], [28, -9]]);
   mark([[-42, -14], [-43, -8]]);
+  // finer lines: the shoulder blade, the ribs, the haunch
+  mark([[-6, -44], [2, -38], [6, -30]], 0.5);
+  for (const u of [-20, -12, -4]) mark([[u, -37], [u + 2, -29]], 0.5);
+  mark([[-46, -30], [-40, -20]], 0.5);
+  mark([[14, -22], [20, -20], [26, -22]], 0.5);
 
   // the open mouth (dark), then the head and the jaw over it: what stays dark between them is the mouth
   r.poly([Q(...hinge), Q(...H([71, -48])), Q(...J([68, -44])), Q(...J([48, -39]))], K_MOUTH);
@@ -175,11 +193,16 @@ function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: 
   mark([H([31, -65]), H([25, -73]), H([22, -78])],2);
   r.poly([Q(...J([38, -45])), Q(...J([62, -46])), Q(...J([68, -44])), Q(...J([63, -40])), Q(...J([48, -38])), Q(...J([38, -40]))], K_JAW);
   // fangs down from the upper lip, up from the jaw
-  for (const u of [52, 58, 64]) r.poly(HQ([[u - 1.5, -47], [u + 1.5, -47], [u + 0.3, -43]]), K_FANG);
-  for (const u of [48, 54, 60]) r.poly([Q(...J([u - 1.3, -44.5])), Q(...J([u + 1.3, -44.5])), Q(...J([u, -48]))], K_FANG);
+  for (const u of [50, 55, 60, 65]) r.poly(HQ([[u - 1.6, -47], [u + 1.6, -47], [u + 0.3, -41.5]]), K_FANG);
+  for (const u of [47, 52, 57, 62]) r.poly([Q(...J([u - 1.4, -44.5])), Q(...J([u + 1.4, -44.5])), Q(...J([u, -50.5]))], K_FANG);
   // the eye: a slanted slit with a black pupil under a heavy brow; three bold whisker marks; the nose
   r.poly(HQ([[37,-64],[50,-62],[48,-56],[39,-57]]),K_MARK);
   r.poly(HQ([[39, -62], [49, -60], [46, -57.5], [40, -59]]), K_EYE);
+  // a heavy, scowling brow, wrinkles on the forehead and the nose bridge
+  r.poly(HQ([[35, -68], [53, -64.5], [52, -61.5], [37, -63.5]]), K_MARK);
+  mark([H([40, -70]), H([48, -68])], 0.5);
+  mark([H([37, -72]), H([45, -72])], 0.5);
+  mark([H([56, -58]), H([62, -57])], 0.5);
   mark([H([45, -61]), H([45, -58])]);
   mark([H([36, -66]), H([42, -64]), H([51, -62])], 2);
   mark([H([44, -55]), H([54, -54])]);
@@ -188,6 +211,9 @@ function kuramaPair(frame: number, roar: boolean, aim=0): { tails: Baked; body: 
   // cheek ruff: licks off the back of the head
   tongue(r, ...Q(...H([28, -48])), -0.85, 0.5, 7 + wob([0, 2, 1, 3], frame), 5, 1, K_HEAD);
   tongue(r, ...Q(...H([26, -57])), -0.9, -0.3, 6 + wob([1, 3, 0, 2], frame), 5, -1, K_HEAD);
+  tongue(r, ...Q(...H([30, -60])), -0.8, -0.5, 11 + wob([2, 0, 3, 1], frame), 7, 1, K_HEAD);
+  tongue(r, ...Q(...H([31, -67])), -0.5, -0.85, 10 + wob([0, 2, 1, 3], frame), 6, -1, K_HEAD);
+  tongue(r, ...Q(...H([26, -52])), -0.95, 0.3, 11 + wob([3, 1, 2, 0], frame), 7, 1, K_HEAD);
   // the tails stop where the body begins (so the mass behind never shows through the translucent body)
   for (let i = 0; i < rawT.m.length; i++) if (rawB.m[i]) rawT.m[i] = 0;
   const feet = KURAMA.ay + pad;

@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { VIEW_H, VIEW_W } from '../game/display';
+import { spiritBounds } from '../sim/data/heroes';
 import type { Fighter } from '../sim/fighter';
 import type { World } from '../sim/world';
 
@@ -106,6 +107,15 @@ export class CameraDirector {
         addPoint(box, f.x, f.y - 40, f.y + 2);
       }
       if (!f.alive && f.ghost) addPoint(nice, f.gx, f.gy - 30, f.gy + 4);
+      // a giant spirit (Susanoo, Kurama) is out: the whole of it stays in view, whoever it belongs to
+      if (shown && f.alive && f.state === 'special' && f.specialKind === 'bomb' && f.power === 'hero') {
+        const s = spiritBounds(f.hero, f.powerLevel);
+        if (s) {
+          const ahead = f.facing >= 0 ? [f.x - s.back, f.x + s.front] : [f.x - s.front, f.x + s.back];
+          addPoint(must, ahead[0], f.y - s.up, f.y + 2);
+          addPoint(must, ahead[1], f.y - s.up, f.y + 2);
+        }
+      }
     }
     return { must, nice };
   }
