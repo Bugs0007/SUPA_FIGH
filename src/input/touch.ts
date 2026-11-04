@@ -9,6 +9,7 @@
 //   'skip'  one big button (instant replays: tap to skip)
 //   'off'   nothing (boot, trailer)
 
+import { settings } from '../game/settings';
 import { keyboardBinds, type Action } from './bindings';
 import { inputDevice } from './devices';
 import { keyboard } from './keyboard';
@@ -60,6 +61,8 @@ const CSS = `
 #touch{position:fixed;inset:0;z-index:10;pointer-events:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;
   --u:min(1vw,1.78vh);font-family:monospace;color:#fff}
 #touch[data-mode=off]{display:none}
+/* the player's OPACITY setting (Settings > TOUCH BUTTONS) fades every button and the arrow pad */
+#touch .tb,#touch .pad{opacity:var(--touch-op,1)}
 /* nothing on a phone is text to select: a double tap or a held finger must never start a selection (or its magnifier) */
 html.touch,html.touch *,#touch,#touch *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;-webkit-user-drag:none}
 #touch *{touch-action:none}
@@ -162,6 +165,11 @@ class TouchUI {
     }
   }
 
+  /** Apply the TOUCH BUTTONS opacity setting (call again after it changes). */
+  applyOpacity(): void {
+    this.root?.style.setProperty('--touch-op', String(settings.touchOpacity));
+  }
+
   attach(): void {
     if (this.root) return;
     const style = document.createElement('style');
@@ -172,6 +180,7 @@ class TouchUI {
     root.dataset.mode = 'off';
     root.addEventListener('contextmenu', (e) => e.preventDefault());
     this.root = root;
+    this.applyOpacity();
 
     this.pad = document.createElement('div');
     this.pad.className = 'pad g';

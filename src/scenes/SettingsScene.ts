@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
-import { VIEW_H, VIEW_W } from '../game/display';
+import { isTouchDevice, VIEW_H, VIEW_W } from '../game/display';
 import { saveSettings, settings, type Settings } from '../game/settings';
 import { menu } from '../input/menu';
+import { touchUI } from '../input/touch';
 import { hint, HintBar, meter, panel, rowBar, toggle } from './kit';
 import { bindZoom } from './ui';
 import { loadLobby, saveLobby } from './lobby';
@@ -12,7 +13,7 @@ import { loadLobby, saveLobby } from './lobby';
 const ROW_H = 22;
 
 type Row =
-  | { label: string; key: keyof Settings; kind: 'pct' }
+  | { label: string; key: keyof Settings; kind: 'pct'; min?: number }
   | { label: string; key: keyof Settings; kind: 'bool' }
   | { label: string; kind: 'back' };
 
@@ -27,6 +28,8 @@ const ROWS: Row[] = [
   { label: 'LAN PREDICTION', key: 'netPrediction', kind: 'bool' },
   { label: 'FULLSCREEN', key: 'fullscreen', kind: 'bool' },
   { label: 'FALL DEATH', key: 'fallDeath', kind: 'bool' },
+  // (only where there are on-screen buttons; never fully invisible)
+  ...(isTouchDevice() ? [{ label: 'BUTTON OPACITY', key: 'touchOpacity', kind: 'pct', min: 0.2 } as Row] : []),
   { label: 'BACK', kind: 'back' },
 ];
 
@@ -83,7 +86,7 @@ export class SettingsScene extends Phaser.Scene {
     const lr = menu.left() ? -1 : menu.right() ? 1 : menu.confirm() ? 1 : 0;
     if (lr && r.kind !== 'back') {
       const s = settings as unknown as Record<string, number | boolean>;
-      if (r.kind === 'pct') s[r.key] = Math.round(Math.max(0, Math.min(1, (s[r.key] as number) + lr * 0.1)) * 10) / 10;
+      if (r.kind === 'pct') s[r.key] = Math.round(Math.max(r.min ?? 0, Math.min(1, (s[r.key] as number) + lr * 0.1)) * 10) / 10;
       else s[r.key] = !s[r.key];
       if (r.key === 'fullscreen') {
         if (settings.fullscreen && !this.scale.isFullscreen) this.scale.startFullscreen();
@@ -95,6 +98,7 @@ export class SettingsScene extends Phaser.Scene {
         lobby.fallDeath = settings.fallDeath;
         saveLobby(lobby);
       }
+      if (r.key === 'touchOpacity') touchUI.applyOpacity();
       audio.setVolumes(settings.masterVolume, settings.sfxVolume, settings.musicVolume);
       saveSettings();
       audio.play('uiOk');

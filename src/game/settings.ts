@@ -23,6 +23,8 @@ export interface Settings {
   quickPlayers: number;
   /** falling out of the map kills (Quick Match; Match Setup's FALL DEATH rule is kept in step with it) */
   fallDeath: boolean;
+  /** opacity of the on-screen buttons on phones and tablets, 0.2..1 */
+  touchOpacity: number;
 }
 
 const DEFAULTS: Settings = {
@@ -41,6 +43,7 @@ const DEFAULTS: Settings = {
   // a phone has one set of controls
   quickPlayers: isTouchDevice() ? 1 : 2,
   fallDeath: true,
+  touchOpacity: 1,
 };
 
 export const settings: Settings = load('settings', DEFAULTS);
