@@ -220,12 +220,15 @@ export class HeroMobility {
       return true;
     }
     if (reached) {
-      // high enough: let go and drift down onto the spot
+      // high enough: sink down onto the spot (flight only ends on landing, Bot.poll lands idle flyers)
       if (f.y >= m.ty - 2 && Math.abs(dx) < 10 && f.vy > 0) return this.end(now, 0.6, 'fly');
       if (f.vy > 0 && Math.abs(dx) <= 6) return this.end(now, 0.5, 'fly');
+      if (f.flying) out.moveY = 1;
       return true;
     }
-    if (f.flying || f.vy >= -40) out.moveY = -1;
+    if (f.flying) out.moveY = -1;
+    // jump, double jump, then one more press takes off: clean presses once the first jump has peaked
+    else out.jump = f.vy < -100 ? true : !f.prev.jump;
     return true;
   }
 

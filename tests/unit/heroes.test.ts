@@ -214,7 +214,7 @@ describe('transformations (power orbs)', () => {
   });
 });
 
-describe('hold Up to fly (final forms of Naruto and Luffy)', () => {
+describe('flight mode (final forms of Naruto and Luffy)', () => {
   const flyWorld = (hero: string, level: number) => {
     const w = new World(FLAT, [{ name: 'A', team: 0, isBot: false, upJumps: true, hero }, { name: 'B', team: 0, isBot: false, upJumps: false }], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 3);
     run(w, 2);
@@ -223,6 +223,13 @@ describe('hold Up to fly (final forms of Naruto and Luffy)', () => {
     levelUp(w, w.fighters[0], level);
     run(w, 4);
     return w;
+  };
+  /** a real ground jump, a double jump, then the take-off press */
+  const takeOff = (w: World) => {
+    for (let n = 0; n < 3; n++) {
+      w.step([intent({ moveY: -1 }), intent()]);
+      run(w, 8);
+    }
   };
   const heightAfter = (w: World, ticks: number, i: Partial<Intent>) => {
     let top = Infinity;
@@ -238,21 +245,25 @@ describe('hold Up to fly (final forms of Naruto and Luffy)', () => {
     expect(holdFlies(flyWorld(hero, 4).fighters[0])).toBe(true);
   });
 
-  it.each(['naruto', 'luffy'])('%s: holding Up climbs far above a normal jump; letting go falls', (hero) => {
-    const norm = heightAfter(flyWorld(hero, 3), 120, { moveY: -1 });
+  it.each(['naruto', 'luffy'])('%s: jump, double jump, jump again takes off; holding Up climbs; letting go hovers', (hero) => {
+    const norm = flyWorld(hero, 3);
+    takeOff(norm);
+    expect(norm.fighters[0].flying).toBe(false); // lower forms never fly
     const w = flyWorld(hero, 4);
-    const flown = heightAfter(w, 120, { moveY: -1 });
-    expect(FLOOR_Y - flown).toBeGreaterThan(FLOOR_Y - norm + 40);
+    takeOff(w);
     expect(w.fighters[0].flying).toBe(true);
-    heightAfter(w, 3, {});
-    expect(w.fighters[0].flying).toBe(false);
+    const flown = heightAfter(w, 120, { moveY: -1 });
+    expect(FLOOR_Y - flown).toBeGreaterThan(80);
+    heightAfter(w, 30, {});
+    expect(w.fighters[0].flying).toBe(true);
     const y = w.fighters[0].y;
     run(w, 20);
-    expect(w.fighters[0].y).toBeGreaterThan(y);
+    expect(Math.abs(w.fighters[0].y - y)).toBeLessThan(3);
   });
 
   it('the form ends -> flight ends', () => {
     const w = flyWorld('luffy', 4);
+    takeOff(w);
     heightAfter(w, 60, { moveY: -1 });
     expect(w.fighters[0].flying).toBe(true);
     w.fighters[0].formHp = 0;

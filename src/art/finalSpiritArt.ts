@@ -248,21 +248,6 @@ function outward(cx: number, cy: number, front: number, seed = 7): Visible {
   };
 }
 
-/** In the air the lower body has nothing to stand on: it thins out into flickering chakra below `top`, gone by `bottom`. */
-function dissolve(top: number, bottom: number, time: number): Visible {
-  const tick = Math.floor(time * 14);
-  return (x, y) => {
-    if (y <= top) return Seen.Full;
-    const k = (y - top) / (bottom - top);
-    if (k >= 1) return Seen.Hidden;
-    const n = noise(x, y + tick * 3, 21);
-    if (n < k) return Seen.Hidden;
-    // the thinning edge glows like burning chakra rather than greying out
-    if (n < k + 0.12) return Seen.Edge;
-    return n < k + 0.3 ? Seen.Ghost : Seen.Full;
-  };
-}
-
 export interface FinalSpiritPose {
   kind: Spirit;
   x: number;
@@ -282,7 +267,7 @@ export interface FinalSpiritPose {
   /** 0..1 the arrow of light forming on the string */
   arrow?: number;
   released?: boolean;
-  /** the fighter is in the air: the airborne posture (Kurama mid-leap, Susanoo's legs trailing off as chakra) */
+  /** the fighter is in the air: the airborne posture (Kurama mid-leap, Susanoo whole and hovering with its wings spread and beating) */
   air?: boolean;
 }
 
@@ -384,7 +369,7 @@ export function paintFinalSpirit(g: Graphics, pose: FinalSpiritPose): void {
   // the wings ride the torso; in the air they spread wider and beat slowly
   const wingT = air ? then(torso, about(root[0], root[1], avatarAim(0.16 + 0.07 * Math.sin(time * 3.1)))) : torso;
   if (fan > 0) paint(place(layers.sBack, wingT), alpha * (0.6 + 0.4 * fan), both(visible, unfurl(kind, fan, 11, wingT)), rowShift(wingT));
-  paint(layers.sLegs.runs, fade, air ? both(visible, dissolve(-80, -50, time)) : visible);
+  paint(layers.sLegs.runs, fade, visible);
   paint(place(layers.sTorso, torso), fade);
 
   const weapon = clamp(pose.weapon ?? (reveal >= 1 ? 1 : 0));

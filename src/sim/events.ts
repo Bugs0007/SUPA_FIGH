@@ -117,4 +117,6 @@ export type SimEvent =
   // blocking (hold BLOCK): a blocked hit (chip = damage taken through the guard), a perfect block, a guard break
   | { t: 'block'; victim: number; attacker: number; x: number; y: number; chip: number }
   | { t: 'parry'; victim: number; attacker: number; x: number; y: number }
-  | { t: 'guardBreak'; victim: number; x: number; y: number };
+  | { t: 'guardBreak'; victim: number; x: number; y: number }
+  /** a projectile thrown back by a rubber guard (Gear Fifth): x, y = where it met the guard, dir = which way it leaves (-1 / 1) */
+  | { t: 'reflect'; victim: number; attacker: number; x: number; y: number; dir: number };

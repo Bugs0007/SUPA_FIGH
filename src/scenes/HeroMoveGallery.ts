@@ -39,11 +39,11 @@ function describe(hero: string, mode: MoveMode): string {
     case 'second': return h.second.desc;
     case 'super': return `${h.super.desc} ${hero === 'luffy' ? '' : `LOADS IN ${ULT_WINDUP} SECONDS: BLOCK, RUN OR BREAK IT.`}`;
     case 'combo': return `${h.comboName}: PUNCH, PUNCH, PUNCH, THEN A KICK THAT KNOCKS DOWN.`;
-    case 'guard': return 'HOLD BLOCK TO GUARD: HEAVY ATTACKS AND ULTIMATES STILL CHIP YOUR HEALTH.';
+    case 'guard': return hero === 'luffy' ? 'HOLD BLOCK TO GUARD. GEAR FIFTH PULLS THE FLOOR UP LIKE RUBBER AND THROWS SHOTS BACK AT 10% DAMAGE.' : 'HOLD BLOCK TO GUARD: HEAVY ATTACKS AND ULTIMATES STILL CHIP YOUR HEALTH.';
     default:
       return hero === 'sasuke' ? 'CHIDORI + PUNCH CALLS KIRIN: LIGHTNING THAT HOLDS THE ENEMY STUNNED.'
         : hero === 'naruto' ? 'SHADOW CLONES + PUNCH: A CLONE SWINGS NARUTO INTO THE ENEMY (CLONE SLINGSHOT).'
-        : hero === 'luffy' ? 'PISTOL + PUNCH: GRAB AND KICK AN ENEMY, OR SLINGSHOT FROM AN ANCHOR (JET BAZOOKA).'
+        : hero === 'luffy' ? 'PISTOL + PUNCH, IN EVERY GEAR: GRAB AND KICK AN ENEMY, OR SLINGSHOT FROM AN ANCHOR (JET BAZOOKA).'
         : 'INSTANT TRANSMISSION + PUNCH: VANISH AND STRIKE FROM BEHIND (VANISH STRIKE).';
   }
 }
@@ -172,7 +172,7 @@ export class HeroMoveGallery {
     this.lastLoop = -1;
     this.buttons.forEach((button, i) => button.setTint(MODES[i] === mode ? 0xffdf8a : 0x9baec9));
     this.labels.forEach((label, i) => {
-      const name = mode==='guard'?'HOLD BLOCK':mode==='special'?(this.hero==='sasuke'?'KIRIN':i===0?'POWER ORB REQUIRED':this.hero==='naruto'?'CLONE SLINGSHOT':this.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE'):mode==='combo'?HEROES[this.hero].comboName : mode === 'base' ? moveLook(this.hero, i).name : mode === 'second' ? this.hero==='sasuke'&&i>=3?'AMATERASU / RANGE 240':HEROES[this.hero].second.name : i > 0 ? HEROES[this.hero].super.names[i - 1] : 'POWER ORB REQUIRED';
+      const name = mode==='guard'?'HOLD BLOCK':mode==='special'?(this.hero==='sasuke'?'KIRIN':i===0&&this.hero!=='luffy'?'POWER ORB REQUIRED':this.hero==='naruto'?'CLONE SLINGSHOT':this.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE'):mode==='combo'?HEROES[this.hero].comboName : mode === 'base' ? moveLook(this.hero, i).name : mode === 'second' ? this.hero==='sasuke'&&i>=3?'AMATERASU / RANGE 240':HEROES[this.hero].second.name : i > 0 ? HEROES[this.hero].super.names[i - 1] : 'POWER ORB REQUIRED';
       const words = name.split(' ');
       const split = words.length > 2 ? Math.ceil(words.length / 2) : words.length;
       label.setText([words.slice(0, split).join(' '), words.slice(split).join(' ')].filter(Boolean).join('\n'));
@@ -271,12 +271,12 @@ export class HeroMoveGallery {
         } else f.state='normal';
       }
       if(this.mode==='special'){
-        f.state=(level>0||this.hero==='sasuke')&&phase>.5&&phase<2.4?'special':'normal';f.specialKind='formCombo';
+        f.state=(level>0||this.hero==='sasuke'||this.hero==='luffy')&&phase>.5&&phase<2.4?'special':'normal';f.specialKind='formCombo';
         f.stateTime=Math.max(0,(phase-.5)% (this.hero==='naruto'?CLONE_SLINGSHOT.duration:this.hero==='luffy'?JET_BAZOOKA.duration:.7));f.lockOn=-1;f.anchorX=f.x+28;f.anchorY=f.y;
         if(this.hero==='naruto'&&f.stateTime>=CLONE_SLINGSHOT.windup)f.vx=CLONE_SLINGSHOT.speed;
         if(this.hero==='luffy'){f.jetMode=this.jetPreview;f.jetAnchorX=f.x-14;f.jetAnchorY=f.y;if(f.stateTime>=JET_BAZOOKA.windup&&this.jetPreview==='sling')f.vx=JET_BAZOOKA.speed;}
       }
-      if(this.mode==='guard'){f.state='block';f.specialKind='';}
+      if(this.mode==='guard'){f.state='block';f.specialKind='';f.stretchLen=0;}
       this.targets[level]?.setVisible(this.hero==='sasuke'?(this.mode==='second'&&level>=3||this.mode==='special'):(this.mode==='special'&&this.jetPreview==='kick'&&level>0));
       if(this.hero==='luffy'&&this.targets[level]){
         const released=Math.max(0,f.stateTime-JET_BAZOOKA.windup);

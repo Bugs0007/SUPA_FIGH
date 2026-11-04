@@ -191,6 +191,10 @@ export interface Fighter extends Body {
   sprintCooldown: number;
   lastTapDir: number;
   lastTapTime: number;
+  /** flight: -1 / 1 while rushing straight up / down (double-tap Up / Down), double-tap tracking */
+  flyRush: number;
+  lastVTapDir: number;
+  lastVTapTime: number;
   /** last air jump time (render: flip) */
   airJumpTime: number;
   // aiming
@@ -399,6 +403,9 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     sprintCooldown: 0,
     lastTapDir: 0,
     lastTapTime: -10,
+    flyRush: 0,
+    lastVTapDir: 0,
+    lastVTapTime: -10,
     airJumpTime: -10,
     aimAngle: 0,
     aimVel: 0,
@@ -897,6 +904,14 @@ function updateSprint(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): 
     f.lastTapDir = tap;
     f.lastTapTime = w.time;
   }
+  // flying: double-tap Up / Down for a straight vertical rush
+  const vTap = e.upP ? -1 : e.downP ? 1 : 0;
+  if (vTap !== 0 && f.flying) {
+    if (vTap === f.lastVTapDir && w.time - f.lastVTapTime < SPRINT_TAP_WINDOW && f.flyRush === 0) f.flyRush = vTap;
+    f.lastVTapDir = vTap;
+    f.lastVTapTime = w.time;
+  }
+  if (f.flyRush !== 0 && (!f.flying || axis(inp.moveY) !== f.flyRush)) f.flyRush = 0;
   if (f.sprintDir !== 0) {
     const still = axis(inp.moveX) === f.sprintDir && (f.state === 'normal' || f.state === 'roll' || f.state === 'dive' || f.state === 'wallwalk');
     if (!still) {
@@ -1011,19 +1026,19 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
     stHoldFly(w, f, inp, e, dt);
     return;
   }
-  // final forms (every hero): hold Up in the air, past the top of a jump, to fly (D61)
-  if (!f.grounded && inp.moveY < -0.5 && f.vy >= -40 && holdFlies(f) && !onLadder(w, f) && f.dropTimer <= 0) {
+  const mx = axis(inp.moveX);
+  // flying forms: jump once more after the double jump (all air jumps spent) to take off (D61)
+  if (e.jumpP && !f.grounded && f.coyote <= 0 && f.dropTimer <= 0 && f.airJumps <= 0 && holdFlies(f) && !onLadder(w, f) && wallContact(w, f, mx) === 0) {
     f.flying = true;
     f.flyHold = true;
     f.flyTime = 0;
     f.jumping = false;
     f.jumpBuffer = 0;
-    f.vy = Math.min(f.vy, 0) * 0.3;
+    f.vy = Math.min(f.vy, 0) - HOLD_FLY.liftoff;
     w.emit({ t: 'flyStart', f: f.id, x: f.x, y: f.y });
     stHoldFly(w, f, inp, e, dt);
     return;
   }
-  const mx = axis(inp.moveX);
   const speed = RUN_SPEED * f.speedMul * sprintMul(f);
   if (f.wallLock > 0 && !f.grounded) f.vx = approach(f.vx, mx * speed, AIR_DECEL * dt);
   else horizontalControl(f, mx, dt, speed);
@@ -1822,7 +1837,7 @@ function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   const a1 = e.abilityP;
   const a2 = e.kickP;
   const chord = inp.attack && ((f.hero === 'naruto' ? inp.kick : inp.ability)) && (e.attackP || a1 || a2 || f.btnBuf1 > 0 || f.btnBuf2 > 0);
-  if ((transformed(f) || f.hero === 'sasuke') && f.master < 0 && chord) {
+  if ((transformed(f) || f.hero === 'sasuke' || f.hero === 'luffy') && f.master < 0 && chord) {
     e.attackP = e.abilityP = e.kickP = false;
     f.btnBuf1 = f.btnBuf2 = 0;
     const openingPunch = f.state === 'aim' || (f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0);
@@ -2008,7 +2023,7 @@ function stJetBazooka(w:World,f:Fighter,inp:Intent,dt:number):void{
   }
   const res=integrate(w,f,dt);
   for(const o of w.fighters)if(o!==f&&o.alive&&!o.gone&&!sameTeam(f,o)&&!f.swingHit.includes(o.id)&&Math.hypot(o.x-f.x,o.y-f.y)<data.hitRadius){
-    f.swingHit.push(o.id);applyHit(w,o,{damage:FORM_COMBO.damage*meleeMuls(f).dmg,kbX:f.facing*400,kbY:-140,attacker:f.id,weapon:'luffy:formCombo',kind:'melee',stun:.3,x:o.x,y:o.y-o.h/2});
+    f.swingHit.push(o.id);applyHit(w,o,{damage:data.damage*meleeMuls(f).dmg,kbX:f.facing*400,kbY:-140,attacker:f.id,weapon:'luffy:formCombo',kind:'melee',stun:.3,x:o.x,y:o.y-o.h/2});
   }
   if(t>=data.duration||res.wallX!==0||res.ceil||res.landed||Math.hypot(f.x-f.anchorX,f.y-f.anchorY)<12)endSpecial(w,f);
 }
@@ -2302,23 +2317,27 @@ function updateBaseAbility(w: World, f: Fighter, dt: number): void {
   }
 }
 
-/** Hold-Up flight of the final forms: ascend and steer while Up is held, fall as soon as it is released. */
+/**
+ * Flight mode of the flying forms: Up / jump climbs, Down descends, nothing hovers; a sprint is the fast level glide.
+ * It lasts until the fighter lands (or is knocked out of it).
+ */
 function stHoldFly(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void {
   const mx = axis(inp.moveX);
-  const end = () => {
+  if (f.grounded && f.flyTime > 0.15) {
     f.flying = false;
     f.flyHold = false;
     w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: false });
-  };
-  if (inp.moveY >= -0.5 || (f.grounded && f.flyTime > 0.15)) {
-    end();
     integrate(w, f, dt);
     return;
   }
-  const sp = HOLD_FLY.speed * f.speedMul;
+  const rush = f.sprintDir !== 0 && mx === f.sprintDir;
+  const sp = HOLD_FLY.speed * f.speedMul * (rush ? HOLD_FLY.sprint : 1);
   f.vx = approach(f.vx, mx * sp, HOLD_FLY.accel * dt);
-  // ease up into a steady climb
-  f.vy = approach(f.vy, -sp * 0.75, HOLD_FLY.accel * dt);
+  const climb = HOLD_FLY.speed * f.speedMul * 0.75 * (f.flyRush !== 0 ? HOLD_FLY.sprint : 1);
+  const up = inp.moveY < -0.5 || inp.jump;
+  const down = inp.moveY > 0.5;
+  // (a rush glides level unless steered)
+  f.vy = approach(f.vy, up && !down ? -climb : down && !up ? climb : 0, HOLD_FLY.accel * dt);
   if (mx !== 0) f.facing = mx > 0 ? 1 : -1;
   if (commonActions(w, f, inp, e)) return;
   integrate(w, f, dt, false);
@@ -2520,6 +2539,11 @@ function stPistol(w: World, f: Fighter, inp: Intent, dt: number): void {
   const held = inp.ability;
   const released=!held&&f.prev.ability;
   const maxR = s.maxRange ?? s.range;
+  // a tap (released almost at once) snaps straight to the nearest ladder / platform / wall on the aim line
+  if (released && !f.armBack && !f.grip && s.tap && f.stateTime <= s.tap) {
+    const near = grabProbe(w, f, f.stretchAngle, maxR);
+    if (near) f.armReach = Math.max(f.armReach, near.len);
+  }
   if (!f.armBack) {
     if(!released&&(held||!f.grip))f.armReach = Math.min(maxR, f.armReach + (s.extendSpeed ?? 700) * dt);
   } else {

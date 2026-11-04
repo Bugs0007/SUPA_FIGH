@@ -506,24 +506,25 @@ describe('Luffy: the grapple', () => {
     expect(lad?.kind).toBe('ladder');
   });
 
-  it('a tap reaches 125 px; holding keeps reaching until it hits (far targets)', () => {
-    const run = (held: boolean) => {
+  it('a tap snaps the hand out to the nearest anchor on the line (shoving whoever stands in between); a held button keeps reaching', () => {
+    const run = (held: boolean, ahead: number) => {
       const w = arena(['luffy', ''], 2);
       put(w, 0, 20 * TILE);
-      put(w, 1, 20 * TILE + 250);
+      put(w, 1, 20 * TILE + ahead);
       settle(w);
       if (held) heldTicks(w, 30);
       else {
         heldTicks(w, 1);
       }
       hold(w, 30, {});
-      return w.fighters[1].vx !== 0 || w.fighters[1].x !== 20 * TILE + 250;
+      return w.fighters[1].vx !== 0 || w.fighters[1].x !== 20 * TILE + ahead;
     };
-    expect(run(false)).toBe(false);
-    expect(run(true)).toBe(true);
+    expect(run(false, 250)).toBe(true); // the wall is the nearest anchor: the tap reaches it
+    expect(run(true, 250)).toBe(true);
+    expect(run(false, -250)).toBe(false); // behind him: never touched
   });
 
-  it('releasing after passing a platform pulls Luffy onto it; a tap does not move him', () => {
+  it('releasing after passing a platform pulls Luffy onto it; a tap snaps to the nearest one', () => {
     const w = arena(['luffy', ''], 2);
     const f = put(w, 0, 21 * TILE + 8);
     put(w, 1, 36 * TILE);
@@ -544,16 +545,16 @@ describe('Luffy: the grapple', () => {
     settle(w2);
     hold(w2, 1, { ability: true, moveY: -1 });
     hold(w2, 60, {});
-    expect(g.y).toBe(FLOOR);
+    expect(g.y).toBeLessThan(7 * TILE + 2); // a tap snaps to the nearest anchor too
   });
 
   it('holding at a ladder pulls Luffy onto it and he climbs', () => {
     const w = arena(['luffy', ''], 2);
     const f = put(w, 0, 8 * TILE);
-    put(w, 1, 36 * TILE);
+    put(w, 1, 2 * TILE);
     settle(w);
-    heldTicks(w, 60);
-    hold(w, 3, {});
+    heldTicks(w, 14);
+    for (let t = 0; t < 60 && f.state !== 'climb'; t++) hold(w, 1, {});
     expect(f.state).toBe('climb');
     expect(Math.abs(f.x - (16 * TILE + 8))).toBeLessThan(3);
   });
@@ -582,10 +583,11 @@ describe('Luffy: the grapple', () => {
     }
     expect(maxX).toBeGreaterThan(10 * TILE + 25);
     expect(maxDist).toBeLessThan(rope + 12);
-    // Release the selection key, then press again to detach with momentum.
-    const vx = f.vx;
+    // Release the selection key, let him swing through the bottom, then press again to detach with momentum.
     hold(w, 2, {});
     expect(f.specialKind).toBe('swing');
+    for (let n = 0; Math.abs(f.vx) < 40 && n < 200; n++) hold(w, 1, {});
+    const vx = f.vx;
     hold(w,1,{ability:true});
     expect(f.state).not.toBe('special');
     expect(Math.abs(f.vx)).toBeGreaterThan(Math.abs(vx) * 0.5);

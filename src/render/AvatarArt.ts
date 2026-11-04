@@ -214,15 +214,16 @@ export class AvatarArt {
   }
 
   /**
-   * In the air the spirit has no ground to stand on: its chakra pours up out of the fighter in wavering tongues that
-   * widen into the spirit's waist (Susanoo) or belly (Kurama), with sparks rising along them.
+   * In the air the spirit has no ground to stand on: chakra pours up out of the fighter in wavering tongues that
+   * widen into the spirit's shins (Susanoo, which is whole) or belly (Kurama), with sparks rising along them.
    */
   private airStream(fx: number, fy: number, d: number, kind: 'susanoo' | 'kurama', time: number, alpha: number): void {
     if (alpha <= 0) return;
     const g = this.back;
     const [c0, c1, c2] = SIGIL[kind];
-    const top = kind === 'susanoo' ? -78 : -34;
-    const spread = kind === 'susanoo' ? 30 : 30;
+    // (Susanoo is whole down to its feet: a low swirl of chakra holds it up; Kurama's reaches its belly)
+    const top = -34;
+    const spread = kind === 'susanoo' ? 16 : 30;
     const center = kind === 'susanoo' ? 0 : -14;
     const bottom = -14;
     // ribbons of flame, one whole-pixel span per row: they leave the fighter as one thin flame and fan out as they climb

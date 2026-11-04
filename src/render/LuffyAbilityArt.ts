@@ -150,6 +150,100 @@ export class LuffyAbilityArt {
     if(lv===4)this.front.lineStyle(1,0xffffff,alpha*.7).lineBetween(sx,sy-3,sx+dx*(len-3),sy-3);
   }
 
+  /**
+   * Hold BLOCK, one guard per gear: a rubber bounce, steam, an inflated fist shield, a Haki-armoured Boundman body and, in
+   * Gear Fifth, the floor itself pulled up like a rubber sheet (it throws projectiles back, sim/projectile.ts).
+   * A blocked hit (blockStun) makes every one of them flex.
+   */
+  guard(v: FighterView, x: number, y: number, time: number): void {
+    const f = v.fighter, d = f.facing, level = formLevel(f), g = this.front;
+    const flex = f.blockStun > 0 ? Math.min(1, f.blockStun / .12) : 0;
+    const skin = v.lookFor(level).skin;
+    const px = Math.round(x), py = Math.round(y);
+    if (level === 0) {
+      // a thin rubber film bows out in front of the crossed arms, and rebounds on a hit
+      const bow = 2 + flex * 4 + Math.sin(time * 9) * .6;
+      g.lineStyle(1, 0xfff4e0, .28 + flex * .5);
+      let prev: Point | null = null;
+      for (let i = 0; i <= 8; i++) {
+        const t = i / 8;
+        const p = { x: Math.round(px + d * (9 + Math.sin(t * Math.PI) * bow)), y: Math.round(py - 29 + t * 26) };
+        if (prev) g.lineBetween(prev.x, prev.y, p.x, p.y);
+        prev = p;
+      }
+    } else if (level === 1) {
+      // Gear Second: the blood pumps and steam streams off the shoulders and back
+      for (let i = 0; i < 7; i++) {
+        const k = ((time * 1.6 + i * .31) % 1);
+        const side = i % 2 ? 1 : -1;
+        const sx = px - d * (3 + (i % 3) * 3) + side * (1 + k * 2), sy = py - 18 - k * 20;
+        g.fillStyle(0xffe9ee, (1 - k) * .75).fillRect(Math.round(sx), Math.round(sy), k < .5 ? 2 : 3, k < .5 ? 2 : 1);
+      }
+      g.lineStyle(1, 0xff9aa8, .35 + flex * .4).lineBetween(px + d * 7, py - 26, px + d * 7, py - 6);
+    } else if (level === 2) {
+      // Gear Third: one arm swells into a fist as big as a shield, held across the body
+      const swell = 1 + flex * .12 + Math.sin(time * 7) * .04;
+      this.limb(g, px + d * 2, py - 21, d, 0, d, 6, 5, skin, false, 0, 1);
+      this.fist(g, px + d * 13, py - 18, d, 0, d, 8 * swell, skin, false, 1);
+      g.lineStyle(1, 0xfffdf3, .55 + flex * .3);
+      for (let i = -1; i <= 1; i++) g.lineBetween(px + d * 5, py - 30 + i * 4, px + d * 9, py - 30 + i * 4);
+    } else if (level === 3) {
+      // Gear Fourth, Boundman: the whole body puffs up inside a shell of black Haki
+      const breathe = 1 + Math.sin(time * 6) * .035 + flex * .08;
+      const shell: Point[] = [];
+      for (let i = 0; i < 20; i++) {
+        const a = i / 20 * Math.PI * 2;
+        shell.push({ x: px + Math.cos(a) * 12.5 * breathe + d * 1.5, y: py - 17 + Math.sin(a) * 17.5 * breathe });
+      }
+      this.polygon(this.back, shell, 0x14101f, .62);
+      g.lineStyle(1, 0xc94860, .75 + flex * .25).strokePoints(shell.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })), true);
+      g.lineStyle(1, 0x7b354a, .8);
+      for (const k of [-6, 0, 6]) g.lineBetween(px + d * 4, py - 17 + k - 4, px + d * 10, py - 17 + k);
+      g.fillStyle(0xef7980, .35 + flex * .4).fillRect(px + d * 7 - 1, py - 31, 2, 6);
+    } else {
+      this.rubberFloor(v, px, py, time, flex);
+    }
+  }
+
+  /** Gear Fifth's guard: the ground bulges up in front of him like a sheet of rubber and wobbles, then snaps on a reflect. */
+  private rubberFloor(v: FighterView, px: number, py: number, time: number, flex: number): void {
+    const f = v.fighter, d = f.facing, g = this.front;
+    const rise = Math.min(1, f.stateTime / .14);
+    const height = 30 * (1 - (1 - rise) * (1 - rise));
+    const sway = Math.sin(time * 8) * 1.4 + flex * 6;
+    const N = 9;
+    const edge = (t: number) => {
+      const bow = 7 + Math.sin(t * Math.PI * .85) * 8 * rise + flex * 3 * Math.sin(t * Math.PI);
+      const ahead = bow + sway * t * t;
+      const half = (4.6 - 1.6 * t) / 2;
+      return { y: py - t * height, inner: px + d * (ahead - half), outer: px + d * (ahead + half) };
+    };
+    // the dirt and tiles the sheet is made of, pushed up around its foot
+    const foot = edge(0);
+    this.polygon(g, [{ x: foot.inner - d * 5, y: py }, { x: foot.inner - d * 1, y: py - 3 }, { x: foot.outer + d * 5, y: py - 2 }, { x: foot.outer + d * 9, y: py }], 0x7a6247, .9);
+    g.lineStyle(1, 0xb99b72, .9).lineBetween(Math.round(foot.inner - d * 2), py - 3, Math.round(foot.outer + d * 5), py - 2);
+    for (let i = 0; i < N; i++) {
+      const a = edge(i / N), b = edge((i + 1) / N);
+      const quad = (grow: number): Point[] => [{ x: a.inner - d * grow, y: a.y }, { x: b.inner - d * grow, y: b.y }, { x: b.outer + d * grow, y: b.y }, { x: a.outer + d * grow, y: a.y }];
+      this.polygon(g, quad(1), 0x4a3a2b, .95);
+      this.polygon(g, quad(0), i < 3 ? 0xcdb48a : i % 2 ? 0xf4efe6 : 0xe6dcc9, .96);
+      // the sheen travels up the stretched surface
+      const glint = ((time * 1.3) % 1) * N;
+      if (Math.abs(i - glint) < 1.2) this.polygon(g, quad(0), 0xffffff, .55);
+      g.lineStyle(1, 0xffffff, .5).lineBetween(Math.round(a.inner + d * 1), Math.round(a.y), Math.round(b.inner + d * 1), Math.round(b.y));
+    }
+    const top = edge(1);
+    g.fillStyle(0xfff9ec, .95).fillRect(Math.round(Math.min(top.inner, top.outer)), Math.round(top.y) - 1, 4, 1);
+    // cracks fan out along the floor from where it was pulled up
+    g.lineStyle(1, 0x4a3a2b, .8);
+    for (const k of [1, 2]) g.lineBetween(Math.round(foot.outer + d * (6 + k * 3)), py, Math.round(foot.outer + d * (9 + k * 5)), py);
+    if (flex > 0) {
+      g.fillStyle(0xffffff, flex * .55).fillRect(Math.round(Math.min(foot.inner, top.outer)) - 1, Math.round(py - height * .5) - 3, 5, 6);
+      g.lineStyle(1, 0xfff4cf, flex * .8);
+      for (let i = -1; i <= 1; i++) g.lineBetween(Math.round(px + d * 14), Math.round(py - height * .5) + i * 4, Math.round(px + d * (19 + flex * 5)), Math.round(py - height * .5) + i * 6);
+    }
+  }
+
   gatling(v: FighterView, x: number, y: number, previewReach: number): void {
     const f = v.fighter, level = formLevel(f), style = moveLook('luffy', level);
     const stats = heroDef('luffy')!.second.gatling!;

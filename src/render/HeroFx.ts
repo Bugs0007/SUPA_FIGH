@@ -325,7 +325,7 @@ export class HeroFx {
       const y = lerp(f.py, f.y, alpha);
       if(f.burn>0&&f.burnStyle==='amaterasu')drawBlackFlames(this.orbs,x,y,f.w,f.h,time);
       if (!f.alive) continue;
-      if(f.state==='block')this.spiritGuard(f,x,y,time);
+      if(f.state==='block'){if(f.hero==='luffy')this.luffyArt.guard(v,x,y,time);else this.spiritGuard(f,x,y,time);}
       if(f.state==='special'&&f.specialKind==='formCombo'){
         this.formComboArt(v,x,y,time);
         continue;
@@ -481,6 +481,15 @@ export class HeroFx {
   private flight(f: Fighter, x: number, y: number, dt: number): void {
     const [c0, c1] = formLevel(f) > 0 ? powerColors(f) : [0xa8e0ff, 0xffffff];
     const sp = Math.hypot(f.vx, f.vy);
+    if ((f.sprintDir !== 0 && Math.abs(f.vx) > 50) || (f.flyRush !== 0 && Math.abs(f.vy) > 50)) {
+      // the rush: streaks peel off the body and trail straight back, no downdraft
+      if (dt > 0) {
+        for (let i = emitCount(26, dt); i > 0; i--) {
+          this.fx.spawn({ frame: 'p1', x: x - f.facing * rnd(2, 10), y: y - rnd(2, 20), vx: -f.vx * rnd(0.35, 0.7), vy: -f.vy * (f.flyRush !== 0 ? 0.6 : 0.4) + rnd(-6, 6), life: rnd(0.14, 0.28), a0: 0.9, a1: 0, tint: Math.random() < 0.5 ? c0 : c1, add: true, depth: 42 });
+        }
+      }
+      return;
+    }
     if (dt > 0) {
       for (let i = emitCount(10 + sp * 0.08, dt); i > 0; i--) {
         this.fx.spawn({ frame: 'p1', x: x + rnd(-3, 3), y: y + rnd(-1, 2), vx: -f.vx * 0.3 + rnd(-10, 10), vy: rnd(20, 50) - f.vy * 0.2, life: rnd(0.15, 0.3), a0: 0.9, a1: 0, tint: Math.random() < 0.5 ? c0 : c1, add: true, depth: 42 });

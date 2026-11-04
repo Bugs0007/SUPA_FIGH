@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../../src/sim/constants';
-import { HEROES } from '../../src/sim/data/heroes';
+import { HEROES, HOLD_FLY } from '../../src/sim/data/heroes';
 import { transform } from '../../src/sim/hero';
 import type { Intent } from '../../src/sim/intent';
 import type { MapDef } from '../../src/sim/map/mapData';
@@ -157,7 +157,16 @@ describe('Goku: instant transmission', () => {
   });
 });
 
-describe('flight (hold Up in the air): Goku always, Naruto and Luffy in the final form', () => {
+/** Air jump spent, in the air: one more jump press = take-off (flight mode). */
+function takeOff(w: World, f = w.fighters[0]): void {
+  f.grounded = false;
+  f.coyote = 0;
+  f.airJumps = 0;
+  w.step([intent({ jump: true, moveY: -1 }), intent()]);
+  w.step([intent(), intent()]);
+}
+
+describe('flight mode (jump again after the double jump): Goku always, Naruto and Luffy in the final form', () => {
   it('Goku flies in his base form and in every form', () => {
     for (let lvl = 0; lvl <= 4; lvl++) {
       const w = world('goku');
@@ -166,8 +175,7 @@ describe('flight (hold Up in the air): Goku always, Naruto and Luffy in the fina
       const f = w.fighters[0];
       for (let i = 0; i < lvl; i++) transform(w, f);
       f.vy = 0;
-      f.grounded = false;
-      hold(w, 30, { moveY: -1 });
+      takeOff(w);
       expect(f.flying, 'form ' + lvl).toBe(true);
     }
   });
@@ -177,7 +185,7 @@ describe('flight (hold Up in the air): Goku always, Naruto and Luffy in the fina
     put(base, 0, 10 * TILE, 8 * TILE);
     put(base, 1, 36 * TILE);
     base.fighters[0].vy = 0;
-    hold(base, 30, { moveY: -1 });
+    takeOff(base);
     expect(base.fighters[0].flying).toBe(false);
 
     const w = world(hero);
@@ -187,14 +195,65 @@ describe('flight (hold Up in the air): Goku always, Naruto and Luffy in the fina
     for (let i = 0; i < 4; i++) transform(w, f);
     expect(f.powerLevel).toBe(4);
     f.vy = 0;
-    f.grounded = false;
-    hold(w, 30, { moveY: -1 });
+    takeOff(w);
     expect(f.flying).toBe(true);
     const y = f.y;
     hold(w, 20, { moveY: -1 });
     expect(f.y).toBeLessThan(y - 20);
+    // letting go hovers (no jetpack drop); Down descends; landing ends the flight
+    hold(w, 30, {});
+    expect(f.flying).toBe(true);
+    const hover = f.y;
     hold(w, 20, {});
-    expect(f.flying).toBe(false); // release: falls
+    expect(Math.abs(f.y - hover)).toBeLessThan(3);
+    hold(w, 20, { moveY: 1 });
+    expect(f.y).toBeGreaterThan(hover + 10);
+    hold(w, 400, { moveY: 1 });
+    expect(f.grounded).toBe(true);
+    expect(f.flying).toBe(false);
+  });
+
+  it('double-tapping Up or Down in flight is a vertical rush', () => {
+    for (const dir of [-1, 1]) {
+      const w = world('goku');
+      put(w, 0, 10 * TILE, 7 * TILE);
+      put(w, 1, 36 * TILE);
+      const f = w.fighters[0];
+      f.vy = 0;
+      takeOff(w);
+      hold(w, 10, {});
+      hold(w, 2, { moveY: dir });
+      hold(w, 2, {});
+      hold(w, 12, { moveY: dir });
+      expect(f.flyRush).toBe(dir);
+      expect(f.vy * dir).toBeGreaterThan(HOLD_FLY.speed * 0.75 * 1.6);
+      hold(w, 2, {});
+      expect(f.flyRush).toBe(0);
+    }
+    // a single hold is the normal climb
+    const w = world('goku');
+    put(w, 0, 10 * TILE, 8 * TILE);
+    put(w, 1, 36 * TILE);
+    w.fighters[0].vy = 0;
+    takeOff(w);
+    hold(w, 25, { moveY: -1 });
+    expect(w.fighters[0].flyRush).toBe(0);
+    expect(-w.fighters[0].vy).toBeLessThan(HOLD_FLY.speed * 0.75 * 1.2);
+  });
+
+  it('a sprint in the air is a fast level glide', () => {
+    const w = world('goku');
+    put(w, 0, 10 * TILE, 8 * TILE);
+    put(w, 1, 36 * TILE);
+    const f = w.fighters[0];
+    f.vy = 0;
+    takeOff(w);
+    hold(w, 30, { moveX: 1 });
+    const walk = f.vx;
+    f.sprintDir = 1;
+    hold(w, 30, { moveX: 1 });
+    expect(f.vx).toBeGreaterThan(walk * 1.6);
+    expect(Math.abs(f.vy)).toBeLessThan(5);
   });
 
   it('Goku has no levitation ability any more: his ability 1 is the teleport', () => {

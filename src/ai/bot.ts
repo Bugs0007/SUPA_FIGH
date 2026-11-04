@@ -190,6 +190,7 @@ export class BotController implements Controller {
       }
       this.act(w, f);
       this.applyTaps();
+      if (f.flying && !this.mobility.active && o.moveY === 0) o.moveY = 1; // flight only ends on landing: sink when nothing else steers
       this.watchdog(w, f);
     } else if (f && f.ghost) {
       this.haunt(w, f);
@@ -849,7 +850,7 @@ export class BotController implements Controller {
     const near = Math.abs(e.x - f.x);
     const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     if (!clear) return null;
-    if((transformed(f)||f.hero==='sasuke')&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
+    if((transformed(f)||f.hero==='sasuke'||f.hero==='luffy')&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
       const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:f.hero==='luffy'?level<70:near>45&&level<70);
       if(fits)cands.push({hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:face,my:0,weight:BOT_FIGHT.wCombo});
     }
@@ -1205,7 +1206,11 @@ export class BotController implements Controller {
           this.out.moveX = away;
           this.out.moveY = 1;
         }
-      } else if (!f.grounded && holdFlies(f)) this.out.moveY = -1; // fly up and away
+      } else if (!f.grounded && holdFlies(f)) {
+        // fly up and away (take-off is a third jump press)
+        if (f.flying) this.out.moveY = -1;
+        else this.tap('jump');
+      }
     }
     if (this.now + DT >= this.spaceUntil) this.rangedUntil = this.now + BOT_FIGHT.rangedWindow;
     return true;

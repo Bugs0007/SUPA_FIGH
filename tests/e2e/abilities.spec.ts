@@ -48,6 +48,12 @@ async function start(page: Page, query: string): Promise<void> {
   await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 50);
 }
 
+async function tapUp(page: Page): Promise<void> {
+  await page.keyboard.down('KeyW');
+  await wait(page, 60);
+  await page.keyboard.up('KeyW');
+}
+
 test('W jumps (and double jumps), double-tap S drops through a platform', async ({ page }) => {
   const errors = collectErrors(page);
   await start(page, 'bots=0&humans=2');
@@ -74,7 +80,7 @@ test('W jumps (and double jumps), double-tap S drops through a platform', async 
   expect(errors).toEqual([]);
 });
 
-test('Goku teleports with B (instant transmission); Goku flies in every form: hold W in the air', async ({ page }) => {
+test('Goku teleports with B (instant transmission); Goku flies in every form: jump again after the double jump', async ({ page }) => {
   const errors = collectErrors(page);
   await start(page, 'bots=0&humans=2&heroes=goku,naruto');
   await put(page, 0, 6 * 16 + 8, 27 * 16);
@@ -89,13 +95,20 @@ test('Goku teleports with B (instant transmission); Goku flies in every form: ho
   let f = await fighter(page, 0);
   expect(f.x - x0).toBeGreaterThan(80); // jumped ahead
   expect(f.flying).toBe(false);
-  // base form: jump, then hold W past the top of the jump = flight (Goku flies in every form)
+  // base form: jump, double jump, then jump once more = flight mode (Goku flies in every form); it lasts until he lands
   await wait(page, 800);
-  await page.keyboard.down('KeyW');
-  await wait(page, 700);
+  await tapUp(page);
+  await wait(page, 250);
+  await tapUp(page);
+  await wait(page, 150);
+  await tapUp(page);
+  await wait(page, 300);
   expect((await fighter(page, 0)).flying).toBe(true);
-  await page.keyboard.up('KeyW');
-  await wait(page, 1500);
+  await wait(page, 600);
+  expect((await fighter(page, 0)).flying).toBe(true); // hovering, no key held
+  await page.keyboard.down('KeyS');
+  await wait(page, 2500);
+  await page.keyboard.up('KeyS');
   expect((await fighter(page, 0)).flying).toBe(false);
   // final form (4 orbs) flies too
   await page.evaluate(() => {
@@ -105,7 +118,11 @@ test('Goku teleports with B (instant transmission); Goku flies in every form: ho
     f.formHp = 120;
   });
   await put(page, 0, 6 * 16 + 8, 27 * 16);
-  await wait(page, 200);
+  await wait(page, 600);
+  await tapUp(page);
+  await wait(page, 250);
+  await tapUp(page);
+  await wait(page, 150);
   await page.keyboard.down('KeyW');
   await wait(page, 900);
   f = await fighter(page, 0);
@@ -113,7 +130,9 @@ test('Goku teleports with B (instant transmission); Goku flies in every form: ho
   expect(f.y).toBeLessThan(27 * 16 - 60);
   await page.screenshot({ path: 'tests/e2e/screenshots/goku-flight.png' });
   await page.keyboard.up('KeyW');
-  await wait(page, 1500);
+  await page.keyboard.down('KeyS');
+  await wait(page, 3000);
+  await page.keyboard.up('KeyS');
   f = await fighter(page, 0);
   expect(f.flying).toBe(false);
   expect(errors).toEqual([]);

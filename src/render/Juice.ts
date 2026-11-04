@@ -164,6 +164,20 @@ export class Juice {
         this.hitstop = Math.max(this.hitstop, 0.07);
         break;
       }
+      case 'reflect': {
+        // the rubber floor snaps the shot back: a creamy flash, a ring and sparks flung along the return path
+        const v = w.fighters[e.victim];
+        const cream = 0xfff4cf;
+        fx.flashRing(e.x, e.y, cream);
+        for (let i = 0; i < 10; i++) {
+          fx.spawn({ frame: 'p1', x: e.x, y: e.y + (Math.random() - 0.5) * 8, vx: e.dir * (80 + Math.random() * 140), vy: (Math.random() - 0.5) * 90, life: 0.2 + Math.random() * 0.2, a0: 1, a1: 0, tint: i % 2 ? cream : 0xffffff, add: true, depth: 42 });
+        }
+        if (v) fx.dust(v.x + v.facing * 10, v.y, 4, 30);
+        this.sfx('reflect', e.x, 0.9);
+        this.cam.addTrauma(0.14);
+        this.hitstop = Math.max(this.hitstop, 0.05);
+        break;
+      }
       case 'guardBreak': {
         fx.guardShards(e.x, e.y, 16, hexToNum(P.glass1));
         this.r.floatText(e.x, e.y - 18, 'GUARD BREAK!', hexToNum(P.red2), true);
@@ -213,7 +227,12 @@ export class Juice {
           fx.dust(e.x, e.y, 3, 30);
           this.sfx('jump', e.x, 0.7, 1.15);
         } else if (e.air) {
-          fx.motes(e.x, e.y, 5, 0xffffff);
+          // a flat ring of air bursts out under the feet
+          for (let i = 0; i < 12; i++) {
+            const s = i % 2 ? 1 : -1;
+            fx.spawn({ frame: 'p1', x: e.x + s * 2, y: e.y + 1, vx: s * (40 + Math.random() * 60), vy: 4 + Math.random() * 14, life: 0.22 + Math.random() * 0.12, a0: 0.9, a1: 0, tint: 0xdff4ff, add: true, depth: 42 });
+          }
+          fx.motes(e.x, e.y, 3, 0xffffff);
           this.sfx('jump', e.x, 0.6, 1.3);
         } else {
           fx.dust(e.x, e.y, 2, 25);

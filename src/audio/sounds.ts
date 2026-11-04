@@ -34,6 +34,11 @@ export const SOUNDS: Record<string, SfxDef> = {
     { wave: 'sine', freq: 2850, decay: 0.18, delay: 0.01, volume: 0.14 },
     { wave: 'noise', freq: 5200, highpass: 0.6, decay: 0.04, volume: 0.15 },
   ],
+  reflect: [
+    { wave: 'sine', freq: 140, slide: 3.2, decay: 0.2, punch: 0.4, volume: 0.55 },
+    { wave: 'sine', freq: 620, slide: 2.4, decay: 0.16, vibDepth: 0.05, vibSpeed: 22, volume: 0.28 },
+    { wave: 'noise', freq: 3600, highpass: 0.5, decay: 0.05, volume: 0.14 },
+  ],
   guardBreak: [
     { wave: 'noise', freq: 1200, slide: -1.5, punch: 0.8, decay: 0.35, lowpass: 0.6, volume: 0.6 },
     { wave: 'noise', freq: 5000, highpass: 0.6, decay: 0.3, tremolo: 30, delay: 0.02, volume: 0.28 },

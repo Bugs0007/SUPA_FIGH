@@ -29,7 +29,7 @@ type Spec<T> = readonly (readonly [keyof T & string, Kind])[];
 export const FIGHTER_SPEC: Spec<Fighter> = [
   ['x', 'n'], ['y', 'n'], ['vx', 'n'], ['vy', 'n'], ['w', 'n'], ['h', 'n'], ['grounded', 'b'], ['facing', 'n'],
   ['state', 's'], ['stateTime', 'n'], ['hp', 'n'], ['maxHp', 'n'], ['alive', 'b'], ['gone', 'b'], ['invuln', 'n'],
-  ['wallSlide', 'n'], ['sprintDir', 'n'], ['airJumpTime', 'n'], ['aimAngle', 'n'], ['aimHeld', 'b'], ['crouchAim', 'b'],
+  ['wallSlide', 'n'], ['sprintDir', 'n'], ['flyRush', 'n'], ['airJumpTime', 'n'], ['aimAngle', 'n'], ['aimHeld', 'b'], ['crouchAim', 'b'],
   ['lastShotTime', 'n'], ['inv', 'i'], ['active', 'n'], ['combo', 'n'], ['airKick', 'b'], ['thrownBy', 'n'], ['rot', 'n'],
   ['burn', 'n'], ['burnStyle', 's'], ['speedBoost', 'n'], ['strengthBoost', 'n'], ['cook', 'n'], ['jetting', 'b'], ['carry', 'n'],
   ['ghost', 'b'], ['gx', 'n'], ['gy', 'n'], ['ghostCd', 'n'],

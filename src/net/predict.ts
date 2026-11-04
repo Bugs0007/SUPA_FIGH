@@ -24,7 +24,7 @@ import { applyWorld, type RenderSnapshot } from './renderState';
 
 /** Fighter fields drawn from the prediction; everything else (hp, inventory, powers...) stays the server's. */
 export const PREDICTED_FIELDS = [
-  'vx', 'vy', 'w', 'h', 'grounded', 'facing', 'state', 'stateTime', 'wallSlide', 'sprintDir', 'airJumpTime', 'aimAngle',
+  'vx', 'vy', 'w', 'h', 'grounded', 'facing', 'state', 'stateTime', 'wallSlide', 'sprintDir', 'flyRush', 'airJumpTime', 'aimAngle',
   'aimHeld', 'crouchAim', 'combo', 'airKick', 'rot', 'jetting', 'carry', 'flying', 'stretchLen', 'stretchAngle', 'anchorX',
   'anchorY', 'recoverAt', 'specialKind', 'charge', 'beamWidth', 'wallDir', 'armReach', 'armBack', 'ropeLen', 'grip',
   'lastShotTime', 'cook',

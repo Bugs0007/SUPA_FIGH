@@ -263,6 +263,11 @@ export function absorbForm(w: World, v: Fighter, dmg: number, kind: string): num
   return dmg - taken;
 }
 
+/** Does this fighter's raised guard throw projectiles back (Gear Fifth)? */
+export function reflects(f: Fighter): boolean {
+  return f.state === 'block' && f.power === 'hero' && !!heroDef(f.hero)?.forms[f.powerLevel - 1]?.reflects;
+}
+
 /** Can this fighter fly by holding Up (Goku always, Naruto and Luffy in their final forms)? */
 export function holdFlies(f: Fighter): boolean {
   const def = heroDef(f.hero);

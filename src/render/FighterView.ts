@@ -280,6 +280,18 @@ export class FighterView {
           }
           frontLen = 1;
           backLen = 1;
+        } else if (f.flying && ((f.sprintDir !== 0 && Math.abs(f.vx) > 50) || (f.flyRush !== 0 && Math.abs(f.vy) > 50))) {
+          // flight rush: the superman glide, body flat, one fist thrust ahead, pitched into the climb or dive
+          frame = BF.STRETCH;
+          // (a vertical rush points the whole body up or down: head first)
+          const pitch = Math.atan2(f.vy, Math.abs(f.vx));
+          leanTarget = f.flyRush !== 0 ? Math.PI / 2 + pitch : Math.PI / 2 - 0.12 + Math.max(-0.5, Math.min(0.5, pitch * 0.8));
+          front = -Math.PI / 2 - 0.06;
+          back = -Math.PI / 2 + 0.7 + Math.sin(time * 9) * 0.05;
+          frontLen = 1;
+          backLen = 1;
+          smoothArms = false;
+          bob = Math.round(Math.sin(time * 5 + f.id) * 1);
         } else if (f.flying) {
           // levitating: calm hover, lean into the direction of travel, arms trail behind
           frame = BF.HOVER;
@@ -345,11 +357,17 @@ export class FighterView {
             back = -1.9 + Math.sin(time * 18 + 1) * 0.35;
           }
           leanTarget = Math.max(-0.12, Math.min(0.12, (f.vx * f.facing) / 900));
-          // double jump: one quick front flip
-          const flip = (simTime - f.airJumpTime) / 0.32;
-          if (flip >= 0 && flip < 1) {
-            frame = BF.TUMBLE;
-            rigRot = flip * Math.PI * 2;
+          // double jump: gather the knees, then spring open with the arms thrown overhead and ease back to the jump pose
+          const dj = (simTime - f.airJumpTime) / 0.38;
+          if (dj >= 0 && dj < 1) {
+            const open = Math.min(1, dj / 0.4);
+            const settle = Math.max(0, (dj - 0.4) / 0.6);
+            frame = dj < 0.4 ? BF.APEX : BF.JUMP;
+            front = (1.1 + (-2.3 - 1.1) * open) * (1 - settle) + -0.9 * settle;
+            back = (1.4 + (-2.7 - 1.4) * open) * (1 - settle) + 2.5 * settle;
+            frontLen = back > 0 ? 0 : 1;
+            backLen = frontLen;
+            leanTarget = (-0.14 * (1 - open) + 0.1 * open) * (1 - settle);
             smoothArms = false;
           }
         }

@@ -95,6 +95,8 @@ export interface StretchStats {
   extendSpeed?: number;
   retractSpeed?: number;
   maxRange?: number;
+  /** a release within this many seconds is a tap: the hand snaps to the nearest anchor along the aim line */
+  tap?: number;
   /** swing: sideways pump accel (px/s²), reel speed (px/s) and the longest swing (s) */
   swing?: { pump: number; reel: number; maxTime: number };
 }
@@ -183,8 +185,10 @@ export interface HeroForm {
   knockMul: number;
   /** extra melee reach (px) */
   reach: number;
-  /** holding Up in the air flies (the final form of every hero) */
+  /** flight mode (jump again after the double jump): the final form of every hero */
   flies?: boolean;
+  /** a raised guard throws projectiles back at the shooter (Gear Fifth: the floor bulges like rubber) */
+  reflects?: boolean;
 }
 
 /** Stat changes while powered (a hero form, or the generic boost). */
@@ -229,8 +233,14 @@ export const GENERIC_DURATION = 12;
 export const FORM_HP = 30;
 /** damage kinds that go straight through the form layers (the world, not a fight) */
 export const FORM_BYPASS = ['fall', 'water', 'drain'] as const;
-/** hold-to-fly (final forms of heroes whose `flies` is set): speed / acceleration */
-export const HOLD_FLY = { speed: 120, accel: 1000, liftoff: 70 };
+/**
+ * Flight mode (Goku always, other heroes in their flying forms): press jump again after the double jump to take off;
+ * Up / jump climbs, Down descends, nothing hovers, and a sprint (double-tap a direction) is the fast level "superman" glide.
+ * Lands to end. `sprint` multiplies the cruise speed, `liftoff` is the pop upward on take-off.
+ */
+export const HOLD_FLY = { speed: 120, accel: 1000, liftoff: 70, sprint: 2 };
+/** A reflected projectile keeps its speed but carries this fraction of its damage; the reflect costs this fraction of the normal guard drain. */
+export const REFLECT = { damageMul: 0.1, guardCost: 0.5 };
 /** seconds both ability buttons may be apart and still count as "together" (super) */
 export const SUPER_WINDOW = 0.1;
 /**
@@ -389,7 +399,7 @@ export function bombRange(hero: string, b: BombStats, level: number): number {
 }
 export const FORM_COMBO = { cooldown: 6, windup: 0.24, duration: 0.7, range: 360, damage: 22, radius: 30, speed: 520, cloneRange: 70, recallHold: 0.55 };
 export const CLONE_SLINGSHOT = { windup: 0.6, duration: 1, speed: 1040, turns: 1.5, swingRadius: 22 };
-export const JET_BAZOOKA = { closeRange:42, targetRange:480, anchorRange:180, windup:.32, duration:1, speed:900, kickDamage:30, kickKnock:700, kickLift:-120, kickStun:.4, hitRadius:24 };
+export const JET_BAZOOKA = { closeRange:42, targetRange:480, anchorRange:180, windup:.32, duration:1, speed:900, damage:30, kickDamage:40, kickKnock:700, kickLift:-120, kickStun:.4, hitRadius:24 };
 export const KIRIN = { stun: 1.5, radius:18, radiusPerForm:6, scaleBase:.8, scalePerForm:.3, impactTime:.85, blastRadius:42, blastRadiusPerForm:10, shakeBase:.7, shakePerForm:.05 };
 
 export const HEROES: Record<string, HeroDefinition> = {
@@ -472,7 +482,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     base: {
       kind: 'pistol',
       name: 'GUM-GUM PISTOL',
-      desc: 'HOLD TO REACH PAST LADDERS / PLATFORMS. RELEASE TO GRAB THE LAST ANCHOR PASSED; FULL REACH SELECTS THE FARTHEST. PRESS AGAIN TO CANCEL. UP / DOWN TO AIM.',
+      desc: 'TAP TO SNAP TO THE NEAREST LADDER / WALL / PLATFORM. HOLD TO REACH PAST THEM: RELEASE GRABS THE LAST ANCHOR PASSED, FULL REACH THE FARTHEST. PRESS AGAIN TO CANCEL. UP / DOWN TO AIM.',
       cooldown: 0.25,
       charges: { max: 3, recharge: 2 },
       stretch: {
@@ -486,11 +496,13 @@ export const HEROES: Record<string, HeroDefinition> = {
         knockY: -120,
         upAngle: -0.9,
         downAngle: 0.8,
-        rocketSpeed: 460,
+        rocketSpeed: 980,
         rocketTime: 1.2,
-        extendSpeed: 760,
-        retractSpeed: 1100,
-        maxRange: 425,
+        extendSpeed: 2100,
+        retractSpeed: 2800,
+        maxRange: 560,
+        // a tap (released within this many seconds) snaps to the nearest anchor on the aim line
+        tap: 0.16,
         swing: { pump: 520, reel: 60, maxTime: 4 },
       },
     },
@@ -512,7 +524,7 @@ export const HEROES: Record<string, HeroDefinition> = {
       { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.3, knockMul: 1.15, reach: 4 },
       { name: 'GEAR THIRD', speedMul: 1.15, damageMul: 1.4, knockMul: 1.35, reach: 8 },
       { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.75, knockMul: 1.45, reach: 12 },
-      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.95, knockMul: 1.6, reach: 16, flies: true },
+      { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.95, knockMul: 1.6, reach: 16, flies: true, reflects: true },
     ],
   },
   goku: {

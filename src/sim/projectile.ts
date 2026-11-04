@@ -1,5 +1,7 @@
 import { applyHit, computeDamage, hitWasBlocked, sameTeam } from './combat';
-import { DT } from './constants';
+import { BLOCK, DT } from './constants';
+import { REFLECT } from './data/heroes';
+import { reflects } from './hero';
 import type { ExplosionStats, ProjectileKind } from './data/weapons';
 import type { Fighter } from './fighter';
 import { explode } from './explosion';
@@ -169,6 +171,44 @@ interface WallHit {
   ty: number;
 }
 
+/**
+ * Gear Fifth's guard: the floor bulges up like rubber and flings the shot back at the one who fired it. Same speed,
+ * a tenth of the damage (the blast of a super too); it now belongs to the rubber man.
+ */
+function reflectBullet(w: World, f: Fighter, b: Bullet, hx: number, hy: number): void {
+  const speed = Math.hypot(b.vx, b.vy) || 1;
+  const dist = b.traveled + Math.hypot(hx - b.x, hy - b.y);
+  const dmg = computeDamage({ base: b.damage, falloff: b.falloff, distFrac: dist / b.range });
+  f.guard = Math.max(1, f.guard - dmg * BLOCK.cost * REFLECT.guardCost);
+  f.guardWait = BLOCK.regenDelay;
+  f.blockStun = Math.max(f.blockStun, 0.12); // (the guard flexes; the art reads it)
+  const attacker = b.owner;
+  // back toward where it came from (the shooter), else straight back
+  let dx = b.ox - hx;
+  let dy = b.oy - hy;
+  const len = Math.hypot(dx, dy);
+  if (len < 12) {
+    dx = -b.vx;
+    dy = -b.vy;
+  }
+  const n = Math.hypot(dx, dy) || 1;
+  b.vx = (dx / n) * speed;
+  b.vy = (dy / n) * speed;
+  b.x = b.px = hx;
+  b.y = b.py = hy;
+  b.ox = hx;
+  b.oy = hy;
+  b.traveled = 0;
+  b.damage *= REFLECT.damageMul;
+  if (b.explosion) b.explosion = { ...b.explosion, damage: b.explosion.damage * REFLECT.damageMul };
+  b.owner = f.id;
+  b.canHitOwner = false;
+  b.hitIds.length = 0;
+  b.hitIds.push(f.id);
+  b.bounces = 0;
+  w.emit({ t: 'reflect', victim: f.id, attacker, x: hx, y: hy, dir: b.vx >= 0 ? 1 : -1 });
+}
+
 /** Advance every active bullet by one tick: swept vs fighters and tiles. */
 export function updateBullets(w: World): void {
   const map = w.map;
@@ -300,6 +340,10 @@ export function updateBullets(w: World): void {
         const f = w.fighters[bestF];
         const hx = b.x + (nx - b.x) * bestT;
         const hy = b.y + (ny - b.y) * bestT;
+        if (reflects(f) && f.guard > 0 && (hx - f.x) * f.facing >= -BLOCK.frontTol && f.master < 0) {
+          reflectBullet(w, f, b, hx, hy);
+          break;
+        }
         if (b.explosion?.blastOnly) {
           // a super: no separate contact damage, it goes off on the body it touched (the blast is the whole hit)
           b.x = hx;
