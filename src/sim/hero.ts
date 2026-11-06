@@ -14,6 +14,7 @@ import {
   GENERIC_DURATION,
   heroDef,
   maxLevel,
+  REFLECT,
   SUPER_AREA,
   superBombDamage,
   SASUKE_ARROW,
@@ -25,6 +26,7 @@ import {
   type BaseAbility,
   type BeamStats,
   type BlinkStats,
+  type HeroForm,
   type SecondAbility,
   type StretchStats,
   type SuperAbility,
@@ -263,9 +265,36 @@ export function absorbForm(w: World, v: Fighter, dmg: number, kind: string): num
   return dmg - taken;
 }
 
+/** Share of its damage a shot keeps when this fighter's guard throws it back (Gear Fourth 25%, Gear Fifth 10%). */
+export function reflectDamage(f: Fighter): number {
+  return heroDef(f.hero)?.forms[f.powerLevel - 1]?.reflectDamage ?? REFLECT.damageMul;
+}
+
+/** The stamina meter of this fighter's flight (Gear Fourth), or null when its flight is free (Goku, Gear Fifth). */
+export function flightStamina(f: Fighter): NonNullable<HeroForm['stamina']> | null {
+  return f.power === 'hero' ? heroDef(f.hero)?.forms[f.powerLevel - 1]?.stamina ?? null : null;
+}
+
+/** Is this fighter in a form whose guard throws projectiles back (Gear Fourth / Fifth), guarding or not? */
+export function canReflect(f: Fighter): boolean {
+  return f.power === 'hero' && f.master < 0 && !!heroDef(f.hero)?.forms[f.powerLevel - 1]?.reflects;
+}
+
 /** Does this fighter's raised guard throw projectiles back (Gear Fifth)? */
 export function reflects(f: Fighter): boolean {
-  return f.state === 'block' && f.power === 'hero' && !!heroDef(f.hero)?.forms[f.powerLevel - 1]?.reflects;
+  return f.state === 'block' && canReflect(f);
+}
+
+/** Is there more than `min` stamina left to keep flying on (always, for a free flight)? */
+export function flightFuel(f: Fighter, min = 0): boolean {
+  return !flightStamina(f) || f.stamina > min;
+}
+
+/** Can this fighter take off now: flies, and has the stamina to start (metered forms)? */
+export function canTakeOff(f: Fighter): boolean {
+  if (!holdFlies(f)) return false;
+  const st = flightStamina(f);
+  return !st || f.stamina >= st.minStart;
 }
 
 /** Can this fighter fly by holding Up (Goku always, Naruto and Luffy in their final forms)? */

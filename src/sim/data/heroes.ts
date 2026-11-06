@@ -189,6 +189,10 @@ export interface HeroForm {
   flies?: boolean;
   /** a raised guard throws projectiles back at the shooter (Gear Fifth: the floor bulges like rubber) */
   reflects?: boolean;
+  /** share of its damage a reflected shot keeps (default REFLECT.damageMul) */
+  reflectDamage?: number;
+  /** flight on a stamina meter: drains while flying (faster in a sprint rush), refills on the ground; no take-off below `minStart` */
+  stamina?: { drain: number; rushDrain: number; minStart: number };
 }
 
 /** Stat changes while powered (a hero form, or the generic boost). */
@@ -241,6 +245,8 @@ export const FORM_BYPASS = ['fall', 'water', 'drain'] as const;
 export const HOLD_FLY = { speed: 120, accel: 1000, liftoff: 70, sprint: 2 };
 /** A reflected projectile keeps its speed but carries this fraction of its damage; the reflect costs this fraction of the normal guard drain. */
 export const REFLECT = { damageMul: 0.1, guardCost: 0.5 };
+/** Stamina meter of the metered flights (Gear Fourth): full at max, refilled this fast (per second) while standing on the ground. */
+export const STAMINA = { max: 100, regen: 45 };
 /** seconds both ability buttons may be apart and still count as "together" (super) */
 export const SUPER_WINDOW = 0.1;
 /**
@@ -523,7 +529,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     forms: [
       { name: 'GEAR SECOND', speedMul: 1.25, damageMul: 1.3, knockMul: 1.15, reach: 4 },
       { name: 'GEAR THIRD', speedMul: 1.15, damageMul: 1.4, knockMul: 1.35, reach: 8 },
-      { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.75, knockMul: 1.45, reach: 12 },
+      { name: 'GEAR FOURTH', speedMul: 1.25, damageMul: 1.75, knockMul: 1.45, reach: 12, flies: true, reflects: true, reflectDamage: 0.25, stamina: { drain: 18, rushDrain: 40, minStart: 30 } },
       { name: 'GEAR FIFTH', speedMul: 1.3, damageMul: 1.95, knockMul: 1.6, reach: 16, flies: true, reflects: true },
     ],
   },

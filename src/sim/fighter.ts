@@ -75,7 +75,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, FORM_COMBO, bombRange, bombSpeed, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, heroDef, HOLD_FLY, maxLevel, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, FORM_COMBO, bombRange, bombSpeed, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, heroDef, HOLD_FLY, maxLevel, STAMINA, SUPER_WINDOW, superFistFor } from './data/heroes';
 import {
   ability,
   baseAbility,
@@ -99,6 +99,8 @@ import {
   grabProbe,
   gripTarget,
   holdFlies,
+  canTakeOff,
+  flightStamina,
   pistolHits,
   dashDir,
   rasenganHit,
@@ -193,6 +195,8 @@ export interface Fighter extends Body {
   lastTapTime: number;
   /** flight: -1 / 1 while rushing straight up / down (double-tap Up / Down), double-tap tracking */
   flyRush: number;
+  /** flight stamina (Gear Fourth): STAMINA.max when full; drains while flying, refills on the ground */
+  stamina: number;
   lastVTapDir: number;
   lastVTapTime: number;
   /** last air jump time (render: flip) */
@@ -404,6 +408,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     lastTapDir: 0,
     lastTapTime: -10,
     flyRush: 0,
+    stamina: STAMINA.max,
     lastVTapDir: 0,
     lastVTapTime: -10,
     airJumpTime: -10,
@@ -1028,7 +1033,7 @@ function stNormal(w: World, f: Fighter, inp: Intent, e: Edges, dt: number): void
   }
   const mx = axis(inp.moveX);
   // flying forms: jump once more after the double jump (all air jumps spent) to take off (D61)
-  if (e.jumpP && !f.grounded && f.coyote <= 0 && f.dropTimer <= 0 && f.airJumps <= 0 && holdFlies(f) && !onLadder(w, f) && wallContact(w, f, mx) === 0) {
+  if (e.jumpP && !f.grounded && f.coyote <= 0 && f.dropTimer <= 0 && f.airJumps <= 0 && canTakeOff(f) && !onLadder(w, f) && wallContact(w, f, mx) === 0) {
     f.flying = true;
     f.flyHold = true;
     f.flyTime = 0;
@@ -2310,11 +2315,25 @@ function updateBaseAbility(w: World, f: Fighter, dt: number): void {
       f.flying = false;
       f.flyHold = false;
       w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: false });
-    } else f.flyTime += dt;
+    } else {
+      f.flyTime += dt;
+      // a metered flight (Gear Fourth) burns stamina, faster in a rush; empty = down you go
+      const st = flightStamina(f);
+      if (st) {
+        f.stamina = Math.max(0, f.stamina - (f.sprintDir !== 0 || f.flyRush !== 0 ? st.rushDrain : st.drain) * dt);
+        if (f.stamina <= 0) {
+          f.flying = false;
+          f.flyHold = false;
+          f.flyRush = 0;
+          w.emit({ t: 'flyEnd', f: f.id, x: f.x, y: f.y, empty: true });
+        }
+      }
+    }
   } else {
     f.flying = false;
     f.flyHold = false;
   }
+  if (!f.flying && f.grounded && f.stamina < STAMINA.max) f.stamina = Math.min(STAMINA.max, f.stamina + STAMINA.regen * dt);
 }
 
 /**

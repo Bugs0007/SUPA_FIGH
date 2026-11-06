@@ -3,13 +3,13 @@ import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { lookToWire } from '../art/appearance';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
-import { deviceId, isSecureContextish, predictionEnabled, rememberServer, serverUrl } from '../game/netStore';
+import { deviceId, isSecureContextish, onlineServerUrl, predictionEnabled, rememberServer, serverUrl } from '../game/netStore';
 import { isTouchDevice, VIEW_H, VIEW_W } from '../game/display';
 import { profiles } from '../game/profiles';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { NetClient } from '../net/client';
-import { MAX_FIGHTERS, MODES, type BotSpec, type RoomConfig, type RoomInfo, type ServerMsg, type SlotClaim } from '../net/protocol';
+import { ARENA_CODE, MAX_FIGHTERS, MODES, type BotSpec, type RoomConfig, type RoomInfo, type ServerMsg, type SlotClaim } from '../net/protocol';
 import { RemoteSim } from '../net/remoteSim';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
 import { getMap, MAP_LIST } from '../sim/map/maps';
@@ -19,8 +19,8 @@ import { netMatchData, NET_COLORS } from './netSetup';
 import { bindZoom } from './ui';
 
 export interface NetLobbyData {
-  /** which menu button brought us here */
-  role?: 'host' | 'join';
+  /** which menu button brought us here (online = the public BRAWL ARENA) */
+  role?: 'host' | 'join' | 'online';
   /** coming back from a match: keep the open connection */
   client?: NetClient;
 }
@@ -51,6 +51,9 @@ const ROW_LABELS: Record<RowId, string> = {
 };
 const DIFFS = Object.keys(DIFFICULTIES) as Difficulty[];
 const TIMES = [60, 120, 180, 300];
+/** online play: a sleeping server is tried this many times, this far apart (ms) */
+const WAKE_TRIES = 6;
+const WAKE_GAP_MS = 5000;
 const ROW_H = 14;
 const PANEL_Y = 36;
 
@@ -76,7 +79,11 @@ const ERRORS: Record<string, string> = {
 export class NetLobbyScene extends Phaser.Scene {
   private client!: NetClient;
   private phase: Phase = 'connecting';
-  private role: 'host' | 'join' = 'join';
+  private role: 'host' | 'join' | 'online' = 'join';
+  /** the connect loop is running: a failed attempt is not yet the error screen */
+  private connecting = false;
+  /** online: how many times the server has been tried (a sleeping server needs a while to wake up) */
+  private wakeTry = 0;
   private row = 0;
   private rooms: RoomInfo[] = [];
   private code = '';
@@ -117,6 +124,8 @@ export class NetLobbyScene extends Phaser.Scene {
     this.hero = [profiles[0].hero, profiles[1].hero];
     this.autoClaimed = false;
     this.leaving = false;
+    this.connecting = false;
+    this.wakeTry = 0;
     this.flashText = '';
     this.lines = [];
     this.labels = [];
@@ -163,27 +172,58 @@ export class NetLobbyScene extends Phaser.Scene {
 
   // ------------------------------------------------------------ connection
 
+  /** The address this screen talks to: the page's own server (LAN play) or the public online server. */
+  private get url(): string {
+    return this.role === 'online' ? onlineServerUrl() : serverUrl();
+  }
+
+  /** The room is the public arena (it starts by itself, nobody hosts it). */
+  private get isArena(): boolean {
+    return !!this.client?.room?.arena;
+  }
+
   private async connect(): Promise<void> {
     this.phase = 'connecting';
     this.offMsg?.();
     this.offState?.();
     this.client?.close();
-    const url = serverUrl();
+    const online = this.role === 'online';
+    const url = this.url;
     this.client = new NetClient(deviceId(), profiles[0].name, (u) => new WebSocket(u));
     this.attach();
-    try {
-      await this.client.connect(url);
-    } catch {
-      if (this.leaving) return;
+    if (online && !url) {
+      this.client.lastError = 'THIS BUILD HAS NO ONLINE SERVER';
       this.phase = 'error';
       return;
     }
-    rememberServer(url);
+    // a sleeping server (free hosting) needs a while to wake up: online play keeps trying for about half a minute
+    this.connecting = true;
+    let ok = false;
+    const tries = online ? WAKE_TRIES : 1;
+    for (let i = 0; i < tries && !ok; i++) {
+      this.wakeTry = i;
+      try {
+        await this.client.connect(url);
+        ok = true;
+      } catch {
+        if (this.leaving) return;
+        // (a refused connection fails at once: pace the tries so the whole wait is about half a minute)
+        if (i < tries - 1) await new Promise((r) => setTimeout(r, WAKE_GAP_MS));
+        if (this.leaving) return;
+      }
+    }
+    this.connecting = false;
+    if (!ok) {
+      this.phase = 'error';
+      return;
+    }
+    if (!online) rememberServer(url);
     // a returning device is put straight back into its room by the server: give that message a moment to arrive
     this.time.delayedCall(350, () => {
       if (this.leaving || this.phase !== 'connecting') return;
       if (this.client.room) return void (this.phase = 'room');
-      if (this.role === 'host') this.client.send({ t: 'create' });
+      if (online) this.client.send({ t: 'join', room: ARENA_CODE });
+      else if (this.role === 'host') this.client.send({ t: 'create' });
       else {
         this.phase = 'rooms';
         this.pollRooms();
@@ -194,7 +234,7 @@ export class NetLobbyScene extends Phaser.Scene {
   private attach(): void {
     this.offMsg = this.client.onMessage((m) => this.onMessage(m));
     this.offState = this.client.onState((s) => {
-      if (s === 'closed' && !this.leaving) this.phase = 'error';
+      if (s === 'closed' && !this.leaving && !this.connecting) this.phase = 'error';
     });
   }
 
@@ -222,7 +262,12 @@ export class NetLobbyScene extends Phaser.Scene {
       }
       this.autoClaimed = true;
       this.clampRow();
-    } else if (m.t === 'err') this.flash(ERRORS[m.code] ?? m.msg.toUpperCase());
+    } else if (m.t === 'err') {
+      if (this.role === 'online' && m.code === 'noRoom' && this.phase === 'connecting') {
+        this.client.lastError = 'THIS SERVER HAS NO PUBLIC ARENA';
+        this.phase = 'error';
+      } else this.flash(ERRORS[m.code] ?? m.msg.toUpperCase());
+    }
     else if (m.t === 'start') {
       this.leaving = true; // the scene is going away: no "closed" screen
       this.scene.start('match', netMatchData(new RemoteSim(this.client, m, undefined, { predict: predictionEnabled() })));
@@ -256,6 +301,8 @@ export class NetLobbyScene extends Phaser.Scene {
 
   /** Focusable rows: settings for the host, then this device's players, then READY / START and LEAVE. */
   private rows(): RowId[] {
+    // the arena: one player per device, nobody changes the rules, no READY / START (the clock starts the match)
+    if (this.isArena) return ['f1', 'leave'];
     const players: RowId[] = isTouchDevice() ? ['p1', 'f1'] : ['p1', 'f1', 'p2', 'f2'];
     return [...(this.isHost ? SETTING_ROWS : []), ...players, this.isHost ? 'start' : 'ready', 'leave'];
   }
@@ -410,15 +457,16 @@ export class NetLobbyScene extends Phaser.Scene {
     this.hide(this.values);
     for (const row of this.fighterTexts) this.hide(row);
     for (const t of this.heads) t.setVisible(this.phase === 'room');
-    this.heads[1].setText(this.isHostSafe() ? 'SETTINGS' : 'SETTINGS  (HOST CHANGES THESE)');
+    this.heads[1].setText(this.isArena ? 'ARENA RULES' : this.isHostSafe() ? 'SETTINGS' : 'SETTINGS  (HOST CHANGES THESE)');
     const now = this.time.now;
     this.status.setText(now < this.flashUntil ? this.flashText : '');
 
     if (this.phase === 'connecting') {
-      this.title.setText(this.role === 'host' ? 'HOST GAME' : 'JOIN GAME');
+      this.title.setText(this.role === 'host' ? 'HOST GAME' : this.role === 'online' ? 'PLAY ONLINE' : 'JOIN GAME');
       this.sub.setText('');
-      this.lines[3].setText('CONNECTING' + '.'.repeat(1 + (Math.floor(now / 300) % 3))).setTint(0xffffff);
-      this.lines[4].setText(clip(serverUrl(), 40)).setTint(0x8d95b0);
+      const dots = '.'.repeat(1 + (Math.floor(now / 300) % 3));
+      this.lines[3].setText(this.wakeTry > 0 ? `WAKING THE SERVER${dots}  (${this.wakeTry}/${WAKE_TRIES - 1})` : 'CONNECTING' + dots).setTint(0xffffff);
+      this.lines[4].setText(clip(this.url, 40)).setTint(0x8d95b0);
       this.bar.set([hint.back('CANCEL')]);
     } else if (this.phase === 'error') this.renderError();
     else if (this.phase === 'rooms') this.renderRooms(g);
@@ -426,19 +474,37 @@ export class NetLobbyScene extends Phaser.Scene {
   }
 
   private renderError(): void {
-    this.title.setText("CAN'T CONNECT");
+    const online = this.role === 'online';
+    this.title.setText(online ? 'PLAY ONLINE' : "CAN'T CONNECT");
     this.sub.setText(clip(this.client.lastError || 'NO ANSWER FROM THE SERVER', 50));
-    const lines = [
-      ['TRIED  ' + serverUrl(), 0x8d95b0],
-      ['', 0],
-      ['1  THE HOST MUST BE RUNNING  NPM RUN HOST', 0xffffff],
-      ['2  SAME WIFI AS THE HOST (NOT A GUEST NETWORK)', 0xffffff],
-      ["3  ROUTER 'CLIENT ISOLATION' / 'AP ISOLATION' OFF", 0xffffff],
-      ['4  HOST FIREWALL: ALLOW NODE ON THE GAME PORT', 0xffffff],
-      ['5  OPEN THE ADDRESS THE HOST SHOWS, NOT LOCALHOST', 0xffffff],
-      ['', 0],
-      ['ENTER TO TRY AGAIN', 0xf8c840],
-    ] as const;
+    const lines = online
+      ? ([
+          ['TRIED  ' + (this.url || 'NOTHING'), 0x8d95b0],
+          ['', 0],
+          ...(this.url
+            ? ([
+                ['1  CHECK YOUR INTERNET CONNECTION', 0xffffff],
+                ['2  THE SERVER MAY BE ASLEEP: GIVE IT A MINUTE, THEN RETRY', 0xffffff],
+                ['3  THE GAME AND THE SERVER MUST BE THE SAME VERSION', 0xffffff],
+              ] as const)
+            : ([
+                ['THIS BUILD HAS NO ONLINE SERVER SET UP', 0xffffff],
+                ['SET VITE_ONLINE_SERVER AND REDEPLOY  (DOCS/ONLINE.MD)', 0xffffff],
+              ] as const)),
+          ['', 0],
+          ['ENTER TO TRY AGAIN', 0xf8c840],
+        ] as const)
+      : ([
+          ['TRIED  ' + this.url, 0x8d95b0],
+          ['', 0],
+          ['1  THE HOST MUST BE RUNNING  NPM RUN HOST', 0xffffff],
+          ['2  SAME WIFI AS THE HOST (NOT A GUEST NETWORK)', 0xffffff],
+          ["3  ROUTER 'CLIENT ISOLATION' / 'AP ISOLATION' OFF", 0xffffff],
+          ['4  HOST FIREWALL: ALLOW NODE ON THE GAME PORT', 0xffffff],
+          ['5  OPEN THE ADDRESS THE HOST SHOWS, NOT LOCALHOST', 0xffffff],
+          ['', 0],
+          ['ENTER TO TRY AGAIN', 0xf8c840],
+        ] as const);
     lines.forEach(([t, c], i) => this.lines[i + 1].setText(t.toUpperCase()).setTint(c));
     this.bar.set([hint.ok('RETRY'), hint.back('BACK')]);
   }
@@ -499,14 +565,8 @@ export class NetLobbyScene extends Phaser.Scene {
     }
   }
 
-  private renderRoom(g: Phaser.GameObjects.Graphics): void {
-    const room = this.client.room;
-    if (!room) return;
-    this.title.setText('ROOM ' + room.code);
-    const net = this.client.online ? `PING ${Math.max(0, Math.round(this.client.rtt))}` : 'CONNECTION LOST - RECONNECTING';
-    const joinAt = this.client.urls[0] ? `   JOIN AT ${this.client.urls[0].replace(/^https?:[/][/]/, '')}` : '';
-    this.sub.setText(`${net}   ${this.isHost ? 'YOU ARE THE HOST' : 'HOST ' + clip(room.peers.find((p) => p.device === room.host)?.name ?? '?', 8)}${joinAt}`);
-
+  /** The fighters panel (left): everyone who has picked a fighter, bots of a hosted room, whose device is whose. */
+  private drawFighters(g: Phaser.GameObjects.Graphics, room: NonNullable<NetClient['room']>): void {
     // fighters (left)
     panel(g, 8, PANEL_Y, 306, 292, hexToNum(P.purple1));
     const entries: { name: string; sub: string; status: string; color: number; mine: boolean; away: boolean }[] = [];
@@ -516,14 +576,14 @@ export class NetLobbyScene extends Phaser.Scene {
         entries.push({
           name: c.name,
           sub: `${clip(p.name, 8)}  ${clip(HEROES[c.hero]?.name ?? 'SCRAPPER', 8)}`,
-          status: !p.connected ? 'AWAY' : p.device === room.host ? 'HOST' : p.ready ? 'READY' : '...',
+          status: !p.connected ? 'AWAY' : room.arena ? 'IN' : p.device === room.host ? 'HOST' : p.ready ? 'READY' : '...',
           color: 0,
           mine: p.device === this.client.device,
           away: !p.connected,
         });
       }
     }
-    room.config.bots.forEach((b, i) => entries.push({ name: 'BOT ' + (i + 1), sub: `${b.difficulty.toUpperCase()}  ${clip(HEROES[b.hero]?.name ?? 'SCRAPPER', 8)}`, status: 'BOT', color: 0, mine: false, away: false }));
+    if (!room.arena) room.config.bots.forEach((b, i) => entries.push({ name: 'BOT ' + (i + 1), sub: `${b.difficulty.toUpperCase()}  ${clip(HEROES[b.hero]?.name ?? 'SCRAPPER', 8)}`, status: 'BOT', color: 0, mine: false, away: false }));
     entries.slice(0, MAX_FIGHTERS).forEach((e, i) => {
       const y = PANEL_Y + 18 + i * 27;
       g.fillStyle(NET_COLORS[i], e.away ? 0.35 : 1).fillRect(14, y + 1, 7, 20);
@@ -534,20 +594,59 @@ export class NetLobbyScene extends Phaser.Scene {
       status.setText(e.status).setTint(e.status === 'READY' ? 0x8af08a : e.status === 'HOST' ? 0xf8c840 : 0x8d95b0);
     });
     if (entries.length === 0) this.fighterTexts[0][0].setText('NO FIGHTERS YET').setTint(0x8d95b0);
+  }
 
-    // settings + this device (right)
-    panel(g, 318, PANEL_Y, 314, 292, hexToNum(P.purple1), this.isHost);
+  /** The rows of the right panel: settings (greyed when they are not yours), this device's players, buttons. */
+  private drawRows(g: Phaser.GameObjects.Graphics, shown: RowId[]): void {
     const focus = this.rows();
-    const shown: RowId[] = [...SETTING_ROWS, 'p1', 'f1', ...(isTouchDevice() ? [] : (['p2', 'f2'] as RowId[])), this.isHost ? 'start' : 'ready', 'leave'];
     shown.forEach((id, i) => {
       const y = PANEL_Y + 17 + i * ROW_H;
       const focused = focus[this.row] === id;
       if (focused) rowBar(g, 321, y - 2, 308, ROW_H - 1, Math.floor(this.time.now / 330) % 2 === 0);
       const editable = focus.includes(id);
       const isSetting = SETTING_ROWS.includes(id);
-      this.labels[i].setPosition(328, y + 1).setText(ROW_LABELS[id]).setTint(focused ? 0xffffff : editable ? 0xc3c9dc : 0x5a6078);
+      this.labels[i].setPosition(328, y + 1).setText(this.isArena && id === 'f1' ? 'YOUR FIGHTER' : ROW_LABELS[id]).setTint(focused ? 0xffffff : editable ? 0xc3c9dc : 0x5a6078);
       this.values[i].setPosition(624, y).setText(this.value(id)).setTint(focused ? 0xf8c840 : isSetting && !editable ? 0x5a6078 : 0xc3c9dc);
     });
+  }
+
+  /** The public arena: fixed rules, a countdown, your fighter and LEAVE. */
+  private renderArena(g: Phaser.GameObjects.Graphics, room: NonNullable<NetClient['room']>): void {
+    const arena = room.arena!;
+    this.title.setText('BRAWL ARENA');
+    const net = this.client.online ? `PING ${Math.max(0, Math.round(this.client.rtt))}` : 'CONNECTION LOST - RECONNECTING';
+    const humans = this.humans();
+    this.sub.setText(`${net}   ${humans} PLAYER${humans === 1 ? '' : 'S'} ONLINE`);
+    this.drawFighters(g, room);
+    panel(g, 318, PANEL_Y, 314, 292, hexToNum(P.purple1));
+    this.drawRows(g, ['mode', 'map', 'length', 'f1', 'leave']);
+    this.status.setTint(0xf8c840);
+    if (this.time.now >= this.flashUntil) {
+      this.status.setText(
+        room.state === 'playing'
+          ? 'A MATCH IS RUNNING - YOU PLAY THE NEXT ONE'
+          : arena.countdown >= 0
+            ? `NEXT MATCH IN ${arena.countdown}  -  BOTS FILL IT UP TO ${arena.fill} FIGHTERS`
+            : 'PICK A FIGHTER',
+      );
+    }
+    this.bar.set([hint.move('SELECT', 'ud'), hint.move('FIGHTER', 'lr'), hint.back('LEAVE')]);
+  }
+
+  private renderRoom(g: Phaser.GameObjects.Graphics): void {
+    const room = this.client.room;
+    if (!room) return;
+    if (room.arena) return this.renderArena(g, room);
+    this.title.setText('ROOM ' + room.code);
+    const net = this.client.online ? `PING ${Math.max(0, Math.round(this.client.rtt))}` : 'CONNECTION LOST - RECONNECTING';
+    const joinAt = this.client.urls[0] ? `   JOIN AT ${this.client.urls[0].replace(/^https?:[/][/]/, '')}` : '';
+    this.sub.setText(`${net}   ${this.isHost ? 'YOU ARE THE HOST' : 'HOST ' + clip(room.peers.find((p) => p.device === room.host)?.name ?? '?', 8)}${joinAt}`);
+
+    this.drawFighters(g, room);
+
+    // settings + this device (right)
+    panel(g, 318, PANEL_Y, 314, 292, hexToNum(P.purple1), this.isHost);
+    this.drawRows(g, [...SETTING_ROWS, 'p1', 'f1', ...(isTouchDevice() ? [] : (['p2', 'f2'] as RowId[])), this.isHost ? 'start' : 'ready', 'leave']);
 
     const ready = room.peers.filter((p) => p.connected && p.claims.some(Boolean)).length;
     const waiting = room.peers.filter((p) => p.connected && p.claims.some(Boolean) && p.device !== room.host && !p.ready).length;
@@ -555,6 +654,7 @@ export class NetLobbyScene extends Phaser.Scene {
     if (this.time.now >= this.flashUntil) {
       this.status.setText(this.isHost ? (waiting ? `WAITING FOR ${waiting} PLAYER${waiting > 1 ? 'S' : ''} TO READY UP` : ready ? 'EVERYONE IS READY - START WHEN YOU LIKE' : 'PICK A FIGHTER') : this.me()?.ready ? 'WAITING FOR THE HOST TO START' : 'PRESS READY WHEN YOU ARE SET');
     }
+    const focus = this.rows();
     this.bar.set([hint.move('SELECT', 'ud'), hint.move('CHANGE', 'lr'), hint.ok(focus[this.row] === 'start' ? 'START' : 'TOGGLE'), hint.back('LEAVE')]);
   }
 }

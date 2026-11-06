@@ -34,24 +34,26 @@ export interface DifficultyDef {
   disengage: number;
   /** chance per tick to grab an enemy guarding in reach (throws beat the guard) */
   guardGrab: number;
+  /** Gear Fifth bots: chance to hold the guard up against an incoming shot so it is flung back (decided once per shot) */
+  reflect: number;
 }
 
 export const DIFFICULTIES: Record<Difficulty, DifficultyDef> = {
   easy: {
     think: 0.4, reaction: 0.45, aimError: 0.14, aimTolerance: 0.09, dodge: 0.05, throwError: 45, throwChance: 0.15, sight: 300,
-    heroMove: 0.02, comboCancel: 0.1, block: 0.12, blockReact: 0.3, parry: 0, disengage: 0.2, guardGrab: 0.02,
+    heroMove: 0.02, comboCancel: 0.1, block: 0.12, blockReact: 0.3, parry: 0, disengage: 0.2, guardGrab: 0.02, reflect: 0.4,
   },
   normal: {
     think: 0.25, reaction: 0.28, aimError: 0.08, aimTolerance: 0.05, dodge: 0.25, throwError: 25, throwChance: 0.3, sight: 380,
-    heroMove: 0.05, comboCancel: 0.3, block: 0.35, blockReact: 0.18, parry: 0.1, disengage: 0.4, guardGrab: 0.05,
+    heroMove: 0.05, comboCancel: 0.3, block: 0.35, blockReact: 0.18, parry: 0.1, disengage: 0.4, guardGrab: 0.05, reflect: 0.65,
   },
   hard: {
     think: 0.15, reaction: 0.16, aimError: 0.045, aimTolerance: 0.03, dodge: 0.5, throwError: 12, throwChance: 0.45, sight: 460,
-    heroMove: 0.09, comboCancel: 0.55, block: 0.6, blockReact: 0.1, parry: 0.3, disengage: 0.6, guardGrab: 0.1,
+    heroMove: 0.09, comboCancel: 0.55, block: 0.6, blockReact: 0.1, parry: 0.3, disengage: 0.6, guardGrab: 0.1, reflect: 0.85,
   },
   expert: {
     think: 0.1, reaction: 0.08, aimError: 0.02, aimTolerance: 0.018, dodge: 0.8, throwError: 5, throwChance: 0.55, sight: 540,
-    heroMove: 0.14, comboCancel: 0.75, block: 0.85, blockReact: 0.05, parry: 0.6, disengage: 0.75, guardGrab: 0.18,
+    heroMove: 0.14, comboCancel: 0.75, block: 0.85, blockReact: 0.05, parry: 0.6, disengage: 0.75, guardGrab: 0.18, reflect: 0.95,
   },
 };
 
@@ -117,6 +119,12 @@ export const BOT_FIGHT = {
   dashEvadeRise:100,
   dashEvadeMargin:.08,
   vsGuardSuper: 2,
+  /** Gear Fifth reflect: raise the guard when a shot is this many seconds away, keep it up this long after the
+   *  last one passed; the longest hold, then it stays down at least `reflectRest` */
+  reflectLead: 0.22,
+  reflectLinger: 0.12,
+  reflectMax: 1.2,
+  reflectRest: 0.25,
 };
 
 export interface Personality {

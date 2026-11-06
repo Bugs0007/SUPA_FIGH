@@ -34,6 +34,19 @@ export function serverUrl(params: URLSearchParams = new URLSearchParams(location
   return (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
 }
 
+/**
+ * Where the public online server is (the PLAY ONLINE button): `?server=` for development, otherwise the address baked
+ * into the build (VITE_ONLINE_SERVER, set on the Vercel project). '' = no online server is set up. https pages need
+ * wss://, so a bare host name or an http(s) address is turned into one.
+ */
+export function onlineServerUrl(params: URLSearchParams = new URLSearchParams(location.search)): string {
+  const raw = (params.get('server') ?? __ONLINE_SERVER__).trim();
+  if (!raw) return '';
+  if (/^wss?:[/][/]/.test(raw)) return raw;
+  if (/^https?:[/][/]/.test(raw)) return raw.replace(/^http/, 'ws');
+  return (location.protocol === 'http:' ? 'ws://' : 'wss://') + raw;
+}
+
 export function rememberServer(url: string): void {
   save('serverUrl', url);
 }

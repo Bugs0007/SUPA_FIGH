@@ -38,7 +38,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
   ['baseRecharge', 'n'], ['secondCd', 'n'], ['beamWidth', 'n'], ['flying', 'b'], ['anchorX', 'n'], ['anchorY', 'n'],
   ['recoverAt', 'n'], ['cloneCount', 'n'], ['cloneForm', 'n'], ['wallDir', 'n'], ['armReach', 'n'], ['armBack', 'b'],
   ['jetMode','s'],['jetAnchorX','n'],['jetAnchorY','n'],['grabTarget','n'],
-  ['ropeLen', 'n'], ['grip', 's'], ['lockOn', 'n'], ['flinchTime', 'n'], ['guard', 'n'], ['blockStun', 'n'], ['parryT', 'n'],
+  ['ropeLen', 'n'], ['grip', 's'], ['lockOn', 'n'], ['flinchTime', 'n'], ['guard', 'n'], ['blockStun', 'n'], ['parryT', 'n'], ['stamina', 'n'],
 ];
 
 /** Fighter fields both sides already have (they come from the spec the match was built with). */

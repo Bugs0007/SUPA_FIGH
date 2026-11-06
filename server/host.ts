@@ -2,11 +2,13 @@
 // friends should point their browsers (with a QR code). Options after `--`:
 //   --port 8080   --no-build   --https [--cert certs/host.pem --key certs/host-key.pem]
 //   --latency 80 --jitter 30 --loss 5   (simulate a bad network: ms, ms, percent)   --speed 1
+//   --public   also open the public BRAWL ARENA room (the PLAY ONLINE button joins it)
 
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { build } from 'vite';
 import { lanAddresses } from './lan';
+import { DEFAULT_ARENA } from './room';
 import { startServer } from './server';
 import { staticHandler } from './static';
 
@@ -64,6 +66,7 @@ async function main(): Promise<void> {
     port,
     host: '0.0.0.0',
     speed: Number(arg('speed', '1')),
+    arena: flag('public') ? DEFAULT_ARENA : undefined,
     http: staticHandler(dist),
     tls,
     urls,

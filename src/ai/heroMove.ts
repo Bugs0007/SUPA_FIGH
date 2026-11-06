@@ -11,7 +11,7 @@
 import { FIGHTER_H, SHOULDER_Y_STAND, TILE } from '../sim/constants';
 import { wallContact, type Fighter } from '../sim/fighter';
 import { heroDef, SUPER_WINDOW } from '../sim/data/heroes';
-import { baseAbility, grabProbe, gripTarget, holdFlies } from '../sim/hero';
+import { baseAbility, canTakeOff, flightFuel, flightStamina, grabProbe, gripTarget } from '../sim/hero';
 import type { Intent } from '../sim/intent';
 import type { World } from '../sim/world';
 import type { NavGraph } from './nav';
@@ -41,6 +41,8 @@ interface Move {
   progressAt: number;
   /** ticks since the move started */
   age: number;
+  /** fly: position in the double-tap that starts a superman rush */
+  rushPhase: number;
 }
 
 const GRAPPLE_HOLD_TICKS = 9;
@@ -149,7 +151,7 @@ export class HeroMobility {
     this.nextTry = now + 0.2;
 
     // --- flight: anything noticeably above us, or a place the graph can't reach
-    if (holdFlies(f) && now >= this.flyBan && (dy < -26 || (noPath && Math.abs(dx) > 20)) && Math.abs(dx) < 340) {
+    if (canTakeOff(f) && flightFuel(f, (flightStamina(f)?.minStart ?? 0) + 25) && now >= this.flyBan && (dy < -26 || (noPath && Math.abs(dx) > 20)) && Math.abs(dx) < 340) {
       this.m = newMove('fly', now, x, y);
       this.m.bestY = f.y;
       this.m.progressAt = now;
@@ -207,6 +209,7 @@ export class HeroMobility {
     const dx = m.tx - f.x;
     const reached = f.y <= m.ty - 8;
     if (now - m.t0 > 4.5) return this.end(now, 2.5, 'fly');
+    if (f.flying && !flightFuel(f, 12)) return this.end(now, 2, 'fly'); // out of breath (Gear Fourth): glide down
     if (f.grounded && m.age > 20 && !f.flying && m.age > 40) return this.end(now, 1.5, 'fly'); // never got off the ground
     if (f.y < m.bestY - 4) {
       m.bestY = f.y;
@@ -215,6 +218,8 @@ export class HeroMobility {
       return this.end(now, 3, 'fly'); // a ceiling in the way
     }
     if (Math.abs(dx) > 5) out.moveX = Math.sign(dx);
+    // the superman rush: double-tap toward a far target while there is stamina to spare (Gear Fourth / Fifth)
+    if (f.flying && Math.abs(dx) > 110 && flightFuel(f, 35)) this.rush(f, out, m, Math.sign(dx));
     if (f.grounded) {
       out.jump = true;
       return true;
@@ -230,6 +235,17 @@ export class HeroMobility {
     // jump, double jump, then one more press takes off: clean presses once the first jump has peaked
     else out.jump = f.vy < -100 ? true : !f.prev.jump;
     return true;
+  }
+
+  /** Tap, release, press again and hold: a sprint (the flying forms' superman rush). */
+  private rush(f: Fighter, out: Intent, m: Move, dir: number): void {
+    if (f.sprintDir === dir) {
+      out.moveX = dir;
+      return;
+    }
+    if (f.sprintCooldown > 0) return;
+    const p = m.rushPhase++ % 12;
+    out.moveX = p < 2 ? dir : p < 4 ? 0 : dir;
   }
 
   private stepWall(w: World, f: Fighter, out: Intent, m: Move, now: number): boolean {
@@ -297,7 +313,7 @@ export class HeroMobility {
 }
 
 function newMove(kind: Kind, t0: number, tx: number, ty: number): Move {
-  return { kind, t0, tx, ty, dir: 0, mx: 0, my: 0, holdFor: 0, ax: 0, ay: 0, swing: false, bestY: 0, progressAt: t0, age: 0 };
+  return { kind, t0, tx, ty, dir: 0, mx: 0, my: 0, holdFor: 0, ax: 0, ay: 0, swing: false, bestY: 0, progressAt: t0, age: 0, rushPhase: 0 };
 }
 
 // ---------------------------------------------------------------------- Naruto: wall choice

@@ -14,8 +14,8 @@ import { FighterView } from './FighterView';
 import { Fx } from './Fx';
 import { HeroFx } from './HeroFx';
 import { DecorLayer } from './Decor';
-import { POWER_ORB } from '../sim/data/heroes';
-import { formLayers } from '../sim/hero';
+import { POWER_ORB, STAMINA } from '../sim/data/heroes';
+import { flightStamina, formLayers } from '../sim/hero';
 import { FORM_HP } from '../sim/data/heroes';
 import { formFx } from '../art/heroArt';
 import { Atmosphere } from './Atmosphere';
@@ -314,6 +314,16 @@ export class WorldRenderer {
         bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y + 2, 16, 3);
         bars.fillStyle(0x3a3448, 1).fillRect(x, y + 3, 14, 1);
         bars.fillStyle(hexToNum(low ? P.red2 : P.glass1), 1).fillRect(x, y + 3, Math.max(1, Math.round(14 * g)), 1);
+      }
+      // flight stamina (Gear Fourth): under the guard meter while flying or until it has refilled (flashes when too low to take off)
+      const st = flightStamina(f);
+      if (st && (f.flying || f.stamina < STAMINA.max)) {
+        const row = f.state === 'block' || f.guard < BLOCK.max ? 3 : 0;
+        const s = Math.max(0, Math.min(1, f.stamina / STAMINA.max));
+        const low = !f.flying && f.stamina < st.minStart && Math.floor(time * 8) % 2 === 0;
+        bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y + 2 + row, 16, 3);
+        bars.fillStyle(0x3a3448, 1).fillRect(x, y + 3 + row, 14, 1);
+        bars.fillStyle(hexToNum(low ? P.red2 : P.yellow), 1).fillRect(x, y + 3 + row, Math.max(1, Math.round(14 * s)), 1);
       }
       // form health layers stacked above the HP bar (D61)
       if (f.power === 'hero') {

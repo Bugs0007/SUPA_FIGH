@@ -241,12 +241,13 @@ describe('flight mode (final forms of Naruto and Luffy)', () => {
   };
 
   it.each(['naruto', 'luffy'])('%s: only the final form flies', (hero) => {
-    for (const lvl of [1, 3]) expect(holdFlies(flyWorld(hero, lvl).fighters[0])).toBe(false);
+    // (Luffy's Gear Fourth flies too, on a stamina meter: tests/unit/gearFour.test.ts)
+    for (const lvl of hero === 'luffy' ? [1, 2] : [1, 3]) expect(holdFlies(flyWorld(hero, lvl).fighters[0])).toBe(false);
     expect(holdFlies(flyWorld(hero, 4).fighters[0])).toBe(true);
   });
 
   it.each(['naruto', 'luffy'])('%s: jump, double jump, jump again takes off; holding Up climbs; letting go hovers', (hero) => {
-    const norm = flyWorld(hero, 3);
+    const norm = flyWorld(hero, hero === 'luffy' ? 2 : 3);
     takeOff(norm);
     expect(norm.fighters[0].flying).toBe(false); // lower forms never fly
     const w = flyWorld(hero, 4);

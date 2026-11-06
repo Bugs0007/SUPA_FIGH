@@ -1,6 +1,6 @@
 // Routes connections to rooms. Transport agnostic like Room: the socket layer hands it a `Conn` and strings.
 
-import { parseClientMsg, PROTOCOL_VERSION, type ClientMsg, type ErrorCode, type ServerMsg } from '../src/net/protocol';
+import { ARENA_CODE, parseClientMsg, PROTOCOL_VERSION, type ClientMsg, type ErrorCode, type ServerMsg } from '../src/net/protocol';
 import { Room, type Conn, type RoomOptions } from './room';
 
 export interface HubOptions extends RoomOptions {
@@ -31,7 +31,15 @@ export class Hub {
   /** hub clock in ms: the sum of the `advance` calls, so tests are deterministic and real runs match wall time */
   private time = 0;
 
-  constructor(private opts: HubOptions = {}) {}
+  /** options for ordinary rooms: the arena setting belongs to the arena room alone */
+  private roomOpts: RoomOptions;
+
+  constructor(private opts: HubOptions = {}) {
+    const { arena, ...rest } = opts;
+    this.roomOpts = rest;
+    // the public arena: one permanent room with a fixed code that starts its matches by itself
+    if (arena) this.rooms.set(ARENA_CODE, new Room(ARENA_CODE, { device: '', name: 'ARENA' }, { ...rest, arena }));
+  }
 
   /** A new connection. Feed `message` every frame and call `close` when it ends. */
   open(conn: Conn): { message(raw: string): void; close(): void } {
@@ -47,7 +55,7 @@ export class Hub {
     this.time += ms;
     for (const [code, room] of this.rooms) {
       room.advance(ms);
-      if (room.emptyFor > EMPTY_ROOM_MS) this.rooms.delete(code);
+      if (room.emptyFor > EMPTY_ROOM_MS && !room.arena) this.rooms.delete(code);
     }
   }
 
@@ -63,6 +71,9 @@ export class Hub {
     if (msg.t === 'hello') return this.hello(s, msg);
     if (!s.device) return this.err(s, 'badMessage', 'say hello first');
     switch (msg.t) {
+      case 'ping':
+        // (the client pings from the moment it is welcome, before it has a room)
+        return this.send(s, { t: 'pong', n: msg.n });
       case 'list':
         return this.send(s, { t: 'rooms', rooms: [...this.rooms.values()].map((r) => r.info()) });
       case 'create':
@@ -106,7 +117,7 @@ export class Hub {
     do {
       code = Array.from({ length: 4 }, () => CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]).join('');
     } while (this.rooms.has(code));
-    const room = new Room(code, { device: s.device!, name: s.name }, this.opts);
+    const room = new Room(code, { device: s.device!, name: s.name }, this.roomOpts);
     this.rooms.set(code, room);
     s.room = room;
     room.attach(s.device!, s.name, s.conn);

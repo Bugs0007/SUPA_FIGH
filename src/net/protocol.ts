@@ -11,7 +11,10 @@ import type { GameMode, MatchConfig, MatchEvent } from '../sim/match';
 import { MODIFIERS } from '../sim/data/modifiers';
 import type { MatchRender, RenderSnapshot } from './renderState';
 
-export const PROTOCOL_VERSION = 3;
+// 4: the Gear Fourth stamina meter rides in every fighter snapshot, and the public ARENA room (`room.arena`)
+export const PROTOCOL_VERSION = 4;
+/** the always-open public Brawl room of an online server (server/hub.ts) */
+export const ARENA_CODE = 'ARENA';
 /** most fighters in one match (humans + bots) */
 export const MAX_FIGHTERS = 10;
 /** local players one device may claim */
@@ -89,6 +92,8 @@ export interface RoomInfo {
   players: number;
   mapId: string;
   mode: GameMode;
+  /** the public arena: starts by itself, nobody hosts it */
+  arena?: boolean;
 }
 
 // ------------------------------------------------------------------ client -> server
@@ -114,7 +119,8 @@ export type ServerMsg =
   /** `urls`: the addresses the server printed for friends to join at (shown in the lobby) */
   | { t: 'welcome'; v: number; device: string; urls?: string[] }
   | { t: 'rooms'; rooms: RoomInfo[] }
-  | { t: 'room'; code: string; host: string; state: 'lobby' | 'playing'; config: RoomConfig; peers: PeerInfo[] }
+  /** `arena`: a public room that starts by itself; `countdown` = whole seconds to the next match, -1 = not counting */
+  | { t: 'room'; code: string; host: string; state: 'lobby' | 'playing'; config: RoomConfig; peers: PeerInfo[]; arena?: { countdown: number; fill: number } }
   /** the match begins: build a mirror Match from `cfg`; `mine[local]` = this device's fighter index per claim */
   | { t: 'start'; cfg: MatchConfig; looks: SlotClaim['look'][]; mine: number[]; wid: number }
   | SnapMsg

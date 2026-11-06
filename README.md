@@ -108,6 +108,11 @@ hit harder and recharge in 6.5 s.
 - **Gun Game:** climb a 12-weapon ladder. The final kill has to be made with a knife.
 - **Co-op Survival:** humans against waves of bots, with shared lives and revives. There's a boss every 5 waves.
 
+## Playing online
+
+**PLAY ONLINE** on the title screen joins the public BRAWL ARENA: an always-open Brawl match with bots filling the empty
+places. It needs a game server that stays on, which a static Vercel site cannot be: see [docs/ONLINE.md](docs/ONLINE.md).
+
 ## Playing together on a LAN
 
 Friends on the same WiFi can play together or against each other from different devices (laptops, phones, tablets).

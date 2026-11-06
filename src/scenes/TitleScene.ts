@@ -26,6 +26,7 @@ export const CREDIT_URL = 'https://bhagath.vercel.app';
 const DIFF_ORDER = ['easy', 'normal', 'hard', 'expert'] as const;
 const BUTTONS = [
   { label: 'QUICK MATCH', action: 'quick' },
+  { label: 'PLAY ONLINE', action: 'online' },
   { label: 'MATCH SETUP', action: 'lobby' },
   { label: 'FIGHTERS', action: 'fighters' },
   { label: 'HOST GAME', action: 'host' },
@@ -48,7 +49,7 @@ const CENTER_W = 384;
 const BUTTON_RECTS: [number, number][] = (() => {
   const gap = 4, span = VIEW_W - 24;
   const need = BUTTONS.map((b, i) => textWidth(b.label, 'pxo') * (i === 0 ? 1.2 : 1));
-  const extra = 24; // (quick match is the featured button)
+  const extra = 10; // (quick match is the featured button)
   const pad = Math.floor((span - extra - gap * (BUTTONS.length - 1) - need.reduce((a, b) => a + b, 0)) / BUTTONS.length);
   let x = 12;
   return need.map((n, i) => {
@@ -315,7 +316,7 @@ export class TitleScene extends Phaser.Scene {
       window.open(CREDIT_URL, '_blank', 'noopener,noreferrer');
     else if (action === 'fighters')
       this.scene.start('fighters');
-    else if (action === 'host' || action === 'join')
+    else if (action === 'host' || action === 'join' || action === 'online')
       this.scene.start('netlobby', { role: action });
     else
       this.scene.start(action, { from: 'title' });

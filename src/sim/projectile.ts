@@ -1,7 +1,7 @@
 import { applyHit, computeDamage, hitWasBlocked, sameTeam } from './combat';
 import { BLOCK, DT } from './constants';
 import { REFLECT } from './data/heroes';
-import { reflects } from './hero';
+import { reflectDamage, reflects } from './hero';
 import type { ExplosionStats, ProjectileKind } from './data/weapons';
 import type { Fighter } from './fighter';
 import { explode } from './explosion';
@@ -172,8 +172,8 @@ interface WallHit {
 }
 
 /**
- * Gear Fifth's guard: the floor bulges up like rubber and flings the shot back at the one who fired it. Same speed,
- * a tenth of the damage (the blast of a super too); it now belongs to the rubber man.
+ * Gear Fourth's belly (a quarter of the damage) and Gear Fifth's guard (the floor bulges up like rubber, a tenth) fling
+ * the shot back at the one who fired it. Same speed, the blast of a super too; it now belongs to the rubber man.
  */
 function reflectBullet(w: World, f: Fighter, b: Bullet, hx: number, hy: number): void {
   const speed = Math.hypot(b.vx, b.vy) || 1;
@@ -199,8 +199,9 @@ function reflectBullet(w: World, f: Fighter, b: Bullet, hx: number, hy: number):
   b.ox = hx;
   b.oy = hy;
   b.traveled = 0;
-  b.damage *= REFLECT.damageMul;
-  if (b.explosion) b.explosion = { ...b.explosion, damage: b.explosion.damage * REFLECT.damageMul };
+  const keep = reflectDamage(f);
+  b.damage *= keep;
+  if (b.explosion) b.explosion = { ...b.explosion, damage: b.explosion.damage * keep };
   b.owner = f.id;
   b.canHitOwner = false;
   b.hitIds.length = 0;

@@ -13,7 +13,7 @@ import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
 import { heroDef, bombRange, FORM_COMBO, CLONE_SLINGSHOT, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
-import { amaterasuReach, baseAbility, dashDir, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
+import { amaterasuReach, baseAbility, canReflect, dashDir, canTakeOff, flightFuel, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
 import { Rng } from '../sim/rng';
@@ -139,6 +139,13 @@ export class BotController implements Controller {
   private guardSeen = 0;
   private guardRest = 0;
   private guardSrc = -1;
+  // Gear Fifth: guard up to throw shots back (reflectStep)
+  private reflectOn = false;
+  private reflectFrom = 0;
+  private reflectSeen = 0;
+  private reflectRest = 0;
+  private reflectFace = 1;
+  private reflectPick = new WeakMap<object, number>();
   private threatKey = '';
   private threatGo = false;
   private threatAt = 0;
@@ -275,6 +282,8 @@ export class BotController implements Controller {
     this.guardOn = false;
     this.guardFrom = this.guardSeen = this.guardRest = 0;
     this.guardSrc = -1;
+    this.reflectOn = false;
+    this.reflectFrom = this.reflectSeen = this.reflectRest = 0;
     this.threatKey = '';
     this.threatGo = false;
     this.threatAt = 0;
@@ -609,6 +618,7 @@ export class BotController implements Controller {
       if (f.state === 'climb' || (f.grounded && (this.now * 60) % 20 < 1)) this.tap('jump');
       return;
     }
+    if (this.reflectStep(w, f)) return;
     if (this.dodge(w,f))return;
     if (this.chargeTicks <= 0 && this.aimTicks <= 0 && f.state !== 'special' && this.guardStep(w, f)) return;
     if (this.spaceStep(w, f)) return;
@@ -1206,8 +1216,8 @@ export class BotController implements Controller {
           this.out.moveX = away;
           this.out.moveY = 1;
         }
-      } else if (!f.grounded && holdFlies(f)) {
-        // fly up and away (take-off is a third jump press)
+      } else if (!f.grounded && (f.flying ? holdFlies(f) && flightFuel(f, 12) : canTakeOff(f))) {
+        // fly up and away (take-off is a third jump press; a metered flight (Gear Fourth) needs stamina)
         if (f.flying) this.out.moveY = -1;
         else this.tap('jump');
       }
@@ -1342,6 +1352,73 @@ export class BotController implements Controller {
     const charged = this.holdTicks * DT >= THROW_AIM.rampTime;
     const cookSafe = !th.cook || f.cook > 0.8;
     if ((charged && Math.abs(diff) < 0.05) || !cookSafe || this.holdTicks > 90) this.out.attack = false;
+  }
+
+  /**
+   * Gear Fifth: a raised guard flings any shot back at the shooter (sim/projectile.ts), so instead of dodging, face
+   * the shot and hold BLOCK until it has passed. Decided once per shot with the difficulty's `reflect` chance; a shot
+   * it chose to take is left to dodge(). Returns true while the guard owns the inputs.
+   */
+  private reflectStep(w: World, f: Fighter): boolean {
+    if (this.isClone || !canReflect(f)) {
+      this.reflectOn = false;
+      return false;
+    }
+    const cx = f.x;
+    const cy = f.y - f.h / 2;
+    let eta = Infinity;
+    let face = this.reflectFace;
+    for (const b of w.bullets) {
+      if (!b.active || b.owner === f.id) continue;
+      const o = w.fighters[b.owner];
+      if (o && sameTeam(o, f)) continue;
+      // (only shots flying mostly sideways reach the front of the guard)
+      if (Math.abs(b.vx) < 1 || Math.abs(b.vy) > Math.abs(b.vx) * 2) continue;
+      const sp2 = b.vx * b.vx + b.vy * b.vy;
+      const t = ((cx - b.x) * b.vx + (cy - b.y) * b.vy) / sp2;
+      if (t < 0 || t > BOT_FIGHT.evadeLookahead) continue;
+      if (Math.hypot(b.x + b.vx * t - cx, b.y + b.vy * t - cy) > 12 + b.size + (b.explosion?.radius ?? 0) * 0.3) continue;
+      let d = this.reflectPick.get(b);
+      if (d === undefined || Math.abs(d) !== b.serial + 1) {
+        const take = this.rng.chance(this.diff.reflect); // (one decision per shot; dodge() skips the ones we take)
+        d = take ? b.serial + 1 : -(b.serial + 1);
+        this.reflectPick.set(b, d);
+        if (take) this.dodged.set(b, b.serial);
+      }
+      if (d < 0) continue;
+      if (t < eta) {
+        eta = t;
+        face = b.vx > 0 ? -1 : 1; // (face the way it comes from)
+      }
+    }
+    if (this.reflectOn) {
+      const s = f.state;
+      const keep = s === 'block' || s === 'normal' || s === 'crouch' || s === 'melee';
+      if (eta < Infinity) this.reflectSeen = this.now;
+      if (!keep || f.guard < BOT_FIGHT.guardLow * 0.4 || this.now - this.reflectFrom > BOT_FIGHT.reflectMax
+        || this.now - this.reflectSeen > BOT_FIGHT.reflectLinger) {
+        this.reflectOn = false;
+        this.reflectRest = this.now + BOT_FIGHT.reflectRest;
+        return false; // (BLOCK is let go this tick)
+      }
+    } else {
+      if (eta > BOT_FIGHT.reflectLead || this.now < this.reflectRest || f.guard < BOT_FIGHT.guardLow * 0.4) return false;
+      if (this.chargeTicks > 0 || this.aimTicks > 0 || f.state === 'special' || f.carry >= 0) return false;
+      const s = f.state;
+      if (s !== 'normal' && s !== 'crouch' && s !== 'melee' && s !== 'aim' && s !== 'block') return false;
+      this.reflectOn = true;
+      this.reflectFrom = this.reflectSeen = this.now;
+      this.guardOn = false;
+      this.evadeUntil = 0;
+      this.crouchUntil = 0;
+      this.taps.delete('attack');
+    }
+    this.reflectFace = face;
+    this.out.block = true;
+    this.out.attack = false;
+    this.out.kick = false;
+    if (f.facing !== face) this.out.moveX = face; // (in the guard the stick only turns around)
+    return true;
   }
 
   /** Incoming projectile: crouch under it or jump over it (skill-limited). Returns true if busy. */

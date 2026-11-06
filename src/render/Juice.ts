@@ -173,6 +173,7 @@ export class Juice {
           fx.spawn({ frame: 'p1', x: e.x, y: e.y + (Math.random() - 0.5) * 8, vx: e.dir * (80 + Math.random() * 140), vy: (Math.random() - 0.5) * 90, life: 0.2 + Math.random() * 0.2, a0: 1, a1: 0, tint: i % 2 ? cream : 0xffffff, add: true, depth: 42 });
         }
         if (v) fx.dust(v.x + v.facing * 10, v.y, 4, 30);
+        this.r.views[e.victim]?.kickBelly(16); // (Gear Fourth's tummy bounces the shot back)
         this.sfx('reflect', e.x, 0.9);
         this.cam.addTrauma(0.14);
         this.hitstop = Math.max(this.hitstop, 0.05);
@@ -630,7 +631,11 @@ export class Juice {
       }
       case 'flyEnd':
         this.sfx('flyDown', e.x, 0.6);
-        if (e.empty) this.r.floatText(e.x, e.y - 30, 'OUT OF KI', 0xa0d8ff);
+        if (e.empty) {
+          const lf = w.fighters[e.f];
+          if (lf?.hero === 'luffy') this.r.floatText(e.x, e.y - 30, 'OUT OF BREATH', 0xffd0d8);
+          else this.r.floatText(e.x, e.y - 30, 'OUT OF KI', 0xa0d8ff);
+        }
         break;
       case 'rasengan': {
         const f = w.fighters[e.f];

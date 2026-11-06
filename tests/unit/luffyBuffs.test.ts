@@ -42,16 +42,15 @@ function shootAtLuffy(level: number): { w: World; a: Fighter; b: Fighter } {
 }
 
 describe('Gear Fifth: the guard throws projectiles back', () => {
-  it('only Gear Fifth (and only while guarding) reflects', () => {
+  it('only Gear Fourth and Fifth (and only while guarding) reflect', () => {
     for (let lvl = 0; lvl <= 4; lvl++) {
       const w = duel(lvl);
       const a = w.fighters[0];
       step(w, 30, { block: true });
       expect(a.state).toBe('block');
-      expect(reflects(a), 'level ' + lvl).toBe(lvl === 4);
+      expect(reflects(a), 'level ' + lvl).toBe(lvl >= 3);
     }
-    const w = duel(4);
-    expect(reflects(w.fighters[0])).toBe(false); // not guarding
+    for (const lvl of [3, 4]) expect(reflects(duel(lvl).fighters[0])).toBe(false); // not guarding
   });
 
   it('a shot is flung back at the shooter: same speed, 10% of the damage, credited to Luffy', () => {
@@ -82,8 +81,23 @@ describe('Gear Fifth: the guard throws projectiles back', () => {
     expect(a.hp).toBe(a.maxHp);
   });
 
-  it('lower gears just block it like anyone else', () => {
+  it('Gear Fourth throws it back too, with a quarter of the damage', () => {
     const { w, a, b } = shootAtLuffy(3);
+    let flung = 0;
+    for (let t = 0; t < 80; t++) {
+      w.step([intent({ block: true }), intent()]);
+      const after = w.bullets.find((x) => x.active && x.owner === a.id);
+      if (after && !flung) flung = after.damage;
+    }
+    expect(flung).toBeGreaterThan(2.5); // a pistol shot (11-15) x 0.25
+    expect(flung).toBeLessThan(4.5);
+    expect(HEROES.luffy.forms[2].reflectDamage).toBe(0.25);
+    expect(b.hp).toBeLessThan(b.maxHp);
+    expect(b.hp).toBeGreaterThan(b.maxHp - 6);
+  });
+
+  it('lower gears just block it like anyone else', () => {
+    const { w, a, b } = shootAtLuffy(2);
     for (let t = 0; t < 80; t++) w.step([intent({ block: true }), intent()]);
     expect(b.hp).toBe(b.maxHp);
     expect(a.hp).toBeLessThanOrEqual(a.maxHp);
@@ -126,8 +140,8 @@ describe('Luffy: Jet Bazooka is a base-form move', () => {
     expect(b.hp).toBeLessThan(hp - 25);
   });
 
-  it('the grapple tunables stay below nothing else: Gear Fifth is the one that reflects', () => {
+  it('only the two top gears reflect', () => {
     const reflecting = HEROES.luffy.forms.filter((f) => f.reflects);
-    expect(reflecting.map((f) => f.name)).toEqual(['GEAR FIFTH']);
+    expect(reflecting.map((f) => f.name)).toEqual(['GEAR FOURTH', 'GEAR FIFTH']);
   });
 });

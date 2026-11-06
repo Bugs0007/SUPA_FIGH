@@ -151,8 +151,8 @@ export class LuffyAbilityArt {
   }
 
   /**
-   * Hold BLOCK, one guard per gear: a rubber bounce, steam, an inflated fist shield, a Haki-armoured Boundman body and, in
-   * Gear Fifth, the floor itself pulled up like a rubber sheet (it throws projectiles back, sim/projectile.ts).
+   * Hold BLOCK, one guard per gear: a rubber bounce, steam, an inflated fist shield, Boundman's balloon belly and, in
+   * Gear Fifth, the floor itself pulled up like a rubber sheet (both throw projectiles back, sim/projectile.ts).
    * A blocked hit (blockStun) makes every one of them flex.
    */
   guard(v: FighterView, x: number, y: number, time: number): void {
@@ -188,21 +188,69 @@ export class LuffyAbilityArt {
       g.lineStyle(1, 0xfffdf3, .55 + flex * .3);
       for (let i = -1; i <= 1; i++) g.lineBetween(px + d * 5, py - 30 + i * 4, px + d * 9, py - 30 + i * 4);
     } else if (level === 3) {
-      // Gear Fourth, Boundman: the whole body puffs up inside a shell of black Haki
-      const breathe = 1 + Math.sin(time * 6) * .035 + flex * .08;
-      const shell: Point[] = [];
-      for (let i = 0; i < 20; i++) {
-        const a = i / 20 * Math.PI * 2;
-        shell.push({ x: px + Math.cos(a) * 12.5 * breathe + d * 1.5, y: py - 17 + Math.sin(a) * 17.5 * breathe });
-      }
-      this.polygon(this.back, shell, 0x14101f, .62);
-      g.lineStyle(1, 0xc94860, .75 + flex * .25).strokePoints(shell.map(p => ({ x: Math.round(p.x), y: Math.round(p.y) })), true);
-      g.lineStyle(1, 0x7b354a, .8);
-      for (const k of [-6, 0, 6]) g.lineBetween(px + d * 4, py - 17 + k - 4, px + d * 10, py - 17 + k);
-      g.fillStyle(0xef7980, .35 + flex * .4).fillRect(px + d * 7 - 1, py - 31, 2, 6);
+      this.balloon(v, px, py, time, flex);
     } else {
       this.rubberFloor(v, px, py, time, flex);
     }
+  }
+
+  /**
+   * Gear Fourth's guard: the whole body blows up like a glossy black balloon (FighterView.puffAmount) and the tummy
+   * rebounds on every blocked hit and reflected shot (FighterView.bellyBounce: a damped spring, + = pushed forward).
+   */
+  private balloon(v: FighterView, px: number, py: number, time: number, flex: number): void {
+    const f = v.fighter, d = f.facing, g = this.front;
+    const p = v.puffAmount, b = v.bellyBounce;
+    if (p < 0.03) return;
+    const ease = 1 - (1 - p) * (1 - p);
+    const wob = Math.sin(time * 7) * 0.02 * p;
+    const rx = (6 + 10.5 * ease) * (1 + b * 0.2 + wob);
+    const ry = (7 + 6.5 * ease) * (1 - b * 0.14 - wob);
+    const cx = px + d * (1 + 2 * ease + b * 1.5), cy = py - 12.5 - ease * 0.5;
+    const N = 28;
+    // the belly pushes out toward the front when it rebounds (b > 0) and sinks in when it is squashed (b < 0)
+    const ring = (kx: number, ky: number, dx = 0, dy = 0): Point[] => {
+      const out: Point[] = [];
+      for (let i = 0; i < N; i++) {
+        const a = i / N * Math.PI * 2;
+        const front = Math.max(0, Math.cos(a) * d);
+        out.push({ x: cx + dx + Math.cos(a) * rx * kx + d * front * b * 3 * kx, y: cy + dy + Math.sin(a) * ry * ky });
+      }
+      return out;
+    };
+    g.fillStyle(0x000000, 0.28 * ease).fillEllipse(Math.round(cx), py, Math.round(rx * 1.8), 3);
+    this.polygon(g, ring(1.1, 1.14), 0x0e0a14, 1);
+    this.polygon(g, ring(1, 1), 0x2b2338, 0.99);
+    // the lower half falls into shadow, the rim lights up red where the Haki shines through
+    this.polygon(g, ring(0.88, 0.5, -d * rx * 0.1, ry * 0.45), 0x171220, 0.85);
+    const rim: Point[] = [];
+    for (let i = 0; i <= 12; i++) {
+      const a = (-0.42 + i / 12 * 0.84) * Math.PI;
+      rim.push({ x: Math.round(cx + d * Math.cos(a) * rx * 0.97 + d * Math.max(0, Math.cos(a)) * b * 3), y: Math.round(cy + Math.sin(a) * ry * 0.97) });
+    }
+    g.lineStyle(1, 0xc94860, 0.7 + flex * 0.3).strokePoints(rim, false);
+    // gloss: a pale crescent and a glint on the upper front, sliding a little as the belly bounces
+    const gx = cx + d * rx * (0.3 + b * 0.08), gy = cy - ry * 0.42;
+    this.polygon(g, [{ x: gx - 3, y: gy + 1 }, { x: gx, y: gy - 1.5 }, { x: gx + 4, y: gy - 1 }, { x: gx + 2, y: gy + 0.5 }, { x: gx - 1, y: gy + 1.5 }], 0xfff0f2, 0.78);
+    g.fillStyle(0xffffff, 0.95).fillRect(Math.round(gx + d * 3), Math.round(gy - 2), 1, 1);
+    // Haki veins and a navel
+    g.lineStyle(1, 0x7b354a, 0.85);
+    for (const k of [-0.3, 0.05, 0.4]) g.lineBetween(Math.round(cx + d * rx * 0.1), Math.round(cy + ry * k), Math.round(cx + d * rx * 0.62), Math.round(cy + ry * (k + 0.1)));
+    g.fillStyle(0x0b0810, 1).fillRect(Math.round(cx + d * rx * 0.5), Math.round(cy + ry * 0.2), 2, 2);
+    // the tied nozzle at the back, and its string
+    const nx = cx - d * rx * 1.02, ny = cy + ry * 0.45;
+    this.polygon(g, [{ x: nx + d * 1, y: ny - 2 }, { x: nx - d * 3, y: ny }, { x: nx + d * 1, y: ny + 2 }], 0xc94860, 1);
+    g.lineStyle(1, 0xc94860, 0.8).lineBetween(Math.round(nx - d * 3), Math.round(ny), Math.round(nx - d * 5), Math.round(ny + 3 + Math.sin(time * 9)));
+    // a rebound throws a ripple and stretch marks across the skin
+    const mag = Math.min(1, Math.abs(b));
+    if (mag > 0.12) {
+      g.lineStyle(1, 0xffd7dd, mag * 0.65).strokePoints(ring(1.12 + mag * 0.12, 1.14 + mag * 0.12), true);
+      for (const k of [-0.5, 0, 0.5]) {
+        const ax = cx + d * rx * (0.55 + 0.1 * Math.cos(k)), ay = cy + ry * k * 0.9;
+        g.lineStyle(1, 0xfff4cf, mag * 0.7).lineBetween(Math.round(ax), Math.round(ay), Math.round(ax + d * (3 + mag * 4)), Math.round(ay + k * 3));
+      }
+    }
+    if (flex > 0) this.polygon(g, ring(1, 1), 0xffffff, flex * 0.22);
   }
 
   /** Gear Fifth's guard: the ground bulges up in front of him like a sheet of rubber and wobbles, then snaps on a reflect. */

@@ -43,7 +43,8 @@ export function startServer(opts: ServerOptions = {}): Promise<RunningServer> {
   const hub = new Hub(opts);
   const handler = (req: IncomingMessage, res: ServerResponse) => {
     if (opts.http) return opts.http(req, res);
-    if (req.url === '/health') {
+    if (req.url === '/health' || req.url === '/') {
+      // (hosting platforms probe / or /health to see that the service is up)
       res.writeHead(200, { 'content-type': 'text/plain' }).end('ok');
     } else {
       res.writeHead(404).end();

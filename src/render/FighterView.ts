@@ -40,6 +40,11 @@ export class FighterView {
   private runPhase = 0;
   private climbPhase = 0;
   private squash = 0;
+  /** Gear Fourth's guard: 0..1 how far the body has blown up like a balloon, and the tummy's rebound (damped spring, + = forward) */
+  private puff = 0;
+  private belly = 0;
+  private bellyV = 0;
+  private lastStun = 0;
   private flash = 0;
   private lieAmount = 0;
   /** displayed arm angles (eased toward the pose's targets during locomotion) */
@@ -146,6 +151,21 @@ export class FighterView {
   onLand(speed: number): void {
     this.squash = Math.min(0.35, speed / 1200);
     if (speed > 160) this.landT = Math.min(0.14, 0.05 + speed / 4000);
+  }
+
+  /** how inflated the Gear Fourth balloon guard is (0..1) */
+  get puffAmount(): number {
+    return this.puff;
+  }
+
+  /** the balloon belly's rebound: + pushed forward, - squashed in */
+  get bellyBounce(): number {
+    return this.belly;
+  }
+
+  /** a shot thrown back (or a blocked hit) sets the Gear Fourth tummy bouncing */
+  kickBelly(strength: number): void {
+    if (this.puff > 0.3) this.bellyV += strength;
   }
 
   onJump(): void {
@@ -801,7 +821,16 @@ export class FighterView {
     }
     this.squash *= Math.pow(0.001, dt * 6);
     const sq = this.squash;
-    this.root.setScale(f.facing * (1 + sq * 0.6) * (1 - this.turnT * 0.35), 1 - sq);
+    // Gear Fourth's guard blows the body up like a balloon; blocked hits bounce the tummy
+    const balloon = f.alive && f.state === 'block' && f.hero === 'luffy' && formLevel(f) === 3;
+    this.puff += ((balloon ? 1 : 0) - this.puff) * Math.min(1, dt * (balloon ? 16 : 9));
+    if (balloon && f.blockStun > this.lastStun + 0.01) this.kickBelly(7);
+    this.lastStun = f.blockStun;
+    const sdt = Math.min(dt, 1 / 30);
+    this.bellyV += (-260 * this.belly - 9 * this.bellyV) * sdt;
+    this.belly += this.bellyV * sdt;
+    if (!balloon && this.puff < 0.01) this.puff = this.belly = this.bellyV = 0;
+    this.root.setScale(f.facing * (1 + sq * 0.6) * (1 - this.turnT * 0.35) * (1 + this.puff * 0.08 + this.belly * 0.1), (1 - sq) * (1 + this.puff * 0.04 - this.belly * 0.08));
     if(f.hero==='naruto'&&f.state==='special'&&f.specialKind==='formCombo'&&f.stateTime<CLONE_SLINGSHOT.windup){
       const turn=Math.sin(f.stateTime/CLONE_SLINGSHOT.windup*Math.PI*2*CLONE_SLINGSHOT.turns);
       this.root.scaleX*= (turn>=0?1:-1)*(.55+.45*Math.abs(turn));

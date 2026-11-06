@@ -4,6 +4,7 @@
 
 import { DT } from '../src/sim/constants';
 import type { FighterSpawn } from '../src/sim/fighter';
+import { HERO_ORDER } from '../src/sim/data/heroes';
 import type { MatchConfig } from '../src/sim/match';
 import {
   DEFAULT_ROOM_CONFIG,
@@ -34,11 +35,32 @@ interface Peer {
   droppedAt: number;
 }
 
+/**
+ * A public arena: an always-open Brawl room nobody hosts. The first player to arrive starts a countdown; when it ends a
+ * match starts with everybody who is in, bots filling the places up to `fill`; afterwards the room is open again.
+ */
+export interface ArenaOptions {
+  /** seconds from the first player arriving to the match starting */
+  countdown: number;
+  /** a match has at least this many fighters: bots fill what the humans leave empty */
+  fill: number;
+  /** most humans in the arena at once (a match holds MAX_FIGHTERS) */
+  maxHumans: number;
+  /** Brawl championship rounds per match */
+  rounds: number;
+}
+
+export const DEFAULT_ARENA: ArenaOptions = { countdown: 15, fill: 6, maxHumans: 8, rounds: 3 };
+/** an arena match nobody is connected to any more is dropped after this long (ms) */
+const ARENA_ABANDON_MS = 10_000;
+
 export interface RoomOptions {
   /** sim speed multiplier (tests and soak runs); 1 = real time */
   speed?: number;
   /** fixed match seed (tests); default random */
   seed?: number;
+  /** make this room the public arena (see ArenaOptions) */
+  arena?: ArenaOptions;
 }
 
 const DT_MS = DT * 1000;
@@ -56,14 +78,25 @@ export class Room {
   private acc = 0;
   /** ms the room has had nobody connected */
   emptyFor = 0;
+  /** set for the public arena */
+  readonly arena: ArenaOptions | null;
+  /** arena: ms until the next match starts (null = nobody there yet) */
+  private arenaLeft: number | null = null;
+  /** arena matches started so far: rotates the bots' fighters from one match to the next */
+  private arenaMatches = 0;
 
   constructor(
     readonly code: string,
     host: { device: string; name: string },
     private opts: RoomOptions = {},
   ) {
+    this.arena = opts.arena ?? null;
     this.hostDevice = host.device;
-    this.peers.set(host.device, this.newPeer(host.device, host.name, null));
+    if (this.arena) {
+      // nobody hosts the arena: the settings are fixed and the clock starts the matches
+      this.hostDevice = '';
+      this.config = { ...DEFAULT_ROOM_CONFIG, mapId: 'random', mode: 'brawl', roundsToWin: this.arena.rounds, bots: [], modifiers: [] };
+    } else this.peers.set(host.device, this.newPeer(host.device, host.name, null));
   }
 
   private newPeer(device: string, name: string, conn: Conn | null): Peer {
@@ -85,11 +118,12 @@ export class Room {
   info(): RoomInfo {
     return {
       code: this.code,
-      hostName: this.peers.get(this.hostDevice)?.name ?? '?',
+      hostName: this.arena ? 'ARENA' : (this.peers.get(this.hostDevice)?.name ?? '?'),
       state: this.state,
       players: this.connectedCount,
       mapId: this.config.mapId,
       mode: this.config.mode,
+      ...(this.arena ? { arena: true } : {}),
     };
   }
 
@@ -107,7 +141,8 @@ export class Room {
     this.emptyFor = 0;
     this.session?.setConnected(device, true);
     this.sendRoom();
-    if (this.session) this.sendStart(p);
+    // (a latecomer to a running arena match has no fighter in it: it waits in the lobby for the next one)
+    if (this.session && (!this.arena || this.session.fightersOf(device).length > 0)) this.sendStart(p);
   }
 
   /** A device's connection closed. Its place is kept for a while; a bot plays its fighters meanwhile. */
@@ -130,6 +165,7 @@ export class Room {
   }
 
   private pickHost(): void {
+    if (this.arena) return;
     const next = [...this.peers.values()].find((p) => p.conn) ?? [...this.peers.values()][0];
     if (next) this.hostDevice = next.device;
   }
@@ -146,29 +182,33 @@ export class Room {
       case 'ping':
         this.send(p, { t: 'pong', n: msg.n });
         return;
-      case 'claim':
-        if (this.state !== 'lobby') return this.err(p, 'state', 'a match is running');
-        if (this.claimedCount() - (p.claims[msg.local] ? 1 : 0) + 1 > MAX_FIGHTERS) return this.err(p, 'full', 'the room is full');
+      case 'claim': {
+        // (the arena takes claims any time: they count for the next match; one player per device)
+        if (this.state !== 'lobby' && !this.arena) return this.err(p, 'state', 'a match is running');
+        if (this.arena && msg.local !== 0) return;
+        const cap = this.arena ? this.arena.maxHumans : MAX_FIGHTERS;
+        if (this.claimedCount() - (p.claims[msg.local] ? 1 : 0) + 1 > cap) return this.err(p, 'full', 'the room is full');
         p.claims[msg.local] = msg.claim;
         p.ready = false;
         break;
+      }
       case 'release':
-        if (this.state !== 'lobby') return this.err(p, 'state', 'a match is running');
+        if (this.state !== 'lobby' && !this.arena) return this.err(p, 'state', 'a match is running');
         p.claims[msg.local] = null;
         break;
       case 'ready':
-        if (this.state !== 'lobby') return;
+        if (this.state !== 'lobby' || this.arena) return;
         p.ready = msg.ready;
         break;
       case 'config':
-        if (device !== this.hostDevice) return this.err(p, 'notHost', 'only the host changes settings');
+        if (device !== this.hostDevice || this.arena) return this.err(p, 'notHost', 'only the host changes settings');
         if (this.state !== 'lobby') return this.err(p, 'state', 'a match is running');
         this.config = { ...this.config, ...msg.config };
         this.fitBots();
         for (const q of this.peers.values()) q.ready = false;
         break;
       case 'start':
-        if (device !== this.hostDevice) return this.err(p, 'notHost', 'only the host starts the match');
+        if (device !== this.hostDevice || this.arena) return this.err(p, 'notHost', 'only the host starts the match');
         return this.start(p);
       default:
         return;
@@ -196,7 +236,11 @@ export class Room {
     if (players.length === 0) return this.err(host, 'noPlayers', 'nobody has picked a fighter');
     if (players.some((p) => p.device !== this.hostDevice && !p.ready)) return this.err(host, 'notReady', 'not everyone is ready');
     this.fitBots();
+    this.launch(players);
+  }
 
+  /** Build the match from the claimed fighters (and the configured bots) and start it. */
+  private launch(players: Peer[]): void {
     const fighters: FighterSpawn[] = [];
     const slots: SessionSlot[] = [];
     const looks: SlotClaim['look'][] = [];
@@ -232,9 +276,43 @@ export class Room {
     this.session = new Session(cfg, slots);
     this.state = 'playing';
     this.acc = 0;
+    this.arenaLeft = null;
     for (const p of this.peers.values()) p.ready = false;
     for (const p of players) this.sendStart(p);
     this.sendRoom();
+  }
+
+  /** Arena: the people who are in (connected, with a fighter picked). */
+  private arenaPlayers(): Peer[] {
+    return [...this.peers.values()].filter((p) => p.conn && p.claims.some(Boolean));
+  }
+
+  /** Arena lobby clock: count down while somebody is in, then start a match with bots filling the empty places. */
+  private arenaTick(ms: number): void {
+    const a = this.arena!;
+    const players = this.arenaPlayers();
+    if (players.length === 0) {
+      if (this.arenaLeft !== null) {
+        this.arenaLeft = null;
+        this.sendRoom();
+      }
+      return;
+    }
+    if (this.arenaLeft === null) {
+      this.arenaLeft = a.countdown * 1000;
+      this.sendRoom();
+      return;
+    }
+    const before = Math.ceil(this.arenaLeft / 1000);
+    this.arenaLeft -= ms;
+    if (this.arenaLeft <= 0) {
+      const humans = players.reduce((n, p) => n + p.claims.filter(Boolean).length, 0);
+      const heroes = ['', ...HERO_ORDER];
+      const bots = Math.max(0, Math.min(MAX_FIGHTERS, a.fill) - humans);
+      this.config.bots = Array.from({ length: bots }, (_, i) => ({ hero: heroes[(i + this.arenaMatches) % heroes.length], difficulty: 'normal' as const }));
+      this.arenaMatches++;
+      this.launch(players);
+    } else if (Math.ceil(this.arenaLeft / 1000) !== before) this.sendRoom();
   }
 
   private looks: SlotClaim['look'][] = [];
@@ -262,6 +340,10 @@ export class Room {
     this.now += ms;
     this.emptyFor = this.connectedCount === 0 ? this.emptyFor + ms : 0;
     const s = this.session;
+    if (s && this.arena && this.emptyFor > ARENA_ABANDON_MS) {
+      this.endMatch(); // everybody left: bots alone are not worth the CPU
+      return;
+    }
     if (s) {
       const speed = this.opts.speed ?? 1;
       this.acc += ms * speed * s.match.timeScale;
@@ -286,6 +368,7 @@ export class Room {
       }
       if (n >= maxSteps) this.acc = 0; // fell behind: drop the backlog instead of spiralling
     } else {
+      if (this.arena) this.arenaTick(ms);
       // lobby: forget devices that stayed away too long
       let changed = false;
       for (const p of [...this.peers.values()]) {
@@ -315,6 +398,7 @@ export class Room {
       state: this.state,
       config: this.config,
       peers: [...this.peers.values()].map((p) => this.peerInfo(p)),
+      ...(this.arena ? { arena: { countdown: this.arenaLeft === null ? -1 : Math.ceil(this.arenaLeft / 1000), fill: this.arena.fill } } : {}),
     });
   }
 

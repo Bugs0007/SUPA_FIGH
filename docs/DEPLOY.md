@@ -48,6 +48,9 @@ Use these settings:
 
 No redirects are needed, because the game is a single page with no client routes.
 
+The static site cannot run the multiplayer server. For the public online arena, run `npm run server` on an always-on Node
+host and set `VITE_ONLINE_SERVER=wss://...` on the project before building: see [ONLINE.md](ONLINE.md).
+
 ## Checklist before a release
 - `npm run typecheck && npm test && npm run test:e2e`
 - `npm run preview`, then play a match with sound. Audio only starts after the first key press or click,
