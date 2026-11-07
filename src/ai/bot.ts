@@ -12,7 +12,8 @@ import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND,
 import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { heroDef, bombRange, FORM_COMBO, CLONE_SLINGSHOT, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
+import { heroDef, heroHasFormCombo, bombRange, bombWindup, FORM_COMBO, CLONE_SLINGSHOT, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
+import { rosterSpecial } from '../sim/data/rosterSpecials';
 import { amaterasuReach, baseAbility, canReflect, dashDir, canTakeOff, flightFuel, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
@@ -860,9 +861,13 @@ export class BotController implements Controller {
     const near = Math.abs(e.x - f.x);
     const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     if (!clear) return null;
-    if((transformed(f)||f.hero==='sasuke'||f.hero==='luffy')&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
+    if(heroHasFormCombo(f.hero)&&(transformed(f)||f.hero==='sasuke'||f.hero==='luffy')&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
       const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:f.hero==='luffy'?level<70:near>45&&level<70);
       if(fits)cands.push({hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:face,my:0,weight:BOT_FIGHT.wCombo});
+    }
+    const special = rosterSpecial(f.hero);
+    if (special && f.formComboCd <= 0 && dist <= special.reach * 0.86 && level <= 20) {
+      cands.push({ hold: 'ability', combo: true, ticks: 2, mx: face, my: 0, weight: BOT_FIGHT.wCombo });
     }
     // the stick: Up / Down to aim (Down only works in the air)
     const upDown = (a: number) => (a < -SECOND_AIM * 0.5 ? -1 : a > SECOND_AIM * 0.5 && !f.grounded ? 1 : 0);
@@ -873,7 +878,10 @@ export class BotController implements Controller {
       const pointBlank = near <= 30 && level <= 16;
       let ok = false;
       let my = 0;
-      if (sp.kind === 'bomb') ok = pointBlank || (dist <= (sp.bomb ? bombRange(f.hero, sp.bomb, f.powerLevel) : 320) && near >= 4 && Math.abs(ang) <= (f.hero==='sasuke'&&f.powerLevel>=3?1.45:LOCK_CONE));
+      if (sp.bomb?.centered) {
+        const radius = sp.bomb.radius + sp.bomb.radiusPerLevel * (f.powerLevel - 1);
+        ok = Math.hypot(vx, ty - (f.y - f.h / 2)) <= radius * 0.85;
+      } else if (sp.kind === 'bomb') ok = pointBlank || (dist <= (sp.bomb ? bombRange(f.hero, sp.bomb, f.powerLevel) : 320) && near >= 4 && Math.abs(ang) <= (f.hero==='sasuke'&&f.powerLevel>=3?1.45:LOCK_CONE));
       else if (sp.kind === 'fist' && sp.fist) {
         my = upDown(ang);
         const a = my < 0 ? sp.fist.upAngle : my > 0 ? sp.fist.downAngle : 0;
@@ -1041,9 +1049,13 @@ export class BotController implements Controller {
     }
     if (superGuard(e)) {
       // an ultimate charging up: a guard can't take that, get out of its way
-      if (!facing || adx > 550 || level > 220) return null;
-      const windup=heroDef(e.hero)?.super.bomb?.windup??.5;
-      return { e, kind: 'super', eta: Math.max(0,windup-e.stateTime), key: key('s') };
+      const superMove = heroDef(e.hero)?.super;
+      const bomb = superMove?.bomb;
+      // Centered hits have already landed when there is a state to observe.
+      if (bomb?.centered || !facing || adx > (superMove?.beam?.range ?? 550) || level > 220) return null;
+      const windup = bomb ? bombWindup(bomb) : superMove?.beam?.minCharge ?? 0.5;
+      const eta = e.specialKind === 'superBeam' ? 0 : Math.max(0, windup - e.stateTime);
+      return { e, kind: 'super', eta, key: key('s') };
     }
     const t = e.stateTime;
     switch (e.specialKind) {

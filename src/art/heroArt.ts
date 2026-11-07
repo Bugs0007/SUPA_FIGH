@@ -4,7 +4,11 @@
 // sim/data/heroes.ts; palettes live here.
 
 import type { Appearance } from './appearance';
+import { BLACK_CLOVER_ART } from './blackCloverArt';
+import { BLEACH_ART } from './bleachArt';
+import { ONE_PIECE_ART } from './onePieceArt';
 import { P } from './palette';
+import { VEGETA_ART } from './vegetaArt';
 
 export interface FormFx {
   /** aura pixel colours [main, highlight] */
@@ -150,6 +154,10 @@ export const HERO_ART: Record<string, HeroArt> = {
       { aura: ['#3fc0f8', '#e8fbff'], tails: 0, tailColors: ['#fff', '#fff'], power: 4, extra: 'lightning' },
     ],
   },
+  vegeta: VEGETA_ART,
+  ...ONE_PIECE_ART,
+  ...BLEACH_ART,
+  ...BLACK_CLOVER_ART,
 };
 
 /** Effect set of a hero's form level (1..N); level 0 / unknown -> the first form. */

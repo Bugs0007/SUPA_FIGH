@@ -1,7 +1,7 @@
 import type Phaser from 'phaser';
 import { hexToNum, shade } from '../art/palette';
 import { moveLook } from '../art/heroMoves';
-import { heroDef, JET_BAZOOKA } from '../sim/data/heroes';
+import { heroDef, JET_BAZOOKA, superFistFor } from '../sim/data/heroes';
 import { SHOULDER_Y_STAND } from '../sim/constants';
 import type { FighterView } from './FighterView';
 import { formLevel } from './formLevel';
@@ -19,10 +19,13 @@ export class LuffyAbilityArt {
   }
 
   /** A clenched hand: stepped knuckles, curled thumb, palm plane and wrist. */
-  private fist(g: Graphics, x: number, y: number, dx: number, dy: number, side: number, r: number, skin: string, haki: boolean, alpha: number): void {
+  private fist(g: Graphics, x: number, y: number, dx: number, dy: number, side: number, r: number, skin: string, haki: boolean, alpha: number, squash = 1): void {
     const px = -dy * side;
     const py = dx * side;
-    const point = (u: number, v: number, scale = r): Point => ({ x: x + dx * u * scale + px * v * scale, y: y + dy * u * scale + py * v * scale });
+    const point = (u: number, v: number, scale = r): Point => ({
+      x: x + dx * u * scale * squash + px * v * scale / squash,
+      y: y + dy * u * scale * squash + py * v * scale / squash,
+    });
     const shape = [[-.95, -.48], [-.62, -.84], [-.08, -.96], [.48, -.86], [.88, -.58], [1, -.23], [1, .45], [.68, .74], [.04, .88], [-.63, .65], [-.98, .18]];
     const base = haki ? 0x252133 : hexToNum(skin);
     const shadow = haki ? 0x100f20 : hexToNum(shade(skin, -.3));
@@ -85,10 +88,15 @@ export class LuffyAbilityArt {
     const len = f.w / 2 + f.stretchLen;
     const sx = x + f.facing * 2, sy = y - SHOULDER_Y_STAND + 1;
     const g = f.specialKind === 'swing' ? this.back : this.front;
-    const bend = style.rubber === 'cartoon' ? Math.sin(f.stateTime * 16) * Math.min(11, len * .1) : style.rubber === 'haki' ? Math.sin(f.stateTime * 20) * Math.min(4, len * .035) : 0;
+    const nika = superMove && style.rubber === 'cartoon' ? superFistFor('luffy', level) : null;
+    const impactAge = nika ? f.stateTime - nika.out : -1;
+    const recoil = impactAge >= 0 ? Math.cos(impactAge * 29) * Math.exp(-impactAge * 11) : 0;
+    const bend = style.rubber === 'cartoon' ? Math.sin(f.stateTime * 16) * Math.min(11, len * .1) - recoil * Math.min(9, len * .08) : style.rubber === 'haki' ? Math.sin(f.stateTime * 20) * Math.min(4, len * .035) : 0;
     const skin = v.lookFor(level).skin;
     this.limb(g, sx, sy, dx, dy, f.facing, len, radius, skin, haki, bend, 1);
-    this.fist(g, sx + dx * len, sy + dy * len, dx, dy, f.facing, radius, skin, haki, 1);
+    const tip = { x: sx + dx * len, y: sy + dy * len };
+    this.fist(g, tip.x, tip.y, dx, dy, f.facing, radius, skin, haki, 1, 1 - recoil * 0.18);
+    if (nika && impactAge >= 0 && impactAge < 0.24) this.nikaRebound(tip, dx, dy, radius, impactAge);
     if(f.specialKind==='pistol'&&!f.armBack&&(f.grip==='ladder'||f.grip==='platform')){
       const ax=Math.round(f.anchorX),ay=Math.round(f.anchorY);
       g.fillStyle(0xffdf8a,.9);
@@ -107,6 +115,25 @@ export class LuffyAbilityArt {
         const a = Math.min(18, d * .3);
         g.lineStyle(1, style.rubber === 'jet' ? 0xffe7ed : style.rubber === 'cartoon' ? 0xfffdf3 : haki ? 0xc94860 : 0xf1d4b5, active * .48)
           .lineBetween(Math.round(sx + dx * (d - a) + px * i * (radius + 3)), Math.round(sy + dy * (d - a) + py * i * (radius + 3)), Math.round(sx + dx * d + px * i * (radius + 3)), Math.round(sy + dy * d + py * i * (radius + 3)));
+      }
+    }
+  }
+
+  /** At full extension, the fist squashes and kicks two ripples back down the elastic strike. */
+  private nikaRebound(tip: Point, dx: number, dy: number, radius: number, time: number): void {
+    for (const lag of [0, 0.06]) {
+      const k = (time - lag) / 0.18;
+      if (k < 0 || k >= 1) continue;
+      const distance = radius * (0.58 + k * 1.3);
+      const wide = radius * (0.83 + k * 0.5);
+      for (let i = 0; i < 20; i++) {
+        if (i % 5 === 4) continue;
+        const angle = i / 20 * Math.PI * 2;
+        const u = Math.cos(angle) * wide * 0.48 - distance;
+        const w = Math.sin(angle) * wide;
+        const x = Math.round(tip.x + dx * u - dy * w);
+        const y = Math.round(tip.y + dy * u + dx * w);
+        this.back.fillStyle(i % 3 ? 0xfff7ec : 0xffdca2, (1 - k) * 0.85).fillRect(x, y, 2, i % 3 ? 2 : 1);
       }
     }
   }

@@ -1,6 +1,8 @@
 import { BOOST_COLORS, formFx } from '../art/heroArt';
+import { moveLook } from '../art/heroMoves';
 import { powerColors } from './HeroFx';
-import { HEROES, KIRIN, heroAttackLabel } from '../sim/data/heroes';
+import { HEROES, KIRIN, heroAttackLabel, heroHasFormCombo } from '../sim/data/heroes';
+import { rosterSpecial } from '../sim/data/rosterSpecials';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_W } from '../game/display';
@@ -12,6 +14,7 @@ import { activeWeapon, gunGeometry } from '../sim/fighter';
 import { TK } from '../sim/map/tiles';
 import type { World } from '../sim/world';
 import type { CameraDirector } from './CameraDirector';
+import { formLevel } from './formLevel';
 import type { WorldRenderer } from './WorldRenderer';
 
 export type UiEvent =
@@ -36,6 +39,20 @@ const SHOT_SOUND: Record<string, string> = {
 
 const SWING_PITCH: Record<string, number> = { knife: 1.4, machete: 1.1, bat: 0.85, pipe: 0.9, sledge: 0.6 };
 
+const ROSTER_SPECIAL_SOUNDS: Record<string, readonly string[]> = {
+  vegeta: ['punch', 'energyHit'],
+  zoro: ['swing'],
+  sanji: ['swing', 'swing', 'kick'],
+  law: ['grab', 'thud'],
+  ichigo: ['swing', 'swing'],
+  rukia: ['hiss', 'glass'],
+  byakuya: ['swing', 'swing', 'swing'],
+  asta: ['parry'],
+  yuno: ['swing', 'swing', 'chakraBlast'],
+  yami: ['powerEnd', 'swing'],
+  scrapper: ['kick'],
+};
+
 const POWERUP_TEXT: Record<string, [string, string]> = {
   speed: ['SPEED!', P.yellow],
   strength: ['STRENGTH!', P.red2],
@@ -46,6 +63,8 @@ const levelColors = (hero: string, level: number): [number, number] => {
   const c = level > 0 ? formFx(hero, level).aura : BOOST_COLORS;
   return [hexToNum(c[0]), hexToNum(c[1])];
 };
+
+const hasNewMoveArt = (hero: string): boolean => Object.hasOwn(HEROES, hero) && !heroHasFormCombo(hero);
 
 export function weaponLabel(id: string): string {
   const special: Record<string, string> = {
@@ -86,7 +105,8 @@ export class Juice {
 
   constructor(
     private r: WorldRenderer,
-    private cam: CameraDirector,
+    private cam: Pick<CameraDirector, 'x' | 'z' | 'addTrauma' | 'flash'>,
+    private options: { announceMoves?: boolean } = {},
   ) {}
 
   private pan(x: number): number {
@@ -335,8 +355,38 @@ export class Juice {
         break;
       case 'explosion': {
         const big = e.radius >= 45;
-        fx.explosion(e.x, e.y, e.radius);
-        this.sfx(big ? 'explosion' : 'explosionSmall', e.x);
+        const [hero, move] = e.weapon.split(':');
+        const energy = (move === 'second' || move === 'super') && hasNewMoveArt(hero);
+        const centered = move === 'super' && HEROES[hero]?.super.bomb?.centered;
+        const wind = hero === 'naruto' && move === 'super' && e.form === 1;
+        const arrow = hero === 'sasuke' && move === 'super' && (e.form ?? 0) >= 3;
+        if (wind) {
+          const { x, y, radius } = e;
+          this.r.heroFx.startRasenWindImpact(x, y, radius);
+          fx.spawn({ frame: 'glowBig', x, y, life: 0.18, s0: 1.1, s1: radius / 12, a0: 0.65, a1: 0, tint: 0x92e5ff, add: true, depth: 57 });
+          for (const dir of [-1, 1]) fx.sparks(x, y, dir, -0.25, 9, 0xeafcff, 175);
+          this.sfx('energyHit', x, 0.88, 1.24);
+        } else if (energy || arrow) {
+          const { rim, core, spark } = arrow
+            ? { rim: 0x7955cb, core: 0xf4e9ff, spark: e.form === 4 ? 0xaddbff : 0xc9b8ff }
+            : moveLook(hero, Math.max(1, e.form ?? 1));
+          const { x, y, radius } = e;
+          // Close-range kits paint their own full-radius hit. Leave the caster and silhouette readable.
+          if (centered) {
+            fx.spawn({ frame: 'glowBig', x, y, life: 0.17, s0: radius / 34, s1: radius / 20, a0: 0.32, a1: 0, tint: rim, add: true, depth: 38 });
+            fx.sparks(x, y, 0, -0.25, 10, spark, 110 + radius);
+          } else {
+            fx.spawn({ frame: 'glowBig', x, y, life: 0.21, s0: radius / 20, s1: radius / 11, a0: 0.7, a1: 0, tint: rim, add: true, depth: 64 });
+            fx.spawn({ frame: 'boom', x, y, life: 0.08, s0: radius / 18, s1: radius / 12, a0: 0.85, a1: 0, tint: core, add: true, depth: 65 });
+            fx.spawn({ frame: 'ring', x, y, life: 0.34, s0: 0.25, s1: radius / 12, a0: 0.95, a1: 0, tint: core, depth: 64 });
+            fx.sparks(x, y, 0, -0.4, Math.round(6 + radius / 3), spark, 110 + radius * 2);
+            fx.smoke(x, y, 5, rim);
+          }
+          this.sfx('energyHit', x, 1, big ? 0.7 : 1);
+        } else {
+          fx.explosion(e.x, e.y, e.radius);
+          this.sfx(big ? 'explosion' : 'explosionSmall', e.x);
+        }
         this.cam.addTrauma(e.shake);
         this.hitstop = Math.max(this.hitstop, big ? 0.08 : 0.05);
         break;
@@ -510,16 +560,34 @@ export class Juice {
         this.ui.push({ t: 'announce', text: 'A POWER ORB APPEARS!', color: c0 });
         break;
       }
+      case 'rosterSpecial': {
+        this.r.heroFx.rosterSpecialArt.onEvent(e);
+        const spec = rosterSpecial(e.hero === 'scrapper' ? '' : e.hero);
+        if (!spec) break;
+        if (e.phase === 'start' && this.options.announceMoves !== false) {
+          const [, color] = levelColors(e.hero, e.level);
+          this.r.floatText(e.ox, e.oy - 24, spec.name, color, true);
+        }
+        if (e.phase === 'active') {
+          const final = e.pulse === spec.beats.length - 1;
+          const sound = ROSTER_SPECIAL_SOUNDS[e.hero]?.[e.pulse] ?? 'swing';
+          this.sfx(sound, e.x, final ? 0.88 : 0.53, final ? 0.94 : 1.19 + e.pulse * 0.08);
+          if (final) this.cam.addTrauma(0.18);
+        }
+        break;
+      }
       case 'special': {
         const f = w.fighters[e.f];
-        const [c0, c1] = f.power === 'hero' ? levelColors(f.hero, f.powerLevel) : levelColors('', 0);
+        const style = hasNewMoveArt(f.hero) ? moveLook(f.hero, Math.max(1, formLevel(f))) : undefined;
+        const [c0, c1] = style ? [style.rim, style.core] : levelColors(f.hero, f.power === 'hero' ? f.powerLevel : 0);
         const fireball = f.hero === 'sasuke' && f.specialKind === 'fireball';
         const susanoo = f.hero === 'sasuke' && f.specialKind === 'bomb' && f.power === 'hero' && f.powerLevel >= 3;
+        const centered = f.specialKind === 'bomb' && HEROES[f.hero]?.super.bomb?.centered;
         if (fireball) {
           // the game's pixel muzzle flash at the mouth (unscaled, mirrored by a half turn), sparks in fire colours
           fx.spawn({ frame: 'flash0', x: Math.round(e.x - f.facing * 4), y: Math.round(e.y), life: 0.07, rot: f.facing < 0 ? Math.PI : 0, depth: 64 });
           fx.sparks(e.x, e.y, f.facing, 0, 8, hexToNum(P.orange), 180);
-        } else if (susanoo) {
+        } else if (susanoo || centered) {
           // the Susanoo sprite draws its own muzzle flash: only a few sparks off the arrow
           fx.sparks(e.x, e.y, f.facing, 0, 6, c0, 180);
         } else {
@@ -533,14 +601,18 @@ export class Juice {
       case 'superStart': {
         const f = w.fighters[e.f];
         const [c0, c1] = levelColors(f.hero, f.powerLevel);
-        // (Sasuke's Susanoo rises over him instead: a scaled-up ring would bury the sprite)
-        if (!(f.hero === 'sasuke' && f.power === 'hero' && f.powerLevel >= 3)) fx.spawn({ frame: 'ring', x: f.x, y: f.y - 12, life: 0.4, s0: 0.3, s1: 5, a0: 1, a1: 0, tint: c1, depth: 64 });
-        fx.motes(f.x, f.y - 8, 14, c0);
-        this.sfx('transform', f.x, 0.9, 1.3);
-        this.cam.addTrauma(0.3);
-        this.hitstop = Math.max(this.hitstop, 0.1);
-        this.r.floatText(f.x, f.y - 36, e.name, c0, true);
-        this.ui.push({ t: 'announce', text: `${e.name}!`, color: c0 });
+        if (!(f.specialKind === 'bomb' && HEROES[f.hero]?.super.bomb?.centered)) {
+          // Sasuke's Susanoo rises over him instead: a scaled-up ring would bury the sprite.
+          if (!(f.hero === 'sasuke' && f.power === 'hero' && f.powerLevel >= 3)) fx.spawn({ frame: 'ring', x: f.x, y: f.y - 12, life: 0.4, s0: 0.3, s1: 5, a0: 1, a1: 0, tint: c1, depth: 64 });
+          fx.motes(f.x, f.y - 8, 14, c0);
+          this.sfx('transform', f.x, 0.9, 1.3);
+          this.cam.addTrauma(0.3);
+          this.hitstop = Math.max(this.hitstop, 0.1);
+        }
+        if (this.options.announceMoves !== false) {
+          this.r.floatText(f.x, f.y - 36, e.name, c0, true);
+          this.ui.push({ t: 'announce', text: `${e.name}!`, color: c0 });
+        }
         break;
       }
       case 'beam': {
@@ -603,7 +675,8 @@ export class Juice {
       case 'blink': {
         this.r.heroFx.choreography.blink(e.f, e.fromX, e.fromY, e.toX, e.toY);
         const f = w.fighters[e.f];
-        const [c0, c1] = powerColors(f);
+        const style = hasNewMoveArt(f.hero) ? moveLook(f.hero, Math.max(1, formLevel(f))) : undefined;
+        const [c0, c1] = style ? [style.rim, style.core] : powerColors(f);
         // a streak of afterimage sparks along the jump, a pop at both ends
         const n = 12;
         for (let i = 0; i <= n; i++) {
@@ -611,10 +684,10 @@ export class Juice {
           fx.spawn({ frame: 'p2', x: e.fromX + (e.toX - e.fromX) * k, y: e.fromY + (e.toY - e.fromY) * k + (Math.random() - 0.5) * 6, life: 0.2 + 0.15 * k, a0: 0.9, a1: 0, tint: i % 2 ? c1 : c0, add: true, depth: 63 });
         }
         for (const [x, y] of [[e.fromX, e.fromY], [e.toX, e.toY]]) {
-          fx.spawn({ frame: 'ring', x, y, life: 0.2, s0: 0.2, s1: 1.8, a0: 1, a1: 0, tint: 0xe8fbff, depth: 64 });
-          fx.sparks(x, y, 0, -1, 6, 0xfff8c0, 140);
+          fx.spawn({ frame: 'ring', x, y, life: 0.2, s0: 0.2, s1: 1.8, a0: 1, a1: 0, tint: style?.core ?? 0xe8fbff, depth: 64 });
+          fx.sparks(x, y, 0, -1, 6, style?.spark ?? 0xfff8c0, 140);
         }
-        this.sfx('blink', e.toX, 0.9);
+        this.sfx('blink', e.toX, 0.9, style ? 1.2 : 1);
         break;
       }
       case 'wallwalk':
@@ -639,7 +712,11 @@ export class Juice {
         break;
       case 'rasengan': {
         const f = w.fighters[e.f];
-        if (e.phase === 'form') this.sfx(f.hero === 'sasuke' ? 'chidori' : 'rasengan', f.x, 0.9, 1);
+        if (e.phase === 'form') {
+          if (f.hero === 'sasuke') this.sfx('chidori', f.x, 0.9);
+          else if (f.hero === 'naruto') this.sfx('rasengan', f.x, 0.9);
+          else this.sfx('kiCharge', f.x, 0.55, 1.4);
+        }
         else {
           if (f.hero === 'sasuke') this.sfx('chidoriDash', f.x, .9);
           this.sfx('swing', f.x, 0.9, 0.6);
@@ -651,6 +728,7 @@ export class Juice {
         // two orbs meeting: white flash, pixel shockwave, sparks in both orbs' colours, a big shake
         const orbColor = (id: number) => {
           const f = w.fighters[id];
+          if (f && hasNewMoveArt(f.hero)) return moveLook(f.hero, Math.max(1, formLevel(f))).core;
           return f?.hero === 'sasuke' ? 0x83ccff : hexToNum('#5ab8ff');
         };
         const c0 = orbColor(e.a);

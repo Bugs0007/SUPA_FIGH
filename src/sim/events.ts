@@ -56,7 +56,7 @@ export type SimEvent =
   | { t: 'itemLand'; x: number; y: number; speed: number }
   | { t: 'weaponSpawn'; x: number; y: number; weapon: string }
   | { t: 'corpseLand'; x: number; y: number; speed: number }
-  | { t: 'explosion'; x: number; y: number; radius: number; weapon: string; shake: number }
+  | { t: 'explosion'; x: number; y: number; radius: number; weapon: string; shake: number; form?: number }
   | { t: 'ignite'; f: number }
   | { t: 'extinguish'; f: number }
   | { t: 'tileIgnite'; tx: number; ty: number }
@@ -97,6 +97,8 @@ export type SimEvent =
   /** a super's shockwave where Luffy's giant fist lands (radius = the area it hits) */
   | { t: 'shockwave'; f: number; x: number; y: number; radius: number }
   | { t: 'kirinStrike'; f: number; x: number; y: number; level: number }
+  | { t: 'rosterSpecial'; f: number; hero: string; level: number; phase: 'start' | 'active' | 'end';
+      x: number; y: number; ox: number; oy: number; facing: number; radius: number; pulse: number }
   /** two hero ranged attacks of the same caliber met in the air and blew up (radius = the blast) */
   | { t: 'projectileClash'; x: number; y: number; radius: number }
   /** a hero ranged attack was overpowered by a stronger one and fizzled out */

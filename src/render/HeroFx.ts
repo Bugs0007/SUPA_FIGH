@@ -12,7 +12,6 @@ import type { FighterView } from './FighterView';
 import type { Fx } from './Fx';
 import { moveLook } from '../art/heroMoves';
 import { HeroChoreography } from './HeroChoreography';
-import type { Bullet } from '../sim/projectile';
 import { LuffyAbilityArt } from './LuffyAbilityArt';
 import { SasukeAbilityArt } from './SasukeAbilityArt';
 import { AvatarArt, bijudamaGather, SPIRIT_FORM } from './AvatarArt';
@@ -20,6 +19,12 @@ import { airBob } from '../art/finalSpiritArt';
 import { spiritWarmup } from '../art/avatarSprites';
 import { HeroComboArt, drawBlackFlames } from './HeroComboArt';
 import { superGuard } from '../sim/hero';
+import { drawBlackCloverFighter, drawBlackCloverProjectile } from './BlackCloverAbilityArt';
+import { drawBleachFighter, drawBleachProjectile } from './BleachAbilityArt';
+import { drawOnePieceFighter, drawOnePieceProjectile } from './OnePieceAbilityArt';
+import { drawVegetaFighter, drawVegetaProjectile } from './VegetaAbilityArt';
+import { drawRasenShuriken, drawRasenWindBurst, RASEN_WIND_BURST_TIME } from './RasenShurikenArt';
+import { RosterSpecialArt } from './RosterSpecialArt';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -86,11 +91,16 @@ export class HeroFx {
   private sasukeArt: SasukeAbilityArt;
   private avatars: AvatarArt;
   private comboArt: HeroComboArt;
-  private orbForms = new Map<Bullet, { level: number; traveled: number }>();
+  readonly rosterSpecialArt: RosterSpecialArt;
   private kirinImpacts: { x: number; y: number; level: number; age: number }[] = [];
+  private windImpacts: { x: number; y: number; radius: number; age: number }[] = [];
 
   startKirinImpact(x: number, y: number, level: number): void {
     this.kirinImpacts.push({ x, y, level, age: 0 });
+  }
+
+  startRasenWindImpact(x: number, y: number, radius: number): void {
+    this.windImpacts.push({ x, y, radius, age: 0 });
   }
 
   constructor(
@@ -109,6 +119,7 @@ export class HeroFx {
     this.sasukeArt = new SasukeAbilityArt(this.back, this.front);
     this.avatars = new AvatarArt(this.back,this.front);
     this.comboArt = new HeroComboArt(this.back,this.front,this.luffyArt);
+    this.rosterSpecialArt = new RosterSpecialArt(this.back, this.front);
     // bake the big spirits a little at a time while nothing is happening, so the first ultimate does not stall on them
     const steps = [...new Set(world.fighters.map((f) => f.hero))].flatMap((h) => spiritWarmup(h ?? ''));
     steps.forEach((step, i) => window.setTimeout(() => (this.dead ? undefined : step()), 400 + i * 35));
@@ -119,8 +130,8 @@ export class HeroFx {
   destroy(): void {
     this.dead = true;
     this.choreography.destroy();
-    this.orbForms.clear();
     this.kirinImpacts.length = 0;
+    this.windImpacts.length = 0;
     this.clashes = [];
     this.back.destroy();
     this.front.destroy();
@@ -156,23 +167,6 @@ export class HeroFx {
       const a = (i / n) * Math.PI * 2;
       g.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * ry), 2, 2);
     }
-  }
-
-  /** Wind-release blades around the first-form super's spinning Rasenshuriken core. */
-  private shuriken(g: Phaser.GameObjects.Graphics, x: number, y: number, r: number, time: number): void {
-    for (let i = 0; i < 4; i++) {
-      const a = time * 18 + i * Math.PI / 2;
-      const dx = Math.cos(a);
-      const dy = Math.sin(a);
-      for (let d = r * 0.6; d < r * 2.1; d++) {
-        const width = Math.max(1, Math.round((1 - d / (r * 2.2)) * 3));
-        g.fillStyle(0xe8fbff, 0.85).fillRect(Math.round(x + dx * d), Math.round(y + dy * d), width, width);
-      }
-    }
-    this.disc(g, x, y, r + 1, 0x3c89d8);
-    this.disc(g, x, y, r, 0x9ce8ff);
-    this.disc(g, x - r * 0.2, y - r * 0.2, r * 0.5, 0xffffff);
-    this.ring(g, x, y, r * 1.6, 0xcaf4ff, 0.4, 0.4);
   }
 
   private drawTransforms(alpha: number, dt: number): void {
@@ -342,6 +336,11 @@ export class HeroFx {
       if (f.power || formLevel(f) > 0) this.aura(f, x, y, dt, time);
       if (formLevel(f) > 0 && !(f.hero === 'naruto' && f.state === 'special' && f.specialKind === 'rasengan')) this.tails(f, x, y, time);
       if (f.flying) this.flight(f, x, y, dt);
+      if (drawOnePieceFighter(this.back, this.front, v, x, y, time, this.previewReach) ||
+          drawBleachFighter(this.back, this.front, v, x, y, time, this.previewReach) ||
+          drawBlackCloverFighter(this.back, this.front, v, x, y, time, this.previewReach) ||
+          drawVegetaFighter(this.back, this.front, v, x, y, time)) continue;
+      if (this.rosterSpecialArt.drawFighter(v, x, y)) continue;
       const sk = f.specialKind;
       if (f.hero === 'sasuke') {
         this.sasukeArt.fighter(f, x, y, time);
@@ -349,17 +348,25 @@ export class HeroFx {
       }
       if (f.state === 'special') {
         if (sk === 'rasengan') this.rasengan(v, x, y, dt, time);
-        else if (sk === 'beamCharge' || sk === 'superCharge') this.chargeGlow(f, x, y, time, sk === 'superCharge');
+        else if (sk === 'beamCharge' || sk === 'superCharge') this.chargeGlow(v, x, y, time, sk === 'superCharge');
         else if (sk === 'beam' || sk === 'superBeam') this.beam(f, x, y, dt, time, sk === 'superBeam');
+        else if (sk === 'blink' && f.hero === 'goku') this.transmissionFocus(v, x, y, 1 - Math.min(1, f.stateTime / 0.1));
         else if (sk === 'gatling') this.luffyArt.gatling(v, x, y, this.previewReach);
         else if (sk === 'bomb') this.bombOrb(f, x, y, time, dt);
         else if (sk === 'cast' && f.hero === 'naruto') this.choreography.cast(v, x, y, time);
       }
       if (!comboDrawn && f.stretchLen > 0 && sk !== 'beam' && sk !== 'superBeam') this.stretchLimb(v, x, y);
     }
+    this.rosterSpecialArt.drawMarks(dt);
     this.drawOrbs(alpha, dt, time);
     this.drawTransforms(alpha, dt);
     this.drawClashes(dt);
+    for (let i = this.windImpacts.length - 1; i >= 0; i--) {
+      const impact = this.windImpacts[i];
+      drawRasenWindBurst(this.orbs, impact.x, impact.y, impact.radius, impact.age);
+      impact.age += dt;
+      if (impact.age >= RASEN_WIND_BURST_TIME) this.windImpacts.splice(i, 1);
+    }
     for (let i = this.kirinImpacts.length - 1; i >= 0; i--) {
       const impact = this.kirinImpacts[i];
       drawKirinImpact(this.orbs, impact.x, impact.y, FORM_COMBO.windup + impact.age, impact.level, time);
@@ -396,9 +403,34 @@ export class HeroFx {
       for(let i=0;i<5;i++)this.back.fillStyle(0xffd05a,.3).fillRect(Math.round(x)-d*(10+i*7),Math.round(y)-16+i%3*4,5,1);
     }else if(f.hero==='luffy'){
       this.luffyArt.jet(v,x,y);
-    }else{
-      for(let i=0;i<8;i++)this.front.fillStyle(0x98e9ff,.7).fillRect(Math.round(x)-14+i*4,Math.round(y)-30+i%3*6,1,16);
+    }else if(f.hero==='goku'){
+      const release = t - FORM_COMBO.windup;
+      if (release < 0) {
+        this.transmissionFocus(v, x, y, Math.min(1, t / FORM_COMBO.windup + 0.2));
+        return;
+      }
+      const fade = Math.max(0, 1 - release / 0.2);
+      if (fade <= 0) return;
+      const at = v.frontHand() ?? { x: x + d * 9, y: y - 15 };
+      const style = moveLook('goku', formLevel(f));
+      // The afterimages end at the arriving fist. The impact fans away from it.
+      for (let i = -4; i <= 4; i++) {
+        const dx = d * (2 + fade * (12 - Math.abs(i) * 2));
+        const dy = i * (2 + (1 - fade) * 1.2);
+        this.front.fillStyle(i === 0 ? 0xffffff : style.core, fade)
+          .fillRect(Math.round(at.x + dx - (d < 0 ? 4 : 0)), Math.round(at.y + dy), 5, 1);
+      }
     }
+  }
+
+  private transmissionFocus(v: FighterView, x: number, y: number, strength: number): void {
+    const f = v.fighter;
+    const style = moveLook('goku', formLevel(f));
+    const at = v.frontHand() ?? { x: x + f.facing * 2, y: y - 23 };
+    const px = Math.round(at.x);
+    const py = Math.round(at.y) - 1;
+    this.front.fillStyle(style.spark, strength * 0.85).fillRect(px - 3, py, 7, 1).fillRect(px, py - 2, 1, 5);
+    this.front.fillStyle(0xffffff, strength).fillRect(px, py, 1, 1);
   }
 
   // ------------------------------------------------------------------ auras and tails
@@ -588,23 +620,34 @@ export class HeroFx {
   // ------------------------------------------------------------------ beams and orbs
 
   /** Kamehameha charge: a glowing ball between the hands that grows while the button is held. */
-  private chargeGlow(f: Fighter, x: number, y: number, time: number, isSuper: boolean): void {
+  private chargeGlow(v: FighterView, x: number, y: number, time: number, isSuper: boolean): void {
+    const f = v.fighter;
     const h = heroDef(f.hero);
     const maxC = isSuper ? (h?.super.beam?.minCharge ?? 0.5) : (h?.second.beam?.maxCharge ?? 1);
     const k = Math.min(1, Math.max(0, f.charge) / maxC);
     const style = moveLook('goku', formLevel(f));
     const [c0, c1] = [style.rim, style.core];
-    const hx = x + f.facing * 6;
-    const hy = y - 7;
-    const r = 1.5 + k * (isSuper ? 6 : 4.5) + Math.sin(time * 40) * 0.5;
-    this.disc(this.front, hx, hy, r * 2.4, c0, 0.08);
-    this.disc(this.front, hx, hy, r + 1, c0, 0.8);
+    const near = v.frontHand();
+    const far = v.backHand();
+    const hx = near && far ? (near.x + far.x) / 2 : x - f.facing * 4;
+    const hy = near && far ? (near.y + far.y) / 2 : y - 9;
+    const r = 1.2 + k * 3.4 + Math.sin(time * 40) * 0.26;
+    this.disc(this.back, hx, hy, r * 2.2, c0, 0.16);
+    this.disc(this.front, hx, hy, r, c0, 0.95);
     this.disc(this.front, hx, hy, r * 0.6, c1, 1);
+    for (let i = 0; i < 5; i++) {
+      const a = i * Math.PI * 0.4 + time * 4;
+      const distance = r + 3 + (1 - (time * 4.8 + i * 0.3) % 1) * (8 + k * 5);
+      const dx = Math.cos(a);
+      const dy = Math.sin(a);
+      this.back.fillStyle(c1, 0.45 + k * 0.4)
+        .fillRect(Math.round(hx + dx * distance), Math.round(hy + dy * distance), 2, 1)
+        .fillRect(Math.round(hx + dx * (distance + 3)), Math.round(hy + dy * (distance + 3)), 1, 1);
+    }
     const level = formLevel(f);
     if (level > 0) {
       if (style.lightning > 0) this.lightning(f, hx, hy + 10, style.spark, style.lightning);
     }
-    if (Math.random() < 0.7) this.fx.spawn({ frame: 'p1', x: hx + rnd(-14, 14), y: hy + rnd(-14, 14), vx: (hx - x) * 0, life: 0.18, a0: 1, a1: 0, tint: c1, add: true, depth: 58 });
   }
 
   /** The beam itself: layered coloured bands with a white core, ragged at the edge. */
@@ -629,6 +672,18 @@ export class HeroFx {
       for (const [k, col, a] of [[2.1, c0, 0.06], [1.5, c0, 0.15], [1.25, c0, 0.45], [1, c0, 1], [0.6, c1, 1], [0.28, 0xffffff, 1]] as const) {
         const r = Math.max(0.5, rr * k);
         g.fillStyle(col, a).fillRect(Math.round(cx - r * Math.abs(px) - 1), Math.round(cy - r * Math.abs(py) - 1), Math.max(2, Math.round(r * Math.abs(px) * 2 + 2)), Math.max(2, Math.round(r * Math.abs(py) * 2 + 2)));
+      }
+    }
+    if (f.hero === 'goku' && f.stateTime < 0.12) {
+      const expand = f.stateTime / 0.12;
+      const fade = 1 - expand;
+      const radius = half * (0.65 + expand);
+      for (let i = 0; i < 20; i++) {
+        const a = i * Math.PI * 0.1;
+        const along = Math.cos(a) * radius * 0.55;
+        const across = Math.sin(a) * radius;
+        g.fillStyle(i % 3 ? c1 : 0xffffff, fade)
+          .fillRect(Math.round(o.x + dx * along + px * across), Math.round(o.y + dy * along + py * across), 2, 2);
       }
     }
     // impact flare at the far end
@@ -688,7 +743,7 @@ export class HeroFx {
     const cx = x + f.facing * (beast ? 10 : 2);
     const cy = beast ? y - 19 : y - 31 - r * 0.5;
     const g = this.orbs;
-    if (level === 1) this.shuriken(g, cx, cy, r, time);
+    if (level === 1) drawRasenShuriken(g, cx, cy, r, time);
     else {
       this.disc(g, cx, cy, r + 2, c1, 0.5);
       this.disc(g, cx, cy, r + 1, c0, 1);
@@ -739,7 +794,6 @@ export class HeroFx {
 
   private drawOrbs(alpha: number, dt: number, time: number): void {
     const g = this.orbs;
-    for (const bullet of this.orbForms.keys()) if (!bullet.active || bullet.kind !== 'chakra') this.orbForms.delete(bullet);
     for (const bl of this.world.bullets) {
       if (!bl.active) continue;
       if (bl.kind === 'cannonball') {
@@ -752,6 +806,8 @@ export class HeroFx {
       if (bl.kind !== 'chakra' && bl.kind !== 'ki') continue;
       const x = lerp(bl.px, bl.x, alpha);
       const y = lerp(bl.py, bl.y, alpha);
+      if (drawOnePieceProjectile(g, bl, x, y, time) || drawBleachProjectile(g, bl, x, y, time) ||
+          drawBlackCloverProjectile(g, bl, x, y, time) || drawVegetaProjectile(g, bl, x, y, time)) continue;
       const r = Math.max(2, bl.size + 1);
       const sp = Math.hypot(bl.vx, bl.vy) || 1;
       if (bl.weapon === 'sasuke:second' || bl.weapon === 'sasuke:super') {
@@ -764,18 +820,11 @@ export class HeroFx {
         continue;
       }
       if (bl.kind === 'chakra') {
-        // the Tailed Beast Bomb: dark core, ringed in the owner's current form colours
-        const owner = this.world.fighters[bl.owner];
-        let visual = this.orbForms.get(bl);
-        if (!visual || bl.traveled < visual.traveled) {
-          visual = { level: owner ? formLevel(owner) : 2, traveled: bl.traveled };
-          this.orbForms.set(bl, visual);
-        }
-        visual.traveled = bl.traveled;
-        const level = visual.level;
+        // Use the form recorded at launch so a hit or reflection cannot change the projectile's art.
+        const level = bl.form || 2;
         const colors = formFx('naruto', level).aura;
         const [c0, c1] = level === 1 ? [0x3c89d8, 0xe8fbff] : [hexToNum(colors[0]), hexToNum(colors[1])];
-        if (level === 1) this.shuriken(g, x, y, r, time);
+        if (level === 1) drawRasenShuriken(g, x, y, r, time, { dx: bl.vx / sp, dy: bl.vy / sp, traveled: bl.traveled });
         else {
           this.disc(g, x, y, r + 2, c1, 0.85);
           this.disc(g, x, y, r + 1, c0, 1);

@@ -10,6 +10,14 @@
 // Runtime state lives on the Fighter: power ('' | 'hero' | 'boost'), powerLevel, formHp... (sim/hero.ts).
 
 import type { MeleeHit } from './weapons';
+import { BLACK_CLOVER_HEROES } from './blackCloverHeroes';
+import { BLEACH_HEROES } from './bleachHeroes';
+import { ONE_PIECE_HEROES } from './onePieceHeroes';
+import { rosterSpecial } from './rosterSpecials';
+import { VEGETA } from './vegeta';
+
+export const HERO_ANIME = ['naruto', 'one-piece', 'dragon-ball', 'bleach', 'black-clover'] as const;
+export type HeroAnime = (typeof HERO_ANIME)[number];
 
 /** ABILITY 1: Goku instant transmission, Naruto rasengan, Luffy gum-gum pistol (grapple). */
 export interface BaseAbility {
@@ -135,7 +143,7 @@ export interface SecondAbility {
   /** flurry of stretched punches: duration, seconds between punches, reach, per-hit damage, re-hit delay */
   gatling?: { time: number; every: number; range: number; damage: number; knockX: number; rehit: number; finalKnock: number; crowdDamageByLevel?: number[]; crowdDamageMul?: number };
   /** `radius` is the blast, `fire` burning patches it scatters (it also sets fighters in the blast alight for `ignite` s) */
-  fireball?: { windup: number; recover: number; speed: number; range: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; ignite: number; fire: number; firePerLevel: number; spareOwner?: boolean };
+  fireball?: { windup: number; recover: number; speed: number; range: number; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; ignite: number; fire: number; firePerLevel: number; spareOwner?: boolean; pierce?: number };
   /** Higher forms replace the projectile with a line-of-sight eye jutsu. Range is in world pixels. */
   amaterasu?: {
     cooldown?: number;
@@ -170,7 +178,7 @@ export interface SuperAbility {
    * (+ `damagePerLevel` per form above the first, x the form's damage multiplier) is the WHOLE hit: the projectile goes
    * off on the first enemy it touches and everyone inside `radius` takes one blast hit (SUPER_AREA falloff).
    */
-  bomb?: { damageByLevel?: number[]; windup: number; speed: number; /** per-form projectile speed / reach (index = level - 1), else `speed` / `range` */ speedByLevel?: number[]; rangeByLevel?: number[]; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki' };
+  bomb?: { damageByLevel?: number[]; windup: number; speed: number; /** per-form projectile speed / reach (index = level - 1), else `speed` / `range` */ speedByLevel?: number[]; rangeByLevel?: number[]; size: number; sizePerLevel: number; damage: number; damagePerLevel: number; radius: number; radiusPerLevel: number; range?: number; kind?: 'chakra' | 'ki'; centered?: boolean };
   /** giant fist: hits everyone the arm sweeps through, then a shockwave of `shock` px (+ per form) where the fist lands */
   fist?: StretchStats & { fistPerLevel: number; damagePerLevel: number; fistGrowth?: number; rangeGrowth?: number; shock: number; shockPerLevel: number };
   beam?: BeamStats & { widthPerLevel: number; damagePerLevel: number };
@@ -206,6 +214,7 @@ export interface AbilityDefinition {
 export interface HeroDefinition {
   id: string;
   name: string;
+  anime: HeroAnime;
   /** one line for the select screen */
   blurb: string;
   /** base stat multipliers (kept within a few % of the scrapyard fighter) */
@@ -392,6 +401,11 @@ export const ULT_WINDUP = 2.4;
 
 type BombStats = NonNullable<SuperAbility['bomb']>;
 /** Projectile speed of a hero's ultimate at a form level: per-form ladder, Sasuke's archer forms add the arrow multiplier. */
+/** Radial melee supers release on the input tick. Launched supers telegraph their cast. */
+export function bombWindup(b: BombStats): number {
+  return b.centered ? 0 : b.windup;
+}
+
 export function bombSpeed(hero: string, b: BombStats, level: number): number {
   const ladder = b.speedByLevel;
   const base = ladder ? ladder[Math.max(0, Math.min(ladder.length, level) - 1)] : b.speed;
@@ -410,7 +424,7 @@ export const KIRIN = { stun: 1.5, radius:18, radiusPerForm:6, scaleBase:.8, scal
 
 export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {
-    id: 'sasuke', name: 'SASUKE',
+    id: 'sasuke', name: 'SASUKE', anime: 'naruto',
     blurb: 'SHARINGAN > CURSE MARK > MANGEKYO > RINNEGAN / PERFECT SUSANOO',
     stats: { speed: 1.04, hp: 108 }, wallWalk: true,
     sprintArmsBack: { base: true, levels: [1, 2, 3, 4] },
@@ -442,7 +456,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     ],
   },
   naruto: {
-    id: 'naruto',
+    id: 'naruto', anime: 'naruto',
     name: 'NARUTO',
     blurb: 'NINE-TAILS FORMS: 1 TAIL > 4 TAILS > 6 TAILS (DARK) > KURAMA MODE (GOLD)',
     stats: { speed: 1.03, hp: 100 },
@@ -479,7 +493,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     ],
   },
   luffy: {
-    id: 'luffy',
+    id: 'luffy', anime: 'one-piece',
     name: 'LUFFY',
     blurb: 'GEAR SECOND > GEAR THIRD > GEAR FOURTH > GEAR FIFTH',
     stats: { speed: 1.05, hp: 105 },
@@ -534,7 +548,7 @@ export const HEROES: Record<string, HeroDefinition> = {
     ],
   },
   goku: {
-    id: 'goku',
+    id: 'goku', anime: 'dragon-ball',
     name: 'GOKU',
     blurb: 'SUPER SAIYAN > SUPER SAIYAN 2 > SUPER SAIYAN 3 > SUPER SAIYAN BLUE (ALWAYS FLIES)',
     stats: { speed: 1.0, hp: 100 },
@@ -569,13 +583,19 @@ export const HEROES: Record<string, HeroDefinition> = {
       { name: 'SUPER SAIYAN BLUE', speedMul: 1.3, damageMul: 1.5, knockMul: 1.55, reach: 12, flies: true },
     ],
   },
+  vegeta: VEGETA,
+  ...ONE_PIECE_HEROES,
+  ...BLEACH_HEROES,
+  ...BLACK_CLOVER_HEROES,
 };
 
-/** '' = the regular scrapyard fighter. Order of the select screen. */
-export const HERO_ORDER = ['', 'naruto', 'luffy', 'goku', 'sasuke'] as const;
+/** '' = the regular scrapyard fighter. Keep the original quick-cycle order. */
+const LEGACY_ORDER = ['naruto', 'luffy', 'goku', 'sasuke'];
+export const HERO_ORDER = ['', ...LEGACY_ORDER, ...Object.keys(HEROES).filter(id => !LEGACY_ORDER.includes(id))];
+export const heroHasFormCombo = (id: string): boolean => LEGACY_ORDER.includes(id);
 
 export function heroDef(id: string | undefined): HeroDefinition | null {
-  return id ? (HEROES[id] ?? null) : null;
+  return id && Object.hasOwn(HEROES, id) ? HEROES[id] : null;
 }
 
 /** Highest form level of a hero. */
@@ -599,6 +619,7 @@ export function superFistFor(hero: string, level: number): (StretchStats & { sho
 
 /** Kill-feed weapon ids of hero moves: '<hero>:combo', 'rasengan', 'gumgum', 'clone', '<hero>:second', '<hero>:super'. */
 export function heroAttackLabel(id: string): string | null {
+  if (id.endsWith(':special')) return rosterSpecial(id === 'scrapper:special' ? '' : id.slice(0, -':special'.length))?.name ?? null;
   if(id==='luffy:jetKick')return 'JET BAZOOKA KICK';
   if(id==='luffy:formCombo')return 'JET BAZOOKA';
   if (id === 'amaterasu') return 'AMATERASU';

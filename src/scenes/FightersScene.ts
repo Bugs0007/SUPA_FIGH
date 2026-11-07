@@ -1,210 +1,271 @@
 import Phaser from 'phaser';
-import { formCount, formLook, HERO_ART } from '../art/heroArt';
+import { PLAYER_PRESETS } from '../art/appearance';
+import { formCount, formLook, heroLook } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { menu } from '../input/menu';
-import { HEROES, superBombDamage, superFistFor } from '../sim/data/heroes';
-import { HeroMoveGallery, MODES, type MoveMode } from './HeroMoveGallery';
+import { HERO_ANIME, HERO_ORDER, heroDef, superBombDamage, superFistFor, type HeroAnime } from '../sim/data/heroes';
+import { HeroLiveGallery } from './HeroLiveGallery';
+import { demoMoveName, type DemoMode } from './heroDemo';
 import { hint, HintBar, meter } from './kit';
 import { bindZoom, fighterPreview } from './ui';
 
-/** The fighters shown as cards, in order (the scrapyard fighter has no powers to show). */
-export const CARD_HEROES = ['naruto', 'sasuke', 'luffy', 'goku'] as const;
-
-const THEME: Record<string, { main: number; dark: number; tag: string }> = {
-  naruto: { main: 0xf0962a, dark: 0x5a2c0c, tag: 'CLONES / RASENGAN / WALL RUNNER' },
-  sasuke: { main: 0x8a64e8, dark: 0x2a1a58, tag: 'CHIDORI / FIRE / SUSANOO ARCHER' },
-  luffy: { main: 0xe8504a, dark: 0x58181a, tag: 'RUBBER REACH / GRAPPLES / GEARS' },
-  goku: { main: 0x4aa0f0, dark: 0x13305a, tag: 'FLIGHT / KAMEHAMEHA / SPIRIT BOMB' },
+type Group = HeroAnime | 'original';
+const THEMES: Record<Group, { name: string; light: number; dark: number }> = {
+  naruto: { name: 'NARUTO', light: 0xffac58, dark: 0x452a21 },
+  'one-piece': { name: 'ONE PIECE', light: 0xff7972, dark: 0x4a2531 },
+  'dragon-ball': { name: 'DRAGON BALL', light: 0x74caff, dark: 0x1b3651 },
+  bleach: { name: 'BLEACH', light: 0xf5b8ff, dark: 0x423052 },
+  'black-clover': { name: 'BLACK CLOVER', light: 0xa3f0af, dark: 0x234238 },
+  original: { name: 'BRAWLKAI', light: 0xffdf8a, dark: 0x473820 },
 };
+
 const CARD_W = 148;
-const CARD_H = 296;
-const CARD_Y = 36;
-const CARD_X = (i: number) => 12 + i * (CARD_W + 6);
+const CARD_H = 270;
+const CARD_Y = 60;
+const CARDS_PER_PAGE = 4;
 const FORM_STEP = 1.3;
 
-/** The hero's whole-body ultimate damage at the top form (for the card's power bar). */
-function ultimatePower(hero: string): number {
-  const h = HEROES[hero];
-  const top = h.forms.length;
-  const mul = h.forms[top - 1].damageMul;
-  return h.super.kind === 'fist' ? superFistFor(hero, top)!.damage * mul : superBombDamage(h.super.bomb!, top) * mul;
+interface Picker {
+  from: string;
+  onPick: (hero: string) => void;
+  dispose: () => void;
 }
 
-/**
- * Fighters: one card per hero (portrait, stat bars, signature moves). Pick one to see its whole moveset animated, form
- * by form (the same rigs and effects as a match), so new players can learn what everyone does before they fight.
- */
+interface RosterData {
+  hero?: string;
+  mode?: DemoMode;
+  showMoves?: boolean;
+  picker?: Picker;
+}
+
+/** Reuse the same roster in the title, slot editor and room, preserving the caller's state. */
+export function openFighterPicker(scene: Phaser.Scene, hero: string, onPick: Picker['onPick']): void {
+  const close = () => scene.scene.stop('fighters');
+  scene.events.once('shutdown', close);
+  const picker: Picker = { from: scene.sys.settings.key, onPick, dispose: () => { scene.events.off('shutdown', close); } };
+  scene.scene.launch('fighters', { hero, picker } satisfies RosterData);
+  scene.scene.sleep();
+}
+
+interface Card {
+  hero: string;
+  x: number;
+  portrait: Phaser.GameObjects.Container;
+  form: number;
+  formText: Phaser.GameObjects.BitmapText;
+}
+
+function ultimatePower(id: string): number {
+  const h = heroDef(id);
+  if (!h) return 0;
+  const level = h.forms.length;
+  const { bomb, beam } = h.super;
+  const damage = bomb ? superBombDamage(bomb, level) : beam ? beam.damage[0] + beam.damagePerLevel * (level - 1) : superFistFor(id, level)?.damage ?? 0;
+  return damage * h.forms[level - 1].damageMul;
+}
+
+function fit(text: Phaser.GameObjects.BitmapText, width: number): void {
+  if (text.width > width) text.setScale(text.scaleX * width / text.width);
+}
+
 export class FightersScene extends Phaser.Scene {
-  private sel = 0;
+  private dataIn: RosterData = {};
+  private group: Group = 'naruto';
+  private hero = '';
+  private cards: Card[] = [];
   private gfx!: Phaser.GameObjects.Graphics;
   private bar!: HintBar;
-  private portraits: Phaser.GameObjects.Container[] = [];
-  private portraitForm: number[] = [];
-  private gallery: HeroMoveGallery | null = null;
+  private gallery: HeroLiveGallery | null = null;
   private t = 0;
-  private hero = '';
-  private mode: MoveMode = 'base';
 
   constructor() {
     super('fighters');
   }
 
-  create(data?: { sel?: number; hero?: string; mode?: MoveMode }): void {
-    this.sel = Math.max(0, Math.min(CARD_HEROES.length - 1, data?.sel ?? 0));
-    this.t = 0;
-    this.portraits = [];
-    this.portraitForm = [];
-    this.labels = [];
+  private groups(): readonly Group[] {
+    return this.dataIn.picker ? ['original', ...HERO_ANIME] : [...HERO_ANIME, 'original'];
+  }
+
+  private groupHeroes(group = this.group): string[] {
+    return group === 'original' ? [''] : HERO_ORDER.filter(id => heroDef(id)?.anime === group);
+  }
+
+  create(data: RosterData = {}): void {
+    this.dataIn = data;
+    this.hero = heroDef(data.hero)?.id ?? (data.hero === '' || data.picker ? '' : 'naruto');
+    this.group = heroDef(this.hero)?.anime ?? 'original';
+    this.cards = [];
     this.gallery = null;
-    this.hero = data?.hero ?? '';
-    this.mode = data?.mode ?? 'base';
-    if (this.hero) {
-      this.cameras.main.setBackgroundColor('#0b101d');
-      this.gallery = new HeroMoveGallery(this, this.hero, true, this.mode);
-      const bar = (this.bar = new HintBar(this));
-      bar.set([hint.move('MOVE', 'lr'), hint.move('FIGHTER', 'ud'), hint.back('ALL FIGHTERS')]);
+    this.t = 0;
+    this.cameras.main.setBackgroundColor(P.night);
+    if (data.showMoves) {
+      this.gallery = new HeroLiveGallery(this, this.hero, data.mode);
+      this.bar = new HintBar(this);
+      const hints = [hint.move('MOVE', 'lr'), hint.move('FIGHTER', 'ud')];
+      if (this.hero) hints.push(hint.key('FORM', ['Q', 'E'], [4, 5]));
+      this.bar.set([...hints, hint.ok('REPLAY'), hint.back('ROSTER')]);
       return;
     }
+
     bindZoom(this, VIEW_W, VIEW_H);
-    this.cameras.main.setBackgroundColor(P.night);
     this.gfx = this.add.graphics();
-    this.add.bitmapText(VIEW_W / 2, 8, 'pxo', 'FIGHTERS').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
-    CARD_HEROES.forEach((hero, i) => this.buildCard(hero, i));
+    this.add.bitmapText(VIEW_W / 2, 7, 'pxo', data.picker ? 'CHOOSE FIGHTER' : 'FIGHTERS').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
+
+    const groups = this.groups();
+    const tabW = 608 / groups.length;
+    const tabs = this.add.graphics();
+    groups.forEach((group, i) => {
+      const x = 16 + i * tabW;
+      const theme = THEMES[group];
+      const active = group === this.group;
+      tabs.fillStyle(theme.dark, active ? 1 : 0.45).fillRect(x, 33, tabW - 4, 19);
+      tabs.fillStyle(theme.light, active ? 1 : 0.28).fillRect(x, 51, tabW - 4, 1);
+      this.add.bitmapText(x + (tabW - 4) / 2, 42, 'sm', theme.name).setOrigin(0.5).setTint(active ? theme.light : 0xa5aec7);
+      this.add.zone(x, 33, tabW - 4, 20).setOrigin(0).setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.changeGroup(group));
+    });
+    const heroes = this.groupHeroes();
+    const start = Math.floor(heroes.indexOf(this.hero) / CARDS_PER_PAGE) * CARDS_PER_PAGE;
+    const shown = heroes.slice(start, start + CARDS_PER_PAGE);
+    shown.forEach((id, i) => this.buildCard(id, (VIEW_W - shown.length * CARD_W - (shown.length - 1) * 6) / 2 + i * (CARD_W + 6)));
+
     this.bar = new HintBar(this);
-    this.bar.set([hint.move('FIGHTER', 'lr'), hint.ok('SEE MOVES'), hint.back('BACK')]);
+    this.bar.set([hint.move('ANIME', 'ud'), hint.move('FIGHTER', 'lr'), hint.ok(data.picker ? 'SELECT' : 'SEE MOVES'), hint.back('BACK')]);
     this.render();
   }
 
-  private buildCard(hero: string, i: number): void {
-    const x = CARD_X(i);
-    const th = THEME[hero];
-    const def = HEROES[hero];
+  private buildCard(hero: string, x: number): void {
+    const theme = THEMES[this.group];
+    const def = heroDef(hero);
     const cx = x + CARD_W / 2;
-    this.add.bitmapText(cx, CARD_Y + 8, 'pxo', def.name).setOrigin(0.5, 0).setScale(1.6).setTint(th.main).setDepth(4);
-    this.add.bitmapText(cx, CARD_Y + 30, 'sm', th.tag).setOrigin(0.5, 0).setTint(0xc3c9dc).setDepth(4).setScale(0.9);
-    this.portraits[i] = fighterPreview(this, HERO_ART[hero].look, cx, CARD_Y + 176, 4).setDepth(3);
-    this.portraitForm[i] = 0;
-    // the three signature moves
-    const rows: [string, string][] = [
-      ['ABILITY', def.base.name],
-      ['KICK KEY', def.second.name],
-      ['ULTIMATE', def.super.names[def.super.names.length - 1]],
+    const name = this.add.bitmapText(cx, CARD_Y + 9, 'pxo', def?.name ?? 'SCRAPPER').setOrigin(0.5, 0).setScale(1.55).setTint(theme.light).setDepth(4);
+    fit(name, CARD_W - 10);
+
+    const portrait = fighterPreview(this, heroLook(hero, PLAYER_PRESETS[0]), cx, CARD_Y + 155, 4).setDepth(3);
+    ['SPEED', 'HEALTH', 'ULT'].forEach((label, i) => this.add.bitmapText(x + 8, CARD_Y + 164 + i * 8, 'sm', label).setTint(0x98a2bc).setDepth(4));
+    const rows = [
+      ['ABILITY', def?.base.name ?? 'CLASSIC BRAWLER'],
+      ['KICK KEY', def?.second.name ?? 'KICK'],
+      ['ULTIMATE', def?.super.names.at(-1) ?? 'POWER ORB BOOST'],
+      ['SPECIAL', demoMoveName(hero, 'special', 0)],
     ];
-    rows.forEach(([label, name], r) => {
-      const y = CARD_Y + 214 + r * 19;
-      this.add.bitmapText(x + 8, y, 'sm', label).setTint(0x8d95b0).setDepth(4);
-      this.add.bitmapText(x + 8, y + 8, 'sm', name.length > 27 ? name.slice(0, 26) + '.' : name).setTint(0xffffff).setDepth(4);
+    rows.forEach(([label, move], i) => {
+      const y = CARD_Y + 193 + i * 15;
+      this.add.bitmapText(x + 8, y, 'sm', label).setTint(0x98a2bc).setDepth(4);
+      fit(this.add.bitmapText(x + 8, y + 7, 'sm', move).setTint(0xffffff).setDepth(4), CARD_W - 16);
     });
-    this.add.zone(x, CARD_Y, CARD_W, CARD_H).setOrigin(0).setDepth(7).setInteractive({ useHandCursor: true }).on('pointerdown', () => {
-      if (this.sel !== i) {
-        this.sel = i;
-        audio.play('uiMove');
-      } else this.open();
-    }).on('pointerover', () => (this.sel = i));
+    const formText = this.add.bitmapText(cx, CARD_Y + 257, 'sm', '').setOrigin(0.5).setDepth(4);
+    this.cards.push({ hero, x, portrait, form: 0, formText });
+
+    this.add.zone(x, CARD_Y, CARD_W, CARD_H).setOrigin(0).setDepth(7).setInteractive({ useHandCursor: true })
+      .on('pointerover', () => this.focus(hero))
+      .on('pointerdown', () => { this.focus(hero); this.open(); });
+  }
+
+  private focus(hero: string): void {
+    if (hero === this.hero) return;
+    this.hero = hero;
+    this.t = 0;
+    audio.play('uiMove');
+  }
+
+  private changeGroup(group: Group): void {
+    if (group === this.group) return;
+    audio.play('uiMove');
+    this.scene.restart({ hero: this.groupHeroes(group)[0], picker: this.dataIn.picker } satisfies RosterData);
   }
 
   private open(): void {
     audio.play('uiOk');
-    this.scene.restart({ sel: this.sel, hero: CARD_HEROES[this.sel], mode: 'base' });
+    if (this.dataIn.picker) {
+      this.dataIn.picker.onPick(this.hero);
+      this.leave();
+    } else this.scene.restart({ hero: this.hero, showMoves: true, mode: this.hero ? 'base' : 'special' } satisfies RosterData);
+  }
+
+  private leave(): void {
+    if (this.dataIn.picker) {
+      this.dataIn.picker.dispose();
+      this.scene.wake(this.dataIn.picker.from);
+      this.scene.stop();
+    } else this.scene.start('title');
   }
 
   override update(_time: number, deltaMs: number): void {
     const dt = Math.min(deltaMs / 1000, 0.05);
     this.t += dt;
+    const ud = menu.up() ? -1 : menu.down() ? 1 : 0;
+    const lr = menu.left() ? -1 : menu.right() ? 1 : 0;
     if (this.gallery) {
-      this.gallery.update(dt);
       if (menu.back()) {
         audio.play('uiBack');
-        this.scene.restart({ sel: CARD_HEROES.indexOf(this.hero as (typeof CARD_HEROES)[number]) });
-        return;
-      }
-      if (menu.left() || menu.right()) {
+        this.scene.restart({ hero: this.hero } satisfies RosterData);
+      } else if (ud) {
+        const heroes = this.groups().flatMap(group => this.groupHeroes(group));
+        const hero = heroes[(heroes.indexOf(this.hero) + ud + heroes.length) % heroes.length];
         audio.play('uiMove');
-        this.gallery.cycle(menu.left() ? -1 : 1);
-        this.mode = MODES[(MODES.indexOf(this.mode) + (menu.left() ? -1 : 1) + MODES.length) % MODES.length];
-      }
-      const ud = menu.up() ? -1 : menu.down() ? 1 : 0;
-      if (ud) {
+        this.scene.restart({ hero, showMoves: true, mode: this.gallery.currentMode } satisfies RosterData);
+      } else if (lr) {
         audio.play('uiMove');
-        const sel = (CARD_HEROES.indexOf(this.hero as (typeof CARD_HEROES)[number]) + ud + CARD_HEROES.length) % CARD_HEROES.length;
-        this.scene.restart({ sel, hero: CARD_HEROES[sel], mode: this.mode });
-        return;
-      }
+        this.gallery.cycle(lr);
+      } else if (menu.confirm()) this.gallery.replay();
+      else this.gallery.update();
       this.bar.update();
       return;
     }
     if (menu.back()) {
       audio.play('uiBack');
-      this.scene.start('title');
+      this.leave();
       return;
     }
-    if (menu.left() || menu.right()) {
-      this.sel = (this.sel + (menu.left() ? -1 : 1) + CARD_HEROES.length) % CARD_HEROES.length;
-      audio.play('uiMove');
-    }
-    if (menu.confirm()) {
-      this.open();
+    if (ud) {
+      const groups = this.groups();
+      this.changeGroup(groups[(groups.indexOf(this.group) + ud + groups.length) % groups.length]);
       return;
     }
-    this.render();
+    if (lr) {
+      const heroes = this.groupHeroes();
+      const hero = heroes[(heroes.indexOf(this.hero) + lr + heroes.length) % heroes.length];
+      if (this.cards.some(card => card.hero === hero)) this.focus(hero);
+      else {
+        audio.play('uiMove');
+        this.scene.restart({ hero, picker: this.dataIn.picker } satisfies RosterData);
+        return;
+      }
+    }
+    if (menu.confirm()) this.open();
+    else this.render();
   }
 
   private render(): void {
     const g = this.gfx;
+    // The tabs are retained in their own graphics layer.
+    const theme = THEMES[this.group];
     g.clear();
-    const blink = Math.floor(this.t * 3) % 2 === 0;
-    CARD_HEROES.forEach((hero, i) => {
-      const x = CARD_X(i);
-      const th = THEME[hero];
-      const def = HEROES[hero];
-      const on = this.sel === i;
-      const lift = on ? -4 : 0;
-      const y = CARD_Y + lift;
-      // card body: dark panel, a coloured banner and spotlight behind the portrait, a bright border when picked
-      g.fillStyle(0x161a2a, 1).fillRect(x, y, CARD_W, CARD_H);
-      g.fillStyle(th.dark, 1).fillRect(x, y, CARD_W, 44);
-      g.fillStyle(th.main, on ? 0.9 : 0.5).fillRect(x, y + 44, CARD_W, 2);
-      for (let k = 0; k < 6; k++) g.fillStyle(th.main, (on ? 0.1 : 0.05) * (6 - k)).fillRect(x + 6 + k * 6, y + 54 + k * 5, CARD_W - 12 - k * 12, 118 - k * 10);
-      g.fillStyle(0x080a12, 0.6).fillRect(x + 12, y + 176, CARD_W - 24, 3);
-      g.lineStyle(on ? 2 : 1, on ? (blink ? 0xffffff : th.main) : 0x3a4060, 1).strokeRect(x + (on ? 1 : 0.5), y + (on ? 1 : 0.5), CARD_W - (on ? 2 : 1), CARD_H - (on ? 2 : 1));
-      // stat bars
-      const stats: [string, number][] = [
-        ['SPEED', (def.stats.speed - 0.9) / 0.25],
-        ['HEALTH', (def.stats.hp - 80) / 50],
-        ['ULT', ultimatePower(hero) / 140],
-      ];
-      stats.forEach(([, v], k) => meter(g, x + 52, y + 188 + k * 8, 88, Math.max(0.08, Math.min(1, v)), th.main));
-      // the picked card cycles through the hero's forms
-      const p = this.portraits[i];
-      p.setY(CARD_Y + 176 + lift + (on ? Math.round(Math.sin(this.t * 3)) : 0));
-      const form = on ? Math.floor(this.t / FORM_STEP) % (formCount(hero) + 1) : 0;
-      if (form !== this.portraitForm[i]) {
-        this.portraitForm[i] = form;
-        p.destroy();
-        this.portraits[i] = fighterPreview(this, formLook(hero, form) ?? HERO_ART[hero].look, x + CARD_W / 2, CARD_Y + 176 + lift, 4).setDepth(3);
+    for (const card of this.cards) {
+      const { x, hero } = card;
+      const def = heroDef(hero);
+      const selected = hero === this.hero;
+      const form = selected ? Math.floor(this.t / FORM_STEP) % (formCount(hero) + 1) : 0;
+      g.fillStyle(0x161b2a).fillRect(x, CARD_Y, CARD_W, CARD_H);
+      g.fillStyle(theme.dark).fillRect(x, CARD_Y, CARD_W, 31);
+      g.fillStyle(theme.light, selected ? 0.9 : 0.48).fillRect(x, CARD_Y + 31, CARD_W, 1);
+      for (let i = 0; i < 6; i++) g.fillStyle(theme.light, selected ? 0.054 : 0.027).fillRect(x + 7 + i * 6, CARD_Y + 40 + i * 5, CARD_W - 14 - i * 12, 115 - i * 7);
+      g.fillStyle(0x0b0d16, 0.75).fillRect(x + 12, CARD_Y + 155, CARD_W - 24, 2);
+      g.lineStyle(selected ? 2 : 1, selected ? theme.light : 0x36425a).strokeRect(x + 0.5, CARD_Y + 0.5, CARD_W - 1, CARD_H - 1);
+      const values = [((def?.stats.speed ?? 1) - 0.9) / 0.25, ((def?.stats.hp ?? 100) - 80) / 50, ultimatePower(hero) / 140];
+      values.forEach((v, i) => meter(g, x + 50, CARD_Y + 167 + i * 8, 86, Phaser.Math.Clamp(v, 0, 1), theme.light));
+      if (form !== card.form) {
+        card.form = form;
+        card.portrait.destroy();
+        card.portrait = fighterPreview(this, formLook(hero, form) ?? PLAYER_PRESETS[0], x + CARD_W / 2, CARD_Y + 155, 4).setDepth(3);
       }
-      p.setAlpha(on ? 1 : 0.8);
-    });
-    this.updateLabels();
-    this.bar.update();
-  }
-
-  private labels: Phaser.GameObjects.BitmapText[] = [];
-  /** the stat names and the form name of the picked card (few texts, reused) */
-  private updateLabels(): void {
-    if (this.labels.length === 0) {
-      CARD_HEROES.forEach((_, i) => {
-        const x = CARD_X(i);
-        ['SPEED', 'HEALTH', 'ULT'].forEach((s, k) => this.labels.push(this.add.bitmapText(x + 8, CARD_Y + 184 + k * 8, 'sm', s).setTint(0x8d95b0).setDepth(4)));
-        this.labels.push(this.add.bitmapText(x + CARD_W / 2, CARD_Y + 278, 'sm', '').setOrigin(0.5, 0).setTint(0xffe9a0).setDepth(4));
-      });
+      card.portrait.setAlpha(selected ? 1 : 0.84).setY(CARD_Y + 155 + (selected ? Math.round(Math.sin(this.t * 4)) : 0));
+      card.formText.setScale(1).setText(form ? def!.forms[form - 1].name : selected ? 'BASE FORM' : '').setTint(theme.light);
+      fit(card.formText, CARD_W - 12);
     }
-    CARD_HEROES.forEach((hero, i) => {
-      const form = this.portraitForm[i];
-      const name = form === 0 ? 'BASE FORM' : HEROES[hero].forms[form - 1].name;
-      this.labels[i * 4 + 3].setText(this.sel === i ? name : 'ENTER: SEE MOVES').setTint(this.sel === i ? 0xffe9a0 : 0x5a6078);
-    });
+    this.bar.update();
   }
 }

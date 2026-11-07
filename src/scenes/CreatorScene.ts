@@ -12,6 +12,7 @@ import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { loadLobby, saveLobby, syncSlotToProfile } from './lobby';
 import { bindZoom } from './ui';
+import { openFighterPicker } from './FightersScene';
 
 const PANTS = ['#2a2a3a', '#1f3a7a', '#3a4a2a', '#4a3a2a', '#1e1e28', '#646b87', '#5a2a28'];
 const SHOES = ['#1e1614', '#3a2a20', '#f4f1ea', '#b8283a', '#2a2a3a'];
@@ -37,7 +38,8 @@ const R_HERO = 0;
 const R_FIRST = 1;
 const R_RANDOM = FIELDS.length + 1;
 const R_DONE = FIELDS.length + 2;
-const rowY = (r: number) => (r === R_HERO ? 40 : r < R_RANDOM ? 62 + (r - 1) * 19 : r === R_RANDOM ? 62 + FIELDS.length * 19 + 6 : 62 + FIELDS.length * 19 + 26);
+const R_BROWSE = FIELDS.length + 3;
+const rowY = (r: number) => (r === R_HERO ? 40 : r < R_RANDOM ? 62 + (r - 1) * 19 : 62 + FIELDS.length * 19 + 6 + (r - R_RANDOM) * 20);
 
 /**
  * Fighter creator: pick a hero (M9) or edit the scrapyard look part by part, with a live animated
@@ -82,6 +84,8 @@ export class CreatorScene extends Phaser.Scene {
     FIELDS.forEach((_, i) => this.texts.push(this.add.bitmapText(300, rowY(R_FIRST + i), 'pxo', '')));
     this.texts.push(this.add.bitmapText(300, rowY(R_RANDOM), 'pxo', 'RANDOMIZE'));
     this.texts.push(this.add.bitmapText(300, rowY(R_DONE), 'pxo', 'DONE'));
+    this.texts.push(this.add.bitmapText(300, rowY(R_BROWSE), 'pxo', 'BROWSE BY ANIME').setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.pickFighter()));
     for (let i = 0; i < 9; i++) this.info.push(this.add.bitmapText(300, 66 + i * 16, i === 0 ? 'pxo' : 'smo', ''));
     this.add.bitmapText(VIEW_W / 2, VIEW_H - 14, 'sm', 'UP/DOWN: ROW   LEFT/RIGHT: CHANGE   R: RANDOMIZE   ENTER/ESC: DONE').setOrigin(0.5, 0).setTint(0xc3c9dc);
     this.rebuildPreview();
@@ -172,11 +176,20 @@ export class CreatorScene extends Phaser.Scene {
     syncSlotToProfile(c.slots[this.slot]);
   }
 
+  private pickFighter(): void {
+    openFighterPicker(this, this.hero, (hero) => {
+      this.hero = hero;
+      this.row = R_HERO;
+      this.save();
+      this.rebuildPreview();
+    });
+  }
+
   override update(_time: number, deltaMs: number): void {
     this.t += deltaMs / 1000;
     // heroes have a fixed look: only HERO / DONE are selectable
-    const selectable = (r: number) => !this.hero || r === R_HERO || r === R_DONE;
-    const rows = FIELDS.length + 3;
+    const selectable = (r: number) => !this.hero || r === R_HERO || r === R_DONE || r === R_BROWSE;
+    const rows = R_BROWSE + 1;
     const step = (d: number) => {
       do this.row = (this.row + d + rows) % rows;
       while (!selectable(this.row));
@@ -206,6 +219,7 @@ export class CreatorScene extends Phaser.Scene {
       this.save();
       this.rebuildPreview();
     }
+    if (menu.confirm() && this.row === R_BROWSE) return this.pickFighter();
     if (menu.back() || (menu.confirm() && this.row !== R_RANDOM)) {
       this.save();
       audio.play('uiBack');
@@ -232,7 +246,7 @@ export class CreatorScene extends Phaser.Scene {
     const lines = hero
       ? [
           hero.name,
-          `SPEED ${Math.round(hero.stats.speed * 100)}%   HP ${hero.stats.hp}   COMBO: PUNCH PUNCH PUNCH KICK`,
+          `SPEED ${Math.round(hero.stats.speed * 100)}%   HP ${hero.stats.hp}   COMBO: ${hero.comboName}`,
           `ABILITY (B / NUM1 / P): ${hero.base.name}`,
           hero.base.desc,
           `KICK KEY = ABILITY 2: ${hero.second.name}`,
@@ -261,14 +275,14 @@ export class CreatorScene extends Phaser.Scene {
         g.fillStyle(0xf8c840, 1).fillTriangle(286, y + 3, 282, y, 282, y + 6);
       }
     });
-    [R_RANDOM, R_DONE].forEach((r, k) => {
+    [R_RANDOM, R_DONE, R_BROWSE].forEach((r) => {
       const sel = this.row === r;
       const y = rowY(r);
       const txt = this.texts[r - 1];
-      txt.setVisible(k === 1 || !hero);
-      if (k === 0 && hero) return;
+      txt.setVisible(r !== R_RANDOM || !hero);
+      if (r === R_RANDOM && hero) return;
       if (sel) g.fillStyle(0x3a3054, 1).fillRect(292, y - 4, 300, 16);
-      txt.setTint(sel ? 0xffffff : k === 1 ? hexToNum(P.green2) : 0xc3c9dc);
+      txt.setTint(sel ? 0xffffff : r === R_DONE ? hexToNum(P.green2) : 0xc3c9dc);
     });
   }
 }

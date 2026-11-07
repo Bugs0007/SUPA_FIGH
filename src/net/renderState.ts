@@ -39,6 +39,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
   ['recoverAt', 'n'], ['cloneCount', 'n'], ['cloneForm', 'n'], ['wallDir', 'n'], ['armReach', 'n'], ['armBack', 'b'],
   ['jetMode','s'],['jetAnchorX','n'],['jetAnchorY','n'],['grabTarget','n'],
   ['ropeLen', 'n'], ['grip', 's'], ['lockOn', 'n'], ['flinchTime', 'n'], ['guard', 'n'], ['blockStun', 'n'], ['parryT', 'n'], ['stamina', 'n'],
+  ['flyTime', 'n'],
 ];
 
 /** Fighter fields both sides already have (they come from the spec the match was built with). */
@@ -46,7 +47,7 @@ export const FIGHTER_STATIC: readonly string[] = ['id', 'name', 'team', 'isBot',
 
 export const BULLET_SPEC: Spec<Bullet> = [
   ['x', 'n'], ['y', 'n'], ['vx', 'n'], ['vy', 'n'], ['ox', 'n'], ['oy', 'n'], ['owner', 'n'], ['weapon', 's'], ['kind', 's'],
-  ['size', 'n'], ['traveled', 'n'], ['gravity', 'n'],
+  ['size', 'n'], ['traveled', 'n'], ['gravity', 'n'], ['form', 'n'], ['tier', 'n'],
 ];
 export const ITEM_SPEC: Spec<Item> = [
   ['id', 'n'], ['weaponId', 's'], ['ammo', 'n'], ['dur', 'n'], ['x', 'n'], ['y', 'n'], ['vx', 'n'], ['vy', 'n'], ['w', 'n'],
@@ -187,6 +188,7 @@ export function applyWorld(w: World, s: RenderSnapshot, prev?: PrevPositions): v
     }
     const was = prev?.fighters[i];
     decodeRow(f, FIGHTER_SPEC, row);
+    f.flyTime ??= 0;
     // a respawn / clone appearing must not slide across the map
     const jump = was && Math.hypot(f.x - was.x, f.y - was.y) > 64;
     f.px = was && !jump ? was.x : f.x;
@@ -195,6 +197,9 @@ export function applyWorld(w: World, s: RenderSnapshot, prev?: PrevPositions): v
 
   w.bullets = s.bullets.map((row) => {
     const b = decodeRow(newBullet(), BULLET_SPEC, row);
+    // Older frames end before the form and tier fields.
+    b.form ??= w.fighters[b.owner]?.powerLevel ?? 0;
+    b.tier ??= b.weapon.endsWith(':super') ? 2 : b.weapon.endsWith(':second') ? 1 : 0;
     b.active = true;
     b.px = b.x;
     b.py = b.y;

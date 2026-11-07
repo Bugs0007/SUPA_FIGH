@@ -421,7 +421,8 @@ function orbStrike(w: World, f: Fighter, o: Fighter, d: DashStats, p: OrbPower, 
     y,
   });
   if (connected) {
-    w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x, y });
+    if (f.hero === 'sasuke' || f.hero === 'naruto') w.emit({ t: 'heroFx', fx: f.hero === 'sasuke' ? 'ki' : 'rasengan', heavy: true, x, y });
+    else w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.5 });
     if (d.spread && !hitWasBlocked()) chidoriShock(w, f, o, d, p); // (a guard stops the shock too)
   }
   return connected;
@@ -883,14 +884,16 @@ export function fireJutsu(w: World, f: Fighter): void {
   }
   const size = s.size + s.sizePerLevel * level;
   const dx = f.facing * Math.cos(f.stretchAngle), dy = Math.sin(f.stretchAngle);
-  const x = f.x + dx * (size + 9), y = f.y - SHOULDER_Y_STAND - 3 + dy * (size + 9);
+  const offset = f.hero === 'sasuke' ? size + 9 : 4;
+  const x = f.x + dx * offset, y = f.y - SHOULDER_Y_STAND - 3 + dy * offset;
   const m = meleeMuls(f);
   const damage = (s.damage + s.damagePerLevel * level) * m.dmg;
+  const radius = s.radius + level * s.radiusPerLevel;
   w.spawnBullet({ x, y, ox: x, oy: y, vx: dx * s.speed, vy: dy * s.speed,
     owner: f.id, weapon: f.hero + ':second', damage, range: s.range, falloff: 1,
-    knock: 150 * m.knock, ricochet: false, pierce: 0, kind: 'ki', gravity: 0, size,
+    knock: 150 * m.knock, ricochet: false, pierce: s.pierce ?? 0, kind: 'ki', gravity: 0, size,
     ignite: s.ignite, tier: 1, form: level,
-    explosion: { radius: s.radius + level * s.radiusPerLevel, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18, fire: s.fire + s.firePerLevel * level, ignite: s.ignite, spareOwner: s.spareOwner },
+    explosion: radius > 0 ? { radius, damage: damage * 0.45, knock: 180, breakRadius: 0, shake: 0.18, fire: s.fire + s.firePerLevel * level, ignite: s.ignite, spareOwner: s.spareOwner } : null,
   });
   w.emit({ t: 'special', f: f.id, power: f.hero, x, y, scale: 0.8 + level * 0.2 });
 }
@@ -945,6 +948,14 @@ export function launchBlock(w: World, f: Fighter, sx: number, sy: number, size: 
 
 export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb']>, level: number): void {
   const l = Math.max(1, level) - 1;
+  const blast = superBlast(f, b, level);
+  const weapon = f.hero + ':super';
+  if (b.centered) {
+    const y = f.y - f.h / 2;
+    w.emit({ t: 'special', f: f.id, power: f.hero, x: f.x, y, scale: 1 + l * 0.5 });
+    explode(w, f.x, y, blast, f.id, weapon, level);
+    return;
+  }
   const size = b.size + b.sizePerLevel * l;
   const spirit = b.kind === 'ki';
   const kurama = f.hero === 'naruto' && level === 4;
@@ -957,14 +968,12 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   const sx = f.x + f.facing * (kurama||archer ? muzzle.ahead : spirit ? size + 12 : 8);
   const sy = f.y - (kurama||archer ? muzzle.up : SHOULDER_Y_STAND + 2);
   const m = meleeMuls(f);
-  const blast = superBlast(f, b, level);
-  const weapon = f.hero + ':super';
   f.vx -= f.facing * 60;
   w.emit({ t: 'special', f: f.id, power: f.hero, x: sx, y: sy, scale: 1 + l * 0.5 });
   // enemies ganging up on the hero (inside the launch zone) take it at once
   const close = launchBlock(w, f, sx, sy, size);
   if (close) {
-    explode(w, close.x, close.y, blast, f.id, weapon);
+    explode(w, close.x, close.y, blast, f.id, weapon, level);
     return;
   }
   // aimed when the move started (manual with Up / Down, else locked onto the enemy being faced); the shot leaves the

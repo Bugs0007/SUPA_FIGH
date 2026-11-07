@@ -75,7 +75,9 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, FORM_COMBO, bombRange, bombSpeed, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, heroDef, HOLD_FLY, maxLevel, STAMINA, SUPER_WINDOW, superFistFor } from './data/heroes';
+import { FORM_HP, FORM_COMBO, bombRange, bombSpeed, bombWindup, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, heroDef, heroHasFormCombo, HOLD_FLY, maxLevel, STAMINA, SUPER_WINDOW, superFistFor, type BaseAbility } from './data/heroes';
+import { rosterSpecial } from './data/rosterSpecials';
+import { beginRosterSpecial, stepRosterSpecial } from './rosterSpecial';
 import {
   ability,
   baseAbility,
@@ -296,7 +298,7 @@ export interface Fighter extends Body {
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
   /** the enemy an ultimate is locked onto (-1 = none) */
   lockOn: number;
-  specialKind: '' | 'formCombo' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
+  specialKind: '' | 'formCombo' | 'rosterSpecial' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
   /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
@@ -1821,12 +1823,24 @@ function canAct(f: Fighter): boolean {
  * fires on its own, so "both at once" doesn't have to be frame-perfect.
  */
 function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
-  if (!f.hero || f.carry >= 0) return;
+  if (f.carry >= 0) return;
+  f.formComboCd = Math.max(0, f.formComboCd - DT);
+  const special = rosterSpecial(f.hero);
+  const attackAbility = inp.attack && inp.ability && !inp.kick && (e.attackP || e.abilityP);
+  const openingPunch = f.state === 'aim' || (f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0);
+  if (special && f.master < 0 && attackAbility) {
+    e.attackP = e.abilityP = false;
+    f.btnBuf1 = f.btnBuf2 = 0;
+    if (f.formComboCd <= 0 && (canAct(f) || openingPunch) && beginMove(w, f, inp, 'rosterSpecial')) {
+      beginRosterSpecial(w, f, special);
+    }
+    return;
+  }
+  if (!f.hero) return;
   if(f.hero==='luffy'&&f.state==='special'&&e.abilityP&&(f.specialKind==='rocket'||f.specialKind==='swing'||f.specialKind==='pistol'&&f.armBack)){
     f.airJumps=AIR_JUMPS;f.jumping=false;f.btnBuf1=f.btnBuf2=0;
     e.abilityP=e.kickP=false;endSpecial(w,f);return;
   }
-  f.formComboCd = Math.max(0, f.formComboCd - DT);
   if (f.hero === 'naruto' && f.master < 0 && f.cloneCount > 0 && inp.kick && !(f.state==='special'&&f.specialKind==='formCombo')) {
     f.cloneRecallHold += DT;
     if (f.cloneRecallHold >= FORM_COMBO.recallHold) {
@@ -1841,11 +1855,12 @@ function heroButtons(w: World, f: Fighter, inp: Intent, e: Edges): void {
   }
   const a1 = e.abilityP;
   const a2 = e.kickP;
-  const chord = inp.attack && ((f.hero === 'naruto' ? inp.kick : inp.ability)) && (e.attackP || a1 || a2 || f.btnBuf1 > 0 || f.btnBuf2 > 0);
-  if ((transformed(f) || f.hero === 'sasuke' || f.hero === 'luffy') && f.master < 0 && chord) {
+  const chord = f.hero === 'naruto'
+    ? attackAbility || (inp.attack && inp.kick && (e.attackP || a2 || f.btnBuf2 > 0))
+    : inp.attack && inp.ability && (e.attackP || a1 || a2 || f.btnBuf1 > 0 || f.btnBuf2 > 0);
+  if (heroHasFormCombo(f.hero) && (transformed(f) || f.hero === 'sasuke' || f.hero === 'luffy') && f.master < 0 && chord) {
     e.attackP = e.abilityP = e.kickP = false;
     f.btnBuf1 = f.btnBuf2 = 0;
-    const openingPunch = f.state === 'aim' || (f.state === 'melee' && f.stateTime <= SUPER_WINDOW && f.swingHit.length === 0);
     if (f.formComboCd <= 0 && (canAct(f) || openingPunch)) startFormCombo(w, f, inp);
     return;
   }
@@ -1933,10 +1948,21 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
   const kind = sp.kind === 'bomb' ? 'bomb' : sp.kind === 'fist' ? 'superFist' : 'superCharge';
   if (!beginMove(w, f, inp, kind)) return;
   f.specialCd = sp.cooldown;
+  if (sp.kind === 'beam') {
+    f.charge = 0;
+    f.stretchAngle = aimAngle(f, inp);
+  }
   if (sp.kind === 'bomb') f.charge = 0; // Reset the idle sentinel so the charging orb is visible.
   if (sp.kind === 'fist') f.stretchAngle = inp.moveY < -0.5 ? (sp.fist?.upAngle ?? -0.5) : inp.moveY > 0.5 && !f.grounded ? (sp.fist?.downAngle ?? 0.5) : 0;
-  if (sp.kind === 'bomb') aimUltimate(w, f, inp.moveY, sp.bomb?.kind, sp.bomb && f.hero === 'naruto' ? Math.max(550, bombRange(f.hero, sp.bomb, f.powerLevel)) : sp.bomb?.range ?? 550, 0.45);
+  if (sp.kind === 'bomb') {
+    if (sp.bomb?.centered) f.lockOn = -1;
+    else aimUltimate(w, f, inp.moveY, sp.bomb?.kind, sp.bomb && f.hero === 'naruto' ? Math.max(550, bombRange(f.hero, sp.bomb, f.powerLevel)) : sp.bomb?.range ?? 550, 0.45);
+  }
   w.emit({ t: 'superStart', f: f.id, name: sp.names[Math.max(0, f.powerLevel - 1)] ?? sp.names[0], level: f.powerLevel });
+  if (sp.bomb?.centered) {
+    f.charge = -2;
+    fireBomb(w, f, sp.bomb, f.powerLevel);
+  }
 }
 
 function startFormCombo(w: World, f: Fighter, inp: Intent): void {
@@ -2034,6 +2060,13 @@ function stJetBazooka(w:World,f:Fighter,inp:Intent,dt:number):void{
 }
 
 function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
+  if (f.specialKind === 'rosterSpecial') {
+    const spec = rosterSpecial(f.hero);
+    const done = spec && stepRosterSpecial(w, f, spec, dt);
+    integrate(w, f, dt);
+    if (!spec || done) endSpecial(w, f);
+    return;
+  }
   if (f.specialKind === 'formCombo') {
     if(f.hero==='luffy')return stJetBazooka(w,f,inp,dt);
     const t = f.stateTime;
@@ -2052,7 +2085,10 @@ function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
           const dest = b && blinkDestination(w, f, { ...b, range: FORM_COMBO.range }, f.anchorX-f.x, f.anchorY-f.y);
           if (dest) {
             w.emit({t:'blink',f:f.id,fromX:f.x,fromY:f.y-12,toX:dest.x,toY:dest.y-12});
-            f.x = dest.x; f.y = dest.y; blinkStrike(w, f, b!);
+            f.x = f.px = dest.x;
+            f.y = f.py = dest.y;
+            if (dest.target >= 0) f.facing = w.fighters[dest.target].x >= dest.x ? 1 : -1;
+            blinkStrike(w, f, b!);
           }
         } else {
           if(f.hero==='naruto'&&target?.alive&&!target.gone){f.anchorX=target.x;f.anchorY=target.y;}
@@ -2145,7 +2181,7 @@ function stBeamCharge(w: World, f: Fighter, inp: Intent, dt: number): void {
 
 function stSuperCharge(w: World, f: Fighter, dt: number): void {
   const b = heroDef(f.hero)?.super.beam;
-  if (!b) return endSpecial(w, f);
+  if (!b || !transformed(f)) return endSpecial(w, f);
   f.charge = Math.max(0, f.charge) + dt;
   holdStill(f, dt);
   integrate(w, f, dt);
@@ -2211,9 +2247,10 @@ function stGatling(w: World, f: Fighter, dt: number): void {
 function stBomb(w: World, f: Fighter, dt: number): void {
   const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
   if (f.charge >= 0 && target?.alive && !target.gone) f.facing = target.x >= f.x ? 1 : -1;
-  if ((f.hero === 'goku' || f.hero === 'sasuke') && f.power !== 'hero') return endSpecial(w, f);
+  if (f.hero !== 'naruto' && !transformed(f)) return endSpecial(w, f);
   const b = heroDef(f.hero)?.super.bomb;
   if (!b) return endSpecial(w, f);
+  const windup = bombWindup(b);
   if(f.charge>=0&&target?.alive&&!target.gone){
     const archer=f.hero==='sasuke'&&f.powerLevel>=3;
     if(archer||f.hero==='naruto'&&f.powerLevel===4)f.stretchAngle=avatarShotAngle(f,target,bombSpeed(f.hero,b,f.powerLevel));
@@ -2228,12 +2265,12 @@ function stBomb(w: World, f: Fighter, dt: number): void {
   if (!f.grounded) f.vy = 0;
   integrate(w, f, dt, f.grounded);
   // f.charge = orb size 0..1 (render) until it flies
-  if (f.charge >= -0.5) f.charge = Math.min(1, f.stateTime / b.windup);
-  if (f.stateTime >= b.windup && f.charge !== -2) {
+  if (f.charge !== -2) f.charge = windup > 0 ? Math.min(1, f.stateTime / windup) : 1;
+  if (f.stateTime >= windup && f.charge !== -2) {
     fireBomb(w, f, b, f.powerLevel);
     f.charge = -2;
   }
-  if (f.stateTime >= b.windup + 0.3) {
+  if (f.stateTime >= windup + 0.3) {
     f.charge = -1;
     endSpecial(w, f);
   }
@@ -2385,11 +2422,7 @@ function startBase(w: World, f: Fighter, inp: Intent): void {
   f.abilT = 0;
   if (inp.moveX > 0.5) f.facing = 1;
   else if (inp.moveX < -0.5) f.facing = -1;
-  f.baseCd = b.cooldown;
-  if (b.charges) {
-    if (f.baseUsed === 0) f.baseRecharge = b.charges.recharge;
-    f.baseUsed++;
-  }
+  useBaseCharge(f, b);
   f.recoverAt = 0;
   if (b.kind === 'rasengan') {
     f.specialKind = 'rasengan';
@@ -2408,7 +2441,15 @@ function startBase(w: World, f: Fighter, inp: Intent): void {
   }
 }
 
-/** Normal instant transmission repositions behind a locked enemy without an arrival attack. */
+function useBaseCharge(f: Fighter, b: BaseAbility): void {
+  f.baseCd = b.cooldown;
+  if (b.charges) {
+    if (f.baseUsed === 0) f.baseRecharge = b.charges.recharge;
+    f.baseUsed++;
+  }
+}
+
+/** Reposition behind a locked enemy without an arrival attack. */
 function startBlink(w: World, f: Fighter, inp: Intent, b: NonNullable<ReturnType<typeof baseAbility>>['blink'] & object): void {
   const mx = axis(inp.moveX);
   const my = axis(inp.moveY);
@@ -2430,7 +2471,7 @@ function startBlink(w: World, f: Fighter, inp: Intent, b: NonNullable<ReturnType
   f.jumping = false;
   if (dest.target >= 0) f.facing = w.fighters[dest.target].x >= dest.x ? 1 : -1;
   else if (dx !== 0) f.facing = dx > 0 ? 1 : -1;
-  f.baseCd = baseAbility(f)!.cooldown;
+  useBaseCharge(f, baseAbility(f)!);
   f.invuln = Math.max(f.invuln, b.iframes);
   f.airJumps = AIR_JUMPS;
   setState(f, 'special');

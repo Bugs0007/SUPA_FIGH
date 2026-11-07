@@ -2,6 +2,10 @@ import type Phaser from 'phaser';
 import { type Appearance, appearanceKey } from './appearance';
 import { PixelCanvas } from './canvas';
 import { P, shade } from './palette';
+import { drawBlackCloverBody, drawBlackCloverHead } from './blackCloverArt';
+import { drawBleachBody, drawBleachHead } from './bleachArt';
+import { drawOnePieceBody, drawOnePieceHead } from './onePieceArt';
+import { drawVegetaBody, drawVegetaHead } from './vegetaArt';
 
 // Modular fighter art. Per appearance we bake three sheets:
 //   body: 32x32 frames (legs + torso), feet on row 31, facing right
@@ -89,7 +93,7 @@ interface Leg {
   fy: number;
 }
 
-interface Pose {
+export interface Pose {
   hipY: number;
   torsoH: number;
   lean: number;
@@ -372,6 +376,11 @@ function heroBody(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearanc
       pc.rect(ox + l.kx, oy + l.ky, 2, 1, level === 4 ? '#cdd2eb' : '#eee7d3');
       pc.set(ox + l.fx + 1, oy + l.fy - 1, a.skin);
     }
+  } else if (a.design === 'vegeta') drawVegetaBody(pc, ox, oy, p, a);
+  else {
+    drawOnePieceBody(pc, ox, oy, p, a);
+    drawBleachBody(pc, ox, oy, p, a);
+    drawBlackCloverBody(pc, x, y, ox + 13, oy + p.hipY, a);
   }
 }
 
@@ -722,6 +731,10 @@ function drawHead(pc: PixelCanvas, ox: number, oy: number, a: Appearance, mode: 
     pc.set(X(10), Y(6), '#c9c9e0');
     if (mode === HEAD.NORMAL) pc.rect(X(9), Y(11), 3, 1, '#fffdf2');
   }
+  if (a.design === 'vegeta') drawVegetaHead(pc, ox, oy, a);
+  drawOnePieceHead(pc, ox, oy, a, mode);
+  drawBleachHead(pc, ox, oy, a, mode);
+  drawBlackCloverHead(pc, ox, oy, a, mode);
   pc.outline(ox, oy, 16, 16);
 }
 
@@ -765,6 +778,7 @@ function paintArm(pc: PixelCanvas, ox: number, oy: number, pts: [number, number]
     let col = i < sl ? sleeve : i === sl && a.top === 'suit' ? P.white : a.skin;
     if (a.design === 'sasuke' && i > len - 4 && i < len) col = '#393349';
     if (a.trim && i === len - 2) col = a.trim; // wrist band
+    if (a.design === 'vegeta') col = i < len - 2 ? a.topColor : i === len - 2 ? '#bbc2d8' : '#eeebf2';
     const haki = a.design === 'luffy' && a.form === 3 && i > 1;
     const thick = haki ? 4 : a.design === 'luffy' && a.form === 2 && i >= len - 2 ? 3 : 2;
     if (haki) col = i === len - 2 ? '#a92843' : '#201b30';

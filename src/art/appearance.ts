@@ -31,7 +31,8 @@ export interface Appearance {
   /** wrist bands / sash colour (gi, heroes) */
   trim?: string;
   /** Signature anatomy and costume details; absent on custom scrappers. */
-  design?: 'naruto' | 'luffy' | 'goku' | 'sasuke';
+  design?: 'naruto' | 'luffy' | 'goku' | 'sasuke' | 'vegeta' | 'zoro' | 'sanji' | 'law'
+    | 'ichigo' | 'rukia' | 'byakuya' | 'asta' | 'yuno' | 'yami';
   /** Visual transformation level; used by the sprite baker, never by physics. */
   form?: number;
 }

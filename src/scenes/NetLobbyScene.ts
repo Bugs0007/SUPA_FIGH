@@ -12,6 +12,7 @@ import { NetClient } from '../net/client';
 import { ARENA_CODE, MAX_FIGHTERS, MODES, type BotSpec, type RoomConfig, type RoomInfo, type ServerMsg, type SlotClaim } from '../net/protocol';
 import { RemoteSim } from '../net/remoteSim';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
+import { openFighterPicker } from './FightersScene';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { MODE_NAMES } from '../sim/match';
 import { hint, HintBar, panel, rowBar } from './kit';
@@ -418,7 +419,15 @@ export class NetLobbyScene extends Phaser.Scene {
     const id = rows[this.row];
     if (menu.left()) this.change(id, -1);
     else if (menu.right()) this.change(id, 1);
-    else if (menu.confirm()) this.change(id, 1);
+    else if (menu.confirm()) {
+      if (id === 'f1' || id === 'f2') {
+        const n = id === 'f1' ? 0 : 1;
+        openFighterPicker(this, this.hero[n], (hero) => {
+          this.hero[n] = hero;
+          if (this.claimed(n)) this.client.send({ t: 'claim', local: n, claim: this.claimFor(n) });
+        });
+      } else this.change(id, 1);
+    }
     else if (menu.back()) this.leave();
   }
 
@@ -630,7 +639,7 @@ export class NetLobbyScene extends Phaser.Scene {
             : 'PICK A FIGHTER',
       );
     }
-    this.bar.set([hint.move('SELECT', 'ud'), hint.move('FIGHTER', 'lr'), hint.back('LEAVE')]);
+    this.bar.set([hint.move('SELECT', 'ud'), hint.move('FIGHTER', 'lr'), hint.ok('BROWSE ROSTER'), hint.back('LEAVE')]);
   }
 
   private renderRoom(g: Phaser.GameObjects.Graphics): void {
@@ -655,6 +664,8 @@ export class NetLobbyScene extends Phaser.Scene {
       this.status.setText(this.isHost ? (waiting ? `WAITING FOR ${waiting} PLAYER${waiting > 1 ? 'S' : ''} TO READY UP` : ready ? 'EVERYONE IS READY - START WHEN YOU LIKE' : 'PICK A FIGHTER') : this.me()?.ready ? 'WAITING FOR THE HOST TO START' : 'PRESS READY WHEN YOU ARE SET');
     }
     const focus = this.rows();
-    this.bar.set([hint.move('SELECT', 'ud'), hint.move('CHANGE', 'lr'), hint.ok(focus[this.row] === 'start' ? 'START' : 'TOGGLE'), hint.back('LEAVE')]);
+    const selected = focus[this.row];
+    const confirm = selected === 'f1' || selected === 'f2' ? 'BROWSE ROSTER' : selected === 'start' ? 'START' : 'TOGGLE';
+    this.bar.set([hint.move('SELECT', 'ud'), hint.move('CHANGE', 'lr'), hint.ok(confirm), hint.back('LEAVE')]);
   }
 }

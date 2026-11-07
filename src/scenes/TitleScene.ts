@@ -14,6 +14,7 @@ import { padBinds, padMenu } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
+import { openFighterPicker } from './FightersScene';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { loadLobby, saveLobby } from './lobby';
 import { defaultSetup } from './MatchScene';
@@ -60,7 +61,7 @@ const BUTTON_RECTS: [number, number][] = (() => {
   });
 })();
 /** Short one-line pitch per fighter for the cards (heroes add their signature move below). */
-const SCRAPPER_DESC = 'NO POWERS. ALL GUTS. CUSTOMIZE THE LOOK IN MATCH SETUP.';
+const SCRAPPER_DESC = 'ATTACK + ABILITY FOR SHOULDER CHECK. CUSTOMIZE THE LOOK IN MATCH SETUP.';
 function wrap(text: string, maxChars: number): string[] {
   const out: string[] = [];
   let line = '';
@@ -207,6 +208,8 @@ export class TitleScene extends Phaser.Scene {
         this.row = row;
         if (row === 'p1name' || row === 'p2name')
           return this.startEdit(row === 'p1name' ? 0 : 1);
+        if (row === 'p1hero' || row === 'p2hero')
+          return this.pickFighter(row === 'p1hero' ? 0 : 1);
         if (this.change(row, 1)) {
           saveSettings();
           audio.play('uiMove');
@@ -323,14 +326,19 @@ export class TitleScene extends Phaser.Scene {
   }
   private cycleHero(i: number, d: number): void {
     const order = HERO_ORDER as readonly string[];
-    const p = profiles[i];
-    p.hero = order[(order.indexOf(p.hero) + d + order.length) % order.length];
+    this.setFighter(i, order[(order.indexOf(profiles[i].hero) + d + order.length) % order.length]);
+  }
+  private pickFighter(i: number): void {
+    openFighterPicker(this, profiles[i].hero, (hero) => this.setFighter(i, hero));
+  }
+  private setFighter(i: number, hero: string): void {
+    profiles[i].hero = hero;
     saveProfiles();
     // keep the lobby's KEYBOARD slots in sync with the card
     const lobby = loadLobby();
     for (const s of lobby.slots)
       if (s.kind === 'kb' + i)
-        s.hero = p.hero;
+        s.hero = hero;
     saveLobby(lobby);
     this.applyFighter(i);
   }
@@ -440,6 +448,8 @@ export class TitleScene extends Phaser.Scene {
     else {
       if (lr)
         changed = this.change(this.row, lr);
+      else if (menu.confirm() && (this.row === 'p1hero' || this.row === 'p2hero'))
+        return this.pickFighter(this.row === 'p1hero' ? 0 : 1);
       else if (menu.confirm())
         changed = this.change(this.row, 1);
     }
@@ -546,6 +556,10 @@ export class TitleScene extends Phaser.Scene {
     else if (this.row === 'buttons') {
       mode = 'buttons';
       items = [hint.move('CHOOSE', 'lr'), hint.ok('GO'), hint.move('FIGHTERS & MAP', 'ud'), hint.key('SETUP', ['L'], [3]), hint.key('CONTROLS', ['C'], [2])];
+    }
+    else if (this.row === 'p1hero' || this.row === 'p2hero') {
+      mode = 'fighters';
+      items = [hint.move('QUICK CYCLE', 'lr'), hint.move('ROW', 'ud'), hint.ok('BROWSE ROSTER')];
     }
     else {
       mode = 'rows';

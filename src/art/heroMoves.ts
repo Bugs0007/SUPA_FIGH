@@ -1,3 +1,9 @@
+import { heroDef } from '../sim/data/heroes';
+import { formFx, heroLook } from './heroArt';
+import { PLAYER_PRESETS } from './appearance';
+import { ONE_PIECE_MOVES } from './onePieceArt';
+import { hexToNum } from './palette';
+
 /** Form-specific art direction. These values never change damage, reach or cooldowns. */
 export interface HeroMoveLook {
   name: string;
@@ -16,7 +22,7 @@ export const HERO_MOVES: Record<string, readonly HeroMoveLook[]> = {
   sasuke: [
     look('CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 2 }),
     look('SHARINGAN CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 3 }),
-    look('CURSE MARK CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 4 }),
+    look('ONYX CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 4 }),
     look('MANGEKYO CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 4 }),
     look('SIX PATHS CHIDORI', 0xe0f7ff, 0x398fe3, 0xffffff, { lightning: 5 }),
   ],
@@ -41,9 +47,14 @@ export const HERO_MOVES: Record<string, readonly HeroMoveLook[]> = {
     look('SSJ3 KAMEHAMEHA', 0xd6f2ff, 0x648cde, 0xffcf65, { lightning: 3 }),
     look('GOD KAMEHAMEHA', 0xd5fcff, 0x2189d6, 0x71e3ff, { lightning: 4 }),
   ],
+  ...ONE_PIECE_MOVES,
 };
 
 export function moveLook(hero: string, level: number): HeroMoveLook {
-  const forms = Object.hasOwn(HERO_MOVES, hero) ? HERO_MOVES[hero] : HERO_MOVES.goku;
-  return forms[Math.max(0, Math.min(forms.length - 1, Math.floor(level)))];
+  const forms = Object.hasOwn(HERO_MOVES, hero) ? HERO_MOVES[hero] : undefined;
+  if (forms) return forms[Math.max(0, Math.min(forms.length - 1, Math.floor(level)))];
+  const h = heroDef(hero);
+  if (!h) return HERO_MOVES.goku[0];
+  const [rim, core] = formFx(hero, level).aura.map(hexToNum);
+  return look(h.base.name, core, level > 0 ? rim : hexToNum(heroLook(hero, PLAYER_PRESETS[0]).accentColor), core);
 }

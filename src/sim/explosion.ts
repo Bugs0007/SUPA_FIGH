@@ -38,9 +38,9 @@ export function areaFrac(u: number, core: number, edge: number): number {
  * Radial blast: damage + knockback (knocks down) on fighters and corpses, shoves items/props,
  * chain-detonates explosives, breaks wood/glass, optionally scatters fire.
  */
-export function explode(w: World, x: number, y: number, ex: ExplosionStats, owner: number, weapon: string): void {
+export function explode(w: World, x: number, y: number, ex: ExplosionStats, owner: number, weapon: string, form?: number): void {
   if (w.map.solidAtPx(x, y)) y -= 4;
-  w.emit({ t: 'explosion', x, y, radius: ex.radius, weapon, shake: ex.shake });
+  w.emit({ t: 'explosion', x, y, radius: ex.radius, weapon, shake: ex.shake, ...(form === undefined ? {} : { form }) });
   const r = ex.radius;
 
   /** 1 at the centre .. 0 at the rim (and beyond) */

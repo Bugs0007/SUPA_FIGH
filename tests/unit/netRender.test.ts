@@ -14,6 +14,7 @@ import {
   PROP_SPEC,
 } from '../../src/net/renderState';
 import { Match, type MatchConfig } from '../../src/sim/match';
+import { newBullet } from '../../src/sim/projectile';
 
 function config(mapId: string, extra: Partial<MatchConfig> = {}): MatchConfig {
   const heroes = ['naruto', 'luffy', 'goku', 'sasuke', undefined, 'naruto', undefined, 'goku'];
@@ -35,6 +36,26 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe('render state (D71)', () => {
+  it('carries hero flight time and projectile launch form, and accepts an older frame', () => {
+    const cfg = config('test');
+    const real = new Match(cfg);
+    const mirror = new Match(cfg);
+    real.world.fighters[0].powerLevel = 3;
+    real.world.fighters[0].flyTime = 0.5;
+    real.world.bullets.push(Object.assign(newBullet(), {
+      active: true, owner: 0, weapon: 'naruto:super', kind: 'chakra', form: 4, tier: 2,
+    }));
+    const frame = encodeWorld(real.world);
+    applyWorld(mirror.world, frame);
+    expect(mirror.world.fighters[0].flyTime).toBe(0.5);
+    expect(mirror.world.bullets[0]).toMatchObject({ form: 4, tier: 2 });
+    frame.bullets[0].splice(-2);
+    if (frame.fighters[0] !== 0) frame.fighters[0].pop();
+    applyWorld(mirror.world, frame);
+    expect(mirror.world.fighters[0].flyTime).toBe(0);
+    expect(mirror.world.bullets[0]).toMatchObject({ form: 3, tier: 2 });
+  });
+
   it('lists every Fighter field the render / HUD / audio code reads', () => {
     const src = readFileSync('src/sim/fighter.ts', 'utf8');
     const body = /export interface Fighter extends Body \{([\s\S]*?)\n\}/.exec(src)![1];

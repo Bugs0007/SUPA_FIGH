@@ -13,11 +13,12 @@ type Win = { __GAME__: { game: { scene: Scenes }; scene: () => string[] } };
 
 const room = (page: Page) =>
   page.evaluate(() => {
-    const s = (window as unknown as Win).__GAME__.game.scene.getScene('netlobby') as { client?: { room: { code: string; host: string; config: { mapId: string; mode: string; bots: unknown[] }; peers: { name: string; ready: boolean; claims: unknown[] }[] } | null } } | null;
+    const s = (window as unknown as Win).__GAME__.game.scene.getScene('netlobby') as { client?: { room: { code: string; host: string; config: { mapId: string; mode: string; bots: unknown[] }; peers: { name: string; ready: boolean; claims: ({ hero: string } | null)[] }[] } | null } } | null;
     return s?.client?.room ?? null;
   });
 const scenes = (page: Page) => page.evaluate(() => (window as unknown as Win).__GAME__.scene());
 const press = async (page: Page, key: string, times = 1) => {
+  await page.bringToFront();
   for (let i = 0; i < times; i++) {
     await page.keyboard.press(key);
     await page.waitForTimeout(40);
@@ -46,23 +47,33 @@ test('host and join through the menus, ready up, play, reconnect', async ({ brow
   const host = await open();
   const guest = await open();
 
-  // HOST GAME is the 4th button, JOIN GAME the 5th (focus starts on the button row)
-  await press(host, 'ArrowRight', 3);
+  // HOST GAME is the 5th button, JOIN GAME the 6th (focus starts on the button row).
+  await press(host, 'ArrowRight', 4);
   await press(host, 'Enter');
   await host.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('netlobby'));
   await expect.poll(async () => (await room(host))?.code, { timeout: 10_000 }).toMatch(/^[A-Z2-9]{4}$/);
   const code = (await room(host))!.code;
 
-  await press(guest, 'ArrowRight', 4);
+  await press(guest, 'ArrowRight', 5);
   await press(guest, 'Enter');
   await guest.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('netlobby'));
-  // the room list shows the host's room: Enter joins the first one
-  await guest.waitForTimeout(600);
+  // Join once the server has delivered the room list.
+  await guest.waitForFunction(code => {
+    const lobby = (window as unknown as Win).__GAME__.game.scene.getScene('netlobby') as { phase?: string; rooms?: { code: string }[] } | null;
+    return lobby?.phase === 'rooms' && lobby.rooms?.some(room => room.code === code);
+  }, code);
   await press(guest, 'Enter');
   await expect.poll(async () => (await room(guest))?.code, { timeout: 10_000 }).toBe(code);
 
   // both devices were given their first player automatically
   await expect.poll(async () => (await room(host))?.peers.map((p) => p.claims.filter(Boolean).length)).toEqual([1, 1]);
+  await press(guest, 'ArrowDown'); // P1 -> F1
+  await press(guest, 'Enter');
+  await guest.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('fighters'));
+  await guest.mouse.click(945, 84); // Bleach tab
+  await guest.waitForFunction(() => (window as unknown as Win).__GAME__.game.scene.getScene('fighters')?.group === 'bleach');
+  await guest.mouse.click(332, 275); // Ichigo card
+  await expect.poll(async () => (await room(host))?.peers[1]?.claims[0]?.hero).toBe('ichigo');
   await host.screenshot({ path: 'tests/e2e/screenshots/netlobby-host.png' });
   await guest.screenshot({ path: 'tests/e2e/screenshots/netlobby-guest.png' });
 
@@ -74,7 +85,7 @@ test('host and join through the menus, ready up, play, reconnect', async ({ brow
   await expect.poll(async () => (await room(guest))?.config.bots.length).toBe(2);
 
   // the guest is not the host: pressing START-ish things does nothing, READY works; the host can then start
-  await press(guest, 'ArrowDown', 4); // P1, F1, P2, F2 -> READY
+  await press(guest, 'ArrowDown', 3); // F1, P2, F2 -> READY
   await press(guest, 'Enter');
   await expect.poll(async () => (await room(host))?.peers.find((p) => p.ready)).toBeTruthy();
   await press(host, 'ArrowDown', 12); // BOTS -> ... -> START MATCH (row 15 of 16)
@@ -84,6 +95,7 @@ test('host and join through the menus, ready up, play, reconnect', async ({ brow
   for (const page of [host, guest]) await page.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('match'), undefined, { timeout: 20_000 });
   const live = [...server.hub.rooms.values()][0].session as Session;
   expect(live.match.world.fighters.length).toBeGreaterThanOrEqual(4);
+  expect(live.match.world.fighters[1].hero).toBe('ichigo');
   await guest.waitForTimeout(1000);
 
   // the guest's keyboard moves the guest's fighter (the second human: fighter 1)
@@ -111,13 +123,12 @@ test('host and join through the menus, ready up, play, reconnect', async ({ brow
   expect(errors).toEqual([]);
 });
 
-test("a server that isn't there shows the can't-connect screen, and retry works once it is", async ({ page }) => {
+test("a missing server shows the can't-connect screen and Back returns to the title", async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await page.goto('/?timer=1&server=ws://127.0.0.1:9');
   await page.waitForFunction(() => (window as unknown as Win).__GAME__?.scene().includes('title'));
-  await press(page, 'ArrowRight', 4);
-  await press(page, 'Enter');
+  await page.mouse.click(765, 640); // Join Game
   await page.waitForFunction(() => (window as unknown as Win).__GAME__.scene().includes('netlobby'));
   await expect
     .poll(async () => page.evaluate(() => ((window as unknown as Win).__GAME__.game.scene.getScene('netlobby') as unknown as { phase: string }).phase), { timeout: 15_000 })

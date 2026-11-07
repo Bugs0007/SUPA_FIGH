@@ -17,6 +17,7 @@ import { CreatorScene } from './scenes/CreatorScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { LobbyScene } from './scenes/LobbyScene';
 import { FightersScene } from './scenes/FightersScene';
+import { HeroDemoScene } from './scenes/HeroDemoScene';
 import { NetLobbyScene } from './scenes/NetLobbyScene';
 import { TrailerOverlay } from './trailer/overlay';
 import { installTrailerDriver } from './trailer/driver';
@@ -63,7 +64,7 @@ const game = new Phaser.Game({
   render: { preserveDrawingBuffer: new URLSearchParams(location.search).has('trailer') },
   // ?timer=1 drives the loop with setTimeout (hidden tabs / automated tests where rAF is paused)
   fps: { target: 60, forceSetTimeOut: new URLSearchParams(location.search).has('timer') },
-  scene: [BootScene, BackgroundScene, TitleScene, LobbyScene, FightersScene, NetLobbyScene, ControlsScene, CreatorScene, SettingsScene, MatchScene, HudScene, ArtDebugScene, TrailerOverlay],
+  scene: [BootScene, BackgroundScene, TitleScene, LobbyScene, HeroDemoScene, FightersScene, NetLobbyScene, ControlsScene, CreatorScene, SettingsScene, MatchScene, HudScene, ArtDebugScene, TrailerOverlay],
 });
 game.registry.set('scale', k);
 if (new URLSearchParams(location.search).has('trailer')) installTrailerDriver(game);

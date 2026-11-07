@@ -5,7 +5,7 @@ import { expect, test, type Page } from '@playwright/test';
 type Handle = {
   match: () => { cfg: { mapId: string }; world: { tick: number; fighters: { name: string; hero: string; isBot: boolean; master: number }[] } } | null;
   scene: () => string[];
-  game: { scene: { getScene: (k: string) => { players: { label: string }[] } } };
+  game: { scene: { getScene: (k: string) => { players: { label: string }[]; editing?: number | null; group?: string } } };
 };
 
 function collectErrors(page: Page): string[] {
@@ -33,8 +33,8 @@ test('Sasuke and a new arena can be chosen from the title, including the full pr
     await page.waitForTimeout(80);
   }
   await page.screenshot({ path: 'tests/e2e/screenshots/title-sasuke-valley.png' });
-  // The whole button rectangle is clickable, including its blank right side.
-  await page.mouse.click(210, 640);
+  // The right side of the Quick Match button is clickable.
+  await page.mouse.click(170, 640);
   await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 10);
   const picked = await page.evaluate(() => {
     const m = (window as unknown as { __GAME__: Handle }).__GAME__.match()!;
@@ -55,33 +55,33 @@ test('name, fighter and map from the title screen are used by quick match', asyn
   const errors = collectErrors(page);
   await page.goto('/?timer=1');
   await onScene(page, 'title');
-  await page.waitForTimeout(200);
-  // focus starts on QUICK MATCH; up x8 = P1 NAME
-  await press(page, 'ArrowUp', 8);
-  await press(page, 'Enter');
+  const doneEditing = () => page.waitForFunction(() => (window as unknown as { __GAME__: Handle }).__GAME__.game.scene.getScene('title').editing === null);
+  await page.mouse.click(1060, 150); // P1 name
   await page.keyboard.type('bhagath');
   await press(page, 'Enter');
-  // P1 FIGHTER: SCRAPPER -> NARUTO -> LUFFY -> GOKU
-  await press(page, 'ArrowDown');
-  await press(page, 'ArrowRight', 3);
-  // P2 NAME: type, then cancel with Esc (keeps "P2")
-  await press(page, 'ArrowDown');
-  await press(page, 'Enter');
+  await doneEditing();
+
+  const pick = async (rowY: number, group: string, tabX: number) => {
+    await page.mouse.click(1060, rowY);
+    await onScene(page, 'fighters');
+    await page.mouse.click(tabX, 84);
+    await page.waitForFunction(group => (window as unknown as { __GAME__: Handle }).__GAME__.game.scene.getScene('fighters').group === group, group);
+    await page.mouse.click(486, 275); // first fighter in a two-fighter category
+    await onScene(page, 'title');
+  };
+  await pick(185, 'dragon-ball', 740); // P1: Goku
+
+  await page.mouse.click(1060, 385); // P2 name, then cancel
   await page.keyboard.type('nope');
   await press(page, 'Escape');
-  // P2 FIGHTER: NARUTO
-  await press(page, 'ArrowDown');
-  await press(page, 'ArrowRight');
-  // MAP: RANDOM is first, TEST ARENA is the default; right x2 = NIGHT TRAIN
-  await press(page, 'ArrowDown');
-  await press(page, 'ArrowRight', 2);
-  // BOTS: 1
-  await press(page, 'ArrowDown', 2);
+  await doneEditing();
+  await pick(420, 'naruto', 336); // P2: Naruto
+
+  await page.mouse.click(600, 330); // Test Arena -> Rooftops
+  await page.mouse.click(600, 330); // Rooftops -> Night Train
   await press(page, 'Digit1');
   await page.screenshot({ path: 'tests/e2e/screenshots/title-setup.png' });
-  // down to the buttons, QUICK MATCH
-  await press(page, 'ArrowDown', 2);
-  await press(page, 'Enter');
+  await page.mouse.click(80, 640); // Quick Match
   await page.waitForFunction(() => ((window as unknown as { __GAME__?: Handle }).__GAME__?.match()?.world.tick ?? 0) > 10);
   const info = await page.evaluate(() => {
     const g = (window as unknown as { __GAME__: Handle }).__GAME__;

@@ -52,6 +52,33 @@ function press(w: World, btns: Partial<Intent>, hold = 1, after = 30): SimEvent[
   return seen;
 }
 
+describe('expanded roster ultimates', () => {
+  it('Rukia releases one radial burst and hits an enemy behind her', () => {
+    const w = heroWorld('rukia');
+    const [rukia, enemy] = w.fighters;
+    place(enemy, rukia.x - 32);
+    levelUp(w, rukia, 1);
+    const formHp = rukia.formHp;
+    const hp = enemy.hp;
+    const events = press(w, { ability: true, kick: true }, 1, 140);
+    const bursts = events.filter(e => e.t === 'explosion' && e.weapon === 'rukia:super');
+    expect(bursts).toHaveLength(1);
+    expect(bursts[0]).toMatchObject({ x: 100, y: FLOOR_Y - rukia.h / 2 });
+    expect(rukia.formHp).toBe(formHp);
+    expect(enemy.hp).toBeLessThan(hp);
+  });
+
+  it('Vegeta can aim and release his charged ultimate beam', () => {
+    const w = heroWorld('vegeta');
+    const [vegeta] = w.fighters;
+    levelUp(w, vegeta, 2);
+    const events = press(w, { ability: true, kick: true, moveY: -1 }, 1, 65);
+    expect(events).toContainEqual(expect.objectContaining({ t: 'beam', f: vegeta.id, super: true }));
+    expect(vegeta.specialKind).toBe('superBeam');
+    expect(vegeta.stretchAngle).toBeLessThan(0);
+  });
+});
+
 describe('hero data', () => {
   it('there is one power orb pickup; heroes have 4 forms, 3 moves and a punch-punch-punch-kick combo', () => {
     const orb = WEAPONS[POWER_ORB];

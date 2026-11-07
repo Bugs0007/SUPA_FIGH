@@ -21,7 +21,7 @@ interface Echo {
 /** Pooled visual assistants and form choreography. No simulation fighters are created here. */
 export class HeroChoreography {
   private echoes = new Map<number, Echo[]>();
-  private blinks: { id: number; t: number; level: number; fromX: number; fromY: number; toX: number; toY: number }[] = [];
+  private blinks: { id: number; t: number; level: number; fromX: number; fromY: number; toX: number; toY: number; strike: boolean }[] = [];
 
   constructor(scene: Phaser.Scene, private views: FighterView[], private back: Graphics, private front: Graphics) {
     for (const v of views) {
@@ -55,20 +55,31 @@ export class HeroChoreography {
       const v = this.views[b.id];
       if (b.t > 0.32 || !v?.fighter.alive || v.fighter.gone) { this.blinks.splice(i, 1); continue; }
       const echoes = this.echoes.get(b.id) ?? [];
+      if (!echoes.length) continue;
+      const direction = Math.sign(b.toX - b.fromX) || v.fighter.facing;
+      const style = moveLook(v.fighter.hero, b.level);
       echoes.forEach((e, k) => {
-        const t = k / echoes.length;
-        this.pose(e, v.texFor(b.level), BF.WINDUP, -1.5);
+        const t = k * 0.23;
+        const fade = Math.max(0, 1 - b.t / (0.32 - k * 0.035));
+        const frame = k === 0 ? BF.WINDUP : k === 2 && b.strike ? BF.CROSS : BF.APEX;
+        this.pose(e, v.texFor(b.level), frame, k === 0 ? -1.48 : k === 1 ? 0.8 : -0.18);
         e.root.setVisible(true).setPosition(b.fromX + (b.toX - b.fromX) * t, b.fromY + (b.toY - b.fromY) * t + 12)
-          .setScale(v.fighter.facing, 1).setAlpha((1 - b.t / 0.32) * (0.5 - k * 0.09));
-        this.front.fillStyle(moveLook('goku', b.level).spark, (1 - b.t / 0.32) * 0.7)
-          .fillRect(Math.round(e.root.x) - 7, Math.round(e.root.y) - 23 + k * 3, 16, 1);
+          .setScale(direction, 1).setAlpha(fade * (0.58 - k * 0.08));
+        for (let row = 0; row < 3; row++) {
+          const width = 11 + row * 3 + k * 2;
+          const offset = Math.round(e.root.x - direction * row * 2);
+          this.back.fillStyle(row === 0 ? style.spark : style.rim, fade * (0.8 - row * 0.17))
+            .fillRect(offset - Math.floor(width / 2), Math.round(e.root.y) - 24 + row * 6, width, 1);
+        }
       });
     }
   }
 
   blink(id: number, fromX: number, fromY: number, toX: number, toY: number): void {
+    const f = this.views[id]?.fighter;
+    if (f?.hero !== 'goku') return;
     this.blinks = this.blinks.filter(b => b.id !== id);
-    this.blinks.push({ id, t: 0, level: formLevel(this.views[id].fighter), fromX, fromY, toX, toY });
+    this.blinks.push({ id, t: 0, level: formLevel(f), fromX, fromY, toX, toY, strike: f.specialKind === 'formCombo' });
   }
 
   /** Cubic chakra limb, painted in integer pixels at the same density as the fighter. */

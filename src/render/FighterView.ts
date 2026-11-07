@@ -3,13 +3,19 @@ import Phaser from 'phaser';
 import type { Appearance } from '../art/appearance';
 import { Art } from '../art';
 import { ARM_GUARD, ARM_LENGTHS, armFrame, BF, FRAME_META, HEAD, type FighterTextures } from '../art/fighterArt';
+import { bleachBlade } from '../art/bleachArt';
 import { formCount, formLook } from '../art/heroArt';
 import { animFor, EXTERNAL_SHEETS, sheetFrame, type ExternalSheetDef } from '../art/externalSheets';
 import { ARM_LONG, ARM_SHORT, FIGHTER_CROUCH_H, ROLL_TIME } from '../sim/constants';
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
 import { baseAbility, formLayers, usesAmaterasu } from '../sim/hero';
-import { heroDef, CLONE_SLINGSHOT, JET_BAZOOKA } from '../sim/data/heroes';
+import { heroDef, CLONE_SLINGSHOT, FORM_COMBO, JET_BAZOOKA } from '../sim/data/heroes';
+import { blackCloverSwordArm } from './BlackCloverAbilityArt';
+import { bleachBladeAngle } from './BleachAbilityArt';
+import { onePiecePose } from './OnePieceAbilityArt';
+import { nonSwordRosterSpecialPose } from './RosterSpecialArt';
+import { paintSwordWake, rosterSwordPose, swingAngle, swingArm, swordSwing, waistDrawPose, type WaistDrawPose } from './SwordMotion';
 
 /** Rig pivot: body center, this many px above the feet. */
 const RIG_Y = 11;
@@ -32,6 +38,9 @@ export class FighterView {
   private backArm: Phaser.GameObjects.Image;
   private frontArm: Phaser.GameObjects.Image;
   private weapon: Phaser.GameObjects.Image;
+  private swordWake: Phaser.GameObjects.Graphics;
+  private swordAngles: { front: number; rear?: number } | null = null;
+  private waistDraw: WaistDrawPose | null = null;
   private pack: Phaser.GameObjects.Image;
   private ghostImg: Phaser.GameObjects.Container;
   /** chaos modifier: 2x heads */
@@ -50,6 +59,10 @@ export class FighterView {
   /** displayed arm angles (eased toward the pose's targets during locomotion) */
   private armF = 1.45;
   private armB = 1.75;
+  private gripX = 0;
+  private gripY = 0;
+  private rearGripX = 0;
+  private rearGripY = 0;
   /** seconds left of the landing crouch frame */
   private landT = 0;
   /** turn-around squeeze (1 -> 0) */
@@ -93,10 +106,11 @@ export class FighterView {
     this.body = scene.add.image(0, RIG_Y, tex.body, BF.IDLE0).setOrigin(0.5, 1);
     this.head = scene.add.image(0, 0, tex.head, HEAD.NORMAL).setOrigin(8 / 16, 13 / 16);
     this.weapon = scene.add.image(0, 0, 'weapons').setVisible(false);
+    this.swordWake = scene.add.graphics();
     const jf = Art.weapon('jetpack');
     this.pack = scene.add.image(-5, RIG_Y - 13, jf?.key ?? 'weapons', jf?.frame).setVisible(false);
     this.frontArm = scene.add.image(0, 0, tex.arm, 0);
-    this.rig.add([this.pack, this.backArm, this.body, this.head, this.weapon, this.frontArm]);
+    this.rig.add([this.pack, this.backArm, this.body, this.head, this.swordWake, this.weapon, this.frontArm]);
     this.root.add(this.rig);
     this.root.setDepth(40);
     this.tag = scene.add.bitmapText(fighter.x, fighter.y - 35, 'smo', label.toUpperCase()).setOrigin(0.5, 1).setTint(color).setDepth(70);
@@ -146,6 +160,46 @@ export class FighterView {
   /** look of a form level (0 = base) */
   lookFor(level: number): Appearance {
     return level > 0 ? (formLook(this.fighter.hero, level) ?? this.look) : this.look;
+  }
+
+  /** World position of the modular front hand, including the current pose's lean and squash. */
+  frontHand(): { x: number; y: number } | null {
+    if (!this.frontArm.visible || this.sheet) return null;
+    return this.rig.getWorldTransformMatrix().transformPoint(this.gripX, this.gripY);
+  }
+
+  /** World position of the off hand, transformed with the body. */
+  backHand(): { x: number; y: number } | null {
+    if (!this.backArm.visible || this.sheet) return null;
+    return this.rig.getWorldTransformMatrix().transformPoint(this.rearGripX, this.rearGripY);
+  }
+
+  /** Mirrored-local blade angle, including the current pose's body lean. */
+  swordAngle(rear = false): number | undefined {
+    const angle = rear ? this.swordAngles?.rear : this.swordAngles?.front;
+    if (angle === undefined) return;
+    const matrix = this.rig.getWorldTransformMatrix();
+    const direction = matrix.transformPoint(Math.cos(angle), Math.sin(angle));
+    return Math.atan2(direction.y - matrix.ty, (direction.x - matrix.tx) * this.fighter.facing);
+  }
+
+  swordDrawVisible(): boolean {
+    return this.waistDraw?.visible ?? true;
+  }
+
+  swordProjection(): number {
+    return this.waistDraw?.projection ?? 1;
+  }
+
+  mouth(): { x: number; y: number } | null {
+    if (!this.head.visible || this.sheet) return null;
+    return this.head.getWorldTransformMatrix().transformPoint(3, -1);
+  }
+
+  /** World-space attachment for rear effects, including the current pose's flip and lean. */
+  rearShoulder(): { x: number; y: number } | null {
+    if (!this.backArm.visible || this.sheet) return null;
+    return this.rig.getWorldTransformMatrix().transformPoint(this.backArm.x, this.backArm.y);
   }
 
   onLand(speed: number): void {
@@ -250,6 +304,8 @@ export class FighterView {
     let frontLen = 0;
     let backLen = 0;
     let rigRot = 0;
+    let rigLift = 0;
+    let frontArmYScale = 1;
     let lie = 0;
     let showWeapon = true;
     let weaponAngle: number | null = null;
@@ -258,6 +314,10 @@ export class FighterView {
     /** blocking: bent guard arm frames instead of straight ones */
     let guardArms = false;
     let bodyRot = 0;
+    let swing: ReturnType<typeof swordSwing>;
+    this.swordAngles = null;
+    this.waistDraw = null;
+    this.swordWake.clear();
     const def = activeWeapon(f);
     const isGun = !!def.gun;
     const rifle = def.hold === 'rifle';
@@ -480,7 +540,30 @@ export class FighterView {
         const strikeFrame = hit.kick ? BF.KICK : f.combo === 0 ? BF.PUNCH : f.combo === 1 ? BF.CROSS : BF.UPPER;
         frame = inWind && hit.windup >= 0.05 ? BF.WINDUP : striking ? strikeFrame : BF.IDLE0;
         if (inActive) leanTarget = f.combo === 2 ? 0.12 : 0.05;
-        if (def.hold === 'fist') {
+        swing = swordSwing(f, hit, def.id);
+        if (swing?.waistDraw) {
+          this.waistDraw = waistDrawPose(hit, t);
+          weaponAngle = this.waistDraw.angle;
+          this.swordAngles = { front: weaponAngle };
+          frame = inWind ? BF.WINDUP : striking ? BF.CROSS : BF.IDLE0;
+          frontLen = 1;
+          back = inWind ? 1.75 : 2.05;
+          backLen = 1;
+          // Keep the cut level even when it follows a leaning overhead swing.
+          this.lean = 0;
+          leanTarget = 0;
+        } else if (swing) {
+          weaponAngle = swingAngle(swing.cut, hit, t);
+          const rearAngle = swing.rear ? swingAngle(swing.rear, hit, t) : undefined;
+          this.swordAngles = { front: weaponAngle, rear: rearAngle };
+          front = swingArm(weaponAngle);
+          frontLen = 1;
+          back = rearAngle === undefined ? 1.6 + front * -0.4 : swingArm(rearAngle, true);
+          backLen = rearAngle === undefined ? 0 : 1;
+          const rising = swing.cut[1] > swing.cut[3] + 0.8;
+          frame = inWind && t < hit.windup * 0.85 ? BF.WINDUP : striking ? rising ? BF.UPPER : swing.frame : BF.IDLE0;
+          leanTarget = inWind ? -0.16 : striking ? (rising ? 0.12 : 0.21) : 0;
+        } else if (def.hold === 'fist') {
           if (f.combo === 0) {
             front = inWind ? 0.5 : inActive ? 0 : 0.4;
             frontLen = inActive ? 1 : 0;
@@ -528,6 +611,33 @@ export class FighterView {
         frontLen = 1;
         backLen = 1;
         showWeapon = false;
+        if (kind === 'rosterSpecial') {
+          const blade = rosterSwordPose(f);
+          if (blade) {
+            frame = blade.frame;
+            front = blade.front;
+            back = blade.back;
+            leanTarget = blade.lean;
+            if (blade.blade !== undefined) {
+              weaponAngle = blade.blade;
+              this.swordAngles = { front: blade.blade, rear: blade.rear };
+            }
+          } else {
+            const pose = nonSwordRosterSpecialPose(f);
+            if (pose) {
+              frame = pose.frame;
+              front = pose.front;
+              back = pose.back;
+              frontLen = pose.frontLen;
+              backLen = pose.backLen;
+              rigRot = pose.rigRot;
+              rigLift = pose.rigLift;
+              frontArmYScale = pose.armYScale;
+              leanTarget = pose.leanTarget;
+            }
+          }
+          break;
+        }
         if(kind==='formCombo'&&f.hero==='luffy'){
           const pre=Math.min(1,f.stateTime/JET_BAZOOKA.windup),released=f.stateTime>=JET_BAZOOKA.windup;
           hideArms=true;smoothArms=false;leanTarget=0;
@@ -546,6 +656,14 @@ export class FighterView {
             rigRot=Math.PI/2+Math.atan2(f.vy,f.vx*f.facing);
             front=-Math.PI/2;back=-Math.PI/2+.12;
           }
+        } else if (kind === 'formCombo' && f.hero === 'goku') {
+          const release = f.stateTime - FORM_COMBO.windup;
+          frame = release < 0 ? BF.WINDUP : release < 0.11 ? BF.CROSS : BF.AIM;
+          front = release < 0 ? -1.38 : release < 0.11 ? -0.18 : 0.65;
+          back = release < 0 ? 2.1 : 2.55;
+          backLen = 0;
+          leanTarget = release < 0 ? -0.05 : release < 0.11 ? 0.2 : 0.03;
+          smoothArms = false;
         } else if (kind === 'pistol' || kind === 'superFist') {
           const move = kind === 'superFist' ? heroDef('luffy')!.super.fist! : baseAbility(f)?.stretch;
           const extending = f.stateTime < (move?.out ?? .12);
@@ -612,21 +730,50 @@ export class FighterView {
           front = -.8;
           back = -.55;
           leanTarget = f.charge === -2 ? .1 : -.06;
+          if (f.hero === 'vegeta') {
+            const windup = heroDef(f.hero)!.second.fireball!.windup;
+            const ready = Math.min(1, f.stateTime / (windup * 0.52));
+            const settle = Math.max(0, Math.min(1, (f.stateTime - windup - 0.075) / 0.13));
+            frame = f.charge === -2 && settle < 0.45 ? BF.CROSS : BF.AIM;
+            front = lerp(lerp(-0.53, f.stretchAngle, ready), 1.05, settle);
+            back = 2.4;
+            backLen = 0;
+            leanTarget = f.charge === -2 ? lerp(0.18, 0, settle) : -0.04;
+            smoothArms = false;
+          }
           if(usesAmaterasu(f)){
             frame=f.charge===-2?BF.IDLE0:BF.WINDUP;
             front=-1.3;back=1.6;leanTarget=0;
           }
         } else if (kind === 'beamCharge' || kind === 'superCharge') {
-          // Kamehameha: hands cupped at the hip, trembling; then thrust forward
           frame = BF.WINDUP;
           front = 0.9 + Math.sin(time * 50) * 0.05;
           back = 1.2;
           leanTarget = -0.1;
+          if (f.hero === 'goku') {
+            // Plant the stance and cup both hands beside the rear hip.
+            front = 2.27 + Math.sin(time * 45) * 0.04;
+            back = 1.38;
+            frontLen = 0;
+            backLen = 0;
+            leanTarget = -0.14;
+          } else if (f.hero === 'vegeta') {
+            const charge = heroDef(f.hero)!.super.beam!.minCharge;
+            const converge = Math.max(0, Math.min(1, (f.charge / charge - 0.74) / 0.22));
+            front = lerp(level === 1 ? -0.7 : -0.36, f.stretchAngle, converge);
+            back = lerp(level === 1 ? -0.4 : 2.8, f.stretchAngle + 0.16, converge);
+            leanTarget = lerp(-0.15, 0.02, converge);
+            smoothArms = false;
+          }
         } else if (kind === 'beam' || kind === 'superBeam') {
           frame = BF.CROSS;
           front = f.stretchAngle;
           back = f.stretchAngle + 0.15;
           leanTarget = 0.12;
+          if (f.hero === 'goku' || f.hero === 'vegeta') {
+            leanTarget = f.stateTime < 0.06 ? 0.2 : 0.08;
+            smoothArms = false;
+          }
         } else if (kind === 'gatling') {
           // alternating fast punches
           const left = Math.floor(f.stateTime / 0.06) % 2 === 0;
@@ -772,6 +919,34 @@ export class FighterView {
         break;
     }
 
+    const cloverSword = swing ? null : blackCloverSwordArm(f);
+    if (cloverSword !== null) {
+      front = cloverSword;
+      frontLen = 1;
+      smoothArms = false;
+      if (f.state === 'special' && f.specialKind === 'bomb' && f.charge === -2) {
+        frame = BF.CROSS;
+        back = 0.85;
+        leanTarget = 0.18;
+      }
+    } else if (f.hero === 'yuno' && f.state === 'special') {
+      if (f.specialKind === 'fireball') {
+        front = f.charge === -2 ? f.stretchAngle : -0.4;
+        back = f.charge === -2 ? 2.3 : 0.8;
+      } else if (f.specialKind === 'rasengan') {
+        back = f.recoverAt > 0 ? 1.8 : 2.75;
+        leanTarget = f.recoverAt > 0 ? -0.1 : 0.25;
+      }
+    }
+    const piecePose = swing ? undefined : onePiecePose(f);
+    if (piecePose) {
+      frame = piecePose.frame;
+      front = piecePose.arm;
+      back = piecePose.backArm;
+      leanTarget = piecePose.lean;
+      smoothArms = false;
+    }
+
     // carrying a prop overhead: both arms up
     if (f.carry >= 0 && f.alive && (f.state === 'normal' || f.state === 'crouch' || f.state === 'flinch')) {
       front = -1.75;
@@ -836,7 +1011,7 @@ export class FighterView {
       this.root.scaleX*= (turn>=0?1:-1)*(.55+.45*Math.abs(turn));
     }
     // on a wall the body lies along it: pull the rig off the wall so the feet touch it, not the middle
-    this.rig.setPosition(f.state === 'wallwalk' ? -6 : 0, lerp(-RIG_Y, -4, this.lieAmount));
+    this.rig.setPosition(f.state === 'wallwalk' ? -6 : 0, lerp(-RIG_Y, -4, this.lieAmount) - rigLift);
     this.lean += (leanTarget - this.lean) * Math.min(1, dt * 14);
     this.rig.setRotation(rigRot + this.lean);
 
@@ -861,32 +1036,54 @@ export class FighterView {
     }
 
     const armsVisible = !hideArms && !meta.hideArms;
-    // a stretched rubber arm replaces the front arm sprite (drawn by HeroFx)
-    this.frontArm.setVisible(armsVisible && !(f.stretchLen > 0 && f.state !== 'kick'));
+    const signatureBlade = def.hold === 'fist' && armsVisible && f.alive && f.carry < 0
+      && (f.state === 'normal' || f.state === 'crouch' || f.state === 'melee' || f.state === 'special' || f.state === 'block' || f.state === 'kick')
+      ? bleachBlade(this.root.scene, f.hero, formLevel(f))
+      : undefined;
+    // A beam keeps the modular arms planted at its origin, unlike a stretched limb.
+    const beamArm = f.specialKind === 'beam' || f.specialKind === 'superBeam';
+    const drawnArm = f.stretchLen > 0 && f.state !== 'kick' && !beamArm;
+    this.frontArm.setVisible(armsVisible && (!drawnArm || cloverSword !== null || signatureBlade !== undefined));
     this.backArm.setVisible(armsVisible);
     const [sx, sy] = this.fp(meta.shX, meta.shY);
     const [bsx, bsy] = this.fp(meta.bshX, meta.bshY);
+    const armLength = ARM_LENGTHS[frontLen] ?? (frontLen === 1 ? ARM_LONG : ARM_SHORT);
     if (armsVisible) {
-      this.frontArm.setPosition(sx, sy).setFrame(guardArms ? ARM_GUARD : armFrame(front, frontLen));
+      if (this.waistDraw) {
+        const dx = this.waistDraw.x - sx, dy = this.waistDraw.y - sy;
+        front = Math.atan2(dy, dx);
+        this.armF = front;
+        this.frontArm.setPosition(sx, sy).setScale(Math.hypot(dx, dy) / armLength).setFrame(armFrame(front, frontLen));
+      } else {
+        this.frontArm.setPosition(sx, sy).setScale(1, frontArmYScale).setFrame(guardArms ? ARM_GUARD : armFrame(front, frontLen));
+      }
       this.backArm.setPosition(bsx, bsy).setFrame(guardArms ? ARM_GUARD + 1 : armFrame(back, backLen));
     }
+    this.gripX = this.waistDraw?.x ?? (guardArms ? sx + 5 : sx + Math.cos(front) * armLength);
+    this.gripY = this.waistDraw?.y ?? (guardArms ? sy - 3 : sy + Math.sin(front) * armLength * frontArmYScale);
+    const rearLength = ARM_LENGTHS[backLen] ?? ARM_SHORT;
+    this.rearGripX = guardArms ? bsx + 3 : bsx + Math.cos(back) * rearLength;
+    this.rearGripY = guardArms ? bsy - 2 : bsy + Math.sin(back) * rearLength;
 
     // held weapon
     this.pack.setVisible(f.alive && f.inv[SLOT.GADGET]?.id === 'jetpack' && !meta.hideArms && frame !== BF.ROLL);
     this.pack.setY(RIG_Y - 13 + (frame === BF.CROUCH || frame === BF.CRAWL0 || frame === BF.CRAWL1 ? 7 : 0));
     const item = f.inv[f.active];
-    const wf = item && item.id !== 'jetpack' ? Art.weapon(item.id) : undefined;
-    if (wf && showWeapon && armsVisible && f.alive) {
+    const wf = signatureBlade ?? (item && item.id !== 'jetpack' ? Art.weapon(item.id) : undefined);
+    if (swing && armsVisible) paintSwordWake(this.swordWake, f, swing,
+      { x: sx, y: sy, reach: armLength }, { x: bsx, y: bsy, reach: rearLength },
+      wf ? wf.w - wf.gripX - 2 : undefined);
+    if (wf && (showWeapon || signatureBlade) && armsVisible && f.alive && this.swordDrawVisible()) {
       const ang = weaponAngle ?? front;
-      const handL = frontLen === 1 ? ARM_LONG : ARM_SHORT;
-      const len = ARM_LENGTHS[frontLen] ?? handL;
+      const trackGrip = guardArms || this.swordAngles !== null;
       this.weapon
         .setVisible(true)
         .setTexture(wf.key, wf.frame)
+        .setScale(this.swordProjection(), 1)
         .setOrigin((wf.gripX + 0.5) / wf.w, (wf.gripY + 0.5) / wf.h)
         // guarding: the weapon is held up across the body in the raised fist
-        .setPosition(guardArms ? sx + 5 : sx + Math.cos(ang) * len, guardArms ? sy - 3 : sy + Math.sin(ang) * len)
-        .setRotation(guardArms ? -1.3 : ang);
+        .setPosition(trackGrip ? this.gripX : sx + Math.cos(ang) * armLength, trackGrip ? this.gripY : sy + Math.sin(ang) * armLength)
+        .setRotation(guardArms ? -1.3 : signatureBlade && this.swordAngles === null ? bleachBladeAngle(f, front) : ang);
     } else {
       this.weapon.setVisible(false);
     }

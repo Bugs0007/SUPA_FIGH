@@ -11,16 +11,17 @@ import { paintRuns } from '../art/pixelRaster';
 type G = Phaser.GameObjects.Graphics;
 /** the fireball gathering at Sasuke's mouth (radius from r0 to r0 + grow over the windup), its flicker rate and embers */
 const FIRE_CAST = { r0: 1.5, grow: 2.5, ahead: 5, up: 19, fps: 14, embers: 5 };
+const ONYX = 0x1d264d;
 /** Match and gallery share this art. All positions follow the real fighter / projectile. */
 export class SasukeAbilityArt {
   private avatar: AvatarArt;
   constructor(private back: G, private front: G) { this.avatar = new AvatarArt(back,front); }
-  private bolt(g: G, x: number, y: number, dx: number, dy: number, color: number, time: number, seed: number, width = 1): void {
+  private bolt(g: G, x: number, y: number, dx: number, dy: number, color: number, time: number, seed: number, width = 1, alpha = 0.95): void {
     const len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
-    g.lineStyle(width, color, 0.95).beginPath().moveTo(Math.round(x), Math.round(y));
+    g.lineStyle(width, color, alpha).beginPath().moveTo(Math.round(x), Math.round(y));
     for (let i = 1; i <= 7; i++) {
       const k = i / 7;
-      const jitter = i === 7 ? 0 : Math.sin(seed * 3.4 + i * 9.7 + Math.floor(time * 20)) * 3;
+      const jitter = i === 7 ? 0 : Math.sin(seed * 3.4 + i * 9.7 + Math.floor(time * 20)) * Math.min(3, len * 0.3);
       g.lineTo(Math.round(x + dx * k + nx * jitter), Math.round(y + dy * k + ny * jitter));
     }
     g.strokePath();
@@ -46,17 +47,34 @@ export class SasukeAbilityArt {
       const orb = rasenganPoint({ ...f, x, y } as Fighter);
       const palmX = orb.x, palmY = orb.y;
       const power = forming ? Math.max(0.2, f.stateTime / windup) : f.recoverAt ? 0.4 : 1;
-      for (let k = 0; k < 8; k++) {
-        const a = k * Math.PI / 4 + Math.sin(time * 13 + k) * .3;
+      const spokes = look.lightning + 5;
+      for (let k = 0; k < spokes; k++) {
+        const a = k * 2 * Math.PI / spokes + Math.sin(time * 13 + k) * .3;
         const len = (7 + (k % 3) * 3 + lv) * power;
-        this.bolt(g, palmX, palmY, Math.cos(a) * len, Math.sin(a) * len, k % 2 ? look.core : look.rim, time, k, k % 3 ? 1 : 2);
+        const dx = Math.cos(a) * len, dy = Math.sin(a) * len;
+        this.bolt(g, palmX, palmY, dx, dy, k % 2 ? look.core : look.rim, time, k, k % 3 ? 1 : 2);
+        if (lv >= 3 && k % 2 === 0) {
+          this.bolt(g, palmX + dx * 0.48, palmY + dy * 0.48, dx * 0.32 - dy * 0.35, dy * 0.32 + dx * 0.35, look.spark, time, k + 12, 1, 0.66);
+        }
       }
-      g.fillStyle(look.core, .95).fillRect(Math.round(palmX - 2), Math.round(palmY - 2), 4, 4);
+      const core = Math.max(2, Math.round((lv === 2 ? 6 : 4) * power));
+      const cx = Math.round(palmX - core / 2), cy = Math.round(palmY - core / 2);
+      g.fillStyle(look.core, .95).fillRect(cx, cy, core, core);
+      if (lv === 2 && core >= 4) {
+        // Onyx Chidori concentrates its dark centre inside the familiar electric-blue edge.
+        g.fillStyle(ONYX).fillRect(cx + 1, cy + 1, core - 2, core - 2);
+        g.fillStyle(look.rim).fillRect(Math.round(palmX), Math.round(palmY), 1, 1);
+      }
       if (!forming && !f.recoverAt) {
         // streaks trail straight back along the dash
         for (let i = 0; i < 3; i++) {
           const s = (i - 1) * 7, len = 24 + i * 6, wob = Math.sin(time * 28 + i) * 4;
           this.bolt(this.back, x - dir.x * 3 + px * s, y - 12 - dir.y * 3 + py * s, -dir.x * len + px * wob, -dir.y * len + py * wob, look.rim, time, i + 10);
+        }
+        // The leading fork follows the thrust direction.
+        for (const side of [-1, 1]) {
+          const len = 7 + lv * 1.5;
+          this.bolt(g, palmX, palmY, dir.x * len + px * side * 3, dir.y * len + py * side * 3, side > 0 ? look.core : look.rim, time, side + 16);
         }
       }
     }
@@ -105,8 +123,22 @@ export class SasukeAbilityArt {
       const ball = fireballSprite(size, heading(dx, dy), Math.floor(time * FIRE_CAST.fps));
       paintRuns(g, ball.baked, cx + ball.ox, cy + ball.oy);
     }
-    else if (size > 5.5) {
-      // Susanoo's arrow
+    else if (b.form >= 3 || size > 5.5) {
+      // Layered fletching wake stays behind the projectile, widening for the final Susanoo.
+      const final = b.form >= 4 || (b.form === 0 && size > 7);
+      const trail = Math.min(b.traveled + size, (final ? 38 : 25) + size * 2);
+      for (const side of [-1, 1]) {
+        for (let d = 4; d < trail; d += 2) {
+          const k = d / trail;
+          const lane = side * (1 + k * (final ? 9 : 4)) + Math.sin(time * 37 - d * 0.25) * (final ? 2 : 0.7);
+          const p = point(-d, lane);
+          g.fillStyle(final ? 0xad8bff : 0xd1b8f7, (1 - k) * 0.7).fillRect(Math.round(p.x), Math.round(p.y), 2, 1);
+        }
+        if (final && trail > size * 2) {
+          const fork = point(-trail * 0.3, side * 2), tip = point(-trail * 0.88, side * 8);
+          this.bolt(g, fork.x, fork.y, tip.x - fork.x, tip.y - fork.y, side > 0 ? 0xb8e4ff : 0xd2bcff, time, side + 9, 1, 0.72);
+        }
+      }
       const arrow = arrowSprite(size, heading(dx, dy), Math.floor(time * 20));
       paintRuns(g, arrow.baked, Math.round(x) + arrow.ox, Math.round(y) + arrow.oy);
     }
@@ -116,7 +148,7 @@ export class SasukeAbilityArt {
       g.lineStyle(size * .9, c, .18).lineBetween(x - dx * length * 1.5, y - dy * length * 1.5, x, y);
       g.lineStyle(2, c).lineBetween(x - dx * length, y - dy * length, x + dx * size, y + dy * size);
       g.fillStyle(c).fillPoints([point(size * 1.5, 0), point(-size, -size), point(-size * .5, 0), point(-size, size)], true);
-      g.lineStyle(1, 0xf9edff).lineBetween(x - dx * length, y - dy * length, x + dx * size, y + dy * size);
+      g.lineStyle(1, b.form === 2 ? ONYX : 0xf9edff).lineBetween(x - dx * length, y - dy * length, x + dx * size, y + dy * size);
       this.bolt(g, x, y, -dx * length, -dy * length, c, time, 18);
     }
   }

@@ -142,7 +142,7 @@ export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
 const SOLID_HITTERS: ReadonlySet<ProjectileKind> = new Set<ProjectileKind>(['flame', 'rocket', 'flare', 'chakra', 'ki', 'cannonball']);
 
 function burst(w: World, b: Bullet, x: number, y: number): void {
-  if (b.explosion) explode(w, x - Math.sign(b.vx) * 2, y - Math.sign(b.vy) * 2, b.explosion, b.owner, b.weapon);
+  if (b.explosion) explode(w, x - Math.sign(b.vx) * 2, y - Math.sign(b.vy) * 2, b.explosion, b.owner, b.weapon, b.tier ? b.form : undefined);
 }
 
 /** Blast-only projectiles (supers) fly through friends, the owner's clones and corpses: only a live enemy sets them off. */
@@ -350,7 +350,7 @@ export function updateBullets(w: World): void {
           b.x = hx;
           b.y = hy;
           b.active = false;
-          explode(w, Math.max(f.x - f.w / 2, Math.min(f.x + f.w / 2, hx)), Math.max(f.y - f.h, Math.min(f.y, hy)), b.explosion, b.owner, b.weapon);
+          explode(w, Math.max(f.x - f.w / 2, Math.min(f.x + f.w / 2, hx)), Math.max(f.y - f.h, Math.min(f.y, hy)), b.explosion, b.owner, b.weapon, b.form);
           break;
         }
         const speed = Math.hypot(b.vx, b.vy) || 1;

@@ -3,7 +3,7 @@ import { HERO_ART } from '../art/heroArt';
 import { moveLook } from '../art/heroMoves';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
-import { HEROES, CLONE_SLINGSHOT, JET_BAZOOKA, ULT_WINDUP, avatarLaunch, superFistFor } from '../sim/data/heroes';
+import { HEROES, CLONE_SLINGSHOT, JET_BAZOOKA, ULT_WINDUP, avatarLaunch, bombWindup, heroHasFormCombo, superFistFor } from '../sim/data/heroes';
 import { newBullet, type Bullet } from '../sim/projectile';
 import { getMap } from '../sim/map/maps';
 import { DEFAULT_WORLD_SETTINGS, World } from '../sim/world';
@@ -37,8 +37,10 @@ function describe(hero: string, mode: MoveMode): string {
   switch (mode) {
     case 'base': return h.base.desc;
     case 'second': return h.second.desc;
-    case 'super': return `${h.super.desc} ${hero === 'luffy' ? '' : `LOADS IN ${ULT_WINDUP} SECONDS: BLOCK, RUN OR BREAK IT.`}`;
-    case 'combo': return `${h.comboName}: PUNCH, PUNCH, PUNCH, THEN A KICK THAT KNOCKS DOWN.`;
+    case 'super': return heroHasFormCombo(hero) && hero !== 'luffy' ? `${h.super.desc} LOADS IN ${ULT_WINDUP} SECONDS: BLOCK, RUN OR BREAK IT.` : h.super.desc;
+    case 'combo': return heroHasFormCombo(hero)
+      ? `${h.comboName}: PUNCH, PUNCH, PUNCH, THEN A KICK THAT KNOCKS DOWN.`
+      : `${h.comboName}: FOUR-HIT COMBO WITH A KNOCKDOWN FINISHER.`;
     case 'guard': return hero === 'luffy' ? 'HOLD BLOCK TO GUARD. GEAR FIFTH PULLS THE FLOOR UP LIKE RUBBER AND THROWS SHOTS BACK AT 10% DAMAGE.' : 'HOLD BLOCK TO GUARD: HEAVY ATTACKS AND ULTIMATES STILL CHIP YOUR HEALTH.';
     default:
       return hero === 'sasuke' ? 'CHIDORI + PUNCH CALLS KIRIN: LIGHTNING THAT HOLDS THE ENEMY STUNNED.'
@@ -58,6 +60,9 @@ export class HeroMoveGallery {
   private lastLoop = -1;
   private spiritBalls: Bullet[] = [];
   private mode: MoveMode;
+  private readonly modes: readonly MoveMode[];
+  private readonly legacy: boolean;
+  private readonly columnWidth: number;
   private aim=0;
   private jetPreview:'kick'|'sling'='sling';
   private targets:Phaser.GameObjects.Container[]=[];
@@ -75,14 +80,19 @@ export class HeroMoveGallery {
     const params = new URLSearchParams(embedded ? '' : location.search);
     this.jetPreview=params.get('jet')==='kick'?'kick':'sling';
     this.aim=Math.max(-1.5,Math.min(1.5,Number(params.get('aim'))||0));
-    this.mode = embedded ? move : MODES.find(m=>m===params.get('move'))??'base';
+    this.legacy = heroHasFormCombo(hero);
+    this.modes = this.legacy ? MODES : MODES.filter(m => m !== 'special');
+    this.mode = (embedded ? this.modes.find(m => m === move) : this.modes.find(m => m === params.get('move'))) ?? 'base';
+    const count = HEROES[hero].forms.length + 1;
+    this.columnWidth = VIEW_W / count;
     const before = new Set(scene.children.list);
-    this.world = new World(getMap('test'), Array.from({ length: 5 }, (_, level) => ({ name: '', hero, isBot: false, team: 0, upJumps: false })), { ...DEFAULT_WORLD_SETTINGS, weaponSpawnRate: 0 }, 42);
-    this.views = this.world.fighters.slice(0, 5).map((f, level) => {
+    this.world = new World(getMap('test'), Array.from({ length: count }, () => ({ name: '', hero, isBot: false, team: 0, upJumps: false })), { ...DEFAULT_WORLD_SETTINGS, weaponSpawnRate: 0 }, 42);
+    this.views = this.world.fighters.slice(0, count).map((f, level) => {
       f.x = f.px = 40 + level * 512;
       f.y = f.py = 140;
       f.facing = 1;
       f.invuln = 0;
+      if (!this.legacy) f.grounded = true;
       f.power = level > 0 ? 'hero' : '';
       f.powerLevel = level;
       f.formHp = level * 30;
@@ -92,7 +102,7 @@ export class HeroMoveGallery {
     this.heroFx = new HeroFx(scene, this.world, this.views, this.fx, 0.42, true);
     this.targetFx=scene.add.graphics().setDepth(58);
     if(hero==='sasuke'||hero==='luffy')this.targets=this.views.map(v=>fighterPreview(scene,PLAYER_PRESETS[0],v.fighter.x+33,v.fighter.y,.8).setDepth(40).setVisible(false));
-    if (hero === 'goku' || hero === 'sasuke') {
+    if (!this.legacy || hero === 'goku' || hero === 'sasuke') {
       this.spiritBalls = this.views.map(v => Object.assign(newBullet(), { owner: v.fighter.id, kind: 'ki', weapon: hero + ':super' }));
       this.world.bullets.push(...this.spiritBalls);
     }
@@ -101,24 +111,26 @@ export class HeroMoveGallery {
 
     const uiBefore = new Set(scene.children.list);
     const g = scene.add.graphics();
-    for (let level = 0; level <= 4; level++) {
-      const x = level * 128;
-      g.fillStyle(level % 2 ? 0x171e30 : 0x121929).fillRect(x + 3, 56, 122, 259);
-      g.lineStyle(1, level === 0 ? 0x475267 : moveLook(hero, level).spark, 0.35).strokeRect(x + 3, 56, 122, 259);
+    for (let level = 0; level < count; level++) {
+      const w = this.columnWidth;
+      const x = level * w;
+      g.fillStyle(level % 2 ? 0x171e30 : 0x121929).fillRect(x + 3, 56, w - 6, 259);
+      g.lineStyle(1, level === 0 ? 0x475267 : moveLook(hero, level).spark, 0.35).strokeRect(x + 3, 56, w - 6, 259);
       const form = level === 0 ? 'BASE' : HEROES[hero].forms[level - 1].name.replace('SUPER SAIYAN', 'SSJ').replace(' CLOAK', '').replace(' / PERFECT SUSANOO', '');
-      scene.add.bitmapText(x + 64, 280, 'pxo', form).setOrigin(0.5).setTint(level === 0 ? 0xc4d3e9 : moveLook(hero, level).spark);
-      this.labels.push(scene.add.bitmapText(x + 64, 299, 'sm', '').setOrigin(0.5).setTint(0xa5b7d2));
+      const heading = scene.add.bitmapText(x + w / 2, 280, 'pxo', form).setOrigin(0.5).setTint(level === 0 ? 0xc4d3e9 : moveLook(hero, level).spark);
+      if (heading.width > w - 12) heading.setScale((w - 12) / heading.width);
+      this.labels.push(scene.add.bitmapText(x + w / 2, 299, 'sm', '').setOrigin(0.5).setTint(0xa5b7d2));
     }
     scene.add.bitmapText(12, 12, 'pxo', `${HEROES[hero].name} / FORM ABILITIES`).setScale(2).setTint(0xffdf8a);
-    for (const [i, mode] of MODES.entries()) {
-      const button = scene.add.bitmapText(270 + i * 61, 22, 'sm', `${i + 1} ${mode.toUpperCase()}`).setInteractive({ useHandCursor: true });
+    for (const [i, mode] of this.modes.entries()) {
+      const button = scene.add.bitmapText(270 + i * 61, 36, 'sm', `${i + 1} ${mode.toUpperCase()}`).setInteractive({ useHandCursor: true });
       button.on('pointerdown', () => this.select(mode));
       this.buttons.push(button);
     }
     if (embedded) this.note = scene.add.bitmapText(320, 318, 'sm', '').setOrigin(0.5, 0).setTint(0xc4d3e9).setCenterAlign();
-    else scene.add.bitmapText(320, 335, 'sm', '1-3: ABILITY  4: COMBO  5: SPECIAL  6: GUARD  N/L/G/S: HERO').setOrigin(0.5).setTint(0xa5b7d2);
+    else scene.add.bitmapText(320, 335, 'sm', this.legacy ? '1-3: ABILITY  4: COMBO  5: SPECIAL  6: GUARD  N/L/G/S: HERO' : '1-3: ABILITY  4: COMBO  5: GUARD  N/L/G/S: HERO').setOrigin(0.5).setTint(0xa5b7d2);
     this.ui = scene.children.list.filter(o => !uiBefore.has(o));
-    for (let level = 0; level <= 4; level++) {
+    for (let level = 0; level < count; level++) {
       const cam = scene.cameras.add().setName(`hero-study-${level}`);
       cam.ignore([...before, ...this.ui]);
       this.cameras.push(cam);
@@ -136,6 +148,19 @@ export class HeroMoveGallery {
       let zoom = 2;
       let center = 10;
       let cy = 124;
+      if (!this.legacy) {
+        const { second, super: ultimate } = HEROES[this.hero];
+        const bomb = this.mode === 'super' ? ultimate.bomb : undefined;
+        const beam = this.mode === 'super' ? ultimate.beam : this.mode === 'second' ? second.beam : undefined;
+        if (bomb?.centered) {
+          const radius = bomb.radius + bomb.radiusPerLevel * Math.max(0, i - 1);
+          zoom = Math.min(1.2, (this.columnWidth - 12) / (2 * radius * 0.58 + 8));
+          center = 0;
+        } else {
+          zoom = beam ? 1.15 : 1.55;
+          center = beam ? 34 : 12;
+        }
+      }
       if(this.mode==='special'){zoom=1.3;center=14;cy=103;}
       if(this.mode==='special'&&this.hero==='sasuke'){zoom=.75;center=14;cy=90;}
       if(this.mode==='combo'&&this.hero==='sasuke'&&i>=3){
@@ -162,7 +187,7 @@ export class HeroMoveGallery {
         if(this.hero==='sasuke'&&i>=3){zoom=.42;center=-4;cy=52;}
         if(this.hero==='naruto'&&i===4){zoom=.3;center=-26;cy=40;}
       }
-      cam.setViewport((i * 128 + 4) * k, 60 * k, 120 * k, 210 * k).setZoom(k * zoom).centerOn(this.views[i].fighter.x + center, cy);
+      cam.setViewport((i * this.columnWidth + 4) * k, 60 * k, (this.columnWidth - 8) * k, 210 * k).setZoom(k * zoom).centerOn(40 + i * 512 + center, cy);
     });
   }
 
@@ -170,9 +195,9 @@ export class HeroMoveGallery {
     this.mode = mode;
     this.t = 0;
     this.lastLoop = -1;
-    this.buttons.forEach((button, i) => button.setTint(MODES[i] === mode ? 0xffdf8a : 0x9baec9));
+    this.buttons.forEach((button, i) => button.setTint(this.modes[i] === mode ? 0xffdf8a : 0x9baec9));
     this.labels.forEach((label, i) => {
-      const name = mode==='guard'?'HOLD BLOCK':mode==='special'?(this.hero==='sasuke'?'KIRIN':i===0&&this.hero!=='luffy'?'POWER ORB REQUIRED':this.hero==='naruto'?'CLONE SLINGSHOT':this.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE'):mode==='combo'?HEROES[this.hero].comboName : mode === 'base' ? moveLook(this.hero, i).name : mode === 'second' ? this.hero==='sasuke'&&i>=3?'AMATERASU / RANGE 240':HEROES[this.hero].second.name : i > 0 ? HEROES[this.hero].super.names[i - 1] : 'POWER ORB REQUIRED';
+      const name = mode==='guard'?'HOLD BLOCK':mode==='special'?(this.hero==='sasuke'?'KIRIN':i===0&&this.hero!=='luffy'?'POWER ORB REQUIRED':this.hero==='naruto'?'CLONE SLINGSHOT':this.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE'):mode==='combo'?HEROES[this.hero].comboName : mode === 'base' ? (this.hero === 'naruto' || this.hero === 'sasuke' ? moveLook(this.hero, i).name : HEROES[this.hero].base.name) : mode === 'second' ? this.hero==='sasuke'&&i>=3?'AMATERASU / RANGE 240':HEROES[this.hero].second.name : i > 0 ? HEROES[this.hero].super.names[i - 1] : 'POWER ORB REQUIRED';
       const words = name.split(' ');
       const split = words.length > 2 ? Math.ceil(words.length / 2) : words.length;
       label.setText([words.slice(0, split).join(' '), words.slice(split).join(' ')].filter(Boolean).join('\n'));
@@ -185,11 +210,13 @@ export class HeroMoveGallery {
 
   /** Next / previous move tab (the fighter viewer's left / right). */
   cycle(d: number): void {
-    this.select(MODES[(MODES.indexOf(this.mode) + d + MODES.length) % MODES.length]);
+    this.select(this.modes[(this.modes.indexOf(this.mode) + d + this.modes.length) % this.modes.length]);
   }
 
+  get currentMode(): MoveMode { return this.mode; }
+
   update(dt: number): void {
-    for (const [key, mode] of [['Digit1', 'base'], ['Digit2', 'second'], ['Digit3', 'super'],['Digit4','combo'],['Digit5','special'],['Digit6','guard']] as const) if (keyboard.justPressed(key)) this.select(mode);
+    for (const [i, mode] of this.modes.entries()) if (keyboard.justPressed('Digit' + (i + 1))) this.select(mode);
     if (keyboard.justPressed('Digit0')) this.select(this.mode);
     if (!this.embedded) for (const [key, hero] of [['KeyN', 'naruto'], ['KeyL', 'luffy'], ['KeyG', 'goku'], ['KeyS', 'sasuke']] as const) if (keyboard.justPressed(key)) {
       const url = new URL(location.href);
@@ -199,6 +226,10 @@ export class HeroMoveGallery {
       return;
     }
     this.t += dt;
+    if (!this.legacy) {
+      this.updateRosterPreview(dt);
+      return;
+    }
     // a gathered ultimate loads for ULT_WINDUP seconds (the spirits form during it), the rest of the moves loop in 3.6 s
     const superMode = this.mode === 'super' && this.hero !== 'luffy';
     const wind = superMode ? ULT_WINDUP : 0.9;
@@ -235,6 +266,7 @@ export class HeroMoveGallery {
         const b = HEROES.sasuke.super.bomb!, s = HEROES.sasuke.second.fireball!;
         ball.active = firing && (second&&level<3 || this.mode === 'super' && level > 0);
         ball.weapon = 'sasuke:' + (second ? 'second' : 'super');
+        ball.form = level;
         ball.size = second ? s.size + level * s.sizePerLevel : b.size + b.sizePerLevel * Math.max(0,level-1);
         ball.x = ball.px = f.x + 20 + (phase-fireAt) * 16;
         ball.y = ball.py = f.y - 17;
@@ -292,6 +324,105 @@ export class HeroMoveGallery {
     if(this.hero==='sasuke'&&this.mode==='second'&&firing)for(let i=3;i<=4;i++){
       const f=this.views[i].fighter;drawBlackFlames(this.targetFx,f.x+33,f.y,7,22,this.t);
     }
+    this.fx.update(dt);
+  }
+
+  /** The newer kits share simulation states, so previews can use the move's own timing data. */
+  private updateRosterPreview(dt: number): void {
+    const h = HEROES[this.hero];
+    const dash = this.mode === 'base' ? h.base.dash : undefined;
+    const blink = this.mode === 'base' ? h.base.blink : undefined;
+    const shot = this.mode === 'second' ? h.second.fireball : undefined;
+    const gatling = this.mode === 'second' ? h.second.gatling : undefined;
+    const bomb = this.mode === 'super' ? h.super.bomb : undefined;
+    const beam = this.mode === 'second' ? h.second.beam : this.mode === 'super' ? h.super.beam : undefined;
+    const chargeTime = beam ? (this.mode === 'super' ? beam.minCharge : (beam.minCharge + beam.maxCharge) / 2) : 0;
+    const duration = dash ? dash.windup + dash.time + dash.recover
+      : shot ? shot.windup + 0.85
+      : gatling ? gatling.time + 0.15
+      : bomb ? bombWindup(bomb) + 1.05
+      : beam ? chargeTime + beam.grow + beam.hold + 0.12 : 1.8;
+    const period = duration + 1.2;
+    const phase = this.t % period - 0.45;
+    const justBlinked = blink && phase >= 0.2 && phase - dt < 0.2;
+    for (const [level, view] of this.views.entries()) {
+      const f = view.fighter;
+      const ball = this.spiritBalls[level];
+      const x = 40 + level * 512;
+      f.x = f.px = x;
+      f.vx = f.vy = 0;
+      f.state = 'normal';
+      f.specialKind = '';
+      f.stateTime = Math.max(0, phase);
+      f.stretchLen = f.beamWidth = f.recoverAt = 0;
+      f.charge = -1;
+      f.stretchAngle = this.mode === 'super' ? this.aim : 0;
+      ball.active = false;
+
+      if (this.mode === 'guard') f.state = 'block';
+      else if (phase >= 0 && phase < duration && (this.mode !== 'super' || level > 0)) {
+        f.state = 'special';
+        if (dash) {
+          const moving = Phaser.Math.Clamp(phase - dash.windup, 0, dash.time);
+          f.specialKind = 'rasengan';
+          f.x = f.px = x + moving * Math.min(dash.speed * 0.36, 30 / dash.time);
+          f.vx = moving > 0 && moving < dash.time ? dash.speed : 0;
+          f.recoverAt = moving >= dash.time ? dash.windup + dash.time : 0;
+        } else if (blink) {
+          f.x = f.px = x + (phase >= 0.2 ? 19 : -13);
+          if (phase >= 0.2 && phase < 0.2 + (blink.recover ?? 0.16)) {
+            f.specialKind = 'blink';
+            f.stateTime = phase - 0.2;
+          } else f.state = 'normal';
+          if (justBlinked) this.heroFx.choreography.blink(f.id, x - 13, f.y - 12, f.x, f.y - 12);
+        } else if (shot || bomb) {
+          const spec = shot ?? bomb!;
+          const windup = shot?.windup ?? bombWindup(bomb!);
+          const flightTime = phase - windup;
+          const l = shot ? level : Math.max(0, level - 1);
+          f.charge = flightTime >= 0 ? -2 : phase / windup;
+          f.specialKind = shot ? 'fireball' : 'bomb';
+          if (flightTime > (shot?.recover ?? 0.3)) f.state = 'normal';
+          if (flightTime >= 0 && !bomb?.centered) {
+            ball.active = true;
+            ball.tier = shot ? 1 : 2;
+            ball.form = level;
+            ball.weapon = f.hero + (shot ? ':second' : ':super');
+            ball.size = spec.size + spec.sizePerLevel * l;
+            const dx = Math.cos(f.stretchAngle), dy = Math.sin(f.stretchAngle);
+            const travel = (shot ? 4 : 8) + flightTime * 46;
+            ball.x = ball.px = x + dx * travel;
+            ball.y = ball.py = f.y - 16 + dy * travel;
+            ball.vx = spec.speed * dx;
+            ball.vy = spec.speed * dy;
+            ball.traveled = flightTime * spec.speed;
+          }
+        } else if (beam) {
+          const superMove = this.mode === 'super';
+          f.charge = Math.min(phase, chargeTime);
+          f.specialKind = superMove ? 'superCharge' : 'beamCharge';
+          const since = phase - chargeTime;
+          if (since >= 0) {
+            f.specialKind = superMove ? 'superBeam' : 'beam';
+            f.stateTime = since;
+            f.stretchLen = Math.min(70, beam.range * 0.42) * Math.min(1, since / beam.grow);
+            f.beamWidth = (superMove ? beam.width[0] + (h.super.beam?.widthPerLevel ?? 0) * Math.max(0, level - 1) : (beam.width[0] + beam.width[1]) / 2)
+              * Math.max(0, 1 - Math.max(0, since - beam.grow - beam.hold) / 0.12);
+          }
+        } else if (gatling) {
+          f.specialKind = 'gatling';
+        } else if (this.mode === 'combo') {
+          const beat = phase / 0.42;
+          f.state = 'melee';
+          f.combo = Math.min(h.combo.length - 1, Math.floor(beat));
+          const hit = h.combo[f.combo];
+          f.stateTime = (beat % 1) * (hit.windup + hit.active + hit.recover);
+        }
+      }
+      view.update(1, dt, this.t, this.t);
+      view.tag.setVisible(false);
+    }
+    this.heroFx.sync(1, dt, this.t);
     this.fx.update(dt);
   }
 
