@@ -1,6 +1,6 @@
 import { moveLook } from '../art/heroMoves';
 import { DT, TILE } from '../sim/constants';
-import { bombWindup, HEROES, JET_BAZOOKA } from '../sim/data/heroes';
+import { bombWindup, DRAGON_FIST, gokuFormComboName, HEROES, JET_BAZOOKA, SASUKE_DRAGON_FIRE_LEVEL, secondMoveName } from '../sim/data/heroes';
 import { rosterSpecial } from '../sim/data/rosterSpecials';
 import { SLOT } from '../sim/data/weapons';
 import { emptyIntent, type Intent } from '../sim/intent';
@@ -36,11 +36,11 @@ export function demoMoveName(hero: string, mode: DemoMode, level: number): strin
   const h = HEROES[hero];
   switch (mode) {
     case 'base': return hero === 'naruto' || hero === 'sasuke' ? moveLook(hero, level).name : h.base.name;
-    case 'second': return hero === 'sasuke' && level >= (h.second.amaterasu?.minLevel ?? Infinity) ? 'AMATERASU' : h.second.name;
+    case 'second': return secondMoveName(hero, level);
     case 'super': return h.super.names[level - 1] ?? 'POWER ORB REQUIRED';
     case 'combo': return h?.comboName ?? 'FIST COMBO';
     case 'guard': return 'HOLD BLOCK';
-    case 'special': return rosterSpecial(hero)?.name ?? LEGACY_SPECIAL_NAMES[hero];
+    case 'special': return hero === 'goku' ? gokuFormComboName(level) : rosterSpecial(hero)?.name ?? LEGACY_SPECIAL_NAMES[hero];
   }
 }
 
@@ -48,15 +48,18 @@ export function describeDemoMove(hero: string, mode: DemoMode, level: number): s
   const h = HEROES[hero];
   switch (mode) {
     case 'base': return h.base.blink ? h.base.desc + ' FOLLOW UP WITH A STRIKE.' : h.base.desc;
-    case 'second': return demoMoveName(hero, mode, level) === 'AMATERASU'
-      ? 'BURN VISIBLE RIVALS IN FRONT OF YOU WITH BLACK FLAMES.'
-      : hero === 'naruto' ? h.second.desc + ' THE CLONES RUSH THE RIVAL.' : h.second.desc;
+    case 'second':
+      if (demoMoveName(hero, mode, level) === 'AMATERASU') return 'BURN VISIBLE RIVALS IN FRONT OF YOU WITH BLACK FLAMES.';
+      if (hero === 'sasuke' && level === SASUKE_DRAGON_FIRE_LEVEL) return 'AIM AND BREATHE A DRAGON HEAD OF FIRE. IT BURSTS AND IGNITES ON IMPACT.';
+      return hero === 'naruto' ? h.second.desc + ' THE CLONES RUSH THE RIVAL.' : h.second.desc;
     case 'super': return h.super.bomb?.centered ? 'INSTANT CLOSE-RANGE SUPER. ' + h.super.desc : h.super.desc;
     case 'combo': return hero ? 'CHAIN FOUR STRIKES TO END WITH A KNOCKDOWN.' : 'PRESS ATTACK AGAIN TO CHAIN THE NEXT STRIKE.';
     case 'guard': return h?.forms[level - 1]?.reflects
       ? "HOLD BLOCK TO SEND THE RIVAL'S SHOT BACK."
       : 'HOLD BLOCK AS THE RIVAL STRIKES. HEAVY ATTACKS CAN STILL DEAL CHIP DAMAGE.';
-    case 'special': return 'ATTACK + ABILITY. ' + (rosterSpecial(hero)?.description ?? LEGACY_SPECIAL_DETAILS[hero]);
+    case 'special': return 'ATTACK + ABILITY. ' + (hero === 'goku' && level === DRAGON_FIST.level
+      ? 'RUSH FORWARD WITH A GOLDEN DRAGON BEHIND YOUR FIST.'
+      : rosterSpecial(hero)?.description ?? LEGACY_SPECIAL_DETAILS[hero]);
   }
 }
 
@@ -110,7 +113,9 @@ export class HeroDemo {
     const specialDuration = mode === 'special' ? rosterSpecial(hero)?.duration ?? 0 : 0;
     this.duration = Math.ceil(Math.max(2.55 + windup, specialDuration + 1) / DT);
     const avatar = hero === 'sasuke' && this.level >= 3 || hero === 'naruto' && this.level === 4;
-    this.cameraZoom = mode === 'super' && avatar ? 0.88 : mode === 'super' && hero === 'goku' ? 1.28 : 1.86;
+    this.cameraZoom = mode === 'super' && avatar ? 0.88
+      : hero === 'sasuke' && mode === 'special' ? 1.26 - Math.max(0, this.level - 1) * 0.19
+      : hero === 'goku' && (mode === 'super' || mode === 'special' && this.level === DRAGON_FIST.level) ? 1.28 : 1.86;
   }
 
   get done(): boolean {

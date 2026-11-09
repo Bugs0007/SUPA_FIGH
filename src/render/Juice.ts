@@ -16,6 +16,7 @@ import type { World } from '../sim/world';
 import type { CameraDirector } from './CameraDirector';
 import { formLevel } from './formLevel';
 import type { WorldRenderer } from './WorldRenderer';
+import { swordSwing } from './SwordMotion';
 
 export type UiEvent =
   | { t: 'kill'; killer: number; victim: number; weapon: string; cause: string; env: boolean }
@@ -148,7 +149,14 @@ export class Juice {
           fx.sparks(e.x, e.y, -e.dirX, -e.dirY, 2, 0xffffff, 90);
           if (!e.corpse) this.sfx('hurt', e.x, 0.5, 1.2);
         } else if (e.kind === 'melee' || e.kind === 'kick' || e.kind === 'throw' || e.kind === 'bodyslam') {
-          fx.hitStar(e.x, e.y, heavy);
+          const attacker = w.fighters[e.attacker];
+          const held = attacker && activeWeapon(attacker);
+          const chain = held?.hold === 'fist' ? HEROES[attacker.hero]?.combo : held?.melee?.combo;
+          const strike = attacker && chain?.[Math.min(attacker.combo, chain.length - 1)];
+          const cut = (e.kind === 'melee' || e.kind === 'kick') && attacker?.state === 'melee' && held && strike
+            && swordSwing(attacker, strike, held.id);
+          if (cut) fx.sparks(e.x, e.y, e.dirX || attacker.facing, e.dirY - 0.15, heavy ? 7 : 4, 0xffedcf, heavy ? 148 : 108);
+          else fx.hitStar(e.x, e.y, heavy);
           fx.blood(e.x, e.y, e.dirX || 1, e.dirY - 0.3, heavy ? 6 : 3);
           this.sfx(e.kind === 'kick' || heavy ? 'kick' : 'punch', e.x);
           if (heavy && !e.corpse) this.hitstop = Math.max(this.hitstop, 0.06);

@@ -1,9 +1,9 @@
-// Pixel sprites for Sasuke's travelling jutsu: the Fire Style fireball and Susanoo's chakra arrow. Like every other
+// Pixel sprites for Sasuke's travelling jutsu. Like every other
 // sprite they are hard pixels with a few flat bands and a one-pixel dark outline, no gradients and no translucency.
 // Projectiles fly at any angle, so they are rasterized straight onto the world grid for one of 32 headings (nothing is
 // rotated or scaled afterwards). Phaser-free: SasukeAbilityArt paints the runs.
 
-import { inkLine, toRuns, type Baked, type Ink } from './pixelRaster';
+import { inkLine, Raster, toRuns, type Baked, type Ink, type Pt } from './pixelRaster';
 
 /** fireball bands, outside to inside, and its outline (the game palette's reds, orange and yellows) */
 export const FIRE = {
@@ -118,6 +118,69 @@ export function fireballSprite(radius: number, dir: number, frame: number): Worl
   const h = ((dir % HEADINGS) + HEADINGS) % HEADINGS;
   const fr = ((frame % FIREBALL_FRAMES) + FIREBALL_FRAMES) % FIREBALL_FRAMES;
   return cached(`f${r}|${h}|${fr}`, () => fireballRaster(r, h, fr));
+}
+
+const DRAGON_FIRE = [-1, 0xa92520, 0xfa5924, 0xff8d2e, 0xffbf50, 0xffedaa, 0x54131a];
+
+/** A fire dragon head with an open jaw and a neck that breaks into trailing flames. */
+function dragonFireRaster(radius: number, dir: number, frame: number): WorldSprite {
+  const angle = dir / HEADINGS * Math.PI * 2;
+  const ux = Math.cos(angle), uy = Math.sin(angle);
+  const upright = ux < -0.001 ? -1 : 1;
+  const scale = Math.max(1.5, radius) / 14;
+  const pad = Math.ceil(43 * scale) + 2;
+  const w = pad * 2 + 1;
+  const raster = new Raster(w, w);
+  const shape = (points: readonly Pt[], material: number) => raster.poly(points.map(([x, y]): Pt => [
+    pad + (x * ux - y * uy * upright) * scale,
+    pad + (x * uy + y * ux * upright) * scale,
+  ]), material);
+  const flicker = [0, 2, -1, 1][frame];
+
+  // Long, staggered flames tighten into the neck instead of spreading like a fan.
+  shape([[-41 - flicker, 4], [-33, 0], [-36, -4 - flicker], [-27, -3], [-27, -8],
+    [-17, -5], [-11, -10], [-3, -6], [0, 8], [-10, 10], [-17, 8], [-25, 12],
+    [-22, 7], [-32, 9], [-29, 5]], 1);
+  shape([[-36, 4], [-27, 0], [-29, -3], [-22, -1], [-18, -6], [-11, -5], [-5, 2],
+    [-9, 8], [-16, 6], [-22, 8], [-20, 4], [-29, 6]], 2);
+  shape([[-30, 4], [-21, 1], [-22, -1], [-13, -3], [-8, 1], [-12, 4], [-18, 3]], 3);
+  shape([[-27, -6], [-33, -11 - flicker], [-27, -10], [-21, -7], [-17, -5]], 2);
+
+  // Two swept horns frame a heavy brow and a long, hooked muzzle.
+  shape([[-13, -7], [-16, -14], [-22, -19], [-17, -18], [-10, -14], [-7, -9]], 1);
+  shape([[-11, -7], [-14, -14], [-19, -17], [-13, -15], [-8, -11]], 3);
+  shape([[-8, -10], [-10, -16], [-15, -23], [-9, -21], [-4, -16], [-1, -9]], 2);
+  shape([[-7, -11], [-9, -17], [-12, -21], [-7, -18], [-3, -13]], 4);
+  shape([[-16, 4], [-13, -8], [-9, -11], [-4, -11], [-2, -15], [0, -11], [5, -10],
+    [8, -7], [13, -7], [16, -4], [15, -1], [12, 1], [7, 2], [11, 4], [15, 2],
+    [14, 6], [10, 9], [2, 11], [-5, 8], [-10, 11], [-9, 6], [-13, 8]], 2);
+  shape([[-13, 3], [-9, -6], [-5, -9], [0, -10], [4, -9], [8, -6], [13, -6],
+    [15, -4], [12, -2], [5, -2], [0, 1], [-4, 6], [-10, 5]], 3);
+  shape([[-4, -7], [1, -9], [5, -8], [8, -6], [12, -6], [14, -4], [11, -4],
+    [8, -5], [4, -6], [-1, -4]], 4);
+  shape([[-2, 2], [4, -1], [13, -1], [11, 1], [7, 2], [5, 4], [9, 6],
+    [14, 3], [12, 6], [9, 8], [2, 7], [-3, 5]], 6);
+  shape([[-2, 6], [3, 8], [9, 7], [14, 4], [11, 8], [5, 10], [0, 10]], 3);
+
+  // A slanted eye and visible teeth keep the face readable at projectile scale.
+  shape([[-2, -6], [2, -7], [6, -8], [5, -5], [1, -4], [-2, -4]], 6);
+  shape([[0, -5], [5, -7], [4, -5], [1, -4]], 5);
+  shape([[11, -5], [14, -4], [13, -3], [11, -4]], 6);
+  shape([[11, -1], [14, -2], [12, 2]], 5);
+  shape([[6, 0], [9, -1], [7, 3]], 5);
+  shape([[9, 6], [11, 3], [12, 5]], 5);
+  shape([[-10, -1], [-6, -5], [-4, -5], [-7, -2], [-9, 2], [-12, 4]], 4);
+
+  const colors = Int32Array.from(raster.m, material => DRAGON_FIRE[material]);
+  outlined(colors, w, w, FIRE.outline);
+  return { baked: toRuns(colors, w, w), ox: -pad, oy: -pad };
+}
+
+export function dragonFireSprite(radius: number, dir: number, frame: number): WorldSprite {
+  const r = Math.round(radius * 2) / 2;
+  const h = ((dir % HEADINGS) + HEADINGS) % HEADINGS;
+  const fr = ((frame % FIREBALL_FRAMES) + FIREBALL_FRAMES) % FIREBALL_FRAMES;
+  return cached(`d${r}|${h}|${fr}`, () => dragonFireRaster(r, h, fr));
 }
 
 /** Susanoo's arrow in flight: a glowing head, a pale shaft, violet fletching and a short dashed trail. */

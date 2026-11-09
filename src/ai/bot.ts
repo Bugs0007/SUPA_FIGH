@@ -12,7 +12,7 @@ import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND,
 import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
-import { heroDef, heroHasFormCombo, bombRange, bombWindup, FORM_COMBO, CLONE_SLINGSHOT, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
+import { heroDef, heroHasFormCombo, bombRange, bombWindup, FORM_COMBO, CLONE_SLINGSHOT, DRAGON_FIST, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
 import { rosterSpecial } from '../sim/data/rosterSpecials';
 import { amaterasuReach, baseAbility, canReflect, dashDir, canTakeOff, flightFuel, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
@@ -861,7 +861,8 @@ export class BotController implements Controller {
     const near = Math.abs(e.x - f.x);
     const clear = w.map.clearShot(f.x, f.y - 15, e.x, e.y - 12);
     if (!clear) return null;
-    if(heroHasFormCombo(f.hero)&&(transformed(f)||f.hero==='sasuke'||f.hero==='luffy')&&f.formComboCd<=0&&dist<=FORM_COMBO.range){
+    const comboRange = f.hero === 'goku' && f.powerLevel === DRAGON_FIST.level ? DRAGON_FIST.range : FORM_COMBO.range;
+    if(heroHasFormCombo(f.hero)&&(transformed(f)||f.hero==='sasuke'||f.hero==='luffy')&&f.formComboCd<=0&&dist<=comboRange){
       const fits=f.hero==='sasuke'||(f.hero==='goku'?level<100:f.hero==='luffy'?level<70:near>45&&level<70);
       if(fits)cands.push({hold:f.hero==='naruto'?'kick':'ability',combo:true,ticks:2,mx:face,my:0,weight:BOT_FIGHT.wCombo});
     }

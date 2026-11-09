@@ -287,7 +287,7 @@ function drawOffhand(back: Graphics, view: FighterView, time: number): void {
     angle = f.charge < 0 ? f.stretchAngle - 0.7 : -2.3 + Math.max(0, f.charge) * 1.5;
   }
   const aim = f.facing > 0 ? angle : Math.PI - angle;
-  blade(back, hand.x, hand.y, aim, swordAngle === undefined ? 11 : 14, DUAL_STEEL, 1);
+  blade(back, hand.x, hand.y, aim, swordAngle === undefined ? 11 : 14 * view.swordProjection(true), DUAL_STEEL, 1);
 }
 
 function drawSnowRibbon(back: Graphics, view: FighterView, time: number): void {

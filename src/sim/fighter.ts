@@ -75,7 +75,7 @@ import {
   type ThrowStats,
   type WeaponDef,
 } from './data/weapons';
-import { FORM_HP, FORM_COMBO, bombRange, bombSpeed, bombWindup, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, heroDef, heroHasFormCombo, HOLD_FLY, maxLevel, STAMINA, SUPER_WINDOW, superFistFor, type BaseAbility } from './data/heroes';
+import { FORM_HP, FORM_COMBO, DRAGON_FIST, bombRange, bombSpeed, bombWindup, CLONE_SLINGSHOT, JET_BAZOOKA, KIRIN, gokuFormComboName, heroDef, heroHasFormCombo, HOLD_FLY, maxLevel, STAMINA, SUPER_WINDOW, superFistFor, type BaseAbility } from './data/heroes';
 import { rosterSpecial } from './data/rosterSpecials';
 import { beginRosterSpecial, stepRosterSpecial } from './rosterSpecial';
 import {
@@ -298,7 +298,7 @@ export interface Fighter extends Body {
   /** 'special' state sub-kind (powered specials + hero base abilities, D51) */
   /** the enemy an ultimate is locked onto (-1 = none) */
   lockOn: number;
-  specialKind: '' | 'formCombo' | 'rosterSpecial' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
+  specialKind: '' | 'formCombo' | 'dragonFist' | 'rosterSpecial' | 'cast' | 'rasengan' | 'pistol' | 'rocket' | 'swing' | 'beamCharge' | 'beam' | 'superCharge' | 'superBeam' | 'gatling' | 'bomb' | 'superFist' | 'blink' | 'fireball';
   /** current stretched arm/leg reach in px (render + stretch hitbox), 0 = normal */
   stretchLen: number;
   /** stretched arm angle (0 = straight ahead, negative = up), right-facing local space */
@@ -1966,11 +1966,12 @@ function startSuper(w: World, f: Fighter, inp: Intent): void {
 }
 
 function startFormCombo(w: World, f: Fighter, inp: Intent): void {
-  if (!beginMove(w,f,inp,'formCombo')) return;
+  const dragonFist = f.hero === 'goku' && f.powerLevel === DRAGON_FIST.level;
+  if (!beginMove(w, f, inp, dragonFist ? 'dragonFist' : 'formCombo')) return;
   f.formComboCd=FORM_COMBO.cooldown;
   f.charge=0;
   f.lockOn=-1;
-  let nearest=f.hero==='luffy'?JET_BAZOOKA.targetRange:FORM_COMBO.range;
+  let nearest = f.hero === 'luffy' ? JET_BAZOOKA.targetRange : dragonFist ? DRAGON_FIST.range : FORM_COMBO.range;
   for(const o of w.fighters){
     if(!o.alive||o.gone||o===f||sameTeam(f,o)||o.master===f.id)continue;
     const dist=Math.hypot(o.x-f.x,o.y-f.y);
@@ -1978,7 +1979,7 @@ function startFormCombo(w: World, f: Fighter, inp: Intent): void {
   }
   const target=f.lockOn>=0?w.fighters[f.lockOn]:null;
   f.anchorX=target?.x??f.x+f.facing*160;
-  f.anchorY=target?.y??f.y-20;
+  f.anchorY=target?.y??(dragonFist ? f.y : f.y-20);
   if(f.hero==='naruto'){
     if(f.cloneCount===0)summonClones(w,f);
     // Up selects an orb for traversal; otherwise prefer the enemy, then the nearest orb.
@@ -2011,7 +2012,59 @@ function startFormCombo(w: World, f: Fighter, inp: Intent): void {
       if(f.anchorX!==f.x)f.facing=f.anchorX>f.x?1:-1;
     }
   }
-  w.emit({t:'superStart',f:f.id,name: f.hero==='sasuke'?'KIRIN':f.hero==='naruto'?'CLONE SLINGSHOT':f.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE',level:f.powerLevel});
+  w.emit({t:'superStart',f:f.id,name: f.hero==='sasuke'?'KIRIN':f.hero==='naruto'?'CLONE SLINGSHOT':f.hero==='luffy'?'JET BAZOOKA':gokuFormComboName(f.powerLevel),level:f.powerLevel});
+}
+
+function stDragonFist(w: World, f: Fighter, dt: number): void {
+  const move = DRAGON_FIST;
+  const time = f.stateTime;
+  if (time < move.windup) {
+    f.vx = f.vy = 0;
+    integrate(w, f, dt, false);
+    return;
+  }
+  if (f.charge === 0) {
+    f.charge = 1;
+    const target = w.fighters[f.lockOn];
+    if (target?.alive && !target.gone) {
+      f.anchorX = target.x;
+      f.anchorY = target.y;
+    }
+    const dx = f.anchorX - f.x;
+    if (dx !== 0) f.facing = dx > 0 ? 1 : -1;
+    f.stretchAngle = Math.atan2(f.anchorY - f.y, Math.max(1, Math.abs(dx)));
+  }
+  if (f.charge === 1 && time < move.windup + move.active) {
+    const dirX = Math.cos(f.stretchAngle) * f.facing;
+    const dirY = Math.sin(f.stretchAngle);
+    f.vx = dirX * move.speed;
+    f.vy = dirY * move.speed;
+    const contact = integrate(w, f, dt, false);
+    const x = f.x + dirX * move.reach;
+    const y = f.y - f.h / 2 + dirY * move.reach;
+    const victim = w.fighters.find(o => o !== f && o.alive && !o.gone && o.invuln <= 0 && !sameTeam(f, o) && o.master !== f.id
+      && (o.x - f.x) * f.facing >= -4 && Math.hypot(o.x - x, o.y - o.h / 2 - y) <= move.radius
+      && w.map.clearShot(f.x, f.y - f.h / 2, o.x, o.y - o.h / 2));
+    if (victim) {
+      const m = meleeMuls(f);
+      applyHit(w, victim, { damage: FORM_COMBO.damage * m.dmg, kbX: dirX * 300, kbY: -140 + dirY * 100,
+        attacker: f.id, weapon: 'goku:dragonFist', kind: 'melee', stun: 0.3, x: victim.x, y: victim.y - victim.h / 2 });
+    }
+    if (victim || contact.wallX || contact.ceil) {
+      f.charge = 2;
+      f.vx *= 0.15;
+      f.vy *= 0.15;
+    }
+  } else {
+    if (f.charge === 1) {
+      f.charge = 2;
+      f.vx *= 0.15;
+      f.vy *= 0.15;
+    }
+    holdStill(f, dt);
+    integrate(w, f, dt);
+  }
+  if (time >= move.duration) endSpecial(w, f);
 }
 
 function stJetBazooka(w:World,f:Fighter,inp:Intent,dt:number):void{
@@ -2060,6 +2113,7 @@ function stJetBazooka(w:World,f:Fighter,inp:Intent,dt:number):void{
 }
 
 function stSpecial(w: World, f: Fighter, inp: Intent, dt: number): void {
+  if (f.specialKind === 'dragonFist') return stDragonFist(w, f, dt);
   if (f.specialKind === 'rosterSpecial') {
     const spec = rosterSpecial(f.hero);
     const done = spec && stepRosterSpecial(w, f, spec, dt);

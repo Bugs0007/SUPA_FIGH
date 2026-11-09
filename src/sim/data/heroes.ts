@@ -418,9 +418,12 @@ export function bombRange(hero: string, b: BombStats, level: number): number {
   return ladder ? ladder[Math.max(0, Math.min(ladder.length, level) - 1)] : b.range ?? 320;
 }
 export const FORM_COMBO = { cooldown: 6, windup: 0.24, duration: 0.7, range: 360, damage: 22, radius: 30, speed: 520, cloneRange: 70, recallHold: 0.55 };
+export const DRAGON_FIST = { level: 3, windup: 0.09, active: 0.34, duration: 0.64, range: 220, speed: 620, reach: 11, radius: 14 };
+export const gokuFormComboName = (level: number) => level === DRAGON_FIST.level ? 'DRAGON FIST' : 'VANISH STRIKE';
 export const CLONE_SLINGSHOT = { windup: 0.6, duration: 1, speed: 1040, turns: 1.5, swingRadius: 22 };
 export const JET_BAZOOKA = { closeRange:42, targetRange:480, anchorRange:180, windup:.32, duration:1, speed:900, damage:30, kickDamage:40, kickKnock:700, kickLift:-120, kickStun:.4, hitRadius:24 };
 export const KIRIN = { stun: 1.5, radius:18, radiusPerForm:6, scaleBase:.8, scalePerForm:.3, impactTime:.85, blastRadius:42, blastRadiusPerForm:10, shakeBase:.7, shakePerForm:.05 };
+export const SASUKE_DRAGON_FIRE_LEVEL = 2;
 
 export const HEROES: Record<string, HeroDefinition> = {
   sasuke: {
@@ -617,9 +620,20 @@ export function superFistFor(hero: string, level: number): (StretchStats & { sho
   };
 }
 
-/** Kill-feed weapon ids of hero moves: '<hero>:combo', 'rasengan', 'gumgum', 'clone', '<hero>:second', '<hero>:super'. */
+/** The second-slot move shown for a particular form in the fighter viewer. */
+export function secondMoveName(hero: string, level: number): string {
+  const second = HEROES[hero]?.second;
+  if (hero === 'sasuke') {
+    if (level >= (second?.amaterasu?.minLevel ?? Infinity)) return 'AMATERASU';
+    if (level === SASUKE_DRAGON_FIRE_LEVEL) return 'GREAT DRAGON FIRE';
+  }
+  return second?.name ?? 'KICK';
+}
+
+/** Kill-feed labels for hero weapon ids. */
 export function heroAttackLabel(id: string): string | null {
   if (id.endsWith(':special')) return rosterSpecial(id === 'scrapper:special' ? '' : id.slice(0, -':special'.length))?.name ?? null;
+  if (id === 'goku:dragonFist') return gokuFormComboName(DRAGON_FIST.level);
   if(id==='luffy:jetKick')return 'JET BAZOOKA KICK';
   if(id==='luffy:formCombo')return 'JET BAZOOKA';
   if (id === 'amaterasu') return 'AMATERASU';

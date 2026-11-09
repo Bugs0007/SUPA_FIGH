@@ -49,8 +49,16 @@ export const BF = {
   FOX_JUMP: 39,
   // blocking: knees bent, weight low behind the raised forearms
   GUARD: 40,
+  SWORD_LOAD: 41,
+  SWORD_DRAW: 42,
+  SWORD_CUT: 43,
+  SWORD_RISE: 44,
+  SWORD_FINISH: 45,
+  SWORD_COIL: 46,
+  SWORD_SWEEP: 47,
+  SWORD_WRAP: 48,
 } as const;
-export const BODY_FRAMES = 41;
+export const BODY_FRAMES = 49;
 export const HEAD = { NORMAL: 0, HURT: 1, DEAD: 2 } as const;
 export const ARM_ANGLES = 32;
 export const ARM_LENGTHS = [5, 7];
@@ -99,6 +107,9 @@ export interface Pose {
   lean: number;
   back: Leg;
   front: Leg;
+  shoulderSpan?: number;
+  hipShift?: number;
+  shoulders?: readonly [frontX: number, frontY: number, rearX: number, rearY: number];
   special?: 'roll';
 }
 
@@ -179,6 +190,25 @@ function buildPoses(): Pose[] {
   poses[BF.DANGLE] = stand(23, 8, -1, [0, 3, -1, 6], [0, 3, 1, 6]);
   poses[BF.TUMBLE] = stand(23, 8, 0, [-3, 2, -5, 4], [3, 2, 5, 5]);
   poses[BF.GUARD] = stand(25, 7, 1, [-3, 2, -4, 5], [2, 2, 3, 5]);
+  // Keep both boot contacts fixed while the chest and knees transfer weight through the cut.
+  poses[BF.SWORD_LOAD] = stand(25, 8, -3, [-4, 1, -5, 4], [4, 1, 8, 4]);
+  poses[BF.SWORD_DRAW] = stand(26, 8, -2, [-4, 1, -5, 3], [6, 1, 8, 3]);
+  poses[BF.SWORD_CUT] = { ...stand(24, 8, 5, [-3, 2, -5, 5], [7, 2, 8, 5]), shoulderSpan: 2 };
+  poses[BF.SWORD_RISE] = { ...stand(22, 9, 4, [-3, 4, -5, 7], [5, 3, 8, 7]), shoulderSpan: 2 };
+  poses[BF.SWORD_FINISH] = { ...stand(26, 7, 4, [-4, 1, -5, 3], [7, 1, 8, 3]), shoulderSpan: 2 };
+  // Transfer the hips over the front boot, then rotate the shoulder line over that same plant.
+  poses[BF.SWORD_COIL] = {
+    hipY: 25, torsoH: 7, lean: -4, hipShift: -2, shoulders: [2, 0, -3, 1],
+    back: leg(12, 26, -3, 2, -4, 4), front: leg(14, 26, 5, 1, 8, 3),
+  };
+  poses[BF.SWORD_SWEEP] = {
+    hipY: 23, torsoH: 8, lean: 5, hipShift: 3, shoulders: [1, 0, -3, 1],
+    back: leg(17, 24, -4, 3, -8, 6), front: leg(19, 24, 5, 2, 6, 6),
+  };
+  poses[BF.SWORD_WRAP] = {
+    hipY: 25, torsoH: 8, lean: 3, hipShift: 3, shoulders: [-2, 1, 1, -1],
+    back: leg(17, 26, -4, 2, -8, 4), front: leg(19, 26, 5, 1, 6, 4),
+  };
   return poses;
 }
 
@@ -188,13 +218,15 @@ const POSES = buildPoses();
 export const FRAME_META: FrameMeta[] = POSES.map((p) => {
   const top = p.hipY - p.torsoH;
   const special = p.special === 'roll';
+  const [frontX, frontY, rearX, rearY] = p.shoulders ?? [0, 0, -(p.shoulderSpan ?? 1), 0];
+  const shoulderY = top + (p.torsoH <= 5 ? 1 : 2);
   return {
     neckX: CX + p.lean,
     neckY: top,
-    shX: CX + p.lean,
-    shY: top + (p.torsoH <= 5 ? 1 : 2),
-    bshX: CX + p.lean - 1,
-    bshY: top + (p.torsoH <= 5 ? 1 : 2),
+    shX: CX + p.lean + frontX,
+    shY: shoulderY + frontY,
+    bshX: CX + p.lean + rearX,
+    bshY: shoulderY + rearY,
     hideHead: special,
     hideArms: special,
   };
@@ -213,7 +245,7 @@ function drawTorso(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearan
   const skinDark = shade(a.skin, -0.15);
   for (let r = top; r <= p.hipY; r++) {
     const t = p.torsoH > 0 ? (p.hipY - r) / p.torsoH : 0;
-    const xo = Math.round(p.lean * t);
+    const xo = Math.round(p.lean * t + (p.hipShift ?? 0) * (1 - t));
     const x0 = ox + 13 + xo;
     const y = oy + r;
     const rowFromTop = r - top;
@@ -292,6 +324,13 @@ function drawTorso(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearan
 /** Costume and anatomy details are tied to the pose, so they survive every animation. */
 function heroBody(pc: PixelCanvas, ox: number, oy: number, p: Pose, a: Appearance): void {
   if (!a.design || p.special) return;
+  const hipShift = p.hipShift ?? 0;
+  if (hipShift) {
+    // Costume details use the belt as their origin. Keep neck and leg details in place.
+    const relativeLeg = (l: Leg): Leg => ({ ...l, hx: l.hx - hipShift, kx: l.kx - hipShift, fx: l.fx - hipShift });
+    ox += hipShift;
+    p = { ...p, lean: p.lean - hipShift, back: relativeLeg(p.back), front: relativeLeg(p.front) };
+  }
   const level = a.form ?? 0;
   const top = p.hipY - p.torsoH;
   const x = ox + 13 + p.lean;

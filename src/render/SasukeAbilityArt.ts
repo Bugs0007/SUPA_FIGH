@@ -1,12 +1,12 @@
 import type Phaser from 'phaser';
 import { moveLook } from '../art/heroMoves';
-import { HEROES } from '../sim/data/heroes';
+import { HEROES, SASUKE_DRAGON_FIRE_LEVEL } from '../sim/data/heroes';
 import type { Fighter } from '../sim/fighter';
 import type { Bullet } from '../sim/projectile';
 import { formLevel } from './formLevel';
 import { AvatarArt } from './AvatarArt';
 import { dashDir, rasenganPoint, usesAmaterasu } from '../sim/hero';
-import { arrowSprite, FIRE, fireballSprite, heading } from '../art/fireSprites';
+import { arrowSprite, dragonFireSprite, FIRE, fireballSprite, heading } from '../art/fireSprites';
 import { paintRuns } from '../art/pixelRaster';
 type G = Phaser.GameObjects.Graphics;
 /** the fireball gathering at Sasuke's mouth (radius from r0 to r0 + grow over the windup), its flicker rate and embers */
@@ -120,7 +120,8 @@ export class SasukeAbilityArt {
         const c = FIRE.embers[Math.min(FIRE.embers.length - 1, Math.floor(phase * FIRE.embers.length))];
         g.fillStyle(c, 1).fillRect(Math.round(p.x), Math.round(p.y + phase * phase * 6), phase < 0.35 ? 2 : 1, phase < 0.35 ? 2 : 1);
       }
-      const ball = fireballSprite(size, heading(dx, dy), Math.floor(time * FIRE_CAST.fps));
+      const sprite = b.form === SASUKE_DRAGON_FIRE_LEVEL ? dragonFireSprite : fireballSprite;
+      const ball = sprite(size, heading(dx, dy), Math.floor(time * FIRE_CAST.fps));
       paintRuns(g, ball.baked, cx + ball.ox, cy + ball.oy);
     }
     else if (b.form >= 3 || size > 5.5) {

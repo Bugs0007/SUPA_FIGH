@@ -10,15 +10,16 @@ import { ARM_LONG, ARM_SHORT, FIGHTER_CROUCH_H, ROLL_TIME } from '../sim/constan
 import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
 import { baseAbility, formLayers, usesAmaterasu } from '../sim/hero';
-import { heroDef, CLONE_SLINGSHOT, FORM_COMBO, JET_BAZOOKA } from '../sim/data/heroes';
+import { heroDef, CLONE_SLINGSHOT, DRAGON_FIST, FORM_COMBO, JET_BAZOOKA } from '../sim/data/heroes';
 import { blackCloverSwordArm } from './BlackCloverAbilityArt';
 import { bleachBladeAngle } from './BleachAbilityArt';
 import { onePiecePose } from './OnePieceAbilityArt';
 import { nonSwordRosterSpecialPose } from './RosterSpecialArt';
-import { paintSwordWake, rosterSwordPose, swingAngle, swingArm, swordSwing, waistDrawPose, type WaistDrawPose } from './SwordMotion';
+import { paintSwordScabbard, paintSwordWake, rosterSwordPose, swordPivotOffset, swordPose, swordSwing, type SwordPose } from './SwordMotion';
 
 /** Rig pivot: body center, this many px above the feet. */
 const RIG_Y = 11;
+const ARM_FRAME_SIZE = 17;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** shortest signed difference a - b between two angles */
@@ -29,6 +30,30 @@ const angleDelta = (a: number, b: number) => {
   return d;
 };
 
+/** Split the baked sleeve at the elbow, keeping the hand on the authored sword grip. */
+function poseSwordArm(upper: Phaser.GameObjects.Image, forearm: Phaser.GameObjects.Image, lengthFrame: number,
+  shoulderX: number, shoulderY: number, handX: number, handY: number): void {
+  const dx = handX - shoulderX, dy = handY - shoulderY;
+  const reach = Math.hypot(dx, dy);
+  const bend = Math.sqrt(Math.max(0, 4.6 ** 2 - (reach / 2) ** 2));
+  const elbowX = (shoulderX + handX) / 2 - (reach > 0.01 ? dy / reach : 1) * bend;
+  const elbowY = (shoulderY + handY) / 2 + (reach > 0.01 ? dx / reach : 0) * bend;
+  const length = ARM_LENGTHS[lengthFrame] ?? ARM_LENGTHS[0];
+  const split = Math.ceil(length / 2);
+  const seam = 8 + split;
+  const frame = armFrame(0, lengthFrame);
+
+  upper.setFrame(frame).setPosition(shoulderX, shoulderY)
+    .setRotation(Math.atan2(elbowY - shoulderY, elbowX - shoulderX))
+    .setScale(Math.hypot(elbowX - shoulderX, elbowY - shoulderY) / split, 1)
+    .setCrop(0, 0, seam + 1, ARM_FRAME_SIZE);
+  forearm.setFrame(frame).setPosition(elbowX, elbowY)
+    .setOrigin((seam + 0.5) / ARM_FRAME_SIZE, 0.5)
+    .setRotation(Math.atan2(handY - elbowY, handX - elbowX))
+    .setScale(Math.hypot(handX - elbowX, handY - elbowY) / (length - split), 1)
+    .setCrop(seam, 0, ARM_FRAME_SIZE - seam, ARM_FRAME_SIZE);
+}
+
 /** Visual puppet for one fighter. Reads sim state; never writes it. */
 export class FighterView {
   readonly root: Phaser.GameObjects.Container;
@@ -36,11 +61,14 @@ export class FighterView {
   private body: Phaser.GameObjects.Image;
   private head: Phaser.GameObjects.Image;
   private backArm: Phaser.GameObjects.Image;
+  private backForearm: Phaser.GameObjects.Image;
   private frontArm: Phaser.GameObjects.Image;
+  private frontForearm: Phaser.GameObjects.Image;
   private weapon: Phaser.GameObjects.Image;
   private swordWake: Phaser.GameObjects.Graphics;
+  private swordScabbard: Phaser.GameObjects.Graphics;
   private swordAngles: { front: number; rear?: number } | null = null;
-  private waistDraw: WaistDrawPose | null = null;
+  private meleeSword: SwordPose | null = null;
   private pack: Phaser.GameObjects.Image;
   private ghostImg: Phaser.GameObjects.Container;
   /** chaos modifier: 2x heads */
@@ -103,14 +131,18 @@ export class FighterView {
     this.root = scene.add.container(fighter.x, fighter.y);
     this.rig = scene.add.container(0, -RIG_Y);
     this.backArm = scene.add.image(0, 0, tex.arm, 0).setTint(0xb0a8c0);
+    this.backForearm = scene.add.image(0, 0, tex.arm, 0).setTint(0xb0a8c0).setVisible(false);
     this.body = scene.add.image(0, RIG_Y, tex.body, BF.IDLE0).setOrigin(0.5, 1);
     this.head = scene.add.image(0, 0, tex.head, HEAD.NORMAL).setOrigin(8 / 16, 13 / 16);
     this.weapon = scene.add.image(0, 0, 'weapons').setVisible(false);
     this.swordWake = scene.add.graphics();
+    this.swordScabbard = scene.add.graphics();
     const jf = Art.weapon('jetpack');
     this.pack = scene.add.image(-5, RIG_Y - 13, jf?.key ?? 'weapons', jf?.frame).setVisible(false);
     this.frontArm = scene.add.image(0, 0, tex.arm, 0);
-    this.rig.add([this.pack, this.backArm, this.body, this.head, this.swordWake, this.weapon, this.frontArm]);
+    this.frontForearm = scene.add.image(0, 0, tex.arm, 0).setVisible(false);
+    this.rig.add([this.pack, this.swordScabbard, this.backArm, this.backForearm, this.body, this.head, this.swordWake,
+      this.weapon, this.frontArm, this.frontForearm]);
     this.root.add(this.rig);
     this.root.setDepth(40);
     this.tag = scene.add.bitmapText(fighter.x, fighter.y - 35, 'smo', label.toUpperCase()).setOrigin(0.5, 1).setTint(color).setDepth(70);
@@ -184,11 +216,12 @@ export class FighterView {
   }
 
   swordDrawVisible(): boolean {
-    return this.waistDraw?.visible ?? true;
+    return this.meleeSword?.front.visible ?? true;
   }
 
-  swordProjection(): number {
-    return this.waistDraw?.projection ?? 1;
+  swordProjection(rear = false): number {
+    const blade = rear ? this.meleeSword?.rearBlade : this.meleeSword?.front;
+    return blade?.projection ?? 1;
   }
 
   mouth(): { x: number; y: number } | null {
@@ -316,8 +349,9 @@ export class FighterView {
     let bodyRot = 0;
     let swing: ReturnType<typeof swordSwing>;
     this.swordAngles = null;
-    this.waistDraw = null;
+    this.meleeSword = null;
     this.swordWake.clear();
+    this.swordScabbard.clear();
     const def = activeWeapon(f);
     const isGun = !!def.gun;
     const rifle = def.hold === 'rifle';
@@ -541,28 +575,15 @@ export class FighterView {
         frame = inWind && hit.windup >= 0.05 ? BF.WINDUP : striking ? strikeFrame : BF.IDLE0;
         if (inActive) leanTarget = f.combo === 2 ? 0.12 : 0.05;
         swing = swordSwing(f, hit, def.id);
-        if (swing?.waistDraw) {
-          this.waistDraw = waistDrawPose(hit, t);
-          weaponAngle = this.waistDraw.angle;
-          this.swordAngles = { front: weaponAngle };
-          frame = inWind ? BF.WINDUP : striking ? BF.CROSS : BF.IDLE0;
+        if (swing) {
+          const pose = swordPose(swing, t, f.grounded);
+          this.meleeSword = pose;
+          weaponAngle = pose.front.angle;
+          this.swordAngles = { front: weaponAngle, rear: pose.rearBlade?.angle };
+          frame = pose.frame;
           frontLen = 1;
-          back = inWind ? 1.75 : 2.05;
           backLen = 1;
-          // Keep the cut level even when it follows a leaning overhead swing.
-          this.lean = 0;
-          leanTarget = 0;
-        } else if (swing) {
-          weaponAngle = swingAngle(swing.cut, hit, t);
-          const rearAngle = swing.rear ? swingAngle(swing.rear, hit, t) : undefined;
-          this.swordAngles = { front: weaponAngle, rear: rearAngle };
-          front = swingArm(weaponAngle);
-          frontLen = 1;
-          back = rearAngle === undefined ? 1.6 + front * -0.4 : swingArm(rearAngle, true);
-          backLen = rearAngle === undefined ? 0 : 1;
-          const rising = swing.cut[1] > swing.cut[3] + 0.8;
-          frame = inWind && t < hit.windup * 0.85 ? BF.WINDUP : striking ? rising ? BF.UPPER : swing.frame : BF.IDLE0;
-          leanTarget = inWind ? -0.16 : striking ? (rising ? 0.12 : 0.21) : 0;
+          smoothArms = false;
         } else if (def.hold === 'fist') {
           if (f.combo === 0) {
             front = inWind ? 0.5 : inActive ? 0 : 0.4;
@@ -656,6 +677,15 @@ export class FighterView {
             rigRot=Math.PI/2+Math.atan2(f.vy,f.vx*f.facing);
             front=-Math.PI/2;back=-Math.PI/2+.12;
           }
+        } else if (kind === 'dragonFist') {
+          const loading = f.stateTime < DRAGON_FIST.windup;
+          const punching = !loading && f.stateTime < DRAGON_FIST.windup + DRAGON_FIST.active;
+          frame = loading ? BF.WINDUP : punching ? BF.CROSS : BF.AIM;
+          front = loading ? 2.48 : punching ? f.stretchAngle - .15 : -.4;
+          back = loading ? 1.83 : 2.66;
+          backLen = 0;
+          leanTarget = loading ? -.13 : punching ? .24 : .03;
+          smoothArms = false;
         } else if (kind === 'formCombo' && f.hero === 'goku') {
           const release = f.stateTime - FORM_COMBO.windup;
           frame = release < 0 ? BF.WINDUP : release < 0.11 ? BF.CROSS : BF.AIM;
@@ -976,7 +1006,9 @@ export class FighterView {
       this.body.setTexture(want.body);
       this.head.setTexture(want.head);
       this.frontArm.setTexture(want.arm);
+      this.frontForearm.setTexture(want.arm);
       this.backArm.setTexture(want.arm);
+      this.backForearm.setTexture(want.arm);
     }
     this.lieAmount += (lie - this.lieAmount) * Math.min(1, dt * 20);
     // turning around on the ground: a quick horizontal squeeze sells the direction change
@@ -1011,8 +1043,10 @@ export class FighterView {
       this.root.scaleX*= (turn>=0?1:-1)*(.55+.45*Math.abs(turn));
     }
     // on a wall the body lies along it: pull the rig off the wall so the feet touch it, not the middle
-    this.rig.setPosition(f.state === 'wallwalk' ? -6 : 0, lerp(-RIG_Y, -4, this.lieAmount) - rigLift);
-    this.lean += (leanTarget - this.lean) * Math.min(1, dt * 14);
+    const pivot = this.meleeSword ? swordPivotOffset(this.meleeSword, RIG_Y) : { x: 0, y: 0 };
+    this.rig.setPosition((f.state === 'wallwalk' ? -6 : 0) + pivot.x, lerp(-RIG_Y, -4, this.lieAmount) - rigLift + pivot.y);
+    if (this.meleeSword) this.lean = this.meleeSword.tilt;
+    else this.lean += (leanTarget - this.lean) * Math.min(1, dt * 14);
     this.rig.setRotation(rigRot + this.lean);
 
     const meta = FRAME_META[frame];
@@ -1048,31 +1082,37 @@ export class FighterView {
     const [sx, sy] = this.fp(meta.shX, meta.shY);
     const [bsx, bsy] = this.fp(meta.bshX, meta.bshY);
     const armLength = ARM_LENGTHS[frontLen] ?? (frontLen === 1 ? ARM_LONG : ARM_SHORT);
-    if (armsVisible) {
-      if (this.waistDraw) {
-        const dx = this.waistDraw.x - sx, dy = this.waistDraw.y - sy;
-        front = Math.atan2(dy, dx);
-        this.armF = front;
-        this.frontArm.setPosition(sx, sy).setScale(Math.hypot(dx, dy) / armLength).setFrame(armFrame(front, frontLen));
-      } else {
-        this.frontArm.setPosition(sx, sy).setScale(1, frontArmYScale).setFrame(guardArms ? ARM_GUARD : armFrame(front, frontLen));
-      }
-      this.backArm.setPosition(bsx, bsy).setFrame(guardArms ? ARM_GUARD + 1 : armFrame(back, backLen));
-    }
-    this.gripX = this.waistDraw?.x ?? (guardArms ? sx + 5 : sx + Math.cos(front) * armLength);
-    this.gripY = this.waistDraw?.y ?? (guardArms ? sy - 3 : sy + Math.sin(front) * armLength * frontArmYScale);
     const rearLength = ARM_LENGTHS[backLen] ?? ARM_SHORT;
-    this.rearGripX = guardArms ? bsx + 3 : bsx + Math.cos(back) * rearLength;
-    this.rearGripY = guardArms ? bsy - 2 : bsy + Math.sin(back) * rearLength;
+    const pose = this.meleeSword;
+    this.frontForearm.setVisible(!!pose && this.frontArm.visible);
+    this.backForearm.setVisible(!!pose && this.backArm.visible);
+    if (armsVisible) {
+      if (pose) {
+        this.armF = Math.atan2(pose.front.y - sy, pose.front.x - sx);
+        this.armB = Math.atan2(pose.back.y - bsy, pose.back.x - bsx);
+        poseSwordArm(this.frontArm, this.frontForearm, frontLen, sx, sy, pose.front.x, pose.front.y);
+        poseSwordArm(this.backArm, this.backForearm, backLen, bsx, bsy, pose.back.x, pose.back.y);
+      } else {
+        if (this.frontArm.isCropped) this.frontArm.setCrop();
+        if (this.backArm.isCropped) this.backArm.setCrop();
+        this.frontArm.setPosition(sx, sy).setRotation(0).setScale(1, frontArmYScale).setFrame(guardArms ? ARM_GUARD : armFrame(front, frontLen));
+        this.backArm.setPosition(bsx, bsy).setRotation(0).setScale(1).setFrame(guardArms ? ARM_GUARD + 1 : armFrame(back, backLen));
+      }
+    }
+    this.gripX = pose?.front.x ?? (guardArms ? sx + 5 : sx + Math.cos(front) * armLength);
+    this.gripY = pose?.front.y ?? (guardArms ? sy - 3 : sy + Math.sin(front) * armLength * frontArmYScale);
+    this.rearGripX = pose?.back.x ?? (guardArms ? bsx + 3 : bsx + Math.cos(back) * rearLength);
+    this.rearGripY = pose?.back.y ?? (guardArms ? bsy - 2 : bsy + Math.sin(back) * rearLength);
 
     // held weapon
     this.pack.setVisible(f.alive && f.inv[SLOT.GADGET]?.id === 'jetpack' && !meta.hideArms && frame !== BF.ROLL);
     this.pack.setY(RIG_Y - 13 + (frame === BF.CROUCH || frame === BF.CRAWL0 || frame === BF.CRAWL1 ? 7 : 0));
     const item = f.inv[f.active];
     const wf = signatureBlade ?? (item && item.id !== 'jetpack' ? Art.weapon(item.id) : undefined);
-    if (swing && armsVisible) paintSwordWake(this.swordWake, f, swing,
-      { x: sx, y: sy, reach: armLength }, { x: bsx, y: bsy, reach: rearLength },
-      wf ? wf.w - wf.gripX - 2 : undefined);
+    if (swing && pose && armsVisible) {
+      paintSwordScabbard(this.swordScabbard, pose);
+      paintSwordWake(this.swordWake, f, swing, pose, RIG_Y, wf ? wf.w - wf.gripX - 2 : undefined);
+    }
     if (wf && (showWeapon || signatureBlade) && armsVisible && f.alive && this.swordDrawVisible()) {
       const ang = weaponAngle ?? front;
       const trackGrip = guardArms || this.swordAngles !== null;
@@ -1092,20 +1132,23 @@ export class FighterView {
     if (this.xform > 0) {
       this.xform -= dt;
       const c = Math.floor(this.xform * 28) % 2 === 0 ? this.xformColor : 0xffffff;
-      for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTintFill(c);
+      for (const p of [this.body, this.head, this.frontArm, this.backArm, this.frontForearm, this.backForearm]) p.setTintFill(c);
     } else if (this.flash > 0) {
       this.flash -= dt;
-      for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTintFill(0xffffff);
+      for (const p of [this.body, this.head, this.frontArm, this.backArm, this.frontForearm, this.backForearm]) p.setTintFill(0xffffff);
     } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) {
-      for (const p of [this.body, this.head, this.frontArm]) p.setTint(f.burnStyle==='amaterasu'?0xa78abd:0xffa060);
+      for (const p of [this.body, this.head, this.frontArm, this.frontForearm]) p.setTint(f.burnStyle==='amaterasu'?0xa78abd:0xffa060);
       this.backArm.setTint(f.burnStyle==='amaterasu'?0x6e507d:0xc08060);
+      this.backForearm.setTint(f.burnStyle==='amaterasu'?0x6e507d:0xc08060);
     } else if (!f.alive && f.burn > 0) {
-      for (const p of [this.body, this.head, this.frontArm, this.backArm]) p.setTint(0x605050);
+      for (const p of [this.body, this.head, this.frontArm, this.backArm, this.frontForearm, this.backForearm]) p.setTint(0x605050);
     } else {
       this.body.clearTint();
       this.head.clearTint();
       this.frontArm.clearTint();
+      this.frontForearm.clearTint();
       this.backArm.setTint(0xb0a8c0);
+      this.backForearm.setTint(0xb0a8c0);
     }
     const blink = f.alive && f.invuln > 0 && f.state !== 'roll' && Math.floor(time * 20) % 2 === 0;
     this.root.setAlpha(blink ? 0.45 : 1);

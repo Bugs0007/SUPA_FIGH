@@ -3,7 +3,7 @@ import { HERO_ART } from '../art/heroArt';
 import { moveLook } from '../art/heroMoves';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
-import { HEROES, CLONE_SLINGSHOT, JET_BAZOOKA, ULT_WINDUP, avatarLaunch, bombWindup, heroHasFormCombo, superFistFor } from '../sim/data/heroes';
+import { HEROES, CLONE_SLINGSHOT, DRAGON_FIST, JET_BAZOOKA, ULT_WINDUP, avatarLaunch, bombWindup, gokuFormComboName, heroHasFormCombo, secondMoveName, superFistFor } from '../sim/data/heroes';
 import { newBullet, type Bullet } from '../sim/projectile';
 import { getMap } from '../sim/map/maps';
 import { DEFAULT_WORLD_SETTINGS, World } from '../sim/world';
@@ -36,7 +36,7 @@ function describe(hero: string, mode: MoveMode): string {
   const h = HEROES[hero];
   switch (mode) {
     case 'base': return h.base.desc;
-    case 'second': return h.second.desc;
+    case 'second': return hero === 'sasuke' ? 'AIM FIRE STYLE WITH UP OR DOWN. CURSE MARK BREATHES GREAT DRAGON FIRE. MANGEKYO AND RINNEGAN CAST AMATERASU.' : h.second.desc;
     case 'super': return heroHasFormCombo(hero) && hero !== 'luffy' ? `${h.super.desc} LOADS IN ${ULT_WINDUP} SECONDS: BLOCK, RUN OR BREAK IT.` : h.super.desc;
     case 'combo': return heroHasFormCombo(hero)
       ? `${h.comboName}: PUNCH, PUNCH, PUNCH, THEN A KICK THAT KNOCKS DOWN.`
@@ -46,7 +46,7 @@ function describe(hero: string, mode: MoveMode): string {
       return hero === 'sasuke' ? 'CHIDORI + PUNCH CALLS KIRIN: LIGHTNING THAT HOLDS THE ENEMY STUNNED.'
         : hero === 'naruto' ? 'SHADOW CLONES + PUNCH: A CLONE SWINGS NARUTO INTO THE ENEMY (CLONE SLINGSHOT).'
         : hero === 'luffy' ? 'PISTOL + PUNCH, IN EVERY GEAR: GRAB AND KICK AN ENEMY, OR SLINGSHOT FROM AN ANCHOR (JET BAZOOKA).'
-        : 'INSTANT TRANSMISSION + PUNCH: VANISH AND STRIKE FROM BEHIND (VANISH STRIKE).';
+        : 'ATTACK + ABILITY: DRAGON FIST IN SUPER SAIYAN 3. VANISH STRIKE IN THE OTHER POWERED FORMS.';
   }
 }
 
@@ -163,6 +163,7 @@ export class HeroMoveGallery {
       }
       if(this.mode==='special'){zoom=1.3;center=14;cy=103;}
       if(this.mode==='special'&&this.hero==='sasuke'){zoom=.75;center=14;cy=90;}
+      if (this.mode === 'special' && this.hero === 'goku' && i === DRAGON_FIST.level) { zoom = .86; center = -16; cy = 98; }
       if(this.mode==='combo'&&this.hero==='sasuke'&&i>=3){
         zoom=i===4?1.15:1.45;center=0;cy=108;
       } else if (this.mode === 'super' && i > 0 && this.hero === 'luffy') {
@@ -197,10 +198,11 @@ export class HeroMoveGallery {
     this.lastLoop = -1;
     this.buttons.forEach((button, i) => button.setTint(this.modes[i] === mode ? 0xffdf8a : 0x9baec9));
     this.labels.forEach((label, i) => {
-      const name = mode==='guard'?'HOLD BLOCK':mode==='special'?(this.hero==='sasuke'?'KIRIN':i===0&&this.hero!=='luffy'?'POWER ORB REQUIRED':this.hero==='naruto'?'CLONE SLINGSHOT':this.hero==='luffy'?'JET BAZOOKA':'VANISH STRIKE'):mode==='combo'?HEROES[this.hero].comboName : mode === 'base' ? (this.hero === 'naruto' || this.hero === 'sasuke' ? moveLook(this.hero, i).name : HEROES[this.hero].base.name) : mode === 'second' ? this.hero==='sasuke'&&i>=3?'AMATERASU / RANGE 240':HEROES[this.hero].second.name : i > 0 ? HEROES[this.hero].super.names[i - 1] : 'POWER ORB REQUIRED';
+      const name = mode==='guard'?'HOLD BLOCK':mode==='special'?(this.hero==='sasuke'?'KIRIN':i===0&&this.hero!=='luffy'?'POWER ORB REQUIRED':this.hero==='naruto'?'CLONE SLINGSHOT':this.hero==='luffy'?'JET BAZOOKA':gokuFormComboName(i)):mode==='combo'?HEROES[this.hero].comboName : mode === 'base' ? (this.hero === 'naruto' || this.hero === 'sasuke' ? moveLook(this.hero, i).name : HEROES[this.hero].base.name) : mode === 'second' ? secondMoveName(this.hero, i) : i > 0 ? HEROES[this.hero].super.names[i - 1] : 'POWER ORB REQUIRED';
       const words = name.split(' ');
       const split = words.length > 2 ? Math.ceil(words.length / 2) : words.length;
       label.setText([words.slice(0, split).join(' '), words.slice(split).join(' ')].filter(Boolean).join('\n'));
+      if (mode === 'second' && name === 'AMATERASU') label.setText('AMATERASU /\nRANGE 240');
       if(mode==='special'&&this.hero==='luffy'&&i>0)label.setText(this.jetPreview==='kick'?'JET GRAB KICK':'JET SLINGSHOT');
       if (mode === 'super' && i > 0 && this.hero === 'luffy') label.setText(`${name}\nRANGE ${superFistFor('luffy', i)!.range} / FIST ${superFistFor('luffy', i)!.fist}`);
     });
@@ -305,6 +307,11 @@ export class HeroMoveGallery {
       if(this.mode==='special'){
         f.state=(level>0||this.hero==='sasuke'||this.hero==='luffy')&&phase>.5&&phase<2.4?'special':'normal';f.specialKind='formCombo';
         f.stateTime=Math.max(0,(phase-.5)% (this.hero==='naruto'?CLONE_SLINGSHOT.duration:this.hero==='luffy'?JET_BAZOOKA.duration:.7));f.lockOn=-1;f.anchorX=f.x+28;f.anchorY=f.y;
+        if (this.hero === 'goku' && level === DRAGON_FIST.level) {
+          f.specialKind = 'dragonFist';
+          f.stateTime = Math.max(0, (phase - .5) % DRAGON_FIST.duration);
+          f.charge = Number(f.stateTime >= DRAGON_FIST.windup);
+        }
         if(this.hero==='naruto'&&f.stateTime>=CLONE_SLINGSHOT.windup)f.vx=CLONE_SLINGSHOT.speed;
         if(this.hero==='luffy'){f.jetMode=this.jetPreview;f.jetAnchorX=f.x-14;f.jetAnchorY=f.y;if(f.stateTime>=JET_BAZOOKA.windup&&this.jetPreview==='sling')f.vx=JET_BAZOOKA.speed;}
       }

@@ -47,14 +47,19 @@ function cut(g: G, c: Point, radius: number, squash: number, start: number, swee
   }
 }
 
-function sword(g: G, hand: Point, angle: number, length: number, shine: number, alpha = 1, black = false): void {
+function sword(g: G, hand: Point, angle: number, length: number, shine: number, alpha = 1, black = false, gripped = false): void {
+  const heel = on(hand, angle, gripped ? Math.min(length, 2) : 0);
+  const bevel = on(hand, angle, Math.max(gripped ? Math.min(length, 2) : 0, length - 3));
   const tip = on(hand, angle, length);
-  stroke(g, hand, tip, INK, alpha, 3);
-  stroke(g, hand, tip, black ? 0x4f415e : 0x92acb6, alpha, 2);
-  stroke(g, on(hand, angle - Math.PI / 2, 1), on(tip, angle - Math.PI / 2, 1), shine, alpha);
-  stroke(g, hand, on(hand, angle, -4), INK, alpha, 3);
+  const edge = angle - Math.PI / 2;
+  stroke(g, heel, bevel, INK, alpha, 3);
+  stroke(g, bevel, tip, INK, alpha, 2);
+  stroke(g, heel, bevel, black ? 0x4f415e : 0x92acb6, alpha, 2);
+  stroke(g, on(heel, edge, 1), on(bevel, edge, 1), shine, alpha);
+  stroke(g, on(bevel, edge, 1), tip, shine, alpha);
+  stroke(g, on(hand, angle, gripped ? -2 : 0), on(hand, angle, -4), INK, alpha, 3);
   pixel(g, on(hand, angle, -3), 1, STEEL, alpha);
-  const guard = on(hand, angle, 1);
+  const guard = on(hand, angle, gripped ? 2 : 1);
   stroke(g, on(guard, angle - Math.PI / 2, 2), on(guard, angle + Math.PI / 2, 2), GOLD, alpha);
 }
 
@@ -149,12 +154,12 @@ function combo(g: G, v: FighterView, x: number, y: number, level: number, style:
   if (!hand || angle === undefined) return;
   const length = (f.hero === 'zoro' ? 14 : 16) + level * 0.65;
   if (v.swordDrawVisible()) {
-    sword(g, hand, facing + d * angle, length * v.swordProjection(), level >= 2 ? style.spark : STEEL, 1, f.hero === 'zoro' && level > 0);
+    sword(g, hand, facing + d * angle, length * v.swordProjection(), level >= 2 ? style.spark : STEEL, 1, f.hero === 'zoro' && level > 0, true);
   }
   if (f.hero !== 'zoro') return;
   const rear = v.backHand(), rearAngle = v.swordAngle(true), mouth = v.mouth();
-  if (rear && rearAngle !== undefined) sword(g, rear, facing + d * rearAngle, length * 0.78, STEEL, 0.88, level > 0);
-  if (mouth) sword(g, mouth, facing + d * (0.07 + angle * 0.12), length * 0.8, STEEL);
+  if (rear && rearAngle !== undefined) sword(g, rear, facing + d * rearAngle, length * 0.78 * v.swordProjection(true), STEEL, 0.88, level > 0, true);
+  if (mouth) sword(g, mouth, facing + d * 0.09, length * 0.76, 0xb5c8cf, 0.84, false, true);
 }
 
 function dash(g: G, v: FighterView, x: number, y: number, level: number, style: Style, time: number): void {
@@ -187,6 +192,110 @@ function dash(g: G, v: FighterView, x: number, y: number, level: number, style: 
   if (forming === 1) {
     for (const side of [-1, 1]) cut(g, on(center, angle, -5), spec.radius + 3 + level, 0.9, angle + side * 0.32 - 0.85, 1.7, style, fade, 3);
     stroke(g, on(center, angle, -23), on(center, angle, -9), style.spark, fade * 0.72);
+  }
+}
+
+const TWISTER_FACE = [
+  '         #####',
+  '      ###bbbb###',
+  '    ##bbbhbbbbbb##',
+  '  ###bbbhhhhhbbbbb###',
+  ' ##bbbbh#######hbbbbb#####    ####',
+  '##bbbbh##eeee###bbhhhbbbbb####hbbb###',
+  '#bbbbb##bbbb##bbbbhbbbbbbbbbhbbbbbbb##',
+  '#bbbbbb##h##bbbhhbbbbbbbbbbbbbbb##bbbb###',
+  '#bbhbbbbbhhbbhhhbbbbbbbbbbbbbbbbbbbb#####',
+  '##bbhhbbbbbbhhbbbbbbbbbbbbbbbb#######ff#',
+  ' ##bbhhbbbbbbbbbbbb###########f   f  f',
+  '  ##bbbbbbbbbbbbbb#m       fff',
+  '  ##bbbbbbbbbbbbb##mmmmmm   f',
+  '   ##bbbbbbbbbbb##mm   ff      f',
+  '    #bbbbbbbbbb##mm####ff#####ff###',
+  '    ##bbbbbbbbbb####hhhhbbhhhhhbb###',
+  '    ##bbbbbbbbbbbbbbbbbbbbbbbbbb###',
+  '     ##bbbbbbbbbbbbbb###########',
+  '     ###bbbbbbbbbb###',
+  '       ############',
+];
+
+const TWISTER_WIND = { rim: 0x518f72, spark: 0x9de5bc, core: 0xebffe7, outline: 0x245149, eye: 0xcfff89 };
+const TWISTER_ENMA = { rim: 0x462958, spark: 0xb284dc, core: 0xffd89a, outline: 0x27182f, eye: 0xffb45f };
+
+/** Armored brow and long split jaws lead the rising wind. */
+function twisterFace(g: G, neck: Point, dir: number, enma: boolean, alpha: number): void {
+  const p = enma ? TWISTER_ENMA : TWISTER_WIND;
+  const scale = enma ? 1.22 : 1;
+  const pt = (x: number, y: number) => ({ x: neck.x + dir * x * scale, y: neck.y + y * scale });
+  const antler = (from: Point, joint: Point, end: Point) => {
+    stroke(g, from, joint, p.outline, alpha, 6);
+    stroke(g, joint, end, p.outline, alpha, 2);
+    stroke(g, from, joint, p.rim, alpha, 3);
+    stroke(g, joint, end, p.spark, alpha);
+  };
+  antler(pt(-1, -8), pt(-10, -15), pt(-23, -14));
+  antler(pt(7, -9), pt(1, -17), pt(-11, -19));
+  if (enma) {
+    stroke(g, pt(-10, -15), pt(-17, -20), p.spark, alpha, 2);
+    stroke(g, pt(1, -17), pt(-4, -22), p.core, alpha);
+  }
+  stroke(g, pt(-6, -3), pt(-19, -8), p.outline, alpha, 5);
+  stroke(g, pt(-7, 1), pt(-21, -1), p.rim, alpha, 4);
+  stroke(g, pt(-6, 5), pt(-17, 9), p.outline, alpha, 3);
+  const colors: Record<string, number> = { '#': p.outline, b: p.rim, h: p.spark, e: p.eye, f: p.core, m: INK };
+  TWISTER_FACE.forEach((line, y) => {
+    for (let x = 0; x < line.length;) {
+      const mark = line[x];
+      let end = x + 1;
+      while (line[end] === mark) end++;
+      const color = colors[mark];
+      if (color !== undefined) {
+        const a = pt(x - 10, y - 10), b = pt(end - 10, y - 9);
+        const left = Math.round(Math.min(a.x, b.x)), top = Math.round(a.y);
+        g.fillStyle(color, alpha).fillRect(left, top, Math.round(Math.max(a.x, b.x)) - left, Math.round(b.y) - top);
+      }
+      x = end;
+    }
+  });
+  const whisker = pt(31, -7);
+  stroke(g, pt(23, -4), whisker, p.spark, alpha);
+  stroke(g, whisker, pt(37, -5), p.core, alpha);
+  stroke(g, pt(19, -1), pt(28, 2), p.spark, alpha * 0.76);
+}
+
+function dragonTwister(back: G, front: G, x: number, y: number, d: number, r: number, k: number, alpha: number, enma: boolean): void {
+  const palette = enma ? TWISTER_ENMA : TWISTER_WIND;
+  const facing = d > 0 ? 0 : Math.PI;
+  const height = 54 + k * 22;
+  const visibility = alpha * (0.67 + 0.33 * clamp(k * 8));
+  const coil = (t: number): Point => {
+    const angle = (1.33 * t - 0.7 + k * 0.32) * TAU;
+    const arc = Math.sin(Math.PI * t);
+    return {
+      x: x + d * r * (Math.sin(angle) * arc * 0.65 + t * t * (0.24 + k * 0.18)),
+      y: y - 4 - height * t + Math.cos(angle) * arc * r * 0.09,
+    };
+  };
+  let previous = coil(0);
+  for (let i = 1; i <= 56; i++) {
+    const t = i / 56;
+    const p = coil(t);
+    const width = 2 + Math.round(Math.sin(t * Math.PI / 2) * (enma ? 12 : 8));
+    stroke(back, previous, p, palette.outline, visibility * 0.9, width + 2);
+    stroke(back, { x: previous.x, y: previous.y - 1 }, { x: p.x, y: p.y - 1 }, palette.rim, visibility, width);
+    if (i % 3 !== 0) stroke(back, { x: previous.x, y: previous.y - width / 3 }, { x: p.x, y: p.y - width / 3 }, palette.spark, visibility * 0.86, 2);
+    if (i % 5 === 0 && t > 0.2) {
+      stroke(back, { x: p.x - d * width * 0.4, y: p.y + 1 }, { x: p.x + d, y: p.y + width * 0.4 }, palette.core, visibility * 0.72);
+      pixel(back, { x: p.x - d * 2, y: p.y - width * 0.65 }, 2, palette.spark, visibility * 0.76);
+    }
+    previous = p;
+  }
+  twisterFace(back, previous, d, enma, visibility);
+
+  // The forward wind arcs reveal the coil without covering the fighter's upper body.
+  for (let i = 0; i < 3; i++) {
+    const origin = { x, y: y - 4 - i * height * 0.31 };
+    const spin = facing + d * (i * 1.48 + k * 4.1);
+    cut(i === 0 ? front : back, origin, r * (0.86 - i * 0.17), 0.3, spin, d * 2.75, palette, alpha * (0.95 - i * 0.16), enma ? 5 - i : 3);
   }
 }
 
@@ -223,26 +332,30 @@ function radial(back: G, front: G, v: FighterView, x: number, y: number, level: 
   sword(front, hand, facing + d * (-1.05 + k * 1.65), 17, style.spark, alpha, true);
   sword(front, { x: x + d * 2, y: y - 14 }, facing + d * (0.85 - k * 1.6), 15, STEEL, alpha, true);
   sword(front, { x: x + d * 3, y: y - 24 }, facing + d * 0.08, 14, STEEL, alpha);
-  if (level < 3) {
-    for (let i = 0; i < 4; i++) {
-      const tier = 1 - i * 0.16;
-      const height = 7 + i * (5 + r * 0.12) + k * 9;
-      const spin = facing + d * (i * 1.35 + k * 3.5);
-      cut(i % 2 ? back : front, { x, y: y - height }, r * tier, 0.34, spin, d * 3.4, style, alpha * tier, level === 2 ? 5 : 3);
-    }
+  if (level === 1 || level === 2) {
+    dragonTwister(back, front, x, y, d, r, k, alpha, level === 2);
+    return;
+  }
+  if (level === 0) {
+    cut(front, { x, y: y - 9 }, r * 0.82, 0.35, facing + d * k * 4, d * 3.4, AIR, alpha);
     return;
   }
   if (level === 3) {
-    const frontX = x + d * r * (0.5 + k * 0.38);
-    const cy = y - 14 - k * 13;
-    // The crest leads the black-edged ribbons of the dragon slash.
-    for (let i = 0; i < 3; i++) cut(i === 2 ? front : back, { x: x + d * r * 0.18, y: cy + i * 5 }, r * (0.71 - i * 0.09), 0.48, facing - d * (1.2 - k * 1.4) + i * d * 0.2, d * 3.65, style, alpha * (1 - i * 0.16), 5 - i);
-    const snout = { x: frontX + d * 9, y: cy - 1 };
-    stroke(front, { x: frontX - d * 7, y: cy - 5 }, snout, INK, alpha, 5);
-    stroke(front, { x: frontX - d * 5, y: cy - 6 }, snout, style.spark, alpha, 2);
-    stroke(front, { x: frontX - d * 4, y: cy + 3 }, { x: snout.x, y: cy + 3 }, style.rim, alpha, 2);
-    stroke(front, { x: frontX - d * 2, y: cy - 6 }, { x: frontX - d * 8, y: cy - 12 }, style.spark, alpha);
-    pixel(front, { x: frontX + d * 2, y: cy - 4 }, 2, 0xffe995, alpha);
+    // Episode 1062 gives the fire dragon to King. Zoro's counter is a green Haki cut.
+    const origin = { x: x + d * r * 0.12, y: y - 15 - k * 10 };
+    for (let i = 0; i < 3; i++) {
+      const center = { x: origin.x - d * i * 6, y: origin.y + i * 5 };
+      const sweep = facing - d * (1.25 - k * 1.3 - i * 0.16);
+      cut(i === 2 ? front : back, center, r * (0.76 - i * 0.11), 0.47, sweep, d * 3.54, style, alpha * (1 - i * 0.18), 5 - i);
+    }
+    for (const side of [-1, 1]) {
+      const split = { x: x + d * r * (0.4 + k * 0.29), y: origin.y + side * (3 + 6 * k) };
+      const bend = { x: split.x + d * 9, y: split.y + side * 7 };
+      const end = { x: bend.x + d * 8, y: bend.y + side * 3 };
+      stroke(front, split, bend, INK, alpha, 3);
+      stroke(front, bend, end, INK, alpha, 2);
+      stroke(front, { x: split.x, y: split.y - 1 }, { x: bend.x, y: bend.y - 1 }, style.spark, alpha);
+    }
     return;
   }
 

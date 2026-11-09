@@ -53,6 +53,20 @@ describe('arena move demonstrations', () => {
     expect(new Set(names).size).toBe(HERO_ORDER.length);
   });
 
+  it('gives Sasuke’s dragon fire only to the Curse Mark projectile', () => {
+    expect([0, 1, 2, 3, 4].map(level => demoMoveName('sasuke', 'second', level))).toEqual([
+      'FIRE STYLE: FIREBALL', 'FIRE STYLE: FIREBALL', 'GREAT DRAGON FIRE', 'AMATERASU', 'AMATERASU',
+    ]);
+    const demo = new HeroDemo('sasuke', 'second', 2);
+    let fired = false;
+    while (!demo.done) {
+      demo.step();
+      fired ||= demo.world.bullets.some(bullet => bullet.active && bullet.weapon === 'sasuke:second' && bullet.form === 2);
+      demo.world.events.length = 0;
+    }
+    expect(fired).toBe(true);
+  });
+
   it.each(['asta', 'yami'])('%s special demonstrates real projectile cancellation', hero => {
     const demo = new HeroDemo(hero, 'special', 0);
     let absorbed = false;

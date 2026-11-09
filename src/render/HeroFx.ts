@@ -1,5 +1,6 @@
 import { formLevel } from './formLevel';
 import { drawKirin, drawKirinImpact } from '../art/kirinArt';
+import { drawDragonFist } from '../art/dragonFistArt';
 import Phaser from 'phaser';
 import { BOOST_COLORS, formFx, type FormFx } from '../art/heroArt';
 import { hexToNum, P } from '../art/palette';
@@ -322,6 +323,11 @@ export class HeroFx {
       if(f.state==='block'){if(f.hero==='luffy')this.luffyArt.guard(v,x,y,time);else this.spiritGuard(f,x,y,time);}
       if(f.state==='special'&&f.specialKind==='formCombo'){
         this.formComboArt(v,x,y,time);
+        continue;
+      }
+      if (f.state === 'special' && f.specialKind === 'dragonFist') {
+        const fist = v.frontHand() ?? { x: x + f.facing * 10, y: y - f.h / 2 };
+        drawDragonFist(this.back, this.front, fist.x, fist.y, f.facing, f.stretchAngle, f.stateTime);
         continue;
       }
       // a long stun (Chidori's shock) crackles around the victim; an ultimate shows who it has locked onto

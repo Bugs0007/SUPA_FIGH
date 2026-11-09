@@ -1,56 +1,110 @@
 import { FORM_COMBO, KIRIN } from '../sim/data/heroes';
-import type { RectPainter } from './pixelRaster';
+import { bake, paintRuns, Raster, ScaledPen, type Material, type RectPainter } from './pixelRaster';
 
-/** A horned lightning dragon descending into a bite. Whole-pixel bands, scaled geometry per form. */
-export function drawKirin(g:RectPainter,x:number,y:number,t:number,level:number,time:number,facing=1,impact=true):void{
-  const scale=KIRIN.scaleBase+KIRIN.scalePerForm*(Math.max(1,level)-1);
-  // World y=0 is the map ceiling. Reach the marked strike at the damage tick,
-  // regardless of map height or transformation size.
-  const progress=Math.max(0,Math.min(1,t/FORM_COMBO.windup));
-  const ceilingY=Math.min(0,y);
-  const headY=ceilingY+(y-ceilingY)*progress;
-  const rect=(xx:number,yy:number,w:number,h:number,c:number,a=1)=>{
-    g.fillStyle(c,a);g.fillRect(Math.round(x+(facing<0?-xx-w:xx)*scale),Math.round(headY+yy*scale),Math.max(1,Math.round(w*scale)),Math.max(1,Math.round(h*scale)));
-  };
-  // A substantial scaled body connects the neck to the actual map ceiling,
-  // rather than a short, thin lightning cord floating above the head.
-  const length=Math.max(26,(headY-ceilingY)/scale);
-  for(let d=length;d>=12;d-=3){
-    const u=Math.min(1,d/Math.max(1,length));
-    const neck=Math.min(1,(d-12)/35);
-    const xx=-8+Math.sin(d*.055+time*5)*10*neck;
-    const width=26-9*u;
-    rect(xx-width/2,-d,width,5,0x3052a0,.95);
-    rect(xx-width/2+3,-d,width-5,5,0x75bfff,.95);
-    rect(xx+width/2-7,-d,4,5,0xc9f7ff);
-    if(Math.floor(d/3)%4===0){
-      rect(xx-width/2-5,-d-2,7,3,0xb5ecff,.9);
-      rect(xx-4,-d,8,1,0x4279bd);
+// The anime silhouette is an animal traced by branching lightning. Keep its white
+// channels and cyan fringe distinct from the darker blue inside the coils.
+const COIL = 1, ARC = 2, CORE = 3, SOCKET = 4;
+const LIGHTNING: readonly Material[] = [
+  { dark: 0x1c397b, base: 0x3264ad, light: 0x5096d6, hi: 0x86caff },
+  { dark: 0x3b74bd, base: 0x60a9e9, light: 0x9edbff, hi: 0xc6f0ff },
+  { dark: 0xb6eaff, base: 0xdaf7ff, light: 0xf4fdff, hi: 0xffffff },
+  { dark: 0x0d1837, base: 0x142b5b, light: 0x234681, hi: 0x3969a9 },
+];
+const HEAD_X = 64, HEAD_Y = 80;
+const clamp = (n: number) => Math.max(0, Math.min(1, n));
+
+function bakeHead(scale: number, biting: boolean) {
+  const raster = new Raster(Math.ceil(102 * scale), Math.ceil(86 * scale));
+  const r = new ScaledPen(raster, [0, 0], [0, 0], scale);
+
+  // The far foreleg and swept, forked antlers sit behind the head.
+  r.poly([[41, 23], [57, 19], [68, 24], [76, 34], [73, 42], [67, 37], [66, 29], [52, 26]], COIL);
+  r.stroke([[69, 31], [78, 39], [77, 46]], ARC, 2);
+  r.stroke([[72, 37], [71, 46], [67, 48]], CORE, 2);
+  r.poly([[50, 30], [51, 18], [45, 11], [29, 5], [36, 4], [54, 10], [60, 17], [56, 28]], ARC);
+  r.stroke([[49, 13], [51, 7], [43, 2]], CORE, 2);
+  r.poly([[40, 28], [35, 18], [18, 14], [8, 4], [16, 8], [31, 9], [44, 17], [46, 26]], ARC);
+  r.stroke([[29, 10], [25, 5], [18, 2]], CORE, 2);
+
+  // The lightning mane streams back from a low brow and a long, wedge-shaped muzzle.
+  r.poly([[42, 18], [27, 13], [15, 16], [25, 22], [6, 24], [20, 30], [3, 37],
+    [21, 37], [10, 47], [26, 45], [19, 58], [38, 54], [49, 41]], ARC);
+  r.stroke([[13, 24], [29, 26], [20, 32], [32, 36], [21, 43], [35, 43], [32, 52]], CORE, 2);
+  r.poly([[30, 28], [40, 17], [53, 18], [60, 26], [68, 30], [70, 39], [81, 47],
+    [82, 53], [75, 59], [65, 58], [57, 52], [49, 54], [38, 48], [32, 38]], COIL);
+  r.poly([[42, 21], [51, 21], [57, 26], [59, 33], [67, 35], [70, 43], [80, 48],
+    [77, 53], [70, 52], [65, 47], [55, 42], [48, 36], [40, 33]], ARC);
+
+  // A sunken eye socket and a thin white glare under the ridge.
+  r.poly([[39, 30], [53, 29], [61, 34], [55, 41], [48, 39], [44, 35]], SOCKET);
+  r.poly([[44, 31], [57, 34], [53, 36], [48, 35]], CORE);
+  r.stroke([[36, 28], [48, 27], [56, 30], [61, 34]], CORE, 2);
+  r.stroke([[63, 39], [68, 43], [71, 48], [77, 49]], CORE, 2);
+  r.poly([[76, 49], [81, 51], [78, 54], [74, 53]], SOCKET);
+  const bite = biting ? -8 : 0;
+  r.poly([[36, 43], [47, 49], [52, 58 + bite], [57, 65 + bite], [71, 65 + bite],
+    [80, 59 + bite], [78, 68 + bite], [67, 77 + bite], [54, 77 + bite], [43, 66 + bite]], COIL);
+  r.stroke([[45, 55 + bite], [55, 70 + bite], [66, 71 + bite], [76, 65 + bite]], ARC, 3);
+  r.poly([[61, 51], [66, 55], [64, 63]], CORE);
+  r.poly([[71, 54], [76, 55], [71, 64]], CORE);
+  r.poly([[57, 68 + bite], [60, 61 + bite], [63, 66 + bite]], CORE);
+  r.poly([[68, 68 + bite], [73, 62 + bite], [73, 65 + bite]], CORE);
+  r.stroke([[63, 43], [75, 38], [86, 30], [93, 32], [99, 27]], ARC, 2);
+  r.stroke([[63, 45], [75, 46], [85, 39], [94, 39]], CORE);
+
+  // Near paw stays clear of the jaws so the claws read during the dive.
+  r.stroke([[35, 31], [20, 40], [18, 52], [11, 60]], COIL, 6);
+  r.stroke([[31, 34], [22, 42], [20, 52], [13, 58]], ARC, 3);
+  r.stroke([[13, 57], [7, 64], [9, 67]], CORE, 2);
+  r.stroke([[16, 55], [14, 64], [17, 65]], CORE, 2);
+  return bake(raster, LIGHTNING, 0x2c5298, false);
+}
+
+const HEADS = Array.from({ length: 4 }, (_, form) => {
+  const scale = KIRIN.scaleBase + KIRIN.scalePerForm * form;
+  return { scale, open: bakeHead(scale, false), bite: bakeHead(scale, true) };
+});
+
+/** Gather overhead, hold a readable silhouette, then dive on the existing damage tick. */
+export function drawKirin(g: RectPainter, x: number, y: number, t: number, level: number, time: number, facing = 1, impact = true): void {
+  const { scale, open, bite } = HEADS[Math.max(0, Math.min(HEADS.length - 1, level - 1))];
+  const progress = clamp(t / FORM_COMBO.windup);
+  const alpha = clamp(progress / 0.18) * (1 - clamp((t - FORM_COMBO.windup) / 0.13));
+  if (alpha > 0) {
+    const ceiling = Math.min(0, y);
+    const hover = Math.max(ceiling, y - Math.min(135, 84 * scale));
+    const gather = 1 - (1 - clamp(progress / 0.46)) ** 3;
+    const dive = clamp((progress - 0.58) / 0.42) ** 2.2;
+    const readyY = ceiling + (hover - ceiling) * gather;
+    const headY = readyY + (y - readyY) * dive;
+    const flip = facing < 0;
+    const tick = Math.floor(time * 22);
+    const rect = (xx: number, yy: number, w: number, h: number, color: number, opacity = 1) => {
+      g.fillStyle(color, alpha * opacity);
+      g.fillRect(Math.round(x + (flip ? -xx - w : xx) * scale), Math.round(headY + yy * scale),
+        Math.max(1, Math.round(w * scale)), Math.max(1, Math.round(h * scale)));
+    };
+
+    // A long, S-curved channel remains attached to the head as it falls.
+    const length = Math.max(70, (headY - ceiling) / scale);
+    for (let d = 58, row = 0; d < length; d += 3, row++) {
+      const neck = clamp((d - 58) / 29);
+      const xx = -23 + (Math.sin(d * 0.066 + tick * 0.19) * 19 + Math.sin(d * 0.19) * 3) * neck;
+      const width = 19 - 10 * (d / length);
+      rect(xx - width, -d, width * 2, 4, 0x4f90da, 0.48);
+      rect(xx - width * 0.72, -d, width * 1.42, 4, 0x88c9ff, 0.74);
+      rect(xx - width * 0.19, -d, 4.5, 4, 0xe9fbff, 0.93);
+      if ((row + tick) % 5 === 0) {
+        rect(xx - width - 5, -d - 3, 12, 2, 0x8bcfff, 0.65);
+        rect(xx - width - 7, -d - 7, 5, 5, 0xd7f5ff, 0.60);
+      }
     }
+    const head = progress >= 0.97 ? bite : open;
+    const anchor = Math.round(HEAD_X * scale);
+    paintRuns(g, head, Math.round(x) + (flip ? anchor : -anchor),
+      Math.round(headY - HEAD_Y * scale), flip, alpha);
   }
-  // Forelegs and hooked claws give the descending silhouette a dragon posture.
-  for(const side of [-1,1]){
-    for(let i=0;i<8;i++)rect(-8+side*(10+i*1.6),-40+i*2.2,6,5,0x75bfff);
-    for(let claw=0;claw<3;claw++)rect(-8+side*24+claw*3,-24+claw*2,2,7,0xecffff);
-  }
-  // Side profile: swept horns, one glaring eye and a long downturned snout.
-  rect(-16,-26,22,20,0x3052a0);rect(-10,-22,22,16,0x84ceff);
-  rect(-13,-25,16,5,0xc9f7ff);rect(4,-17,13,11,0x3052a0);
-  rect(7,-15,11,7,0x9fe5ff);rect(13,-10,10,8,0x3052a0);
-  rect(14,-9,8,6,0xc9f7ff);
-  for(let i=0;i<10;i++){
-    rect(-11-i*1.3,-24-i*1.8,4,3,i<5?0x8ccfff:0xe6ffff);
-    if(i>3&&i%3===0)rect(-11-i*1.3,-29-i*1.8,2,6,0xe6ffff);
-  }
-  for(let i=0;i<6;i++)rect(-17-i,-17+i*3,7,3,0xb5ecff,.8);
-  rect(-2,-19,12,5,0x142b62);rect(3,-17,5,2,0xffffff);
-  rect(0,-21,11,3,0x4279bd);
-  const jaw=t<FORM_COMBO.windup?8:2;
-  rect(-4,-6,23,jaw+3,0x111d42);rect(-7,jaw-4,25,4,0x8fdcff);
-  for(const xx of [2,13])for(let i=0;i<5;i++)rect(xx,-5+i,Math.max(1,3-i*.5),1,0xffffff);
-  rect(16,0,6,3,0x152951);
-  rect(-13,-11,7,8,0x5a9ddf);
-  if(impact)drawKirinImpact(g,x,y,t,level,time);
+  if (impact) drawKirinImpact(g, x, y, t, level, time);
 }
 
 /** The existing area hit becomes a branching lightning burst on the same frame. */
