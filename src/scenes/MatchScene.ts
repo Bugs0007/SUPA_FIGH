@@ -16,6 +16,7 @@ import { KeyboardController, MergedController, type Controller } from '../input/
 import { GamepadController } from '../input/gamepad';
 import { keyboard } from '../input/keyboard';
 import { CameraDirector } from '../render/CameraDirector';
+import { PowerOrbMarkers } from '../render/PowerOrbMarkers';
 import { Juice, type UiEvent } from '../render/Juice';
 import { WorldRenderer, type FighterLook } from '../render/WorldRenderer';
 import { DT } from '../sim/constants';
@@ -165,6 +166,7 @@ export class MatchScene extends Phaser.Scene {
   private intents: Intent[] = [];
   private frameStep = false;
   private elapsed = 0;
+  private orbMarkers: PowerOrbMarkers | null = null;
   /** instant replay in progress (match paused underneath) */
   replay: {
     rec: RoundRecording;
@@ -185,6 +187,10 @@ export class MatchScene extends Phaser.Scene {
   }
 
   create(data: MatchSceneData): void {
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.orbMarkers?.destroy();
+      this.orbMarkers = null;
+    });
     const params = new URLSearchParams(location.search);
     // ?trailer=1&shot=<id> = a scripted recorded shot; ?trailer=1 alone = free-running clean bot match
     const shot = trailerEnabled(params) ? (params.has('shot') ? shotById(params.get('shot')) : freeShot(params)) : null;
@@ -276,6 +282,8 @@ export class MatchScene extends Phaser.Scene {
     this.wr?.destroy();
     this.renderedWorld = this.match.world;
     this.wr = new WorldRenderer(this, this.match.world, this.looks);
+    this.orbMarkers?.destroy();
+    this.orbMarkers = this.trailer ? null : new PowerOrbMarkers(this);
     if (this.trailer) this.wr.setBarsVisible(false);
     this.juice = new Juice(this.wr, this.camDir);
     this.acc = 0;
@@ -332,6 +340,7 @@ export class MatchScene extends Phaser.Scene {
     this.wr.sync(alpha, visDt, this.elapsed);
     if (this.trailer) this.trailer.camera(dt);
     else this.camDir.update(dt, this.match.world, this.match.cinematic);
+    this.orbMarkers?.update(this.match.world, this.cameras.main, alpha, this.elapsed);
   }
 
   /** Trailer: run sim ticks without drawing (warm-up before the first recorded frame). */
@@ -429,6 +438,7 @@ export class MatchScene extends Phaser.Scene {
     this.wr.revive = this.match.reviveProgress.map((p) => p / COOP.reviveTime);
     this.wr.sync(net.alpha, dt * Math.max(0.25, this.match.timeScale), this.elapsed);
     this.camDir.update(dt, w, this.match.cinematic);
+    this.orbMarkers?.update(w, this.cameras.main, net.alpha, this.elapsed);
   }
 
   /** Leave the server's match: back to the lobby when it ended, to the title when the player quit. */
@@ -498,6 +508,7 @@ export class MatchScene extends Phaser.Scene {
     const target=r.focus.target(w,alpha);
     const focus=target?{...target,snap:firstFrame}:null;
     this.camDir.update(dt, w, focus);
+    this.orbMarkers?.update(w, this.cameras.main, alpha, this.elapsed);
     if (skip || r.player.done || r.player.t >= r.end) this.endReplay();
   }
 

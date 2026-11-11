@@ -267,6 +267,8 @@ export interface FinalSpiritPose {
   /** 0..1 the arrow of light forming on the string */
   arrow?: number;
   released?: boolean;
+  /** World pixels per source pixel. Ultimates use 1, while transformation reveals have a tighter silhouette. */
+  scale?: number;
   /** the fighter is in the air: the airborne posture (Kurama mid-leap, Susanoo whole and hovering with its wings spread and beating) */
   air?: boolean;
 }
@@ -274,6 +276,7 @@ export interface FinalSpiritPose {
 /** World-pixel layers from the approved artwork. */
 export function paintFinalSpirit(g: Graphics, pose: FinalSpiritPose): void {
   const { kind, facing, alpha, time, draw, released } = pose;
+  const scale = pose.scale ?? 1;
   const reveal = clamp(pose.reveal);
   if (alpha <= 0 || reveal <= 0) return;
   const isKurama = kind === 'k';
@@ -299,7 +302,12 @@ export function paintFinalSpirit(g: Graphics, pose: FinalSpiritPose): void {
         lastColor = c;
         lastAlpha = al;
       }
-      g.fillRect(Math.round(x + facing * u) - (facing < 0 ? w - 1 : 0), Math.round(y + v), w, 1);
+      const left = facing > 0 ? u : -u - w + 1;
+      const px = Math.round(x + left * scale);
+      const width = Math.round(x + (left + w) * scale) - px;
+      const py = Math.round(y + v * scale);
+      const height = Math.round(y + (v + 1) * scale) - py;
+      if (width > 0 && height > 0) g.fillRect(px, py, width, height);
     };
     for (const run of image.runs) {
       const base = opacity * (run.a ?? 1);
@@ -326,7 +334,7 @@ export function paintFinalSpirit(g: Graphics, pose: FinalSpiritPose): void {
   const line = (T: Rigid, p: Pt, q: Pt, color: number, width: number, al: number) => {
     const [u, v] = move(T, ...p);
     const [m, n] = move(T, ...q);
-    g.lineStyle(width, color, al).lineBetween(x + facing * u, y + v, x + facing * m, y + n);
+    g.lineStyle(Math.max(1, width * scale), color, al).lineBetween(x + facing * u * scale, y + v * scale, x + facing * m * scale, y + n * scale);
   };
 
   // The tails / wings sway as rows (whole rows move, so nothing tears apart).
@@ -353,7 +361,11 @@ export function paintFinalSpirit(g: Graphics, pose: FinalSpiritPose): void {
       const mouth: Pt[] = [move(neck, 71, -40), move(neck, 88, -42), move(neck, 124, -35), move(jaw, 110, -22), move(neck, 83, -25)];
       g.fillStyle(0x291321, fade * .88);
       g.beginPath();
-      mouth.forEach(([u, v], i) => (i ? g.lineTo(x + facing * u, y + v) : g.moveTo(x + facing * u, y + v)));
+      mouth.forEach(([u, v], i) => {
+        const px = x + facing * u * scale;
+        const py = y + v * scale;
+        if (i) g.lineTo(px, py); else g.moveTo(px, py);
+      });
       g.closePath();
       g.fillPath();
     }

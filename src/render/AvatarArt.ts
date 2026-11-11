@@ -4,6 +4,7 @@ import { paintRuns } from '../art/pixelRaster';
 import { easeOut, paintReveal, rising, spreading } from '../art/spiritForm';
 import { airBob, paintFinalSpirit } from '../art/finalSpiritArt';
 import { avatarLaunch } from '../sim/data/heroes';
+import { FINAL_SPIRIT_REVEAL_SCALE } from './TransformationArt';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -66,6 +67,43 @@ export class AvatarArt {
   arm(g: G, spec: ArmSpec, alpha = 1): void {
     const a = armSprite(spec);
     paintRuns(g, a.baked, a.ox, a.oy, false, alpha);
+  }
+
+  /** Chakra takes shape for the final form, then returns to the fighter. */
+  powerReveal(kind: 'kurama' | 'susanoo', x: number, y: number, facing: number, progress: number, age: number, air: boolean): void {
+    const isKurama = kind === 'kurama';
+    const scale = FINAL_SPIRIT_REVEAL_SCALE[isKurama ? 'naruto' : 'sasuke'];
+    const forming = span(progress, 0.08, 0.48);
+    const fan = easeOut(span(progress, 0.19, 0.57));
+    const close = span(progress, 0.71, 0.94);
+    const fade = 0.89 * (1 - span(progress, 0.77, 1) ** 1.4);
+    const flare = easeOut(span(progress, 0.47, 0.62)) * (1 - close);
+    const aim = isKurama ? 0.13 * (1 - forming) - 0.3 * flare : 0.24 - 0.52 * flare;
+    const xShake = isKurama ? Math.round(Math.sin(age * 72) * 1.1 * flare) : 0;
+    const fx = Math.round(x) + xShake;
+    const fy = Math.round(y);
+    paintFinalSpirit(this.back, {
+      kind: isKurama ? 'k' : 's', x: fx, y: fy, facing, time: age, alpha: fade, scale,
+      reveal: forming, fan, weapon: isKurama ? 0 : span(progress, 0.27, 0.62),
+      draw: isKurama ? 1.38 * flare : 0, aim, air,
+    });
+    if (progress < 0.56) this.sigil(fx, fy, span(progress, 0, 0.56), age, kind, 132, fade);
+    if (isKurama) {
+      if (progress >= 0.52 && progress < 0.94) {
+        this.roarRings(fx, fy + (air ? airBob(age) : 0), facing, aim, span(progress, 0.52, 0.94), fade, scale);
+      }
+    } else if (progress >= 0.54) {
+      const wingbeat = span(progress, 0.54, 0.89);
+      for (const side of [-1, 1]) {
+        const reach = 24 + wingbeat * 91;
+        for (let feather = 0; feather < 7; feather++) {
+          const u = reach * (0.4 + feather * 0.095);
+          const v = -52 - feather * 6 + wingbeat * (8 + feather * 3);
+          this.front.fillStyle(feather % 2 ? EDGE.susanoo : SIGIL.susanoo[1], fade * (1 - wingbeat));
+          this.front.fillRect(fx + Math.round(side * u), fy + Math.round(v), 2 + feather % 2, 1);
+        }
+      }
+    }
   }
 
   /** The glowing sigil on the ground while a spirit forms: two counter-rotating rings of light, light streaks rising off them, embers drawn in. */
@@ -251,15 +289,15 @@ export class AvatarArt {
   }
 
   /** Shock rings rolling off Kurama's muzzle during the roar (`k` 0..1 over the roar). */
-  private roarRings(fx: number, fy: number, d: number, aim: number, k: number, alpha: number): void {
+  private roarRings(fx: number, fy: number, d: number, aim: number, k: number, alpha: number, scale = 1): void {
     const m = avatarLaunch('naruto', 4, aim);
-    const cx = fx + d * m.ahead;
-    const cy = fy - m.up;
+    const cx = fx + d * m.ahead * scale;
+    const cy = fy - m.up * scale;
     const [c0, , c2] = SIGIL.kurama;
     for (let i = 0; i < 3; i++) {
       const q = k * 1.5 - i * 0.22;
       if (q <= 0 || q >= 1) continue;
-      const r = 10 + q * 120;
+      const r = (10 + q * 120) * scale;
       const n = Math.round(r * 1.1);
       // arcs open toward the facing side, like sound leaving the jaws
       for (let j = 0; j <= n; j++) {

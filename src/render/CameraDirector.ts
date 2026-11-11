@@ -66,6 +66,7 @@ export class CameraDirector {
   z = 1;
   private trauma = 0;
   private shakeT = 0;
+  private readonly avatarReveals = new Map<number, { scale: number; remaining: number }>();
   shakeScale = 1;
   /** zoom out no further than this just to show bots (phones raise it: tiny screens, big fighters) */
   comfort = Z_COMFORT;
@@ -85,6 +86,11 @@ export class CameraDirector {
 
   addTrauma(v: number): void {
     this.trauma = Math.min(1, this.trauma + v * this.shakeScale);
+  }
+
+  /** Frame a forming avatar when it fits alongside the fighters. */
+  revealAvatar(fid: number, scale: number, duration: number): void {
+    this.avatarReveals.set(fid, { scale, remaining: duration });
   }
 
   /** Bounds of fighters that must stay on screen (living humans) and of everyone else worth showing. */
@@ -107,13 +113,18 @@ export class CameraDirector {
         addPoint(box, f.x, f.y - 40, f.y + 2);
       }
       if (!f.alive && f.ghost) addPoint(nice, f.gx, f.gy - 30, f.gy + 4);
-      // a giant spirit (Susanoo, Kurama) is out: the whole of it stays in view, whoever it belongs to
-      if (shown && f.alive && f.state === 'special' && f.specialKind === 'bomb' && f.power === 'hero') {
+      // Ultimates need full framing. A form reveal is optional when players are far apart.
+      const ultimateAvatar = f.state === 'special' && f.specialKind === 'bomb';
+      const reveal = f.powerLevel === 4 ? this.avatarReveals.get(f.id) : undefined;
+      if (shown && f.alive && f.power === 'hero' && (ultimateAvatar || reveal)) {
         const s = spiritBounds(f.hero, f.powerLevel);
         if (s) {
-          const ahead = f.facing >= 0 ? [f.x - s.back, f.x + s.front] : [f.x - s.front, f.x + s.back];
-          addPoint(must, ahead[0], f.y - s.up, f.y + 2);
-          addPoint(must, ahead[1], f.y - s.up, f.y + 2);
+          const scale = ultimateAvatar ? 1 : reveal?.scale ?? 1;
+          const left = f.facing >= 0 ? s.back : s.front;
+          const right = f.facing >= 0 ? s.front : s.back;
+          const box = ultimateAvatar ? must : nice;
+          addPoint(box, f.x - left * scale, f.y - s.up * scale, f.y + 2);
+          addPoint(box, f.x + right * scale, f.y - s.up * scale, f.y + 2);
         }
       }
     }
@@ -121,6 +132,10 @@ export class CameraDirector {
   }
 
   update(dt: number, w: World, focus: { x: number; y: number; follow?: boolean; snap?: boolean } | null): void {
+    for (const [fid, reveal] of this.avatarReveals) {
+      reveal.remaining -= dt;
+      if (reveal.remaining <= 0) this.avatarReveals.delete(fid);
+    }
     const mapW = w.map.pxW;
     const mapH = w.map.pxH;
     const { must, nice } = this.gather(w);

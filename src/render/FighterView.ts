@@ -16,12 +16,24 @@ import { bleachBladeAngle } from './BleachAbilityArt';
 import { onePiecePose } from './OnePieceAbilityArt';
 import { nonSwordRosterSpecialPose } from './RosterSpecialArt';
 import { paintSwordScabbard, paintSwordWake, rosterSwordPose, swordPivotOffset, swordPose, swordSwing, type SwordPose } from './SwordMotion';
+import { transformationPose, transformationTiming } from './TransformationArt';
 
 /** Rig pivot: body center, this many px above the feet. */
 const RIG_Y = 11;
 const ARM_FRAME_SIZE = 17;
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+function tintTransform(img: Phaser.GameObjects.Image, color: number, flash: number): void {
+  if (flash > 0.8) {
+    img.setTintFill(color);
+    return;
+  }
+  const r = Math.round(lerp(255, color >> 16 & 255, flash));
+  const g = Math.round(lerp(255, color >> 8 & 255, flash));
+  const b = Math.round(lerp(255, color & 255, flash));
+  img.setTint(r << 16 | g << 8 | b);
+}
 /** shortest signed difference a - b between two angles */
 const angleDelta = (a: number, b: number) => {
   let d = (a - b) % (Math.PI * 2);
@@ -98,9 +110,9 @@ export class FighterView {
   private lastFacing: number;
   /** smoothed lean (rig rotation) */
   private lean = 0;
-  /** transformation flash: seconds left + colour (D61) */
-  private xform = 0;
-  private xformColor = 0xffffff;
+  /** Render-only form transition. Gameplay receives the new form immediately. */
+  private xform: { age: number; level: number; previous: number; color: number } | null = null;
+  private shownLevel = 0;
   private lastHp: number;
   /** smoothed hp for the damage trail on the health bar */
   hpTrail: number;
@@ -164,13 +176,17 @@ export class FighterView {
   }
 
   /** Sheet-based hero: one image, frame picked from the fighter's state (art/externalSheets.ts). */
-  private updateSheet(x: number, y: number, dt: number, time: number, simTime: number): void {
+  private updateSheet(x: number, y: number, dt: number, time: number, simTime: number, pose?: ReturnType<typeof transformationPose>): void {
     const f = this.fighter;
     const { def, img } = this.sheet!;
     const { anim, t } = animFor(f, simTime);
-    img.setFrame(sheetFrame(def, anim, t, formLevel(f) > 0));
-    this.root.setPosition(x, y).setScale(f.facing, 1).setRotation(f.state === 'dead' && !f.grounded ? f.rot * f.facing : 0);
-    if (this.flash > 0) {
+    img.setFrame(sheetFrame(def, anim, t, this.shownLevel > 0));
+    const squash = pose?.squash ?? 0;
+    this.root.setPosition(x, y).setScale(f.facing * (1 + squash * 0.6), 1 - squash)
+      .setRotation(f.state === 'dead' && !f.grounded ? f.rot * f.facing : 0);
+    if (pose?.flash && this.xform) {
+      tintTransform(img, this.xform.color, pose.flash);
+    } else if (this.flash > 0) {
       this.flash -= dt;
       img.setTintFill(0xffffff);
     } else if (f.burn > 0 && Math.floor(time * 14) % 2 === 0) img.setTint(f.burnStyle==='amaterasu'?0xa78abd:0xffa060);
@@ -259,17 +275,15 @@ export class FighterView {
     this.squash = -0.2;
   }
 
-  /** universal transformation animation: the body flickers white/form-colour and pops (see HeroFx) */
-  onTransform(color: number): void {
-    this.xform = 0.55;
-    this.xformColor = color;
-    this.squash = -0.3;
+  onTransform(color: number, level: number): void {
+    this.xform = { age: 0, level, previous: this.shownLevel, color };
+    if (!level || !transformationTiming(this.fighter.hero, level)) this.squash = -0.3;
   }
 
   /** Naruto's fox stance: forms 1-3 run on four legs (not the base and not the final form) */
   private get fox(): boolean {
     const f = this.fighter;
-    const lv = formLevel(f);
+    const lv = this.shownLevel;
     return f.hero === 'naruto' && lv >= 1 && lv <= 3;
   }
 
@@ -313,6 +327,7 @@ export class FighterView {
     const f = this.fighter;
     this.updateGhost(time);
     if (f.gone) {
+      this.xform = null;
       this.root.setVisible(false);
       this.tag.setVisible(false);
       return;
@@ -325,8 +340,16 @@ export class FighterView {
     if (f.hp < this.lastHp && f.state !== 'block') this.onHit();
     this.lastHp = f.hp;
     this.hpTrail = this.hpTrail > f.hp ? Math.max(f.hp, this.hpTrail - dt * 60) : f.hp;
+    const level = formLevel(f);
+    const timing = this.xform && this.xform.level > 0 ? transformationTiming(f.hero, this.xform.level) : undefined;
+    if (this.xform) {
+      this.xform.age += dt;
+      if (!f.alive || this.xform.age >= (timing?.duration ?? 0.55) || (timing && level !== this.xform.level)) this.xform = null;
+    }
+    const transform = this.xform && timing ? transformationPose(timing, this.xform.age) : undefined;
+    this.shownLevel = transform?.before ? this.xform!.previous : level;
     if (this.sheet) {
-      this.updateSheet(x, y, dt, time, simTime);
+      this.updateSheet(x, y, dt, time, simTime, transform);
       return;
     }
 
@@ -1000,7 +1023,7 @@ export class FighterView {
 
     // ---- apply
     if (f.hero === 'luffy' && formLevel(f) === 3 && f.grounded && f.state === 'normal' && speed < 15) bob = -Math.round((Math.sin(time * 6) + 1) * 1.5);
-    const want = this.texFor(formLevel(f));
+    const want = this.texFor(this.shownLevel);
     if (want !== this.curTex) {
       this.curTex = want;
       this.body.setTexture(want.body);
@@ -1027,7 +1050,7 @@ export class FighterView {
       this.root.setPosition(x+f.facing*Math.cos(a)*CLONE_SLINGSHOT.swingRadius,y+Math.sin(a)*4);
     }
     this.squash *= Math.pow(0.001, dt * 6);
-    const sq = this.squash;
+    const sq = this.squash + (transform?.squash ?? 0);
     // Gear Fourth's guard blows the body up like a balloon; blocked hits bounce the tummy
     const balloon = f.alive && f.state === 'block' && f.hero === 'luffy' && formLevel(f) === 3;
     this.puff += ((balloon ? 1 : 0) - this.puff) * Math.min(1, dt * (balloon ? 16 : 9));
@@ -1129,9 +1152,12 @@ export class FighterView {
     }
 
     // hit flash / spawn blink
-    if (this.xform > 0) {
-      this.xform -= dt;
-      const c = Math.floor(this.xform * 28) % 2 === 0 ? this.xformColor : 0xffffff;
+    if (transform?.flash && this.xform) {
+      for (const p of [this.body, this.head, this.frontArm, this.backArm, this.frontForearm, this.backForearm]) {
+        tintTransform(p, this.xform.color, transform.flash);
+      }
+    } else if (this.xform && !timing) {
+      const c = Math.floor(this.xform.age * 28) % 2 === 0 ? this.xform.color : 0xffffff;
       for (const p of [this.body, this.head, this.frontArm, this.backArm, this.frontForearm, this.backForearm]) p.setTintFill(c);
     } else if (this.flash > 0) {
       this.flash -= dt;

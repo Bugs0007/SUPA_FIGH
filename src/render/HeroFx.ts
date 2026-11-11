@@ -26,6 +26,7 @@ import { drawOnePieceFighter, drawOnePieceProjectile } from './OnePieceAbilityAr
 import { drawVegetaFighter, drawVegetaProjectile } from './VegetaAbilityArt';
 import { drawRasenShuriken, drawRasenWindBurst, RASEN_WIND_BURST_TIME } from './RasenShurikenArt';
 import { RosterSpecialArt } from './RosterSpecialArt';
+import { drawGearFiveCloud, drawTransformation, transformationTiming, type TransformationCue } from './TransformationArt';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
@@ -133,6 +134,7 @@ export class HeroFx {
     this.choreography.destroy();
     this.kirinImpacts.length = 0;
     this.windImpacts.length = 0;
+    this.xforms.clear();
     this.clashes = [];
     this.back.destroy();
     this.front.destroy();
@@ -151,14 +153,10 @@ export class HeroFx {
     }
   }
 
-  private xforms: { fid: number; t: number; c0: number; c1: number; level: number; burst: boolean }[] = [];
+  private readonly xforms = new Map<number, TransformationCue & { burst: boolean }>();
 
-  /**
-   * The one universal transformation animation (D61): energy streams in while the body flickers (0.35 s),
-   * then a burst: two shockwave rings, a pillar of light and a spray of sparks. Bigger with the form level.
-   */
   startTransform(fid: number, level: number, c0: number, c1: number): void {
-    this.xforms.push({ fid, t: 0, c0, c1, level: Math.max(1, level), burst: false });
+    this.xforms.set(fid, { age: 0, primary: c0, highlight: c1, level, burst: false });
   }
 
   private ring(g: Phaser.GameObjects.Graphics, cx: number, cy: number, r: number, color: number, alpha: number, ry = 1): void {
@@ -172,53 +170,58 @@ export class HeroFx {
 
   private drawTransforms(alpha: number, dt: number): void {
     const g = this.orbs;
-    for (let i = this.xforms.length - 1; i >= 0; i--) {
-      const x = this.xforms[i];
-      x.t += dt;
-      const f = this.world.fighters[x.fid];
-      if (!f || x.t > 1.1) {
-        this.xforms.splice(i, 1);
+    for (const [fid, x] of this.xforms) {
+      x.age += dt;
+      const f = this.world.fighters[fid];
+      const timing = x.level > 0 && f ? transformationTiming(f.hero, x.level) : undefined;
+      if (!f?.alive || f.gone || x.age >= (timing?.duration ?? 1.1) || (timing && formLevel(f) !== x.level)) {
+        this.xforms.delete(fid);
         continue;
       }
       const px = lerp(f.px, f.x, alpha);
       const py = lerp(f.py, f.y, alpha);
+      if (timing) {
+        if (x.level === 4 && (f.hero === 'naruto' || f.hero === 'sasuke')) {
+          const castingAvatar = f.state === 'special' && f.specialKind === 'bomb';
+          if (!castingAvatar) this.avatars.powerReveal(f.hero === 'naruto' ? 'kurama' : 'susanoo', px, py, f.facing, x.age / timing.duration, x.age, !f.grounded);
+          continue;
+        }
+        drawTransformation(this.back, this.front, f.hero, timing, x, px, py, f.facing, f.flying);
+        continue;
+      }
       const cy = py - 11;
-      const big = 0.8 + x.level * 0.25;
-      if (x.t < 0.35) {
+      const level = Math.max(1, x.level);
+      const big = 0.8 + level * 0.25;
+      if (x.age < 0.35) {
         // charge: a contracting ring on the ground, energy streaming into the body
-        const k = x.t / 0.35;
-        this.ring(g, px, py - 1, (1 - k) * 26 * big + 4, x.c1, 0.9, 0.22);
-        this.disc(g, px, cy, 2 + k * 6, x.c0, 0.35 + k * 0.4);
+        const k = x.age / 0.35;
+        this.ring(g, px, py - 1, (1 - k) * 26 * big + 4, x.highlight, 0.9, 0.22);
+        this.disc(g, px, cy, 2 + k * 6, x.primary, 0.35 + k * 0.4);
         if (dt > 0) {
           for (let n = emitCount(70, dt); n > 0; n--) {
             const a = rnd(0, Math.PI * 2);
             const r = rnd(16, 30) * big;
-            this.fx.spawn({ frame: 'p1', x: px + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.9, vx: -Math.cos(a) * r * 3.2, vy: -Math.sin(a) * r * 3, life: 0.3, a0: 0.2, a1: 1, tint: Math.random() < 0.5 ? x.c0 : x.c1, add: true, depth: 58 });
+            this.fx.spawn({ frame: 'p1', x: px + Math.cos(a) * r, y: cy + Math.sin(a) * r * 0.9, vx: -Math.cos(a) * r * 3.2, vy: -Math.sin(a) * r * 3, life: 0.3, a0: 0.2, a1: 1, tint: Math.random() < 0.5 ? x.primary : x.highlight, add: true, depth: 58 });
           }
         }
       } else {
         if (!x.burst) {
           x.burst = true;
-          if (dt > 0) this.fx.sparks(px, cy, 0, -1, 14 + x.level * 6, x.c1, 260 + x.level * 40);
+          if (dt > 0) this.fx.sparks(px, cy, 0, -1, 14 + level * 6, x.highlight, 260 + level * 40);
         }
-        const k = (x.t - 0.35) / 0.75;
+        const k = (x.age - 0.35) / 0.75;
         const fade = Math.max(0, 1 - k);
         // two shockwave rings, the second a little later
-        this.ring(g, px, py - 1, 4 + k * 46 * big, x.c1, fade, 0.22);
+        this.ring(g, px, py - 1, 4 + k * 46 * big, x.highlight, fade, 0.22);
         if (k > 0.15) this.ring(g, px, py - 1, 4 + (k - 0.15) * 40 * big, 0xffffff, fade * 0.8, 0.22);
         // pillar of light
-        const w = Math.max(0, (10 + x.level * 3) * (1 - k) * (k < 0.1 ? k * 10 : 1));
+        const w = Math.max(0, (10 + level * 3) * (1 - k) * (k < 0.1 ? k * 10 : 1));
         const h = 150;
-        g.fillStyle(x.c0, 0.5 * fade).fillRect(Math.round(px - w / 2 - 2), Math.round(py - h), Math.round(w + 4), h);
-        g.fillStyle(x.c1, 0.8 * fade).fillRect(Math.round(px - w / 2), Math.round(py - h), Math.round(w), h);
+        g.fillStyle(x.primary, 0.5 * fade).fillRect(Math.round(px - w / 2 - 2), Math.round(py - h), Math.round(w + 4), h);
+        g.fillStyle(x.highlight, 0.8 * fade).fillRect(Math.round(px - w / 2), Math.round(py - h), Math.round(w), h);
         g.fillStyle(0xffffff, fade).fillRect(Math.round(px - w / 4), Math.round(py - h), Math.max(1, Math.round(w / 2)), h);
         // ground flash
         g.fillStyle(0xffffff, 0.6 * fade).fillRect(Math.round(px - 20 * big * (1 - k * 0.5)), Math.round(py - 1), Math.round(40 * big * (1 - k * 0.5)), 2);
-        if (f.hero === 'luffy') {
-          if (x.level === 3) this.ring(this.front, px, cy, 11 + k * 14, 0x9d2848, fade, 0.8);
-        } else if (f.hero === 'naruto' && x.level < 4) {
-          drawTails(this.back, formFx(f.hero, x.level), px, py, f.facing, x.t * 8, 1 + fade * 0.25);
-        } else if (f.hero === 'goku' && x.level > 1) this.lightning(f, px, py, x.c1, x.level);
       }
     }
   }
@@ -320,6 +323,13 @@ export class HeroFx {
       const y = lerp(f.py, f.y, alpha);
       if(f.burn>0&&f.burnStyle==='amaterasu')drawBlackFlames(this.orbs,x,y,f.w,f.h,time);
       if (!f.alive) continue;
+      const transition = this.xforms.get(f.id);
+      const timing = transition && transition.level > 0 ? transformationTiming(f.hero, transition.level) : undefined;
+      const forming = transition && timing && transition.age + dt < timing.reveal;
+      if (f.hero === 'luffy' && formLevel(f) === 4 && !forming) {
+        const shoulder = v.rearShoulder() ?? { x, y: y - 17 };
+        drawGearFiveCloud(this.back, shoulder.x + f.facing * 2, shoulder.y - 3, f.facing, time, f.vx, f.vy);
+      }
       if(f.state==='block'){if(f.hero==='luffy')this.luffyArt.guard(v,x,y,time);else this.spiritGuard(f,x,y,time);}
       if(f.state==='special'&&f.specialKind==='formCombo'){
         this.formComboArt(v,x,y,time);
@@ -339,8 +349,11 @@ export class HeroFx {
         const color=powerColors(f)[1];
         for(let i=0;i<4;i++)this.front.fillStyle(color,.3).fillRect(Math.round(x-9+i*6),Math.round(y-3-((time*35+i*7)%28)),1,4);
       }
-      if (f.power || formLevel(f) > 0) this.aura(f, x, y, dt, time);
-      if (formLevel(f) > 0 && !(f.hero === 'naruto' && f.state === 'special' && f.specialKind === 'rasengan')) this.tails(f, x, y, time);
+      if (!forming) {
+        if (f.power || formLevel(f) > 0) this.aura(f, x, y, dt, time);
+        const avatarReveal = f.hero === 'naruto' && transition?.level === 4 && timing && transition.age < timing.duration * 0.78;
+        if (formLevel(f) > 0 && !avatarReveal && !(f.hero === 'naruto' && f.state === 'special' && f.specialKind === 'rasengan')) this.tails(f, x, y, time);
+      }
       if (f.flying) this.flight(f, x, y, dt);
       if (drawOnePieceFighter(this.back, this.front, v, x, y, time, this.previewReach) ||
           drawBleachFighter(this.back, this.front, v, x, y, time, this.previewReach) ||

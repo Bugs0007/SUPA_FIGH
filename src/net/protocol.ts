@@ -11,8 +11,8 @@ import type { GameMode, MatchConfig, MatchEvent } from '../sim/match';
 import { MODIFIERS } from '../sim/data/modifiers';
 import type { MatchRender, RenderSnapshot } from './renderState';
 
-// 4: the Gear Fourth stamina meter rides in every fighter snapshot, and the public ARENA room (`room.arena`)
-export const PROTOCOL_VERSION = 4;
+// 5: expanded arena layouts use additional tile IDs.
+export const PROTOCOL_VERSION = 5;
 /** the always-open public Brawl room of an online server (server/hub.ts) */
 export const ARENA_CODE = 'ARENA';
 /** most fighters in one match (humans + bots) */

@@ -82,7 +82,8 @@ describe('open indoor halls (built for hero fights)', () => {
     expect(openRun(id)).toBeGreaterThanOrEqual(36); // >= 576 px: room for a super's flight
     expect(p.powerSpawns.length).toBeGreaterThanOrEqual(2);
     const xs = p.spawns.map((s) => s.x).sort((a, b) => a - b);
-    expect(xs[xs.length - 1] - xs[0]).toBeGreaterThan(p.w * 16 * 0.75);
+    const openingWidth = def.district?.column ?? p.w;
+    expect(xs[xs.length - 1] - xs[0]).toBeGreaterThan(openingWidth * 16 * 0.75);
   });
 
   it('the old segmented maps are narrower than the halls (what the halls are for)', () => {

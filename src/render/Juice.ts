@@ -17,6 +17,7 @@ import type { CameraDirector } from './CameraDirector';
 import { formLevel } from './formLevel';
 import type { WorldRenderer } from './WorldRenderer';
 import { swordSwing } from './SwordMotion';
+import { FINAL_SPIRIT_REVEAL_SCALE, transformationTiming } from './TransformationArt';
 
 export type UiEvent =
   | { t: 'kill'; killer: number; victim: number; weapon: string; cause: string; env: boolean }
@@ -106,7 +107,7 @@ export class Juice {
 
   constructor(
     private r: WorldRenderer,
-    private cam: Pick<CameraDirector, 'x' | 'z' | 'addTrauma' | 'flash'>,
+    private cam: Pick<CameraDirector, 'x' | 'z' | 'addTrauma' | 'flash'> & Partial<Pick<CameraDirector, 'revealAvatar'>>,
     private options: { announceMoves?: boolean } = {},
   ) {}
 
@@ -538,14 +539,19 @@ export class Juice {
       case 'transform': {
         const [c0, c1] = levelColors(e.hero, e.level);
         this.r.heroFx.startTransform(e.f, e.level, c0, c1);
-        this.r.views[e.f]?.onTransform(c1);
-        this.cam.flash(120, (c0 >> 16) & 255, (c0 >> 8) & 255, c0 & 255);
-        const big = e.level >= 3;
-        fx.spawn({ frame: 'glowBig', x: e.x, y: e.y - 12, life: 0.25, s0: 2, s1: 4 + e.level, a0: 0.8, a1: 0, tint: c0, add: true, depth: 64 });
-        fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.35, s0: 0.3, s1: 3.5 + e.level * 0.6, a0: 1, a1: 0, tint: c1, depth: 64 });
-        if (big) fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.55, s0: 0.2, s1: 7, a0: 0.7, a1: 0, tint: 0xffffff, depth: 64 });
-        fx.motes(e.x, e.y - 8, 18 + e.level * 8, c0);
-        fx.sparks(e.x, e.y - 12, 0, -1, 12 + e.level * 5, c1, 220 + e.level * 30);
+        this.r.views[e.f]?.onTransform(c1, e.level);
+        const timing = e.level > 0 ? transformationTiming(e.hero, e.level) : undefined;
+        if (timing && e.level === 4 && (e.hero === 'naruto' || e.hero === 'sasuke')) {
+          this.cam.revealAvatar?.(e.f, FINAL_SPIRIT_REVEAL_SCALE[e.hero], timing.duration);
+        }
+        if (!timing) {
+          this.cam.flash(120, (c0 >> 16) & 255, (c0 >> 8) & 255, c0 & 255);
+          fx.spawn({ frame: 'glowBig', x: e.x, y: e.y - 12, life: 0.25, s0: 2, s1: 4 + e.level, a0: 0.8, a1: 0, tint: c0, add: true, depth: 64 });
+          fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.35, s0: 0.3, s1: 3.5 + e.level * 0.6, a0: 1, a1: 0, tint: c1, depth: 64 });
+          if (e.level >= 3) fx.spawn({ frame: 'ring', x: e.x, y: e.y - 12, life: 0.55, s0: 0.2, s1: 7, a0: 0.7, a1: 0, tint: 0xffffff, depth: 64 });
+          fx.motes(e.x, e.y - 8, 18 + e.level * 8, c0);
+          fx.sparks(e.x, e.y - 12, 0, -1, 12 + e.level * 5, c1, 220 + e.level * 30);
+        }
         this.sfx('transform', e.x, 1, 1 - e.level * 0.06);
         this.cam.addTrauma(0.2 + e.level * 0.1);
         this.hitstop = Math.max(this.hitstop, 0.06 + e.level * 0.025);

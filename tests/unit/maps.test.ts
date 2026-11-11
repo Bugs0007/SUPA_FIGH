@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { NavGraph } from '../../src/ai/nav';
+import { navFor } from '../../src/ai/nav';
 import { runBotSim } from '../../src/ai/botsim';
 import { MAP_LIST } from '../../src/sim/map/maps';
 import { parseMap } from '../../src/sim/map/mapData';
 import { World } from '../../src/sim/world';
+import { TILE } from '../../src/sim/constants';
 
 describe.each(MAP_LIST.map((m) => [m.id, m] as const))('map %s', (_id, def) => {
   const parsed = parseMap(def);
@@ -28,7 +29,7 @@ describe.each(MAP_LIST.map((m) => [m.id, m] as const))('map %s', (_id, def) => {
   });
 
   it('every spawn can reach every other spawn (bot navigation)', () => {
-    const g = new NavGraph(def);
+    const g = navFor(def);
     const nodes = parsed.spawns.map((p) => g.nodeAtPx(p.x, p.y));
     nodes.forEach((n, i) => expect(n, `spawn ${i} has no nav node`).toBeTruthy());
     const bad: string[] = [];
@@ -37,7 +38,7 @@ describe.each(MAP_LIST.map((m) => [m.id, m] as const))('map %s', (_id, def) => {
   });
 
   it('weapon spawns are reachable', () => {
-    const g = new NavGraph(def);
+    const g = navFor(def);
     const s = g.nodeAtPx(parsed.spawns[0].x, parsed.spawns[0].y)!;
     const bad = parsed.weaponSpawns.filter((p) => {
       const n = g.nearest(p.x, p.y);
@@ -47,11 +48,31 @@ describe.each(MAP_LIST.map((m) => [m.id, m] as const))('map %s', (_id, def) => {
   });
 
   it('hero power-up spawns (P) are reachable', () => {
-    const g = new NavGraph(def);
+    const g = navFor(def);
     const s = g.nodeAtPx(parsed.spawns[0].x, parsed.spawns[0].y)!;
     for (const p of parsed.powerSpawns) {
       const n = g.nearest(p.x, p.y);
       expect(n && g.path(s.id, n.id), `power spawn ${p.x / 16 - 0.5},${p.y / 16 - 1}`).toBeTruthy();
+    }
+  });
+});
+
+const extended = MAP_LIST.filter((m) => m.district);
+describe.each(extended)('$name east district', (def) => {
+  it('adds a compact district with a route to each pickup and back', () => {
+    const parsed = parseMap(def);
+    const east = def.district!.column;
+    expect(parsed.w - east).toBeGreaterThanOrEqual(24);
+    expect(parsed.w - east).toBeLessThanOrEqual(32);
+    const pickups = [...parsed.weaponSpawns, ...parsed.powerSpawns].filter((p) => p.x >= east * TILE);
+    expect(pickups).toHaveLength(3);
+    const graph = navFor(def);
+    const spawn = graph.nodeAtPx(parsed.spawns[0].x, parsed.spawns[0].y)!;
+    for (const point of pickups) {
+      const target = graph.nodeAtPx(point.x, point.y);
+      expect(target, `pickup ${point.x},${point.y} has no footing`).toBeTruthy();
+      expect(graph.path(spawn.id, target!.id), 'district pickup must be reachable').toBeTruthy();
+      expect(graph.path(target!.id, spawn.id), 'district pickup must have a return route').toBeTruthy();
     }
   });
 });

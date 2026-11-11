@@ -9,6 +9,7 @@ import { formLevel } from './formLevel';
 
 type Graphics = Phaser.GameObjects.Graphics;
 type Point = { x: number; y: number };
+type WingPoint = (u: number, v: number) => Point;
 type CloverHero = 'asta' | 'yuno' | 'yami';
 type BladeUser = Exclude<CloverHero, 'yuno'>;
 
@@ -51,49 +52,55 @@ function diamond(g: Graphics, x: number, y: number, size: number, color: number,
   pixel(g, x, y, 2);
 }
 
-function devilWing(g: Graphics, root: Point, rear: number, span: number, rise: number, level: number): void {
+function devilWing(g: Graphics, at: WingPoint, span: number, rise: number, level: number): void {
   const c = PALETTES.asta;
   const ridge = (p: number) => -rise * (p < 0.44 ? p / 0.44 * 0.82 : mix(0.82, 1, (p - 0.44) / 0.56));
   for (let i = 0; i <= span; i++) {
     const p = i / span;
-    const x = root.x + rear * i;
-    const y = root.y + ridge(p);
+    const { x, y } = at(i, ridge(p));
     const scallop = Math.pow((p * 4) % 1, 2);
     const height = Math.max(1, Math.round((1 - p) * (5 + scallop * 13) + Math.sin(p * Math.PI) * 4));
     g.fillStyle(c.dark, 0.98);
-    g.fillRect(Math.round(x), Math.round(y), 1, height);
+    const edge = at(i, ridge(p) + height - 1);
+    if (Math.round(x) === Math.round(edge.x)) {
+      const top = Math.min(Math.round(y), Math.round(edge.y));
+      g.fillRect(Math.round(x), top, 1, Math.abs(Math.round(edge.y) - Math.round(y)) + 1);
+    } else line(g, x, y, edge.x, edge.y);
     g.fillStyle(c.mid, 0.8);
     pixel(g, x, y);
     if (level >= 3 && i % 4 === 0) {
       g.fillStyle(c.bright, 0.7);
-      pixel(g, x, y + 1);
+      const vein = at(i, ridge(p) + 1);
+      pixel(g, vein.x, vein.y);
     }
   }
   g.fillStyle(c.mid, 0.65);
   for (const p of [0.25, 0.5, 0.75]) {
-    line(g, root.x + rear * span * p * 0.66, root.y + ridge(p * 0.66) + 2,
-      root.x + rear * span * p, root.y + ridge(p) + (1 - p) * 13);
+    const start = at(span * p * 0.66, ridge(p * 0.66) + 2);
+    const end = at(span * p, ridge(p) + (1 - p) * 13);
+    line(g, start.x, start.y, end.x, end.y);
   }
 }
 
-function spiritWing(g: Graphics, root: Point, rear: number, span: number, rise: number, level: number, time: number): void {
+function spiritWing(g: Graphics, at: WingPoint, span: number, rise: number, level: number, time: number): void {
   const c = PALETTES.yuno;
   const count = level >= 3 ? 6 : 5;
   for (let i = count - 1; i >= 0; i--) {
     const p = i / (count - 1);
-    const sx = root.x + rear * span * p * 0.35;
-    const sy = root.y - rise * p * 0.42;
-    const ex = root.x + rear * span * mix(0.54, 1, p);
-    const ey = root.y + mix(6, -rise, p) + Math.sin(time * 7 + i * 0.7) * 1.6;
-    const mx = mix(sx, ex, 0.63);
-    const my = mix(sy, ey, 0.63) + 2;
+    const u0 = span * p * 0.35;
+    const v0 = -rise * p * 0.42;
+    const u1 = span * mix(0.54, 1, p);
+    const v1 = mix(6, -rise, p) + Math.sin(time * 7 + i * 0.7) * 1.6;
+    const start = at(u0, v0);
+    const end = at(u1, v1);
+    const mid = at(mix(u0, u1, 0.63), mix(v0, v1, 0.63) + 2);
     g.fillStyle(c.dark, 0.8);
-    line(g, sx, sy, mx, my, 4);
-    line(g, mx, my, ex, ey, 3);
+    line(g, start.x, start.y, mid.x, mid.y, 4);
+    line(g, mid.x, mid.y, end.x, end.y, 3);
     g.fillStyle(c.mid, 0.82);
-    line(g, sx, sy - 1, mx, my - 1, 3);
+    line(g, start.x, start.y - 1, mid.x, mid.y - 1, 3);
     g.fillStyle(i === count - 1 || level === 4 ? c.light : c.bright, 0.85);
-    line(g, mx, my - 1, ex, ey - 1);
+    line(g, mid.x, mid.y - 1, end.x, end.y - 1);
   }
 }
 
@@ -103,17 +110,29 @@ function formDetails(back: Graphics, front: Graphics, view: FighterView, hero: C
   if ((hero === 'asta' && level >= 2) || (hero === 'yuno' && level > 0)) {
     const shoulder = view.rearShoulder();
     if (!shoulder) return;
-    // A single visible wing trails the side-on silhouette. The body occludes its root as the rig leans.
-    const root = { x: x - d * Math.max(2, (x - shoulder.x) * d), y: shoulder.y + 1 };
+    // Use the leaned shoulder as the joint and the rush direction as the trailing axis.
+    const rushing = f.flying && ((f.sprintDir !== 0 && Math.abs(f.vx) > 50) || (f.flyRush !== 0 && Math.abs(f.vy) > 50));
+    const pitch = rushing ? Math.atan2(f.vy, Math.abs(f.vx)) : 0;
+    const cos = Math.cos(pitch);
+    const sin = Math.sin(pitch);
+    const at: WingPoint = (u, v) => {
+      // Expose the joint above a flat flight pose before the feathers sweep past the feet.
+      const height = v + (rushing ? -Math.min(5, u) : 2);
+      return {
+        x: shoulder.x - d * ((u + 1) * cos + height * sin),
+        y: shoulder.y - (u + 1) * sin + height * cos,
+      };
+    };
     const folded = f.state === 'block' || (f.specialKind === 'rasengan' && f.state === 'special');
-    const span = Math.round((14 + level * 2 + (f.flying ? 5 : 0)) * (folded ? 0.8 : 1));
-    const rise = (13 + level * 2) * (folded ? 0.58 : 1) + Math.sin(time * (f.flying ? 9 : 4)) * 2;
-    if (hero === 'asta') devilWing(back, root, -d, span, rise, level);
+    const span = Math.round((14 + level * 2 + (rushing ? 13 : f.flying ? 5 : 0)) * (folded ? 0.8 : 1));
+    const rise = (13 + level * 2) * (folded ? 0.58 : rushing ? 0.45 : 1) + Math.sin(time * (f.flying ? 9 : 4)) * 2;
+    if (hero === 'asta') devilWing(back, at, span, rise, level);
     else {
-      spiritWing(back, root, -d, span, rise, level, time);
+      spiritWing(back, at, span, rise, level, time);
       if (level === 4) for (const [dx, dy] of [[8, -rise - 11], [span + 5, -rise + 1], [span + 11, 1]]) {
         const pulse = Math.sin(time * 6 + dx);
-        diamond(back, root.x - dx * d, root.y + dy, pulse > 0.4 ? 3 : 2, 0xffe89c, 0.7 + pulse * 0.2);
+        const star = at(dx, dy);
+        diamond(back, star.x, star.y, pulse > 0.4 ? 3 : 2, 0xffe89c, 0.7 + pulse * 0.2);
       }
     }
   } else if (hero === 'yami' && level >= 3 && f.state === 'block') {

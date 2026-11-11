@@ -1,4 +1,5 @@
 import type { MapDef } from '../mapData';
+import { addArenaDistrict } from './arenaDistricts';
 import { casino } from './casino';
 import { construction } from './construction';
 import { docks } from './docks';
@@ -38,7 +39,7 @@ export const MAP_LIST: MapDef[] = [
   // open indoor halls built for hero fights (long clear lines for supers and ultimates)
   tournamentHall,
   museumAtrium,
-];
+].map(addArenaDistrict);
 
 export const MAPS: Record<string, MapDef> = Object.fromEntries(MAP_LIST.map((m) => [m.id, m]));
 

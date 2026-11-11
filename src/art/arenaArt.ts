@@ -3,6 +3,7 @@ import { PixelCanvas, hash2 } from './canvas';
 import { shade } from './palette';
 import { parseMap, type MapDef } from '../sim/map/mapData';
 import { bakeValleyScenery } from './valleyArt';
+import { paintDistrict } from './districtArt';
 export const ARENA_COLORS: Record<string, [
   string,
   string,
@@ -17,10 +18,10 @@ export const ARENA_COLORS: Record<string, [
 };
 
 /** Bounding box (px) of the open "window" cells of an indoor map: interior cells with no back wall. */
-function openingBox(map: ReturnType<typeof parseMap>): { x0: number; y0: number; x1: number; y1: number } | null {
+function openingBox(map: ReturnType<typeof parseMap>, width: number): { x0: number; y0: number; x1: number; y1: number } | null {
   let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
   for (let y = 1; y < map.h - 1; y++)
-    for (let x = 1; x < map.w - 1; x++) {
+    for (let x = 1; x < width / 16 - 1; x++) {
       if (map.back[y * map.w + x] || map.tiles[y * map.w + x]) continue;
       x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
     }
@@ -29,7 +30,7 @@ function openingBox(map: ReturnType<typeof parseMap>): { x0: number; y0: number;
 
 /** Tournament hall: timber frame and slid-open shoji screens around the view, pillars, crowd banners. */
 function dojoScenery(pc: PixelCanvas, map: ReturnType<typeof parseMap>, w: number, h: number): void {
-  const o = openingBox(map);
+  const o = openingBox(map, w);
   const timber = '#3a2416', timberLit = '#5a3a24', paper = '#8a7a62', red = '#8a2e26', gold = '#c8984a';
   if (o) {
     // lintel and sill beams, posts every few panels; the screens stand slid aside at both ends
@@ -61,7 +62,7 @@ function dojoScenery(pc: PixelCanvas, map: ReturnType<typeof parseMap>, w: numbe
 
 /** Museum atrium: iron-and-glass roof over the skylight, fluted columns, exhibition banners. */
 function museumScenery(pc: PixelCanvas, map: ReturnType<typeof parseMap>, w: number, h: number): void {
-  const o = openingBox(map);
+  const o = openingBox(map, w);
   const iron = '#2a2e3a', ironLit = '#4a5266', stone = '#7a746a', stoneLit = '#948e82', stoneDark = '#5a554e';
   if (o) {
     // glass: a sparse dither of pale panes, iron ribs and a barrel-vault arch
@@ -105,8 +106,9 @@ export function bakeArenaScenery(scene: Phaser.Scene, def: MapDef): string {
   const key = 'arena-scenery-' + def.id;
   if (scene.textures.exists(key))
     return key;
-  const map = parseMap(def), w = map.w * 16, h = map.h * 16;
-  const pc = new PixelCanvas(w, h), [accent, warm, dark] = ARENA_COLORS[def.theme] ?? ARENA_COLORS.arena;
+  const map = parseMap(def), w = (def.district?.column ?? map.w) * 16, h = map.h * 16;
+  const colors = ARENA_COLORS[def.theme] ?? ARENA_COLORS.arena;
+  const pc = new PixelCanvas(map.w * 16, h), [accent, warm, dark] = colors;
   const natural = ['leaf', 'citadel', 'alien', 'mine'].includes(def.theme);
   // Architectural bays, cables and masonry make empty wall rooms feel inhabited.
   // (the open halls paint their own architecture: dojoScenery / museumScenery)
@@ -130,7 +132,8 @@ export function bakeArenaScenery(scene: Phaser.Scene, def: MapDef): string {
   for (let y = 3; y < map.h - 1; y++)
     for (let x = 1; x < map.w - 1; x++) {
       const c = def.rows[y][x];
-      if (!'-=MBXD#'.includes(c) || !'.SwPbctg'.includes(def.rows[y - 1]?.[x] ?? ''))
+      const above = def.rows[y - 1]?.[x] ?? '';
+      if (!'-=MBXD#'.includes(c) || !('.SwPbctg'.includes(above) || (x * 16 >= w && above === ':')))
         continue;
       const px = x * 16, py = y * 16;
       if (x % 5 === 0) {
@@ -223,6 +226,7 @@ export function bakeArenaScenery(scene: Phaser.Scene, def: MapDef): string {
       pc.bloom(x, y + 12, 50, 65, accent, .2);
     }
   }
+  if (def.district) paintDistrict(pc, def.id, def.district, map.w, colors);
   scene.textures.addCanvas(key, pc.flush());
   return key;
 }

@@ -96,7 +96,7 @@ describe('server: rooms and lobby', () => {
     const rude = new TestClient(hub, 'd');
     rude.sendRaw(JSON.stringify({ t: 'start' }));
     expect(rude.last('err')?.code).toBe('noRoom');
-    expect(PROTOCOL_VERSION).toBe(4); // Championship scoring, the Gear Fourth stamina meter and the public arena require matching clients.
+    expect(PROTOCOL_VERSION).toBe(5); // Expanded arena layouts require matching clients.
   });
 
   it('a device that drops from the lobby keeps its place for a while, is left out of the match, then is forgotten', () => {

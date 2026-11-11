@@ -635,6 +635,30 @@ function paintBackdrop(pc: PixelCanvas): void {
     const rim = FALLS.crest - 4 - Math.floor(hash2(x >> 3, 1, 4) * 4);
     pc.rect(x, rim, 1, 2, mix(C.m1, haze, 0.25));
   }
+  // Dark watercourses and the roots clinging to them sit behind the playable stone.
+  for (const [from, to] of [[x0 + 18, FALLS.x0 - 22], [FALLS.x1 + 22, x1 - 18]]) {
+    for (let i = 0; i < 5; i++) {
+      let x = Math.round(from + (to - from) * (i + 0.55) / 5);
+      let y = FALLS.crest + 4 + Math.floor(hash2(x, i, 91) * 30);
+      const wet = i === 1 || i === 3;
+      const seam = wet ? '#293c40' : '#273636';
+      const rim = wet ? '#526d6c' : '#42574b';
+      while (y < RIVER.y - 7) {
+        const nextY = Math.min(RIVER.y - 7, y + 11 + Math.floor(hash2(x, y, 92) * 20));
+        const nextX = Math.max(from, Math.min(to, x + Math.floor(hash2(x, y, 93) * 17) - 8));
+        pc.line(x, y, nextX, nextY, seam, wet ? 3 : 2);
+        if (hash2(x, y, 94) > 0.3) pc.line(x + 2, y + 2, nextX + 2, nextY - 3, rim);
+        if (!wet && hash2(x, y, 95) > 0.45) {
+          const branch = (i % 2 ? 1 : -1) * (4 + Math.floor(hash2(x, y, 96) * 8));
+          pc.line(x, y + 2, x + branch, y + 9, seam);
+          pc.rect(x + branch - 1, y + 8, 4, 2, mix(C.m0, '#344745', 0.6));
+          pc.rect(x + branch, y + 10, 2, 2, '#40564a');
+        }
+        x = nextX;
+        y = nextY;
+      }
+    }
+  }
   for (let y = FALLS.crest - 10; y < FALLS.crest; y++) for (let x = FALLS.x0 - 14; x < FALLS.x1 + 14; x++) {
     pc.set(x, y, (x + y * 3) % 23 < 3 ? C.w2 : C.w1);
   }

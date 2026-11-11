@@ -110,6 +110,12 @@ export interface MapDef {
   killMargin?: number;
   /** description shown in the lobby */
   blurb?: string;
+  /** District bounds and openings in tile coordinates, used to align the scenery to the playable routes. */
+  district?: {
+    column: number;
+    floor: number;
+    openings: { x: number; y: number; w: number; h: number }[];
+  };
   gimmicks?: GimmickDef[];
   /** hero power-up id that shows up 3x as often here (data/heroes.ts) */
   powerBias?: string;
