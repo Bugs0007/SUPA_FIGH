@@ -318,7 +318,7 @@ export class HeroFx {
     for (const p of this.world.fires) if (p.active && p.black) drawBlackFlames(this.orbs, p.x, p.y + 1, 10, 12, time + p.max, Math.min(1, p.life / 0.8));
     for (const v of this.views) {
       const f = v.fighter;
-      if (f.gone) continue;
+      if (f.gone || f.trainer?.mounted) continue;
       const x = lerp(f.px, f.x, alpha);
       const y = lerp(f.py, f.y, alpha);
       if(f.burn>0&&f.burnStyle==='amaterasu')drawBlackFlames(this.orbs,x,y,f.w,f.h,time);
@@ -814,7 +814,7 @@ export class HeroFx {
   private drawOrbs(alpha: number, dt: number, time: number): void {
     const g = this.orbs;
     for (const bl of this.world.bullets) {
-      if (!bl.active) continue;
+      if (!bl.active || bl.weapon.startsWith('ash:')) continue;
       if (bl.kind === 'cannonball') {
         const cx = lerp(bl.px, bl.x, alpha);
         const cy = lerp(bl.py, bl.y, alpha);

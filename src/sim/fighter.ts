@@ -122,6 +122,8 @@ import { conveyorPush, useCannon } from './gimmicks';
 import { copyIntent, emptyIntent, type Intent } from './intent';
 import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, segmentAabb, type Body, type MoveResult } from './physics';
 import type { World } from './world';
+import { createPokemon, createTrainer, POKE_BALL, pokemonSpecies, pokemonStage, type PokemonSpecies, type PokemonState, type TrainerState } from './data/pokemon';
+import { deployedPartner, selectedPartnerBall, stepPokemon, stepTrainer } from './pokemon';
 
 export type FState =
   | 'normal'
@@ -349,6 +351,8 @@ export interface Fighter extends Body {
   /** this press of BLOCK already raised the guard once (one parry window per press) */
   guardUsed: boolean;
   prev: Intent;
+  trainer?: TrainerState;
+  pokemon?: PokemonState;
 }
 
 export interface FighterSpawn {
@@ -362,14 +366,19 @@ export interface FighterSpawn {
   startForm?: number;
   /** shadow clone slot (added by the World): fighter id of the master */
   master?: number;
+  pokemon?: PokemonSpecies;
+  companion?: PokemonSpecies;
 }
 
 export function createFighter(id: number, spec: FighterSpawn, x: number, y: number): Fighter {
   const hero = heroDef(spec.hero);
-  const hp = hero ? hero.stats.hp : MAX_HP;
-  const startLevel = hero && spec.master === undefined ? Math.max(0, Math.min(maxLevel(hero.id), Math.floor(spec.startForm ?? 0))) : 0;
+  const trainer = spec.hero === 'ash' ? createTrainer(pokemonSpecies(spec.pokemon), spec.startForm) : undefined;
+  const hp = (hero?.stats.hp ?? MAX_HP) + (trainer ? pokemonStage(trainer.species, trainer.stage).trainerBonusHp : 0);
+  const startLevel = hero && hero.id !== 'ash' && spec.master === undefined ? Math.max(0, Math.min(maxLevel(hero.id), Math.floor(spec.startForm ?? 0))) : 0;
   return {
     id,
+    trainer,
+    pokemon: spec.companion ? createPokemon(spec.companion) : undefined,
     name: spec.name,
     team: spec.team,
     isBot: spec.isBot,
@@ -421,8 +430,8 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     crouchAim: false,
     pendingShot: 0,
     lastShotTime: -10,
-    inv: [null, null, null, null, null],
-    active: SLOT.MELEE,
+    inv: [null, null, null, null, spec.hero === 'ash' ? { id: POKE_BALL, ammo: 0, dur: 1 } : null],
+    active: spec.hero === 'ash' ? SLOT.GADGET : SLOT.MELEE,
     fireCooldown: 0,
     kickCooldown: 0,
     combo: 0,
@@ -632,6 +641,10 @@ const moveRes: MoveResult = newMoveResult();
 export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   f.px = f.x;
   f.py = f.y;
+  if (f.pokemon) {
+    stepPokemon(w, f, f.pokemon);
+    return;
+  }
   if (f.master >= 0 && !f.alive) {
     // a clone slot with nobody in it
     copyIntent(f.prev, inp);
@@ -649,6 +662,11 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
   }
   inp = withUpJump(f, inp);
   const e = edges(inp, f.prev);
+  const riding = f.trainer?.mounted ?? false;
+  if (riding && stepTrainer(w, f, inp, e)) {
+    copyIntent(f.prev, inp);
+    return;
+  }
   const dt = DT;
 
   f.stateTime += dt;
@@ -682,7 +700,17 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
     f.facing = (-f.wallDir || f.facing) as 1 | -1;
     setState(f, 'normal');
   }
-  heroButtons(w, f, inp, e);
+  if (f.trainer) {
+    if (!riding && stepTrainer(w, f, inp, e)) {
+      copyIntent(f.prev, inp);
+      return;
+    }
+    if (f.trainer.active >= 0 && (f.state === 'aim' || f.state === 'melee' || f.state === 'kick')) {
+      f.aimHeld = false;
+      f.pendingShot = 0;
+      setState(f, 'normal');
+    }
+  } else heroButtons(w, f, inp, e);
   if (f.carry >= 0) {
     f.speedMul *= CARRY.speedMul;
     // carrying: every action button throws the prop instead
@@ -747,7 +775,7 @@ export function updateFighter(w: World, f: Fighter, inp: Intent): void {
       break;
     case 'grabbed':
       if (e.anyP) f.struggle++;
-      if (f.grabbedBy < 0 || !(w.fighters[f.grabbedBy]?.state === 'grabbing' || w.fighters[f.grabbedBy]?.state==='special'&&w.fighters[f.grabbedBy]?.hero==='luffy'&&w.fighters[f.grabbedBy]?.specialKind==='formCombo'&&w.fighters[f.grabbedBy]?.grabTarget===f.id)) {
+      if (f.grabbedBy < 0 || !(w.fighters[f.grabbedBy]?.state === 'grabbing' || w.fighters[f.grabbedBy]?.pokemon?.holding || w.fighters[f.grabbedBy]?.state==='special'&&w.fighters[f.grabbedBy]?.hero==='luffy'&&w.fighters[f.grabbedBy]?.specialKind==='formCombo'&&w.fighters[f.grabbedBy]?.grabTarget===f.id)) {
         f.grabbedBy = -1;
         setState(f, 'normal');
       }
@@ -945,6 +973,7 @@ function withUpJump(f: Fighter, inp: Intent): Intent {
   const s = f.state;
   // (flying: Up flies up)
   if (s === 'climb' || s === 'aim' || s === 'grabbing' || s === 'grabbed' || s === 'ledge' || s === 'ledgeClimb' || s === 'special' || s === 'wallwalk' || f.flying) f.upLatch = true;
+  if (f.trainer && f.trainer.active >= 0 && selectedPartnerBall(f) && inp.kick) f.upLatch = true;
   // holding Attack with a gun / throwable = aiming: Up sweeps the aim, even on the tick the aim starts
   if (inp.attack) {
     const d = activeWeapon(f);
@@ -1547,7 +1576,7 @@ export function dropCooked(w: World, f: Fighter): void {
 
 /** Transformed heroes replace the fist combo (weapons keep their own). */
 function heroCombo(f: Fighter): MeleeHit[] | null {
-  if (activeWeapon(f) !== FISTS) return null;
+  if (f.trainer || activeWeapon(f) !== FISTS) return null;
   return heroDef(f.hero)?.combo ?? null;
 }
 
@@ -1631,11 +1660,14 @@ function meleeHitbox(w: World, f: Fighter, hit: MeleeHit, weapon: string, kind: 
     pushProp(p, f.facing * hit.knockX * 0.8 * knockMul, Math.min(hit.knockY, -60) * 0.6);
     damageProp(w, p, hit.damage * mult, f.id);
   }
+  const inSwing = (o: Fighter): boolean => o !== f && !o.gone && !(o.state === 'grabbed' && o.grabbedBy === f.id)
+    && o.x + o.w / 2 >= l && o.x - o.w / 2 <= r && o.y - o.h <= b && o.y >= t;
   for (const o of w.fighters) {
-    if (o === f || o.gone || f.swingHit.includes(o.id)) continue;
-    if (o.state === 'grabbed' && o.grabbedBy === f.id) continue;
-    if (o.x + o.w / 2 < l || o.x - o.w / 2 > r || o.y - o.h > b || o.y < t) continue;
+    if (f.swingHit.includes(o.id) || !inSwing(o)) continue;
+    const primary = o.alive && deployedPartner(w, o);
     f.swingHit.push(o.id);
+    if (primary && primary.master !== f.id && (w.settings.friendlyFire || !sameTeam(f, primary))
+      && (f.swingHit.includes(primary.id) || primary.invuln <= 0 && inSwing(primary))) continue;
     const connected = applyHit(w, o, {
       damage: hit.damage * mult,
       kbX: f.facing * hit.knockX * knockMul,
@@ -2950,7 +2982,7 @@ function outOfAmmo(w: World, f: Fighter): void {
 /** Throw the weapon in a slot as a damaging projectile item. */
 export function tossWeapon(w: World, f: Fighter, slot: number, speed: number): void {
   const it = f.inv[slot];
-  if (!it) return;
+  if (!it || it.id === POKE_BALL) return;
   f.inv[slot] = null;
   const item = w.spawnItem(it.id, it.ammo, it.dur, f.x + f.facing * 6, f.y - 14, f.facing * speed + f.vx * 0.5, -90);
   item.thrownBy = f.id;
@@ -2982,7 +3014,7 @@ export function cycleWeapon(w: World, f: Fighter): void {
       break;
     }
   }
-  w.emit({ t: 'cycle', f: f.id, weapon: activeWeapon(f).id });
+  w.emit({ t: 'cycle', f: f.id, weapon: f.inv[f.active]?.id ?? FISTS.id });
 }
 
 // ------------------------------------------------------------------ interact / pickup / grab
@@ -3009,7 +3041,7 @@ function interact(w: World, f: Fighter): boolean {
     }
   }
   // nothing to pick up or grab: throw the active weapon
-  if (f.inv[f.active]) {
+  if (f.inv[f.active] && !selectedPartnerBall(f)) {
     tossWeapon(w, f, f.active, TOSS.speed);
     return true;
   }
@@ -3072,7 +3104,7 @@ function findGrabTarget(w: World, f: Fighter): Fighter | null {
   let best: Fighter | null = null;
   let bestD = Infinity;
   for (const o of w.fighters) {
-    if (o === f || !o.alive || o.gone) continue;
+    if (o === f || !o.alive || o.gone || o.trainer?.mounted || o.pokemon?.mounted) continue;
     if (o.state === 'grabbed' || o.state === 'roll' || o.state === 'dive' || o.state === 'ledgeClimb' || o.invuln > 0 || superGuard(o)) continue;
     if (!w.settings.friendlyFire && sameTeam(o, f)) continue;
     const dx = o.x - f.x;

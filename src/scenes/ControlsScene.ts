@@ -67,6 +67,8 @@ export class ControlsScene extends Phaser.Scene {
       const y = 60 + i * 19;
       this.texts.push([this.add.bitmapText(120, y, 'pxo', ''), this.add.bitmapText(330, y, 'pxo', ''), this.add.bitmapText(450, y, 'pxo', '')]);
     }
+    this.add.bitmapText(VIEW_W / 2, VIEW_H - 49, 'sm', 'ASH: CYCLE TO POKE BALL. TAP ATTACK TO SEND OUT OR STRIKE. HOLD ATTACK TO RETURN.')
+      .setOrigin(0.5, 0).setTint(0xb9c8e1);
     this.warn = this.add.bitmapText(VIEW_W / 2, VIEW_H - 32, 'smo', '').setOrigin(0.5, 0).setTint(0xea4a4a);
     this.render();
   }

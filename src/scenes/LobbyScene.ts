@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { randomAppearance } from '../art/appearance';
 import { heroLook } from '../art/heroArt';
 import { HEROES, maxLevel } from '../sim/data/heroes';
+import { pokemonSpecies, pokemonStage } from '../sim/data/pokemon';
 import { hexToNum, P, TEAM_COLORS, TEAM_NAMES } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
@@ -234,7 +235,7 @@ export class LobbyScene extends Phaser.Scene {
     else if (col === 'skill') s.difficulty = cycle(DIFF_ORDER, s.difficulty, d);
     else if (col === 'form') {
       if (s.kind === 'empty' || !s.hero) return false; // only heroes have power-up forms
-      const n = maxLevel(s.hero) + 1;
+      const n = 1 + (s.hero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), 0).maxStage : maxLevel(s.hero));
       s.form = (slotStartForm(s) + d + n) % n;
     } else s.look = randomAppearance();
     return true;
@@ -352,7 +353,9 @@ export class LobbyScene extends Phaser.Scene {
       skill.setText(s.kind === 'bot' ? s.difficulty.toUpperCase() : '').setTint(0xc3c9dc);
       look.setText(s.kind === 'empty' ? '' : s.hero ? (HEROES[s.hero]?.name ?? 'EDIT...') : 'EDIT...').setTint(s.hero ? hexToNum(P.orange) : 0x8d95b0);
       const lv = slotStartForm(s);
-      form.setText(s.kind === 'empty' || !s.hero ? '' : lv ? `FORM ${lv}` : 'BASE').setTint(lv ? hexToNum(P.yellow) : 0xc3c9dc);
+      const major = s.hero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), lv).special : undefined;
+      const formLabel = major === 'mega' ? 'MEGA' : major === 'bond' ? 'BOND' : lv ? `FORM ${lv}` : 'BASE';
+      form.setText(s.kind === 'empty' || !s.hero ? '' : formLabel).setTint(lv ? hexToNum(P.yellow) : 0xc3c9dc);
       if (sel) {
         g.lineStyle(1, blink ? 0xffffff : 0xf8c840, 1).strokeRect(SLOT_COL_X[this.col] - 3.5, y + 2.5, SLOT_COL_W[this.col], 14);
       }

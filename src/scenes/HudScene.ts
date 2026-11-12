@@ -11,6 +11,7 @@ import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/ma
 import { brawlPoints, brawlPointScale } from '../sim/data/brawl';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
 import { FORM_HP, heroDef } from '../sim/data/heroes';
+import { POKE_BALL, POKEMON_TIMING } from '../sim/data/pokemon';
 import { BOOST_COLORS, formFx } from '../art/heroArt';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
@@ -537,9 +538,15 @@ export class HudScene extends Phaser.Scene {
       if (f.alive && f.strengthBoost > 0) g.fillStyle(hexToNum(P.red2), a).fillRect(px, py + 27, Math.round(barW * Math.min(1, f.strengthBoost / 12)), 1);
       const def = activeWeapon(f);
       const item = f.inv[f.active];
+      const ballSelected = f.trainer && item?.id === POKE_BALL;
       const ghostText = f.ghost ? (f.ghostCd <= 0 ? 'GHOST: ATTACK = BOO!' : `GHOST: BOO IN ${Math.ceil(f.ghostCd)}`) : 'DEAD';
-      weapT.setText(f.alive ? def.name : ghostText).setPosition(px, py + 29).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
-      const ammo = item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
+      weapT.setText(f.alive ? ballSelected ? 'POKE BALL' : def.name : ghostText).setPosition(px, py + 29).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
+      const trainer = f.trainer;
+      const returningMove = trainer && w.fighters[trainer.active]?.pokemon?.move;
+      const returning = returningMove === 'recall' || returningMove === 'ko';
+      const ammo = ballSelected && trainer ? returning ? 'RETURNING'
+        : trainer.active >= 0 ? 'DEPLOYED' : trainer.cooldown > 0 ? 'KO ' + Math.ceil(trainer.cooldown) + 'S' : 'READY'
+        : item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
       ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 29).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
       // transformation: form name + level pips + time left (above the panel)
       if (f.alive && f.power) {
@@ -561,7 +568,19 @@ export class HudScene extends Phaser.Scene {
         const icon = this.panelIcons[n][s];
         const cnt = this.panelCounts[n][s];
         const wf = inv ? Art.weapon(inv.id) : undefined;
-        if (wf && f.alive) {
+        if (inv?.id === POKE_BALL && f.alive) {
+          icon.setVisible(false);
+          const ink = a * (active ? 1 : 0.65);
+          g.fillStyle(0x171324, ink).fillRect(bx + 5, by + 2, 8, 8).fillRect(bx + 4, by + 4, 10, 4);
+          g.fillStyle(0xd8464d, ink).fillRect(bx + 6, by + 3, 6, 2).fillRect(bx + 5, by + 5, 8, 1);
+          g.fillStyle(0xe2e1e8, ink).fillRect(bx + 5, by + 7, 8, 1).fillRect(bx + 6, by + 8, 6, 1);
+          g.fillStyle(0xfff7dd, ink).fillRect(bx + 8, by + 5, 2, 2);
+          if (trainer && trainer.active >= 0) g.fillStyle(0x81e1ac, ink).fillRect(bx + 14, by + 2, 2, 2);
+          if (active && trainer && trainer.attackHeld > 0) {
+            const progress = Math.min(1, trainer.attackHeld / POKEMON_TIMING.holdToRecall);
+            g.fillStyle(0xffa75a, ink).fillRect(bx + 2, by + 10, Math.ceil(14 * progress), 1);
+          }
+        } else if (wf && f.alive) {
           const k = Math.min(1, 17 / wf.w, 11 / wf.h);
           icon.setVisible(true).setTexture(wf.key, wf.frame).setScale(k).setPosition(bx + 9, by + 6).setAlpha((active ? 1 : 0.7) * a);
         } else icon.setVisible(false);

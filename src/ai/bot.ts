@@ -10,6 +10,7 @@ import type { Controller } from '../input/controllers';
 import { sameTeam } from '../sim/combat';
 import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND, TILE } from '../sim/constants';
 import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
+import { POKE_BALL } from '../sim/data/pokemon';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
 import { heroDef, heroHasFormCombo, bombRange, bombWindup, FORM_COMBO, CLONE_SLINGSHOT, DRAGON_FIST, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
@@ -17,6 +18,7 @@ import { rosterSpecial } from '../sim/data/rosterSpecials';
 import { amaterasuReach, baseAbility, canReflect, dashDir, canTakeOff, flightFuel, gatlingReach, holdFlies, superGuard, transformed, usesAmaterasu } from '../sim/hero';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { type Item } from '../sim/item';
+import { deployedPartner } from '../sim/pokemon';
 import { Rng } from '../sim/rng';
 import type { World } from '../sim/world';
 import { BOT_FIGHT, DIFFICULTIES, PERSONALITIES, weaponAi, type Difficulty, type DifficultyDef, type Personality } from './botData';
@@ -61,7 +63,7 @@ interface Threat {
 /** A hero move the bot can start right now: which buttons, for how long, and the stick held meanwhile. */
 interface HeroPick {
   combo?: boolean;
-  hold: 'ability' | 'kick' | 'both';
+  hold: 'attack' | 'ability' | 'kick' | 'both';
   ticks: number;
   mx: number;
   my: number;
@@ -118,7 +120,7 @@ export class BotController implements Controller {
   private ignoreItems = new Map<number, number>();
   /** ticks left to hold ABILITY (charging a ki blast) */
   private chargeTicks = 0;
-  private hold: 'ability' | 'kick' | 'both' = 'ability';
+  private hold: HeroPick['hold'] = 'ability';
   private comboHold = false;
   private evadeUntil=0;
   private evadeDir=1;
@@ -186,6 +188,7 @@ export class BotController implements Controller {
     o.kick = false;
     o.interact = false;
     o.cycle = false;
+    o.gadget = false;
     o.ability = false;
     o.block = false;
     const f = w.fighters[this.id];
@@ -198,6 +201,11 @@ export class BotController implements Controller {
       }
       this.act(w, f);
       this.applyTaps();
+      if (f.trainer && f.trainer.active < 0 && f.trainer.cooldown <= 0 && this.canMove(f)) {
+        if (f.inv[f.active]?.id === POKE_BALL) {
+          if (!this.prev.attack) o.attack = true;
+        } else if (!this.prev.cycle) o.cycle = true;
+      }
       if (f.flying && !this.mobility.active && o.moveY === 0) o.moveY = 1; // flight only ends on landing: sink when nothing else steers
       this.watchdog(w, f);
     } else if (f && f.ghost) {
@@ -211,6 +219,7 @@ export class BotController implements Controller {
     this.prev.kick = o.kick;
     this.prev.interact = o.interact;
     this.prev.cycle = o.cycle;
+    this.prev.gadget = o.gadget;
     this.prev.ability = o.ability;
     this.prev.block = o.block;
     return o;
@@ -224,7 +233,7 @@ export class BotController implements Controller {
   private watchdog(w: World, f: Fighter): void {
     const o = this.out;
     const free = f.state === 'normal' || f.state === 'crouch' || f.state === 'climb';
-    const quiet = !o.moveX && !o.moveY && !o.jump && !o.attack && !o.kick && !o.ability && !o.interact && !o.cycle && !o.block;
+    const quiet = !o.moveX && !o.moveY && !o.jump && !o.attack && !o.kick && !o.ability && !o.interact && !o.cycle && !o.gadget && !o.block;
     if (!free || !quiet || this.taps.size > 0 || this.chargeTicks > 0 || this.now < this.unstickUntil) {
       this.idleTicks = 0;
       return;
@@ -337,7 +346,7 @@ export class BotController implements Controller {
   private perceive(w: World, f: Fighter): void {
     const eyeY = f.y - f.h + 4;
     for (const e of w.fighters) {
-      if (e === f || !e.alive || e.gone || sameTeam(e, f)) {
+      if (e === f || !e.alive || e.gone || e.trainer?.mounted || e.pokemon?.move === 'recall' || sameTeam(e, f)) {
         this.mem.delete(e.id);
         continue;
       }
@@ -400,7 +409,7 @@ export class BotController implements Controller {
       const node = g.nearest(m.x, m.y);
       const travel = node ? costs[node.id] : Infinity;
       const dist = Math.hypot(m.x - f.x, m.y - f.y);
-      const score = -dist / 100 - Math.min(travel, 20) * 0.5 + (m.seen ? 2 : 0) - e.hp / 50 - (e.master >= 0 ? BOT_FIGHT.cloneTargetPenalty : 0) + (f.lastAttacker === id && w.time-f.lastHitTime < BOT_FIGHT.retaliationTime ? BOT_FIGHT.retaliationWeight : 0) - (this.now - m.t);
+      const score = -dist / 100 - Math.min(travel, 20) * 0.5 + (m.seen ? 2 : 0) - e.hp / 50 - (e.master >= 0 && !e.pokemon ? BOT_FIGHT.cloneTargetPenalty : 0) + (f.lastAttacker === id && w.time-f.lastHitTime < BOT_FIGHT.retaliationTime ? BOT_FIGHT.retaliationWeight : 0) - (this.now - m.t);
       if (score > targetScore) {
         targetScore = score;
         target = id;
@@ -441,6 +450,8 @@ export class BotController implements Controller {
       }
     }
 
+    const primary = target >= 0 ? deployedPartner(w, w.fighters[target]) : undefined;
+    if (primary && this.visible(primary.id)) target = primary.id;
     const fightScore = target >= 0 ? (8 + mine * 0.25) * (0.4 + this.persona.aggression) * (this.visible(target) ? 1.5 : 1) : 0;
 
     // mode objective (King of the Hill): get on it and stay on it
@@ -655,6 +666,9 @@ export class BotController implements Controller {
   // ------------------------------------------------------------------ combat
 
   private fight(w: World, f: Fighter, targetId: number): void {
+    const target = w.fighters[targetId];
+    const primary = target && deployedPartner(w, target);
+    if (primary && this.visible(primary.id)) targetId = primary.id;
     const e = w.fighters[targetId];
     const m = this.mem.get(targetId);
     if (!e || !e.alive || !m) {
@@ -770,9 +784,9 @@ export class BotController implements Controller {
       if (this.chargeTicks > 0) {
         this.chargeTicks--;
         const on = this.chargeTicks > 0;
-        this.out.ability = on && this.hold !== 'kick';
-        this.out.kick = on && this.hold !== 'ability';
-        this.out.attack = on && this.comboHold;
+        this.out.ability = on && (this.hold === 'ability' || this.hold === 'both');
+        this.out.kick = on && (this.hold === 'kick' || this.hold === 'both');
+        this.out.attack = on && (this.comboHold || this.hold === 'attack');
       }
       if (this.aimTicks > 0) {
         // the stick aims the move until it has started (transformed heroes' single presses wait SUPER_WINDOW)
@@ -802,7 +816,7 @@ export class BotController implements Controller {
       p = 1;
     }
     if (!this.rng.chance(p)) return false;
-    const pick = this.pickMove(w, f, e, h, guard);
+    const pick = f.trainer ? this.pickPartnerMove(w, f, e, guard) : this.pickMove(w, f, e, h, guard);
     if (!pick) return false;
     if (f.state === 'melee') this.cancelOk = false;
     this.startMove(f, pick);
@@ -821,11 +835,11 @@ export class BotController implements Controller {
     this.aimTicks = Math.max(this.chargeTicks, wait + 2);
     this.guardOn = false; // (an ability cancels the guard)
     this.taps.delete('attack');
-    this.out.attack = !!pick.combo;
+    this.out.attack = !!pick.combo || pick.hold === 'attack';
     this.out.moveX = pick.mx;
     this.out.moveY = pick.my;
-    this.out.ability = pick.hold !== 'kick';
-    this.out.kick = pick.hold !== 'ability';
+    this.out.ability = pick.hold === 'ability' || pick.hold === 'both';
+    this.out.kick = pick.hold === 'kick' || pick.hold === 'both';
   }
 
   /** The Rasengan / Chidori is ready to dash. */
@@ -843,6 +857,25 @@ export class BotController implements Controller {
       return f.stateTime >= hit.windup + hit.active;
     }
     return false;
+  }
+
+  private pickPartnerMove(w: World, f: Fighter, e: Fighter, guard: boolean): HeroPick | null {
+    const trainer = f.trainer!;
+    const partner = w.fighters[trainer.active];
+    const move = partner?.pokemon?.move;
+    if (!partner?.alive || partner.gone || (move !== 'follow' && move !== 'guard' && move !== 'carry')) return null;
+    if (partner.state === 'flinch' || partner.state === 'knockdown' || partner.state === 'grabbed') return null;
+    const fromY = partner.y - partner.h * 0.57, targetY = e.y - e.h * 0.52;
+    if (!w.map.clearShot(partner.x, fromY, e.x, targetY)) return null;
+    const distance = Math.hypot(e.x - partner.x, targetY - fromY);
+    const throwUltimate = trainer.species === 'charmander' && trainer.stage === 2;
+    let hold: HeroPick['hold'];
+    if (trainer.ultimateCd <= 0 && distance < (throwUltimate ? 130 : 275) && (!throwUltimate || !guard)) hold = 'both';
+    else if (!guard && trainer.dashCd <= 0 && distance > 40 && distance < 205) hold = 'kick';
+    else if (!guard && distance <= 62) hold = 'attack';
+    else if (trainer.shotCd <= 0 && distance < 330) hold = 'ability';
+    else return null;
+    return { hold, ticks: 2, mx: e.x >= f.x ? 1 : -1, my: 0, weight: 1 };
   }
 
   /** Every hero move that would hit `e` from here right now (and is ready), one picked by weight. */
@@ -1241,6 +1274,10 @@ export class BotController implements Controller {
 
   /** Which slot to fight with at this distance. */
   private chooseSlot(w: World, f: Fighter, dist: number, seen: boolean, e: Fighter): number {
+    if (f.trainer) {
+      const ball = f.inv.findIndex(item => item?.id === POKE_BALL);
+      if (ball >= 0) return ball;
+    }
     let best: number = SLOT.MELEE;
     let bestScore = -Infinity;
     for (let s = 0; s < 5; s++) {

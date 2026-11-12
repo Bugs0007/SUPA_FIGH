@@ -1,11 +1,14 @@
 import Phaser from 'phaser';
 import { PLAYER_PRESETS } from '../art/appearance';
+import { dragonFlame } from '../art/charizardMotion';
 import { formCount, formLook, heroLook } from '../art/heroArt';
+import { pokemonFrame } from '../art/pokemonArt';
 import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { menu } from '../input/menu';
 import { HERO_ANIME, HERO_ORDER, heroDef, superBombDamage, superFistFor, type HeroAnime } from '../sim/data/heroes';
+import { POKEMON_DAMAGE, POKEMON_PARTNERS, pokemonSpecies, pokemonStage, type PokemonSpecies } from '../sim/data/pokemon';
 import { HeroLiveGallery } from './HeroLiveGallery';
 import { demoMoveName, type DemoMode } from './heroDemo';
 import { hint, HintBar, meter } from './kit';
@@ -18,6 +21,7 @@ const THEMES: Record<Group, { name: string; light: number; dark: number }> = {
   'dragon-ball': { name: 'DRAGON BALL', light: 0x74caff, dark: 0x1b3651 },
   bleach: { name: 'BLEACH', light: 0xf5b8ff, dark: 0x423052 },
   'black-clover': { name: 'BLACK CLOVER', light: 0xa3f0af, dark: 0x234238 },
+  pokemon: { name: 'POKEMON', light: 0xffdc69, dark: 0x533b23 },
   original: { name: 'BRAWLKAI', light: 0xffdf8a, dark: 0x473820 },
 };
 
@@ -29,7 +33,8 @@ const FORM_STEP = 1.3;
 
 interface Picker {
   from: string;
-  onPick: (hero: string) => void;
+  onPick: (hero: string, pokemon?: PokemonSpecies) => void;
+  pokemon?: PokemonSpecies;
   dispose: () => void;
 }
 
@@ -38,13 +43,14 @@ interface RosterData {
   mode?: DemoMode;
   showMoves?: boolean;
   picker?: Picker;
+  choosePokemon?: boolean;
 }
 
 /** Reuse the same roster in the title, slot editor and room, preserving the caller's state. */
-export function openFighterPicker(scene: Phaser.Scene, hero: string, onPick: Picker['onPick']): void {
+export function openFighterPicker(scene: Phaser.Scene, hero: string, onPick: Picker['onPick'], pokemon?: PokemonSpecies): void {
   const close = () => scene.scene.stop('fighters');
   scene.events.once('shutdown', close);
-  const picker: Picker = { from: scene.sys.settings.key, onPick, dispose: () => { scene.events.off('shutdown', close); } };
+  const picker: Picker = { from: scene.sys.settings.key, onPick, pokemon, dispose: () => { scene.events.off('shutdown', close); } };
   scene.scene.launch('fighters', { hero, picker } satisfies RosterData);
   scene.scene.sleep();
 }
@@ -59,6 +65,7 @@ interface Card {
 
 function ultimatePower(id: string): number {
   const h = heroDef(id);
+  if (id === 'ash') return POKEMON_DAMAGE.ultimate[3];
   if (!h) return 0;
   const level = h.forms.length;
   const { bomb, beam } = h.super;
@@ -78,6 +85,9 @@ export class FightersScene extends Phaser.Scene {
   private gfx!: Phaser.GameObjects.Graphics;
   private bar!: HintBar;
   private gallery: HeroLiveGallery | null = null;
+  private partnerIndex = 0;
+  private partnerDetails!: Phaser.GameObjects.BitmapText;
+  private partnerNames: Phaser.GameObjects.BitmapText[] = [];
   private t = 0;
 
   constructor() {
@@ -100,11 +110,16 @@ export class FightersScene extends Phaser.Scene {
     this.gallery = null;
     this.t = 0;
     this.cameras.main.setBackgroundColor(P.night);
+    if (data.choosePokemon) {
+      this.createPartnerPicker();
+      return;
+    }
     if (data.showMoves) {
       this.gallery = new HeroLiveGallery(this, this.hero, data.mode);
       this.bar = new HintBar(this);
       const hints = [hint.move('MOVE', 'lr'), hint.move('FIGHTER', 'ud')];
       if (this.hero) hints.push(hint.key('FORM', ['Q', 'E'], [4, 5]));
+      if (this.hero === 'ash') hints.push(hint.key('PARTNER', ['P'], [2]));
       this.bar.set([...hints, hint.ok('REPLAY'), hint.back('ROSTER')]);
       return;
     }
@@ -180,9 +195,66 @@ export class FightersScene extends Phaser.Scene {
   private open(): void {
     audio.play('uiOk');
     if (this.dataIn.picker) {
+      if (this.hero === 'ash') {
+        this.scene.restart({ hero: this.hero, picker: this.dataIn.picker, choosePokemon: true } satisfies RosterData);
+        return;
+      }
       this.dataIn.picker.onPick(this.hero);
       this.leave();
     } else this.scene.restart({ hero: this.hero, showMoves: true, mode: this.hero ? 'base' : 'special' } satisfies RosterData);
+  }
+
+  private createPartnerPicker(): void {
+    bindZoom(this, VIEW_W, VIEW_H);
+    this.gfx = this.add.graphics();
+    this.partnerIndex = POKEMON_PARTNERS.indexOf(pokemonSpecies(this.dataIn.picker?.pokemon));
+    this.add.bitmapText(VIEW_W / 2, 15, 'pxo', 'CHOOSE YOUR PARTNER').setOrigin(0.5, 0).setScale(2).setTint(THEMES.pokemon.light);
+    this.add.bitmapText(VIEW_W / 2, 41, 'sm', 'ASH KETCHUM  /  ONE PARTNER PER MATCH').setOrigin(0.5, 0).setTint(0xacb9d3);
+    this.partnerNames = POKEMON_PARTNERS.map((species, i) => {
+      const x = 35 + i % 4 * 144;
+      const y = 60 + Math.floor(i / 4) * 99;
+      const portrait = this.add.graphics().setPosition(x + 68, y + 61).setScale(3);
+      const { sprite, originX, originY, fire } = pokemonFrame(species, 0, 'idle', 0, false);
+      for (const run of sprite.runs) portrait.fillStyle(run.c).fillRect(run.x - originX, run.y - originY, run.w, 1);
+      if (fire) {
+        const flame = dragonFlame(fire.size, 2, false);
+        for (const run of flame.runs) {
+          portrait.fillStyle(run.c).fillRect(fire.tail[0] + run.x - fire.size - 2, fire.tail[1] + run.y - fire.size - 3, run.w, 1);
+        }
+      }
+      this.add.zone(x, y, 136, 89).setOrigin(0).setInteractive({ useHandCursor: true })
+        .on('pointerover', () => this.focusPartner(i))
+        .on('pointerdown', () => { this.focusPartner(i); this.confirmPartner(); });
+      return this.add.bitmapText(x + 68, y + 75, 'pxo', pokemonStage(species, 0).name).setOrigin(0.5).setScale(1.13);
+    });
+    this.partnerDetails = this.add.bitmapText(VIEW_W / 2, 274, 'sm', '').setOrigin(0.5, 0).setCenterAlign().setTint(0xe1e9fb);
+    this.bar = new HintBar(this);
+    this.bar.set([hint.move('PARTNER'), hint.ok('SELECT'), hint.back('ROSTER')]);
+    this.focusPartner(this.partnerIndex);
+  }
+
+  private focusPartner(index: number): void {
+    this.partnerIndex = index;
+    this.gfx.clear();
+    this.partnerNames.forEach((name, i) => {
+      const x = 35 + i % 4 * 144;
+      const y = 60 + Math.floor(i / 4) * 99;
+      const active = i === index;
+      this.gfx.fillStyle(active ? 0x303249 : 0x161e31).fillRect(x, y, 136, 89)
+        .lineStyle(active ? 2 : 1, active ? THEMES.pokemon.light : 0x42465e).strokeRect(x, y, 136, 89);
+      name.setTint(active ? THEMES.pokemon.light : 0xc3cfe8);
+    });
+    const species = POKEMON_PARTNERS[index];
+    const base = pokemonStage(species, 0);
+    const chain = Array.from({ length: base.maxStage + 1 }, (_, i) => pokemonStage(species, i).name).join('  >  ');
+    this.partnerDetails.setText([chain, '', 'ABILITY  ' + base.shot + '    KICK  ' + base.dash,
+      'ABILITY + KICK  ' + base.ultimate, 'POKE BALL SELECTED   TAP ATTACK SEND / STRIKE   HOLD ATTACK RETURN']);
+  }
+
+  private confirmPartner(): void {
+    audio.play('uiOk');
+    this.dataIn.picker?.onPick('ash', POKEMON_PARTNERS[this.partnerIndex]);
+    this.leave();
   }
 
   private leave(): void {
@@ -198,6 +270,17 @@ export class FightersScene extends Phaser.Scene {
     this.t += dt;
     const ud = menu.up() ? -1 : menu.down() ? 1 : 0;
     const lr = menu.left() ? -1 : menu.right() ? 1 : 0;
+    if (this.dataIn.choosePokemon) {
+      if (menu.back()) {
+        audio.play('uiBack');
+        this.scene.restart({ hero: 'ash', picker: this.dataIn.picker } satisfies RosterData);
+      } else if (ud || lr) {
+        audio.play('uiMove');
+        this.focusPartner((this.partnerIndex + ud * 4 + lr + POKEMON_PARTNERS.length) % POKEMON_PARTNERS.length);
+      } else if (menu.confirm()) this.confirmPartner();
+      this.bar.update();
+      return;
+    }
     if (this.gallery) {
       if (menu.back()) {
         audio.play('uiBack');

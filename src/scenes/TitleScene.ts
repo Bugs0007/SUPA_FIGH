@@ -15,6 +15,7 @@ import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
 import { openFighterPicker } from './FightersScene';
+import { pokemonSpecies, pokemonStage, type PokemonSpecies } from '../sim/data/pokemon';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { loadLobby, saveLobby } from './lobby';
 import { defaultSetup } from './MatchScene';
@@ -283,7 +284,8 @@ export class TitleScene extends Phaser.Scene {
       return getMap(settings.quickMap).id;
     return MAP_LIST[Math.floor(this.t / 2.5) % MAP_LIST.length].id;
   }
-  private fighterName(hero: string): string {
+  private fighterName(hero: string, pokemon?: PokemonSpecies): string {
+    if (hero === 'ash') return 'ASH / ' + pokemonStage(pokemonSpecies(pokemon), 0).name;
     return hero ? (HEROES[hero]?.name ?? hero.toUpperCase()) : 'SCRAPPER';
   }
   private applyFighter(i: number): void {
@@ -318,7 +320,7 @@ export class TitleScene extends Phaser.Scene {
     else if (action === 'about')
       window.open(CREDIT_URL, '_blank', 'noopener,noreferrer');
     else if (action === 'fighters')
-      this.scene.start('fighters');
+      this.scene.start('fighters', { hero: 'naruto' });
     else if (action === 'host' || action === 'join' || action === 'online')
       this.scene.start('netlobby', { role: action });
     else
@@ -326,19 +328,24 @@ export class TitleScene extends Phaser.Scene {
   }
   private cycleHero(i: number, d: number): void {
     const order = HERO_ORDER as readonly string[];
-    this.setFighter(i, order[(order.indexOf(profiles[i].hero) + d + order.length) % order.length]);
+    const hero = order[(order.indexOf(profiles[i].hero) + d + order.length) % order.length];
+    if (hero === 'ash') this.pickFighter(i, hero);
+    else this.setFighter(i, hero);
   }
-  private pickFighter(i: number): void {
-    openFighterPicker(this, profiles[i].hero, (hero) => this.setFighter(i, hero));
+  private pickFighter(i: number, focused = profiles[i].hero): void {
+    openFighterPicker(this, focused, (hero, pokemon) => this.setFighter(i, hero, pokemon), profiles[i].pokemon);
   }
-  private setFighter(i: number, hero: string): void {
+  private setFighter(i: number, hero: string, pokemon?: PokemonSpecies): void {
     profiles[i].hero = hero;
+    if (hero === 'ash') profiles[i].pokemon = pokemonSpecies(pokemon ?? profiles[i].pokemon);
     saveProfiles();
     // keep the lobby's KEYBOARD slots in sync with the card
     const lobby = loadLobby();
     for (const s of lobby.slots)
-      if (s.kind === 'kb' + i)
+      if (s.kind === 'kb' + i) {
         s.hero = hero;
+        s.pokemon = profiles[i].pokemon;
+      }
     saveLobby(lobby);
     this.applyFighter(i);
   }
@@ -511,7 +518,7 @@ export class TitleScene extends Phaser.Scene {
         focus(x + 72, y + 36, 142);
       const c = this.cardTexts[i], editing = this.editing === i;
       c.name.setText(editing ? this.editBuf + (Math.floor(this.t * 3) % 2 ? ' ' : '_') : profiles[i].name).setTint(editing ? 0xffe1a2 : PLAYER_COLORS[i]);
-      const hero = this.fighterName(profiles[i].hero);
+      const hero = this.fighterName(profiles[i].hero, profiles[i].pokemon);
       c.hero.setText(sel(heroRow) ? '< ' + hero + ' >' : hero).setTint(profiles[i].hero ? 0xffce91 : 0xe4edf3);
       c.header.setText(off ? 'PLAYER 2 / OFF' : 'PLAYER ' + (i + 1) + ' / ' + this.deviceName(i));
       this.controlLines(i).forEach((l, n) => this.ctl[i][n].setText(l));

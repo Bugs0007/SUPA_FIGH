@@ -5,6 +5,7 @@ import { settings } from '../game/settings';
 import { Juice } from '../render/Juice';
 import { WorldRenderer } from '../render/WorldRenderer';
 import { DT } from '../sim/constants';
+import type { PokemonSpecies } from '../sim/data/pokemon';
 import { DEMO_FLOOR, HeroDemo, type DemoMode } from './heroDemo';
 
 export const DEMO_SCENE = 'hero-demo';
@@ -14,6 +15,7 @@ export interface DemoSelection {
   hero: string;
   mode: DemoMode;
   level: number;
+  pokemon?: PokemonSpecies;
 }
 
 /** A real arena renderer in its own clipped camera, below the abilities menu. */
@@ -33,7 +35,7 @@ export class HeroDemoScene extends Phaser.Scene {
   }
 
   create(selection: DemoSelection): void {
-    this.demo = new HeroDemo(selection.hero, selection.mode, selection.level);
+    this.demo = new HeroDemo(selection.hero, selection.mode, selection.level, selection.pokemon);
     const world = this.demo.world;
     this.elapsed = this.acc = this.stop = 0;
     this.zoom = this.demo.cameraZoom;
@@ -97,7 +99,8 @@ export class HeroDemoScene extends Phaser.Scene {
     const mix = 1 - Math.exp(-dt * 9);
     this.zoom += (Math.min(this.demo.cameraZoom, (DEMO_FRAME.w - 130) / (gap + 100)) - this.zoom) * mix;
     this.cx += ((hero.x + rival.x) / 2 - this.cx) * mix;
-    const y = Math.min(DEMO_FLOOR - 84 / this.zoom, Math.min(hero.y, rival.y) + 32 / this.zoom);
+    const y = Math.min(DEMO_FLOOR - 84 / this.zoom, this.demo.mode === 'mount'
+      ? hero.y - 13 : Math.min(hero.y, rival.y) + 32 / this.zoom);
     this.cy += (y - this.cy) * mix;
     this.layout();
     this.rendererView.sync(this.demo.done ? 1 : Math.min(1, this.acc / DT), dt, this.elapsed);

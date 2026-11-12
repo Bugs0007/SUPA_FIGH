@@ -3,13 +3,14 @@ import { DT, GROUND_DECEL } from './constants';
 import type { RosterSpecial } from './data/rosterSpecials';
 import type { Fighter } from './fighter';
 import { meleeMuls } from './hero';
+import { deployedPartner } from './pokemon';
 import type { World } from './world';
 
 const chest = (f: Fighter) => f.y - f.h / 2;
 const specialHero = (f: Fighter) => f.hero || 'scrapper';
 
 function canReach(w: World, f: Fighter, o: Fighter): boolean {
-  return o !== f && o.alive && !o.gone && o.master !== f.id &&
+  return o !== f && o.alive && !o.gone && !o.trainer?.mounted && o.master !== f.id &&
     (w.settings.friendlyFire || !sameTeam(f, o)) && !w.map.raycastSolid(f.x, chest(f), o.x, chest(o));
 }
 
@@ -34,15 +35,19 @@ function zone(w: World, f: Fighter, x: number, y: number, radius: number, height
 function markTarget(w: World, f: Fighter, reach: number): Fighter | undefined {
   let target: Fighter | undefined;
   let best = reach;
-  for (const o of w.fighters) {
+  const distance = (o: Fighter): number => {
     const dx = (o.x - f.x) * f.facing;
-    if (dx < -5 || !canReach(w, f, o)) continue;
-    const d = Math.hypot(dx, chest(o) - chest(f));
+    return dx < -5 || o.pokemon?.move === 'recall' || !canReach(w, f, o) ? Infinity : Math.hypot(dx, chest(o) - chest(f));
+  };
+  for (const o of w.fighters) {
+    const d = distance(o);
     if (d <= best) {
       target = o;
       best = d;
     }
   }
+  const primary = target && deployedPartner(w, target);
+  if (primary && distance(primary) <= reach) return primary;
   return target;
 }
 

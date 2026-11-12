@@ -21,6 +21,9 @@ import { formFx } from '../art/heroArt';
 import { Atmosphere } from './Atmosphere';
 import { bakeArenaScenery } from '../art/arenaArt';
 import { ValleyFx } from './ValleyFx';
+import { AshArt, pokemonArtHeight } from './AshArt';
+import { trainerProtected } from '../sim/pokemon';
+import { POKEMON_TIMING } from '../sim/data/pokemon';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -45,6 +48,7 @@ export class WorldRenderer {
   readonly fx: Fx;
   readonly views: FighterView[] = [];
   readonly heroFx: HeroFx;
+  private ashArt: AshArt | null;
   /** background decorations (map detailing) */
   private decor: DecorLayer;
   private atmosphere: Atmosphere;
@@ -107,13 +111,14 @@ export class WorldRenderer {
     this.fx = new Fx(scene, map, this.decals);
 
     world.fighters.forEach((f, i) => {
-      const l = looks[i];
-      const v = new FighterView(scene, f, l.look, l.color, l.label);
+      const l = looks[i] ?? looks[f.master] ?? looks[0];
+      const v = new FighterView(scene, f, l.look, l.color, f.pokemon ? '' : l.label);
       v.bigHead = world.mods.has('bigHeads');
       this.views.push(v);
     });
 
     this.heroFx = new HeroFx(scene, world, this.views, this.fx);
+    this.ashArt = world.fighters.some(f => f.pokemon) ? new AshArt(scene) : null;
     this.tracers = scene.add.graphics().setDepth(55).setBlendMode(Phaser.BlendModes.ADD);
     this.overlay = scene.add.graphics().setDepth(66);
     this.gimmickBack = scene.add.graphics().setDepth(30);
@@ -166,8 +171,31 @@ export class WorldRenderer {
     const w = this.world;
     this.syncTiles();
 
-    for (const v of this.views) v.update(alpha, dt, time, w.time);
+    for (const v of this.views) {
+      const f = v.fighter;
+      if (f.pokemon) {
+        v.root.setVisible(false);
+        v.tag.setVisible(false);
+        v.hpTrail = v.hpTrail > f.hp ? Math.max(f.hp, v.hpTrail - dt * 60) : f.hp;
+        continue;
+      }
+      v.update(alpha, dt, time, w.time, f.trainer ? w.fighters[f.trainer.active]?.pokemon : undefined);
+      if (f.trainer?.mounted) {
+        const partner = w.fighters[f.trainer.active];
+        if (partner?.alive) {
+          v.root.setVisible(false);
+          v.tag.setPosition(Math.round(lerp(partner.px, partner.x, alpha)), Math.round(lerp(partner.py, partner.y, alpha)) - pokemonArtHeight(partner) - 16);
+        }
+      }
+    }
     this.heroFx.sync(alpha, dt, time);
+    this.ashArt?.sync(w.fighters, w.bullets, alpha, time);
+    for (const [id, grip] of this.ashArt?.heldTargets ?? []) {
+      const held = this.views[id];
+      if (held && !held.fighter.pokemon) {
+        held.root.setPosition(Math.round(grip[0]), Math.round(grip[1] + held.fighter.h / 2));
+      }
+    }
     this.decor.update(time);
     this.valley?.update(time, alpha);
     this.atmosphere.sync(alpha, time);
@@ -223,7 +251,7 @@ export class WorldRenderer {
     g.clear();
     let rocketN = 0;
     for (const b of w.bullets) {
-      if (!b.active) continue;
+      if (!b.active || b.weapon.startsWith('ash:')) continue;
       const hx = lerp(b.px, b.x, alpha);
       const hy = lerp(b.py, b.y, alpha);
       const sp = Math.hypot(b.vx, b.vy) || 1;
@@ -299,14 +327,33 @@ export class WorldRenderer {
     for (const v of this.views) {
       const f = v.fighter;
       if (!f.alive || f.gone) continue;
-      const x = Math.round(lerp(f.px, f.x, alpha)) - 7;
-      const y = Math.round(lerp(f.py, f.y, alpha)) - 33;
+      const partner = f.trainer?.mounted ? w.fighters[f.trainer.active] : undefined;
+      const barTarget = partner?.alive ? partner : f;
+      const barOffset = partner?.alive ? pokemonArtHeight(partner) + 13 : f.pokemon ? pokemonArtHeight(f) + (f.pokemon.perched ? 14 : 7) : 33;
+      const x = Math.round(lerp(barTarget.px, barTarget.x, alpha)) - 7;
+      const y = Math.round(lerp(barTarget.py, barTarget.y, alpha)) - barOffset;
       const frac = Math.max(0, f.hp) / f.maxHp;
       const trail = Math.max(0, v.hpTrail) / f.maxHp;
       bars.fillStyle(hexToNum(P.ink), 1).fillRect(x - 1, y - 1, 16, 4);
       bars.fillStyle(0xffffff, 1).fillRect(x, y, Math.round(14 * trail), 2);
       const col = frac > 0.6 ? P.green2 : frac > 0.3 ? P.yellow : P.red2;
       bars.fillStyle(hexToNum(col), 1).fillRect(x, y, Math.round(14 * frac), 2);
+      if (f.trainer && trainerProtected(w, f)) {
+        bars.lineStyle(1, 0x8bd9ef, 0.9).strokeRect(x - 1, y - 1, 16, 4);
+        bars.lineStyle(1, 0x8bd9ef, 1).strokeRect(x - 6, y - 3, 3, 3);
+        bars.fillStyle(0x8bd9ef, 1).fillRect(x - 7, y, 5, 3);
+        bars.fillStyle(0x243140, 1).fillRect(x - 5, y + 1, 1, 1);
+      }
+      if (f.pokemon) {
+        bars.fillStyle(0x21192a, 1).fillRect(x - 6, y - 1, 4, 4);
+        bars.fillStyle(0xe85754, 1).fillRect(x - 5, y - 1, 2, 1);
+        bars.fillStyle(0xf4e8d9, 1).fillRect(x - 5, y + 1, 2, 1);
+      } else if (f.trainer && f.trainer.cooldown > 0) {
+        const ready = 1 - Math.min(1, f.trainer.cooldown / POKEMON_TIMING.knockout);
+        bars.fillStyle(0x21192a, 1).fillRect(x - 1, y + 5, 16, 3);
+        bars.fillStyle(0x493244, 1).fillRect(x, y + 6, 14, 1);
+        bars.fillStyle(0xf57770, 1).fillRect(x, y + 6, Math.round(14 * ready), 1);
+      }
       // guard meter: a thin bar under the HP bar while blocking or until it has refilled (flashes red when low)
       if (f.state === 'block' || f.guard < BLOCK.max) {
         const g = Math.max(0, Math.min(1, f.guard / BLOCK.max));
@@ -695,6 +742,7 @@ export class WorldRenderer {
     this.scenery.destroy();
     for (const v of this.views) v.destroy();
     this.heroFx.destroy();
+    this.ashArt?.destroy();
     this.decor.destroy();
     this.valley?.destroy();
     this.atmosphere.destroy();

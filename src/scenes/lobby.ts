@@ -9,6 +9,7 @@ import { isTouchDevice } from '../game/display';
 import { load, save } from '../game/storage';
 import { profiles, saveProfiles } from '../game/profiles';
 import { maxLevel } from '../sim/data/heroes';
+import { pokemonSpecies, pokemonStage, type PokemonSpecies } from '../sim/data/pokemon';
 import type { GameMode } from '../sim/match';
 import type { MatchSceneData, PlayerSetup } from './MatchScene';
 import { PLAYER_COLORS } from './ui';
@@ -39,6 +40,7 @@ export interface SlotCfg {
   look: Appearance;
   /** hero id (sim/data/heroes.ts), '' = scrapyard fighter with the custom look */
   hero: string;
+  pokemon?: PokemonSpecies;
   /** power-up form the hero starts in (0 = base .. the hero's top form), so forms can be matched up without waiting for orbs */
   form: number;
 }
@@ -91,8 +93,10 @@ export function loadLobby(): LobbyCfg {
     const k = keyboardIndex(slot.kind);
     if (k >= 0) {
       slot.hero = profiles[k].hero;
+      slot.pokemon = profiles[k].pokemon;
       slot.look = { ...profiles[k].look };
     }
+    if (slot.pokemon !== undefined) slot.pokemon = pokemonSpecies(slot.pokemon);
   }
   return out;
 }
@@ -102,6 +106,7 @@ export function syncSlotToProfile(slot: SlotCfg): void {
   const k = keyboardIndex(slot.kind);
   if (k < 0) return;
   profiles[k].hero = slot.hero;
+  profiles[k].pokemon = slot.pokemon;
   profiles[k].look = { ...slot.look };
   saveProfiles();
 }
@@ -111,9 +116,10 @@ export function saveLobby(c: LobbyCfg): void {
 }
 
 /** The form a slot really starts in: 0 for non-heroes, otherwise its setting capped at the hero's top form. */
-export function slotStartForm(s: Pick<SlotCfg, 'hero' | 'form'>): number {
+export function slotStartForm(s: Pick<SlotCfg, 'hero' | 'form' | 'pokemon'>): number {
   if (!s.hero) return 0;
-  return Math.max(0, Math.min(maxLevel(s.hero), Math.floor(Number(s.form) || 0)));
+  const cap = s.hero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), 0).maxStage : maxLevel(s.hero);
+  return Math.max(0, Math.min(cap, Math.floor(Number(s.form) || 0)));
 }
 
 /** Why the lobby can't start yet (null = ready). */
@@ -146,7 +152,8 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
     const color = s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : isBot ? hexToNum(TEAM_COLORS[0]) : PLAYER_COLORS[(human - 1) % PLAYER_COLORS.length];
     const startForm = slotStartForm(s);
     players.push({
-      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined, startForm: startForm || undefined },
+      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined,
+        startForm: startForm || undefined, pokemon: s.hero === 'ash' ? pokemonSpecies(s.pokemon) : undefined },
       look: heroLook(s.hero, s.look),
       color,
       label,

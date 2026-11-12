@@ -15,8 +15,9 @@ import { BLEACH_HEROES } from './bleachHeroes';
 import { ONE_PIECE_HEROES } from './onePieceHeroes';
 import { rosterSpecial } from './rosterSpecials';
 import { VEGETA } from './vegeta';
+import { TRAINER_HP } from './pokemon';
 
-export const HERO_ANIME = ['naruto', 'one-piece', 'dragon-ball', 'bleach', 'black-clover'] as const;
+export const HERO_ANIME = ['naruto', 'one-piece', 'dragon-ball', 'bleach', 'black-clover', 'pokemon'] as const;
 export type HeroAnime = (typeof HERO_ANIME)[number];
 
 /** ABILITY 1: Goku instant transmission, Naruto rasengan, Luffy gum-gum pistol (grapple). */
@@ -590,6 +591,21 @@ export const HEROES: Record<string, HeroDefinition> = {
   ...ONE_PIECE_HEROES,
   ...BLEACH_HEROES,
   ...BLACK_CLOVER_HEROES,
+  ash: {
+    id: 'ash', name: 'ASH KETCHUM', anime: 'pokemon',
+    blurb: 'THROW A POKE BALL. COMMAND YOUR PARTNER AND EVOLVE IT WITH POWER ORBS.',
+    stats: { speed: 1.06, hp: TRAINER_HP },
+    comboName: 'TRAINER JABS',
+    combo: heroCombo('ki').map(hit => ({ ...hit, damage: hit.damage * 0.88 })),
+    base: { kind: 'blink', name: 'PARTNER RANGED MOVE', desc: 'ORDER YOUR PARTNER TO FIRE AT A VISIBLE RIVAL.', cooldown: 0.85 },
+    second: { kind: 'fireball', name: 'PARTNER HEAVY STRIKE', desc: 'SEND YOUR PARTNER IN TO STRIKE. UP + KICK TARGETS AN ORB.', cooldown: 1.2 },
+    super: { kind: 'fist', names: ['PARTNER ULTIMATE', 'PARTNER ULTIMATE', 'PARTNER ULTIMATE'], desc: 'PRESS ABILITY AND KICK TOGETHER.', cooldown: 5.5 },
+    forms: [
+      { name: 'FIRST EVOLUTION', speedMul: 1, damageMul: 1, knockMul: 1, reach: 0 },
+      { name: 'SECOND EVOLUTION', speedMul: 1, damageMul: 1, knockMul: 1, reach: 0 },
+      { name: 'MAJOR FORM', speedMul: 1, damageMul: 1, knockMul: 1, reach: 0 },
+    ],
+  },
 };
 
 /** '' = the regular scrapyard fighter. Keep the original quick-cycle order. */
@@ -632,6 +648,7 @@ export function secondMoveName(hero: string, level: number): string {
 
 /** Kill-feed labels for hero weapon ids. */
 export function heroAttackLabel(id: string): string | null {
+  if (id.startsWith('ash:') && id !== 'ash:combo') return 'PARTNER MOVE';
   if (id.endsWith(':special')) return rosterSpecial(id === 'scrapper:special' ? '' : id.slice(0, -':special'.length))?.name ?? null;
   if (id === 'goku:dragonFist') return gokuFormComboName(DRAGON_FIST.level);
   if(id==='luffy:jetKick')return 'JET BAZOOKA KICK';

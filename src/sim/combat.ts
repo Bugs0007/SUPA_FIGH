@@ -3,6 +3,7 @@ import { heroAttackLabel, heroDef, cloneDamageScale } from './data/heroes';
 import type { HitKind } from './events';
 import type { Fighter } from './fighter';
 import { absorbForm, dismissClone, superGuard } from './hero';
+import { knockOutPokemon, recallPokemon, trainerProtected } from './pokemon';
 import type { World } from './world';
 
 export interface Hit {
@@ -57,6 +58,8 @@ export function sameTeam(a: { id: number; team: number }, b: { id: number; team:
 
 /** Hit kinds a raised guard stops (from the front). Fire, drain, hazards, falls, splats, bodyslams, grabs and throws go through. */
 const BLOCKABLE: readonly HitKind[] = ['melee', 'kick', 'bullet', 'explosion'];
+const TRAINER_ATTACKS: readonly HitKind[] = ['melee', 'kick', 'throw', 'bodyslam'];
+const TRAINER_DAMAGE_SCALE = 1 / 3;
 
 let blockedLast = false;
 
@@ -134,7 +137,7 @@ function guardHit(w: World, v: Fighter, hit: Hit, dmg: number, striker: Fighter 
  */
 export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   blockedLast = false;
-  if (v.gone) return false;
+  if (v.gone || v.trainer && trainerProtected(w, v) || v.pokemon && (!v.alive || hit.attacker === v.master)) return false;
   // Supers cannot be cancelled by damage, stun, knockback, or burning (even ignoreInvuln hits).
   if (superGuard(v)) return false;
   // who the hit physically comes from (a shadow clone, not the master it is credited to): blocking / parries
@@ -142,7 +145,10 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   // a shadow clone's hits (and kills) count for its master
   if (hit.attacker >= 0) {
     const a = w.fighters[hit.attacker];
-    if (a && a.master >= 0) {
+    if (a?.pokemon) {
+      if (v.id === a.master || v.master === a.master) return false;
+      hit = { ...hit, attacker: a.master };
+    } else if (a && a.master >= 0) {
       // Clones never hurt their master or each other. Swarms share a fixed damage budget.
       if (v.id === a.master || v.master === a.master) return false;
       const clones = heroDef(a.hero)?.second.clones;
@@ -182,10 +188,12 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
   const attacker = hit.attacker >= 0 ? w.fighters[hit.attacker] : undefined;
   if (attacker && attacker !== v && !w.settings.friendlyFire && sameTeam(attacker, v)) return false;
 
-  let dmg = Math.max(0, hit.damage);
+  // Credit partner hits to Ash for scoring, but scale only attacks Ash performs himself.
+  let dmg = striker?.trainer && TRAINER_ATTACKS.includes(hit.kind)
+    ? computeDamage({ base: hit.damage, mult: TRAINER_DAMAGE_SCALE }) : Math.max(0, hit.damage);
   if (w.mods.has('glassJaw') && hit.kind !== 'drain') dmg *= 3;
   // Clone restrictions apply at the damage boundary too, including stale/restored guard state.
-  if(v.master>=0){
+  if(v.master>=0&&!v.pokemon){
     v.parryT=0;v.blockStun=0;
     if(v.state==='block'){v.state='normal';v.stateTime=0;}
   }
@@ -256,7 +264,12 @@ export function applyHit(w: World, v: Fighter, hit: Hit): boolean {
 }
 
 export function killFighter(w: World, v: Fighter, hit: Hit): void {
-  if (!v.alive) return;
+  if (!v.alive || v.trainer && trainerProtected(w, v)) return;
+  if (v.pokemon) {
+    knockOutPokemon(w, v);
+    return;
+  }
+  if (v.trainer) recallPokemon(w, v);
   if (v.master >= 0) {
     // clones don't die, they poof: no corpse, no kill feed, no score
     dismissClone(w, v);

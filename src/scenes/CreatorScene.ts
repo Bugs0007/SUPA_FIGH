@@ -6,6 +6,7 @@ import { armFrame, BF, FRAME_META, type FighterTextures } from '../art/fighterAr
 import { formCount, formFx, formLook, HERO_ART } from '../art/heroArt';
 import { drawTails } from '../render/HeroFx';
 import { HEROES, HERO_ORDER } from '../sim/data/heroes';
+import { pokemonSpecies, type PokemonSpecies } from '../sim/data/pokemon';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
@@ -49,6 +50,7 @@ export class CreatorScene extends Phaser.Scene {
   private slot = 0;
   private look!: Appearance;
   private hero = '';
+  private pokemon?: PokemonSpecies;
   private row = 0;
   private texts: Phaser.GameObjects.BitmapText[] = [];
   private heroText!: Phaser.GameObjects.BitmapText;
@@ -73,6 +75,7 @@ export class CreatorScene extends Phaser.Scene {
     const cfg = loadLobby().slots[this.slot];
     this.look = { ...cfg.look };
     this.hero = cfg.hero ?? '';
+    this.pokemon = cfg.pokemon;
     this.row = 0;
     this.texts = [];
     this.info = [];
@@ -172,17 +175,19 @@ export class CreatorScene extends Phaser.Scene {
     const c = loadLobby();
     c.slots[this.slot].look = this.look;
     c.slots[this.slot].hero = this.hero;
+    c.slots[this.slot].pokemon = this.pokemon;
     saveLobby(c);
     syncSlotToProfile(c.slots[this.slot]);
   }
 
-  private pickFighter(): void {
-    openFighterPicker(this, this.hero, (hero) => {
+  private pickFighter(focused = this.hero): void {
+    openFighterPicker(this, focused, (hero, pokemon) => {
       this.hero = hero;
+      if (hero === 'ash') this.pokemon = pokemonSpecies(pokemon);
       this.row = R_HERO;
       this.save();
       this.rebuildPreview();
-    });
+    }, this.pokemon);
   }
 
   override update(_time: number, deltaMs: number): void {
@@ -201,7 +206,12 @@ export class CreatorScene extends Phaser.Scene {
     let changed = false;
     if (lr && this.row === R_HERO) {
       const i = HERO_ORDER.indexOf(this.hero as (typeof HERO_ORDER)[number]);
-      this.hero = HERO_ORDER[(i + lr + HERO_ORDER.length) % HERO_ORDER.length];
+      const next = HERO_ORDER[(i + lr + HERO_ORDER.length) % HERO_ORDER.length];
+      if (next === 'ash') {
+        this.pickFighter(next);
+        return;
+      }
+      this.hero = next;
       changed = true;
     } else if (lr && this.row >= R_FIRST && this.row < R_RANDOM) {
       const f = FIELDS[this.row - R_FIRST];

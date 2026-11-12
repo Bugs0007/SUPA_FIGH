@@ -12,6 +12,7 @@ import { NetClient } from '../net/client';
 import { ARENA_CODE, MAX_FIGHTERS, MODES, type BotSpec, type RoomConfig, type RoomInfo, type ServerMsg, type SlotClaim } from '../net/protocol';
 import { RemoteSim } from '../net/remoteSim';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
+import type { PokemonSpecies } from '../sim/data/pokemon';
 import { openFighterPicker } from './FightersScene';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { MODE_NAMES } from '../sim/match';
@@ -90,6 +91,7 @@ export class NetLobbyScene extends Phaser.Scene {
   private code = '';
   private roomIdx = 0;
   private hero: [string, string] = ['', ''];
+  private pokemon: [PokemonSpecies?, PokemonSpecies?] = [];
   private autoClaimed = false;
   private leaving = false;
   private flashText = '';
@@ -123,6 +125,7 @@ export class NetLobbyScene extends Phaser.Scene {
     this.code = '';
     this.roomIdx = 0;
     this.hero = [profiles[0].hero, profiles[1].hero];
+    this.pokemon = [profiles[0].pokemon, profiles[1].pokemon];
     this.autoClaimed = false;
     this.leaving = false;
     this.connecting = false;
@@ -297,7 +300,7 @@ export class NetLobbyScene extends Phaser.Scene {
 
   private claimFor(n: 0 | 1): SlotClaim {
     const p = profiles[n];
-    return { name: p.name, hero: this.hero[n], upJumps: true, look: lookToWire(p.look) };
+    return { name: p.name, hero: this.hero[n], pokemon: this.hero[n] === 'ash' ? this.pokemon[n] : undefined, upJumps: true, look: lookToWire(p.look) };
   }
 
   /** Focusable rows: settings for the host, then this device's players, then READY / START and LEAVE. */
@@ -422,10 +425,11 @@ export class NetLobbyScene extends Phaser.Scene {
     else if (menu.confirm()) {
       if (id === 'f1' || id === 'f2') {
         const n = id === 'f1' ? 0 : 1;
-        openFighterPicker(this, this.hero[n], (hero) => {
+        openFighterPicker(this, this.hero[n], (hero, pokemon) => {
           this.hero[n] = hero;
+          if (pokemon) this.pokemon[n] = pokemon;
           if (this.claimed(n)) this.client.send({ t: 'claim', local: n, claim: this.claimFor(n) });
-        });
+        }, this.pokemon[n]);
       } else this.change(id, 1);
     }
     else if (menu.back()) this.leave();

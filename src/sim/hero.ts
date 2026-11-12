@@ -37,6 +37,7 @@ import type { Fighter } from './fighter';
 import { segmentAabb } from './physics';
 import { damageProp, pushProp } from './prop';
 import { ignite, igniteTile, spawnFire } from './fire';
+import { deployedPartner } from './pokemon';
 import type { World } from './world';
 
 // ------------------------------------------------------------------ transformation state
@@ -66,7 +67,7 @@ export function usesAmaterasu(f: Fighter): boolean {
 
 /** An enemy of `f` that a move may pick on: not a friend (unless friendly fire), not the fighter's own clones. */
 function isEnemy(w: World, f: Fighter, o: Fighter): boolean {
-  if (o === f || !o.alive || o.gone || (!w.settings.friendlyFire && sameTeam(f, o))) return false;
+  if (o === f || !o.alive || o.gone || o.trainer?.mounted || o.pokemon?.move === 'recall' || (!w.settings.friendlyFire && sameTeam(f, o))) return false;
   if (o.master === f.id || (f.master >= 0 && (o.id === f.master || o.master === f.master))) return false;
   return true;
 }
@@ -107,7 +108,10 @@ export function amaterasuTargets(w: World, f: Fighter): Fighter[] {
     if (dist > range + .001 || (dist > 1 && Math.abs(Math.atan2(oy, ox * f.facing)) > a.view)) continue;
     if (clearView(w, sx, sy, o.x, o.y - o.h * .5)) seen.push({ o, dist });
   }
-  return seen.sort((p, q) => p.dist - q.dist).slice(0, count).map((s) => s.o);
+  const eligible = new Set(seen.map(({ o }) => o.id));
+  return seen.sort((p, q) => p.dist - q.dist)
+    .filter(({ o }) => !eligible.has(deployedPartner(w, o)?.id ?? -1))
+    .slice(0, count).map(({ o }) => o);
 }
 
 /** The nearest enemy Amaterasu would burn (null when nobody is in sight). */
@@ -126,20 +130,27 @@ const LOCK_CONE = 0.95;
  */
 export function ultimateTarget(w: World, f: Fighter, range: number): Fighter | null {
   const sx = f.x, sy = f.y - SHOULDER_Y_STAND - 3;
+  const lockRange = f.hero === 'sasuke' && f.powerLevel >= 3 ? SASUKE_ARROW.lockRange : range;
+  const avatar = f.hero === 'sasuke' && f.powerLevel >= 3 || f.hero === 'naruto' && f.powerLevel === 4;
   let best: Fighter | null = null;
-  let bestDist = f.hero === 'sasuke' && f.powerLevel >= 3 ? SASUKE_ARROW.lockRange : range;
-  for (const o of w.fighters) {
-    if (!isEnemy(w, f, o)) continue;
+  let bestDist = lockRange;
+  const lockDistance = (o: Fighter, limit: number): number => {
+    if (!isEnemy(w, f, o)) return Infinity;
     const dx = (o.x - sx) * f.facing;
     const dy = o.y - o.h * .5 - sy;
-    const avatar=f.hero==='sasuke'&&f.powerLevel>=3||f.hero==='naruto'&&f.powerLevel===4;
-    if (dx < (avatar?0:4)) continue;
+    if (dx < (avatar ? 0 : 4)) return Infinity;
     const dist = Math.hypot(dx, dy);
-    if (dist > bestDist || Math.abs(Math.atan2(dy, dx)) > (avatar?Math.PI/2:LOCK_CONE)) continue;
-    if (!clearView(w, sx, sy, o.x, o.y - o.h * .5)) continue;
+    if (dist > limit || Math.abs(Math.atan2(dy, dx)) > (avatar ? Math.PI / 2 : LOCK_CONE)) return Infinity;
+    return clearView(w, sx, sy, o.x, o.y - o.h * .5) ? dist : Infinity;
+  };
+  for (const o of w.fighters) {
+    const dist = lockDistance(o, bestDist);
+    if (!Number.isFinite(dist)) continue;
     best = o;
     bestDist = dist;
   }
+  const primary = best && deployedPartner(w, best);
+  if (primary && Number.isFinite(lockDistance(primary, lockRange))) return primary;
   return best;
 }
 
@@ -737,6 +748,8 @@ export function gatlingHit(w: World, f: Fighter, g: NonNullable<SecondAbility['g
     g.crowdDamageByLevel?.[f.power === 'hero' ? f.powerLevel : 0] ?? g.crowdDamageMul ?? 1);
   for (const o of targets) {
     if (f.swingHit.includes(o.id)) continue;
+    const primary = deployedPartner(w, o);
+    if (primary && primary.invuln <= 0 && targets.includes(primary) && isEnemy(w, f, primary)) continue;
     f.swingHit.push(o.id);
     const connected = applyHit(w, o, {
       damage: g.damage * m.dmg * (final ? 2 : 1) * crowd,
@@ -836,7 +849,9 @@ export function beamHits(
     pushProp(p, dx * knock * m.knock, dy * knock - 60);
     damageProp(w, p, damage * m.dmg, f.id);
   }
-  const targets = w.fighters.filter(o => o !== f && !o.gone &&
+  const locked = weapon.endsWith(':super') ? w.fighters[f.lockOn] : undefined;
+  const trainerId = locked?.pokemon ? locked.master : -1;
+  const targets = w.fighters.filter(o => o !== f && o.id !== trainerId && !o.gone &&
     segmentAabb(x0, y0, x1, y1, o.x - o.w / 2 - half, o.y - o.h - half, o.x + o.w / 2 + half, o.y + half) >= 0);
   const crowd = crowdDamageScale(w, f, targets, crowdMultiplier);
   for (const o of targets) {
@@ -926,13 +941,13 @@ export function superBlast(f: Fighter, b: NonNullable<SuperAbility['bomb']>, lev
  * between (from the hero's body to that point, feet to launch height) or a wall there sets it off at once, so it
  * works at point-blank: returns the nearest such contact point, null when the way is clear.
  */
-export function launchBlock(w: World, f: Fighter, sx: number, sy: number, size: number): { x: number; y: number } | null {
+export function launchBlock(w: World, f: Fighter, sx: number, sy: number, size: number, skipId = -1): { x: number; y: number } | null {
   const lo = Math.min(f.x, sx), hi = Math.max(f.x, sx);
   const top = Math.min(sy, f.y - f.h) - size;
   let best: { x: number; y: number } | null = null;
   let bestD = Infinity;
   for (const o of w.fighters) {
-    if (!isEnemy(w, f, o) || o.invuln > 0) continue;
+    if (o.id === skipId || !isEnemy(w, f, o) || o.invuln > 0) continue;
     if (o.x + o.w / 2 < lo || o.x - o.w / 2 > hi || o.y < top || o.y - o.h > f.y) continue;
     const d = Math.abs(o.x - f.x);
     if (d >= bestD) continue;
@@ -971,7 +986,8 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   f.vx -= f.facing * 60;
   w.emit({ t: 'special', f: f.id, power: f.hero, x: sx, y: sy, scale: 1 + l * 0.5 });
   // enemies ganging up on the hero (inside the launch zone) take it at once
-  const close = launchBlock(w, f, sx, sy, size);
+  const trainerId = locked?.pokemon && locked.alive && !locked.gone ? locked.master : -1;
+  const close = launchBlock(w, f, sx, sy, size, trainerId);
   if (close) {
     explode(w, close.x, close.y, blast, f.id, weapon, level);
     return;
@@ -981,7 +997,7 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
   const target = f.lockOn >= 0 ? w.fighters[f.lockOn] : null;
   const angle = target && target.alive && !target.gone && !(archer||kurama) ? leadAngle(f, sx, sy, target, speed) : f.stretchAngle;
   f.stretchAngle = angle;
-  w.spawnBullet({
+  const bullet = w.spawnBullet({
     x: sx,
     y: sy,
     vx: f.facing * speed * Math.cos(angle),
@@ -1004,6 +1020,7 @@ export function fireBomb(w: World, f: Fighter, b: NonNullable<SuperAbility['bomb
     tier: 2,
     form: level,
   });
+  if (trainerId >= 0) bullet?.hitIds.push(trainerId);
 }
 
 // ------------------------------------------------------------------ instant transmission (Goku)
@@ -1023,20 +1040,25 @@ export function blinkDestination(w: World, f: Fighter, b: BlinkStats, dx: number
   // lock-on
   let best: Fighter | null = null;
   let bestAlong = Infinity;
-  for (const o of w.fighters) {
-    if (o === f || !o.alive || o.gone || sameTeam(o, f)) continue;
+  const lockAlong = (o: Fighter, limit: number): number => {
+    if (o === f || !o.alive || o.gone || o.trainer?.mounted || o.pokemon?.move === 'recall' || sameTeam(o, f)) return Infinity;
     const ox = o.x - f.x;
     const oy = o.y - o.h / 2 - cy;
     const along = ox * ux + oy * uy;
     const across = Math.abs(ox * uy - oy * ux);
-    if (along < 6 || along > b.range + b.assist || across > 16) continue;
-    if (!w.map.clearShot(f.x, cy, o.x, o.y - o.h / 2)) continue;
+    if (along < 6 || along >= limit || along > b.range + b.assist || across > 16) return Infinity;
+    return w.map.clearShot(f.x, cy, o.x, o.y - o.h / 2) ? along : Infinity;
+  };
+  for (const o of w.fighters) {
+    const along = lockAlong(o, bestAlong);
     if (along < bestAlong) {
       bestAlong = along;
       best = o;
     }
   }
   if (best) {
+    const primary = deployedPartner(w, best);
+    if (primary && Number.isFinite(lockAlong(primary, Infinity))) best = primary;
     // Behind their guard is determined by THEIR facing, not our approach direction.
     for (const back of [14, 18, 22]) for(const lift of [0,8,16]) {
       const tx = best.x - best.facing * back;

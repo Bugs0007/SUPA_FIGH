@@ -4,6 +4,7 @@ import { REFLECT } from './data/heroes';
 import { reflectDamage, reflects } from './hero';
 import type { ExplosionStats, ProjectileKind } from './data/weapons';
 import type { Fighter } from './fighter';
+import { deployedPartner } from './pokemon';
 import { explode } from './explosion';
 import { ignite, igniteTile, isFlammableTile, spawnFire } from './fire';
 import { segmentAabb } from './physics';
@@ -147,7 +148,7 @@ function burst(w: World, b: Bullet, x: number, y: number): void {
 
 /** Blast-only projectiles (supers) fly through friends, the owner's clones and corpses: only a live enemy sets them off. */
 function blastTarget(w: World, b: Bullet, f: Fighter): boolean {
-  if (!f.alive || (b.owner >= 0 && f.master === b.owner)) return false;
+  if (!f.alive || f.trainer?.mounted || (b.owner >= 0 && f.master === b.owner)) return false;
   const owner = b.owner >= 0 ? w.fighters[b.owner] : undefined;
   return !owner || w.settings.friendlyFire || !sameTeam(owner, f);
 }
@@ -233,14 +234,16 @@ export function updateBullets(w: World): void {
       let bestT = 2;
       let bestF = -1;
       for (const f of w.fighters) {
-        if (f.gone) continue;
-        if (f.id === b.owner && !b.canHitOwner) continue;
+        if (f.gone || f.pokemon && (!f.alive || f.master === b.owner)) continue;
+        if (f.trainer?.mounted || f.id === b.owner && !b.canHitOwner) continue;
         if (b.hitIds.includes(f.id)) continue;
         if (f.alive && f.invuln > 0) continue;
         if (b.explosion?.blastOnly && !blastTarget(w, b, f)) continue;
         const r = b.size;
         const t = segmentAabb(b.x, b.y, nx, ny, f.x - f.w / 2 - r, f.y - f.h - r, f.x + f.w / 2 + r, f.y + r);
-        if (t >= 0 && t < bestT) {
+        if (t < 0) continue;
+        const sharesImpact = bestF >= 0 && (t - bestT) * segLen <= 1 && deployedPartner(w, w.fighters[bestF]) === f;
+        if (t < bestT || sharesImpact) {
           bestT = t;
           bestF = f.id;
         }

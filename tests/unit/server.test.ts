@@ -96,7 +96,18 @@ describe('server: rooms and lobby', () => {
     const rude = new TestClient(hub, 'd');
     rude.sendRaw(JSON.stringify({ t: 'start' }));
     expect(rude.last('err')?.code).toBe('noRoom');
-    expect(PROTOCOL_VERSION).toBe(5); // Expanded arena layouts require matching clients.
+    expect(PROTOCOL_VERSION).toBe(7); // Partner state requires matching clients.
+  });
+
+  it('carries the selected partner from a lobby claim into the launched match', () => {
+    const { a, b, session } = lobby();
+    a.send({ t: 'claim', local: 0, claim: { name: 'Ash', hero: 'ash', pokemon: 'charmander', upJumps: true, look: {} } });
+    expect(b.last('room')?.peers.find(p => p.device === 'a')?.claims[0]?.pokemon).toBe('charmander');
+    a.send({ t: 'start' });
+    expect(b.last('start')?.cfg.fighters[0]?.pokemon).toBe('charmander');
+    const trainer = session().match.world.fighters[0].trainer;
+    expect(trainer?.species).toBe('charmander');
+    expect(session().match.world.fighters[trainer!.slot].pokemon?.species).toBe('charmander');
   });
 
   it('a device that drops from the lobby keeps its place for a while, is left out of the match, then is forgotten', () => {

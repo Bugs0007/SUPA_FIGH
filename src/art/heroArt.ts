@@ -4,6 +4,7 @@
 // sim/data/heroes.ts; palettes live here.
 
 import type { Appearance } from './appearance';
+import { ASH_ART } from './ashArt';
 import { BLACK_CLOVER_ART } from './blackCloverArt';
 import { BLEACH_ART } from './bleachArt';
 import { ONE_PIECE_ART } from './onePieceArt';
@@ -35,6 +36,7 @@ export interface HeroArt {
 const SKIN = '#f0c8a0';
 
 export const HERO_ART: Record<string, HeroArt> = {
+  ash: ASH_ART,
   sasuke: {
     look: { design: 'sasuke', form: 0, skin: '#edcbb3', hair: 'uchiha', hairColor: '#191c30',
       face: 'plain', hat: 'none', hatColor: '#252338', top: 'openrobe', topColor: '#c6c7d3',

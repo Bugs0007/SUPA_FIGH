@@ -135,6 +135,8 @@ export class RemoteSim {
       const v = p.visual(n);
       const f = this.match.world.fighters[slot];
       if (!v || !f.alive || f.gone || f.ghost) return;
+      // A rider and its companion share one authoritative interpolation frame.
+      if (f.trainer?.mounted || v.fighter.trainer?.mounted) return;
       for (const k of PREDICTED_FIELDS) (f as unknown as Record<string, unknown>)[k] = v.fighter[k];
       f.x = f.px = v.x;
       f.y = f.py = v.y;

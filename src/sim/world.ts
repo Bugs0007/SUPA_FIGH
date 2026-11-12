@@ -11,6 +11,8 @@ import { PROPS, type PropType } from './data/props';
 import { clonePlain, withoutDef, type WorldSnapshot } from './snapshot';
 import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
 import { maxClones, POWER_ORB } from './data/heroes';
+import { POKE_BALL, pokemonSpecies, pokemonStage } from './data/pokemon';
+import { evolvePartner } from './pokemon';
 import { dismissClone, resolveOrbClashes, transform } from './hero';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
 import { TileMap } from './map/tilemap';
@@ -111,11 +113,16 @@ export class World {
     // reserved clone slots: one block per fighter whose hero makes shadow clones (they start out of the world)
     const slots: FighterSpawn[] = [];
     specs.forEach((s, i) => {
+      if (s.hero === 'ash') {
+        const companion = pokemonSpecies(s.pokemon);
+        slots.push({ name: pokemonStage(companion, 0).name, team: teamKey({ id: i, team: s.team }),
+          isBot: false, upJumps: false, master: i, companion });
+      }
       const n = maxClones(s.hero ?? '');
       for (let k = 0; k < n; k++) slots.push({ name: 'CLONE', team: teamKey({ id: i, team: s.team }), isBot: true, upJumps: false, hero: s.hero, master: i });
     });
     this.specs = [...specs, ...slots];
-    this.hasClones = slots.length > 0;
+    this.hasClones = slots.some(s => !s.companion);
 
     const pts = this.rng.shuffle([...this.parsed.spawns]);
     if (pts.length === 0) pts.push({ x: this.map.pxW / 2, y: TILE * 2 });
@@ -137,6 +144,8 @@ export class World {
       f.state = 'dead';
       f.invuln = 0;
       this.fighters.push(f);
+      const trainer = this.fighters[f.master]?.trainer;
+      if (f.pokemon && trainer) trainer.slot = f.id;
     });
 
     for (const p of this.parsed.props) this.spawnProp(this.mods.has('explosive') && p.type === 'crate' ? 'barrel' : p.type, p.x, p.y);
@@ -245,6 +254,10 @@ export class World {
         f.px = px;
         f.py = py;
       }
+      if (f.trainer && f.alive && !f.trainer.mounted) {
+        const orb = this.findItemNear(f, 2, f.id);
+        if (orb) this.pickUp(f, orb, true);
+      }
       updateBurning(this, f);
     }
     // Rasengan / Chidori orbs that met this tick: settled once everyone has moved (order-independent)
@@ -267,7 +280,7 @@ export class World {
   private updateCloneLinks(): void {
     for (const f of this.fighters) f.cloneCount = 0;
     for (const c of this.fighters) {
-      if (c.master < 0 || !c.alive) continue;
+      if (c.master < 0 || !c.alive || c.pokemon) continue;
       const m = this.fighters[c.master];
       if (!m.alive || m.gone) dismissClone(this, c);
       else {
@@ -456,11 +469,11 @@ export class World {
    * autoOnly: only items the fighter would take without pressing a key (empty slot / ammo merge).
    */
   findItemNear(f: Fighter, range: number, fighterId: number, autoOnly = false): Item | null {
-    if (this.settings.noPickups || f.master >= 0) return null;
+    if (this.settings.noPickups || (f.master >= 0 && !f.pokemon)) return null;
     let best: Item | null = null;
     let bestD = Infinity;
     for (const it of this.items) {
-      if (!it.active) continue;
+      if (!it.active || ((f.trainer || f.pokemon) && it.weaponId !== POWER_ORB)) continue;
       if (it.noPickupBy === fighterId && it.noPickupTimer > 0) continue;
       if (it.thrownDmg > 0 || it.live) continue;
       const dx = Math.abs(it.x - f.x);
@@ -482,6 +495,14 @@ export class World {
 
   /** Take an item. swap = replace whatever is in that slot (dropping it). */
   pickUp(f: Fighter, it: Item, swap: boolean): boolean {
+    if (f.trainer || f.pokemon) {
+      const owner = f.pokemon ? this.fighters[f.master] : f;
+      if (!it.active || it.weaponId !== POWER_ORB || this.settings.noPickups || !f.alive || !owner?.alive) return false;
+      it.active = false;
+      evolvePartner(this, owner);
+      this.emit({ t: 'powerup', f: f.id, kind: 'orb', x: it.x, y: it.y });
+      return true;
+    }
     const def = weaponDef(it.weaponId);
     if (def.powerup) {
       const pu = def.powerup;
@@ -531,7 +552,7 @@ export class World {
       const it = f.inv[s];
       if (!it) continue;
       f.inv[s] = null;
-      if (weaponDef(it.id).throw && it.ammo <= 0) continue;
+      if (it.id === POKE_BALL || weaponDef(it.id).throw && it.ammo <= 0) continue;
       const d = this.spawnItem(it.id, it.ammo, it.dur, f.x, f.y - 12, this.rng.range(-110, 110) + f.vx * 0.3, this.rng.range(-230, -120));
       d.vrot = this.rng.range(-15, 15);
     }

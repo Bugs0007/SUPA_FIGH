@@ -8,7 +8,7 @@ export interface Intent {
   /** -1 (up) .. 1 (down). Also sweeps the aim angle while attack is held. */
   moveY: number;
   jump: boolean;
-  /** tap = punch / swing (melee); hold = aim (guns, throwables) */
+  /** Tap = punch, swing or partner strike. Hold = aim or return the selected partner to its Poké Ball. */
   attack: boolean;
   kick: boolean;
   /** pick up / swap weapon, grab enemy, pick up prop */

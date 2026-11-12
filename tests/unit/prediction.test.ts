@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { Session } from '../../server/session';
 import { applyHit } from '../../src/sim/combat';
 import { emptyIntent, type Intent } from '../../src/sim/intent';
+import { evolvePartner } from '../../src/sim/pokemon';
 import { playUnder, STEP, type NetSimOptions } from './netHarness';
 
 const idle = emptyIntent();
@@ -98,6 +99,48 @@ describe('client-side prediction', () => {
       simA.update(STEP / 1000);
     }
     expect(simA.predictor).toBeNull();
+  });
+
+  it('keeps a mounted rider and companion on the same render frame', async () => {
+    const { simA, simB, session, pump } = await playUnder({ latencyMs: 45, jitterMs: 5, loss: 0 }, {
+      predict: true, heroes: ['ash', ''], config: { mapId: 'test', bots: [], timeLimit: 120 },
+    });
+    const step = (intent: Intent) => {
+      simA.sendInputs([intent]);
+      simB.sendInputs([idle]);
+      pump();
+      simA.update(STEP / 1000);
+      simB.update(STEP / 1000);
+    };
+    for (let n = 0; n < 150; n++) step(idle);
+    const world = session().match.world;
+    const rider = world.fighters[simA.mine[0]];
+    evolvePartner(world, rider);
+    evolvePartner(world, rider);
+    step(press({ attack: true }));
+    for (let n = 0; n < 12; n++) step(idle);
+    const companion = world.fighters[rider.trainer!.slot];
+    expect(rider.trainer!.active).toBe(companion.id);
+    expect(companion.alive).toBe(true);
+    companion.x = rider.x = 260;
+    companion.y = 96;
+    rider.y = companion.y - companion.h * 0.34;
+    rider.trainer!.mounted = true;
+    companion.pokemon!.mounted = true;
+    companion.pokemon!.move = 'carry';
+
+    let divergentPredictions = 0;
+    for (let n = 0; n < 90; n++) {
+      step(press({ moveX: 1 }));
+      const local = simA.match.world.fighters[rider.id];
+      if (!local.trainer?.mounted) continue;
+      const partner = simA.match.world.fighters[local.trainer.slot];
+      const predicted = simA.predictor!.visual(0);
+      if (predicted && Math.abs(predicted.x - partner.x) > 1) divergentPredictions++;
+      expect(local.x).toBe(partner.x);
+      expect(local.px).toBe(partner.px);
+    }
+    expect(divergentPredictions).toBeGreaterThan(10);
   });
 
   it('a knock-back the server decides arrives as a smooth correction, not a teleport', async () => {

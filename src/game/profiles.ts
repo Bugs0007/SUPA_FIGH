@@ -3,12 +3,14 @@
 
 import { PLAYER_PRESETS, type Appearance } from '../art/appearance';
 import { HERO_ORDER } from '../sim/data/heroes';
+import { pokemonSpecies, type PokemonSpecies } from '../sim/data/pokemon';
 import { load, save } from './storage';
 
 export interface Profile {
   name: string;
   /** hero id ('' = scrapyard fighter with `look`) */
   hero: string;
+  pokemon?: PokemonSpecies;
   look: Appearance;
 }
 
@@ -44,7 +46,8 @@ export const profiles: Profile[] = (() => {
   return d.map((p, i) => {
     const s = stored[i] ?? {};
     const hero = typeof s.hero === 'string' && (HERO_ORDER as readonly string[]).includes(s.hero) ? s.hero : p.hero;
-    return { name: sanitizeName(typeof s.name === 'string' ? s.name : p.name, i), hero, look: { ...p.look, ...(s.look ?? {}) } };
+    return { name: sanitizeName(typeof s.name === 'string' ? s.name : p.name, i), hero,
+      pokemon: s.pokemon === undefined ? undefined : pokemonSpecies(s.pokemon), look: { ...p.look, ...(s.look ?? {}) } };
   });
 })();
 

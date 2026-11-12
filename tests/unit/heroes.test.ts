@@ -80,12 +80,13 @@ describe('expanded roster ultimates', () => {
 });
 
 describe('hero data', () => {
-  it('there is one power orb pickup; heroes have 4 forms, 3 moves and a punch-punch-punch-kick combo', () => {
+  it('there is one power orb pickup; fighters who transform directly have four forms and a four-hit combo', () => {
     const orb = WEAPONS[POWER_ORB];
     expect(orb.powerup?.kind).toBe('orb');
     expect(orb.spawnWeight).toBe(0);
     expect(orb.slot).toBe(SLOT.GADGET);
     for (const h of Object.values(HEROES)) {
+      if (h.id === 'ash') continue; // The partner owns the evolution stages and ability moves.
       expect(h.forms.length, h.id).toBe(4);
       expect(h.combo.length, h.id).toBe(4);
       expect(h.combo.map((c) => !!c.kick), h.id).toEqual([false, false, false, true]);
@@ -102,10 +103,14 @@ describe('hero data', () => {
     }
   });
 
-  it('hero base stats stay close to the scrapyard fighter', () => {
+  it('keeps fighters near scrapyard stats and the trainer deliberately vulnerable', () => {
     for (const h of Object.values(HEROES)) {
       expect(h.stats.speed).toBeGreaterThanOrEqual(0.95);
       expect(h.stats.speed).toBeLessThanOrEqual(1.08);
+      if (h.id === 'ash') {
+        expect(h.stats.hp).toBe(40);
+        continue;
+      }
       expect(h.stats.hp).toBeGreaterThanOrEqual(95);
       // Luffy's rubber durability is his deliberate base-stat advantage.
       expect(h.stats.hp).toBeLessThanOrEqual(h.id === 'luffy' ? 115 : 110);

@@ -53,7 +53,7 @@ describe('hero looks', () => {
       expect(a, id).toBeDefined();
       // parts drawn by the same modular baker as everyone else (no special sprite sizes)
       expect(typeof a.look.hair).toBe('string');
-      expect(a.forms.length, id).toBe(4);
+      expect(a.forms.length, id).toBe(id === 'ash' ? 0 : 4);
       expect(a.fx.length, id).toBe(a.forms.length);
     }
   });

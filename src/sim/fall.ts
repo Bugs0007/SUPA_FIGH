@@ -5,6 +5,7 @@ import { FIGHTER_H, LAST_HIT_CREDIT, THROW_IN, TILE } from './constants';
 import { dropCooked, type Fighter } from './fighter';
 import { releaseProp } from './prop';
 import type { World } from './world';
+import { trainerProtected } from './pokemon';
 
 /** Has this fighter left the world (below the kill plane, or far off a side)? */
 export function outOfWorld(w: World, f: Fighter): boolean {
@@ -13,6 +14,7 @@ export function outOfWorld(w: World, f: Fighter): boolean {
 
 /** Does falling out of the map kill this fighter? Shadow clones always just poof. */
 export function fallKills(w: World, f: Fighter): boolean {
+  if (f.trainer && trainerProtected(w, f)) return false;
   return w.settings.fallDeath !== false || f.master >= 0 || (!!w.settings.fallDeathBots && f.isBot);
 }
 
@@ -92,7 +94,7 @@ export function throwIn(w: World, f: Fighter): void {
   f.stateTime = 0;
   f.flinchTime = THROW_IN.stun;
   f.invuln = Math.max(f.invuln, THROW_IN.invuln);
-  const damage = Math.min(THROW_IN.damage, Math.max(0, f.hp - 1));
+  const damage = f.trainer && trainerProtected(w, f) ? 0 : Math.min(THROW_IN.damage, Math.max(0, f.hp - 1));
   f.hp -= damage;
   const attacker = f.lastAttacker >= 0 && w.time - f.lastHitTime < LAST_HIT_CREDIT ? f.lastAttacker : -1;
   w.emit({ t: 'thrownIn', f: f.id, fromX, fromY, x: spot.x, y: spot.y, damage, attacker });

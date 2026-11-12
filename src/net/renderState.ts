@@ -15,9 +15,10 @@ import type { PropType } from '../sim/data/props';
 
 // ------------------------------------------------------------------ field tables
 
-/** n = number (2 decimals), b = boolean (0 / 1), s = string, i = fighter inventory */
-type Kind = 'n' | 'b' | 's' | 'i';
-type Cell = number | string | Cell[];
+/** n = number (2 decimals), b = boolean (0 / 1), s = string, i = inventory, o = optional flat state */
+type Kind = 'n' | 'b' | 's' | 'i' | 'o';
+type FlatState = Record<string, number | string | boolean>;
+type Cell = number | string | Cell[] | FlatState;
 type Spec<T> = readonly (readonly [keyof T & string, Kind])[];
 
 /**
@@ -40,6 +41,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
   ['jetMode','s'],['jetAnchorX','n'],['jetAnchorY','n'],['grabTarget','n'],
   ['ropeLen', 'n'], ['grip', 's'], ['lockOn', 'n'], ['flinchTime', 'n'], ['guard', 'n'], ['blockStun', 'n'], ['parryT', 'n'], ['stamina', 'n'],
   ['flyTime', 'n'],
+  ['trainer', 'o'], ['pokemon', 'o'],
 ];
 
 /** Fighter fields both sides already have (they come from the spec the match was built with). */
@@ -75,6 +77,7 @@ function encodeValue(v: unknown, kind: Kind): Cell {
   if (kind === 'n') return r2(v as number);
   if (kind === 'b') return v ? 1 : 0;
   if (kind === 's') return v as string;
+  if (kind === 'o') return v ? { ...(v as FlatState) } : 0;
   // inventory: [id, ammo, dur] per slot, 0 = empty
   return (v as ({ id: string; ammo: number; dur: number } | null)[]).map((s) => (s ? [s.id, s.ammo, r2(s.dur)] : 0));
 }
@@ -83,6 +86,7 @@ function decodeValue(c: Cell, kind: Kind): unknown {
   if (kind === 'n') return c as number;
   if (kind === 'b') return c === 1;
   if (kind === 's') return c as string;
+  if (kind === 'o') return c && typeof c === 'object' && !Array.isArray(c) ? { ...c } : undefined;
   return (c as (Cell[] | 0)[]).map((s) => (s ? { id: s[0] as string, ammo: s[1] as number, dur: s[2] as number } : null));
 }
 
@@ -133,7 +137,7 @@ export function encodeWorld(w: World): RenderSnapshot {
     bulletTime: r2(w.bulletTime),
     bulletTimeOwner: w.bulletTimeOwner,
     suddenDeath: w.suddenDeath,
-    fighters: w.fighters.map((f) => (f.master >= 0 && f.gone && !f.alive ? 0 : encodeRow(f, FIGHTER_SPEC))),
+    fighters: w.fighters.map((f) => (f.master >= 0 && !f.pokemon && f.gone && !f.alive ? 0 : encodeRow(f, FIGHTER_SPEC))),
     bullets: w.bullets.filter((b) => b.active).map((b) => encodeRow(b, BULLET_SPEC)),
     items: w.items.filter((i) => i.active).map((i) => encodeRow(i, ITEM_SPEC)),
     props: w.props.filter((p) => p.active).map((p) => encodeRow(p, PROP_SPEC)),

@@ -32,7 +32,7 @@ export interface Appearance {
   trim?: string;
   /** Signature anatomy and costume details; absent on custom scrappers. */
   design?: 'naruto' | 'luffy' | 'goku' | 'sasuke' | 'vegeta' | 'zoro' | 'sanji' | 'law'
-    | 'ichigo' | 'rukia' | 'byakuya' | 'asta' | 'yuno' | 'yami';
+    | 'ichigo' | 'rukia' | 'byakuya' | 'asta' | 'yuno' | 'yami' | 'ash';
   /** Visual transformation level; used by the sprite baker, never by physics. */
   form?: number;
 }

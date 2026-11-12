@@ -4,6 +4,7 @@
 
 import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { HEROES } from '../sim/data/heroes';
+import { pokemonSpecies, type PokemonSpecies } from '../sim/data/pokemon';
 import type { SimEvent } from '../sim/events';
 import type { Fighter } from '../sim/fighter';
 import { MAPS } from '../sim/map/maps';
@@ -11,8 +12,8 @@ import type { GameMode, MatchConfig, MatchEvent } from '../sim/match';
 import { MODIFIERS } from '../sim/data/modifiers';
 import type { MatchRender, RenderSnapshot } from './renderState';
 
-// 5: expanded arena layouts use additional tile IDs.
-export const PROTOCOL_VERSION = 5;
+// 7: carried partners and health protection are synchronized across trainer commands.
+export const PROTOCOL_VERSION = 7;
 /** the always-open public Brawl room of an online server (server/hub.ts) */
 export const ARENA_CODE = 'ARENA';
 /** most fighters in one match (humans + bots) */
@@ -70,6 +71,7 @@ export const DEFAULT_ROOM_CONFIG: RoomConfig = {
 export interface SlotClaim {
   name: string;
   hero: string;
+  pokemon?: PokemonSpecies;
   /** keyboard / touch players jump with Up, pads with a button */
   upJumps: boolean;
   /** appearance, opaque to the server (flat object of strings / numbers), rendered by every client */
@@ -192,7 +194,9 @@ export function sanitizeClaim(v: unknown): SlotClaim | null {
       else if (typeof val === 'boolean') look[k] = val;
     }
   }
-  return { name: name || 'PLAYER', hero, upJumps: v.upJumps === true, look };
+  const claim: SlotClaim = { name: name || 'PLAYER', hero, upJumps: v.upJumps === true, look };
+  if (hero === 'ash') claim.pokemon = pokemonSpecies(v.pokemon);
+  return claim;
 }
 
 /** Clean a partial room config from the host: unknown keys dropped, values clamped. */

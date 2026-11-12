@@ -11,6 +11,7 @@ import { SLOT, weaponDef } from '../sim/data/weapons';
 import { activeWeapon, type Fighter } from '../sim/fighter';
 import { baseAbility, formLayers, usesAmaterasu } from '../sim/hero';
 import { heroDef, CLONE_SLINGSHOT, DRAGON_FIST, FORM_COMBO, JET_BAZOOKA } from '../sim/data/heroes';
+import type { PokemonState } from '../sim/data/pokemon';
 import { blackCloverSwordArm } from './BlackCloverAbilityArt';
 import { bleachBladeAngle } from './BleachAbilityArt';
 import { onePiecePose } from './OnePieceAbilityArt';
@@ -323,7 +324,7 @@ export class FighterView {
     return [x - 16, y - 32 + RIG_Y];
   }
 
-  update(alpha: number, dt: number, time: number, simTime: number): void {
+  update(alpha: number, dt: number, time: number, simTime: number, partner?: PokemonState): void {
     const f = this.fighter;
     this.updateGhost(time);
     if (f.gone) {
@@ -1006,6 +1007,19 @@ export class FighterView {
       back = -1.45;
       frontLen = 1;
       backLen = 1;
+      showWeapon = false;
+    }
+
+    if (partner?.move === 'release' && partner.age < 0.24 && (f.state === 'normal' || f.state === 'crouch')) {
+      const windup = partner.age < 0.047;
+      const throwPhase = Math.max(0, Math.min(1, (partner.age - 0.047) / 0.096));
+      const recover = Math.max(0, (partner.age - 0.143) / 0.097);
+      frame = windup ? BF.WINDUP : BF.CROSS;
+      front = lerp(-2.56, -0.15, throwPhase) + recover * 1.15;
+      back = lerp(0.3, 2.2, throwPhase);
+      frontLen = 1;
+      leanTarget = lerp(-0.09, 0.12, throwPhase) * (1 - recover);
+      smoothArms = false;
       showWeapon = false;
     }
 

@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BotController } from '../../src/ai/bot';
+import { sanitizeClaim } from '../../src/net/protocol';
 import {
   applyMatch,
   applyWorld,
@@ -50,10 +51,36 @@ describe('render state (D71)', () => {
     expect(mirror.world.fighters[0].flyTime).toBe(0.5);
     expect(mirror.world.bullets[0]).toMatchObject({ form: 4, tier: 2 });
     frame.bullets[0].splice(-2);
-    if (frame.fighters[0] !== 0) frame.fighters[0].pop();
+    if (frame.fighters[0] !== 0) frame.fighters[0].splice(FIGHTER_SPEC.findIndex(([key]) => key === 'flyTime'));
     applyWorld(mirror.world, frame);
     expect(mirror.world.fighters[0].flyTime).toBe(0);
     expect(mirror.world.bullets[0]).toMatchObject({ form: 3, tier: 2 });
+  });
+
+  it('validates the partner choice and sends trainer and companion state through a KO', () => {
+    const claim = { name: 'Ash', hero: 'ash', pokemon: 'charmander', look: {} };
+    expect(sanitizeClaim(claim)?.pokemon).toBe('charmander');
+    expect(sanitizeClaim({ ...claim, pokemon: 'unknown' })?.pokemon).toBe('charmander');
+    expect(sanitizeClaim({ ...claim, hero: 'goku' })?.pokemon).toBeUndefined();
+    const cfg = config('test', {
+      fighters: [{ name: 'Ash', team: 0, isBot: false, upJumps: false, hero: 'ash', pokemon: 'charmander' }],
+    });
+    const real = new Match(cfg);
+    const mirror = new Match(cfg);
+    const trainer = real.world.fighters[0].trainer!;
+    const partner = real.world.fighters[trainer.slot];
+    trainer.stage = 2;
+    trainer.cooldown = 4;
+    partner.alive = false;
+    partner.gone = true;
+    partner.hp = 0;
+    Object.assign(partner.pokemon!, { stage: 2, previousStage: 1, move: 'ko' });
+
+    const wire = JSON.parse(JSON.stringify(encodeWorld(real.world)));
+    expect(wire.fighters[trainer.slot]).not.toBe(0);
+    applyWorld(mirror.world, wire);
+    expect(mirror.world.fighters[0].trainer).toEqual(trainer);
+    expect(mirror.world.fighters[trainer.slot]).toMatchObject({ alive: false, gone: true, hp: 0, pokemon: partner.pokemon });
   });
 
   it('lists every Fighter field the render / HUD / audio code reads', () => {

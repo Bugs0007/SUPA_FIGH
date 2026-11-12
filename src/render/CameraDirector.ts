@@ -103,14 +103,16 @@ export class CameraDirector {
   private gather(w: World): { must: Box; nice: Box } {
     const must = emptyBox();
     const nice = emptyBox();
-    const humans = w.fighters.some((f) => !f.isBot);
+    const humans = w.fighters.some((f) => f.master < 0 && !f.isBot);
     for (const f of w.fighters) {
+      if (f.trainer?.mounted) continue; // The rider is already included in the Pokémon's framing.
       const shown = !f.gone && (f.alive || f.stateTime <= 1.2);
       if (shown) {
-        // feet to name tag (tag sits ~40 px above the feet)
-        const isMust = this.mustIds ? this.mustIds.has(f.id) && f.alive : humans ? !f.isBot && f.alive : true;
+        const controller = f.pokemon?.mounted ? w.fighters[f.master] : f;
+        const mainBody = !f.pokemon || f.pokemon.mounted;
+        const isMust = mainBody && (this.mustIds ? this.mustIds.has(controller.id) && f.alive : humans ? !controller.isBot && f.alive : true);
         const box = isMust ? must : nice;
-        addPoint(box, f.x, f.y - 40, f.y + 2);
+        addPoint(box, f.x, f.y - (f.pokemon ? Math.max(26, f.h + 9) : 40), f.y + 2);
       }
       if (!f.alive && f.ghost) addPoint(nice, f.gx, f.gy - 30, f.gy + 4);
       // Ultimates need full framing. A form reveal is optional when players are far apart.
