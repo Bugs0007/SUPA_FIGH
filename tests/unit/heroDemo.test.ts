@@ -37,7 +37,7 @@ describe('arena move demonstrations', () => {
     }
   });
 
-  it.each(['charmander'] as const)('%s shows mount, takeoff and descent using normal controls', pokemon => {
+  it.each(['charmander', 'gible'] as const)('%s shows mount, takeoff and descent using normal controls', pokemon => {
     const demo = new HeroDemo('ash', 'mount', 0, pokemon);
     const [ash] = demo.world.fighters;
     const partner = demo.world.fighters[ash.trainer!.slot];
@@ -54,6 +54,27 @@ describe('arena move demonstrations', () => {
     }
     expect({ mounted, climbed, descended }).toEqual({ mounted: true, climbed: true, descended: true });
   });
+
+  it.each(['squirtle', 'bulbasaur', 'froakie', 'pikachu', 'treecko', 'riolu'] as const)(
+    '%s shows a ground mount walking and jumping in the arena',
+    pokemon => {
+      const demo = new HeroDemo('ash', 'mount', 0, pokemon);
+      const [ash] = demo.world.fighters;
+      const partner = demo.world.fighters[ash.trainer!.slot];
+      let walked = false;
+      let jumped = false;
+      while (!demo.done) {
+        demo.step();
+        if (ash.trainer!.mounted) {
+          expect(partner.flying).toBe(false);
+          walked ||= partner.grounded && Math.abs(partner.vx) > 40;
+          jumped ||= partner.vy < -40;
+        }
+        demo.world.events.length = 0;
+      }
+      expect(walked && jumped).toBe(true);
+    },
+  );
 
   for (const hero of HERO_ORDER) {
     for (const mode of demoModes(hero).filter(mode => mode !== 'mount')) {

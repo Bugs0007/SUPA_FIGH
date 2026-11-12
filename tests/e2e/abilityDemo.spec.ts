@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test('Ash selects Charmander and keeps it when the match starts', async ({ page }) => {
+test('Ash chooses one of eight partners and keeps it when the match starts', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/?timer=1');
@@ -11,8 +11,8 @@ test('Ash selects Charmander and keeps it when the match starts', async ({ page 
   await page.mouse.click(1150, 84); // Pokémon
   await page.waitForFunction(() => (window as any).__GAME__.game.scene.getScene('fighters').group === 'pokemon');
   await page.mouse.click(640, 280); // Ash
-  await page.waitForFunction(() => (window as any).__GAME__.game.scene.getScene('fighters').partnerNames.length === 1);
-  await page.mouse.click(210, 200); // Charmander
+  await page.waitForFunction(() => (window as any).__GAME__.game.scene.getScene('fighters').partnerNames.length === 8);
+  await page.mouse.click(494, 403); // Treecko
   await onScene('title');
 
   await page.mouse.click(532, 640); // Fighters
@@ -45,11 +45,18 @@ test('Ash selects Charmander and keeps it when the match starts', async ({ page 
     return demo?.mode === 'mount' && demo.level === 3 && trainer?.mounted
       && demo.world.fighters[trainer.active].vy < -40;
   }, undefined, { timeout: 5000 });
+  await page.keyboard.press('p');
+  await page.waitForFunction(() => {
+    const demo = (window as any).__GAME__.game.scene.getScene('hero-demo').demo;
+    const trainer = demo?.world.fighters[0].trainer;
+    return demo?.pokemon === 'squirtle' && demo.level === 3 && demo.mode === 'mount' && trainer?.mounted
+      && !demo.world.fighters[trainer.active].flying;
+  }, undefined, { timeout: 5000 });
 
   await page.goto('/?scene=match&map=test&humans=2&bots=0&timer=1&seed=5');
   await onScene('match');
   const partner = await page.waitForFunction(() => (window as any).__GAME__.match()?.world.fighters[0].trainer?.species);
-  expect(await partner.jsonValue()).toBe('charmander');
+  expect(await partner.jsonValue()).toBe('treecko');
   expect(errors).toEqual([]);
 });
 

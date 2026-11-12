@@ -58,12 +58,12 @@ describe('render state (D71)', () => {
   });
 
   it('validates the partner choice and sends trainer and companion state through a KO', () => {
-    const claim = { name: 'Ash', hero: 'ash', pokemon: 'charmander', look: {} };
-    expect(sanitizeClaim(claim)?.pokemon).toBe('charmander');
+    const claim = { name: 'Ash', hero: 'ash', pokemon: 'squirtle', look: {} };
+    expect(sanitizeClaim(claim)?.pokemon).toBe('squirtle');
     expect(sanitizeClaim({ ...claim, pokemon: 'unknown' })?.pokemon).toBe('charmander');
     expect(sanitizeClaim({ ...claim, hero: 'goku' })?.pokemon).toBeUndefined();
     const cfg = config('test', {
-      fighters: [{ name: 'Ash', team: 0, isBot: false, upJumps: false, hero: 'ash', pokemon: 'charmander' }],
+      fighters: [{ name: 'Ash', team: 0, isBot: false, upJumps: false, hero: 'ash', pokemon: 'squirtle' }],
     });
     const real = new Match(cfg);
     const mirror = new Match(cfg);

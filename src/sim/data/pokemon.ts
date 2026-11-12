@@ -1,8 +1,7 @@
 import { FIGHTER_H, FIGHTER_W } from '../constants';
 
-// Internal effect discriminants are retained while the playable catalog contains one approved line.
-export type PokemonSpecies = 'charmander' | 'squirtle' | 'bulbasaur' | 'pikachu' | 'froakie' | 'treecko' | 'riolu' | 'gible';
-export const POKEMON_PARTNERS: readonly PokemonSpecies[] = ['charmander'];
+export const POKEMON_PARTNERS = ['charmander', 'squirtle', 'bulbasaur', 'pikachu', 'froakie', 'treecko', 'riolu', 'gible'] as const;
+export type PokemonSpecies = (typeof POKEMON_PARTNERS)[number];
 export type PokemonElement = 'fire' | 'water' | 'grass' | 'electric' | 'aura' | 'dragon';
 export const POKE_BALL = 'pokeball';
 export const TRAINER_HP = 40;
@@ -71,7 +70,8 @@ interface PokemonLine {
   final: 'mega' | 'bond';
 }
 
-const CHARMANDER: PokemonLine = {
+const LINES: Record<PokemonSpecies, PokemonLine> = {
+  charmander: {
     names: ['CHARMANDER', 'CHARMELEON', 'CHARIZARD', 'MEGA CHARIZARD X'],
     sizes: [[9, 14], [13, 25], [22, 40], [24, 44]],
     hp: [39, 60, 106, 146],
@@ -79,14 +79,54 @@ const CHARMANDER: PokemonLine = {
     dash: ['SCRATCH', 'FLAME CHARGE', 'FLAME CHARGE', 'DRAGON CLAW'],
     ultimate: ['FIRE SPIN', 'FIRE SPIN', 'SEISMIC TOSS', 'BLAST BURN'],
     element: 'fire', flightStage: 2, final: 'mega',
-  };
+  },
+  squirtle: {
+    names: ['SQUIRTLE', 'WARTORTLE', 'BLASTOISE', 'MEGA BLASTOISE'],
+    sizes: [[11, 12], [15, 22], [26, 39], [28, 43]],
+    hp: [44, 69, 114, 152],
+    shot: ['WATER GUN', 'WATER PULSE', 'HYDRO PUMP', 'WATER PULSE'],
+    dash: ['TACKLE', 'AQUA JET', 'AQUA JET', 'AQUA TAIL'],
+    ultimate: ['WATER PULSE', 'AQUA TAIL', 'HYDRO CANNON', 'HYDRO CANNON'],
+    element: 'water', final: 'mega',
+  },
+  bulbasaur: {
+    names: ['BULBASAUR', 'IVYSAUR', 'VENUSAUR', 'MEGA VENUSAUR'], sizes: [[14, 14], [19, 22], [34, 38], [37, 44]], hp: [46, 72, 119, 155],
+    shot: ['RAZOR LEAF', 'RAZOR LEAF', 'PETAL BLIZZARD', 'PETAL BLIZZARD'], dash: ['TACKLE', 'VINE WHIP', 'POWER WHIP', 'POWER WHIP'],
+    ultimate: ['SEED BOMB', 'SEED BOMB', 'SOLAR BEAM', 'SOLAR BEAM'], element: 'grass', final: 'mega',
+  },
+  pikachu: {
+    names: ['PIKACHU', 'RAICHU', 'MEGA RAICHU X'], sizes: [[9, 10], [13, 18], [17, 25]], hp: [34, 66, 130],
+    shot: ['THUNDER SHOCK', 'THUNDERBOLT', 'THUNDERBOLT'], dash: ['QUICK ATTACK', 'VOLT TACKLE', 'VOLT TACKLE'],
+    ultimate: ['THUNDER', 'THUNDER', 'THUNDER'], element: 'electric', final: 'mega',
+  },
+  froakie: {
+    names: ['FROAKIE', 'FROGADIER', 'GRENINJA', 'ASH-GRENINJA'], sizes: [[9, 10], [12, 16], [16, 29], [17, 31]], hp: [35, 58, 98, 140],
+    shot: ['BUBBLE', 'WATER PULSE', 'WATER SHURIKEN', 'WATER SHURIKEN'], dash: ['QUICK ATTACK', 'QUICK ATTACK', 'AERIAL ACE', 'NIGHT SLASH'],
+    ultimate: ['WATER PULSE', 'SURF', 'GIANT WATER SHURIKEN', 'GIANT WATER SHURIKEN'], element: 'water', final: 'bond',
+  },
+  treecko: {
+    names: ['TREECKO', 'GROVYLE', 'SCEPTILE', 'MEGA SCEPTILE'], sizes: [[10, 12], [13, 21], [22, 32], [23, 36]], hp: [38, 61, 102, 142],
+    shot: ['BULLET SEED', 'BULLET SEED', 'ENERGY BALL', 'DRAGON PULSE'], dash: ['QUICK ATTACK', 'LEAF BLADE', 'LEAF BLADE', 'LEAF BLADE'],
+    ultimate: ['MEGA DRAIN', 'LEAF STORM', 'FRENZY PLANT', 'FRENZY PLANT'], element: 'grass', final: 'mega',
+  },
+  riolu: {
+    names: ['RIOLU', 'LUCARIO', 'MEGA LUCARIO'], sizes: [[10, 15], [14, 23], [16, 28]], hp: [42, 86, 138],
+    shot: ['VACUUM WAVE', 'AURA SPHERE', 'AURA SPHERE'], dash: ['QUICK ATTACK', 'EXTREME SPEED', 'CLOSE COMBAT'],
+    ultimate: ['FORCE PALM', 'FOCUS BLAST', 'FOCUS BLAST'], element: 'aura', final: 'mega',
+  },
+  gible: {
+    names: ['GIBLE', 'GABITE', 'GARCHOMP', 'MEGA GARCHOMP'], sizes: [[13, 14], [16, 26], [24, 40], [28, 45]], hp: [46, 73, 119, 155],
+    shot: ['DRAGON BREATH', 'DRAGON BREATH', 'DRAGON PULSE', 'DRAGON PULSE'], dash: ['TACKLE', 'DRAGON CLAW', 'DRAGON RUSH', 'DRAGON CLAW'],
+    ultimate: ['DRACO METEOR', 'DRACO METEOR', 'DRACO METEOR', 'DRACO METEOR'], element: 'dragon', flightStage: 2, final: 'mega',
+  },
+};
 
 export function pokemonSpecies(value: unknown): PokemonSpecies {
-  return 'charmander';
+  return POKEMON_PARTNERS.find(species => species === value) ?? 'charmander';
 }
 
 export function pokemonStage(species: PokemonSpecies, stage: number) {
-  const line = CHARMANDER;
+  const line = LINES[species];
   const maxStage = line.names.length - 1;
   const level = Math.max(0, Math.min(maxStage, Math.floor(stage)));
   const [width, height] = line.sizes[level];
@@ -107,12 +147,12 @@ export function pokemonEvolutionTime(species: PokemonSpecies, stage: number, pre
 }
 
 export function createTrainer(species: PokemonSpecies, stage = 0): TrainerState {
-  return { species: pokemonSpecies(species), slot: -1, active: -1, stage: Math.max(0, Math.min(pokemonStage(species, 0).maxStage, Math.floor(stage))),
+  return { species, slot: -1, active: -1, stage: Math.max(0, Math.min(pokemonStage(species, 0).maxStage, Math.floor(stage))),
     cooldown: 0, shotCd: 0, dashCd: 0, ultimateCd: 0, blockHeld: 0, attackHeld: 0, mounted: false };
 }
 
 export function createPokemon(species: PokemonSpecies, stage = 0): PokemonState {
-  return { species: pokemonSpecies(species), stage, previousStage: stage, move: 'follow', age: 0, mounted: false, target: -1,
+  return { species, stage, previousStage: stage, move: 'follow', age: 0, mounted: false, target: -1,
     engaged: -1, recalling: false, goalX: 0, goalY: 0, fired: false, holding: false,
     perched: false, stuckFor: 0, followDistance: -1 };
 }

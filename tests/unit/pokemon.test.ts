@@ -41,7 +41,7 @@ function knockOut(world: World, partner: Fighter, enemy: Fighter): void {
 
 describe('Ash and Pokémon in a match', () => {
   it('releases the chosen partner only by tapping Attack with its Poké Ball selected', () => {
-    const { world, ash, trainer, partner } = arena('charmander');
+    const { world, ash, trainer, partner } = arena('squirtle');
     expect(partner.alive).toBe(false);
     expect(trainer.active).toBe(-1);
     expect(ash.inv[ash.active]?.id).toBe(POKE_BALL);
@@ -100,7 +100,7 @@ describe('Ash and Pokémon in a match', () => {
   it('locks a partner attack onto the opposing Pokémon and sends it past its trainer', () => {
     const world = new World(FLAT, [
       { ...spec('ASH'), hero: 'ash', pokemon: 'charmander' },
-      { ...spec('RIVAL ASH'), hero: 'ash', pokemon: 'charmander' },
+      { ...spec('RIVAL ASH'), hero: 'ash', pokemon: 'squirtle' },
     ], { friendlyFire: false, weaponSpawnRate: 0, gravityScale: 1 }, 42);
     run(world, 5);
     const [ash, rival] = world.fighters;
@@ -305,7 +305,7 @@ describe('Ash and Pokémon in a match', () => {
     expect(partner.pokemon).toMatchObject({ stage: 0, move: 'release' });
   });
 
-  it.each([['charmander', 'CHARIZARD']] as const)('%s mounts its final evolution and isolates rider health', (species, form) => {
+  it.each([['charmander', 'CHARIZARD'], ['gible', 'GARCHOMP']] as const)('%s mounts its final evolution and isolates rider health', (species, form) => {
     const { world, ash, enemies: [enemy], trainer, partner } = arena(species);
     summon(world);
     for (let stage = 1; stage <= 2; stage++) {
