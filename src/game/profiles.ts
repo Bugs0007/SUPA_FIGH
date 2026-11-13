@@ -10,6 +10,8 @@ export interface Profile {
   name: string;
   /** hero id ('' = scrapyard fighter with `look`) */
   hero: string;
+  /** When using the Brawlkai fighter, borrow this hero's complete move set. */
+  abilityHero?: string;
   pokemon?: PokemonSpecies;
   pokemonTeam?: PokemonSpecies[];
   look: Appearance;
@@ -48,6 +50,7 @@ export const profiles: Profile[] = (() => {
     const s = stored[i] ?? {};
     const hero = typeof s.hero === 'string' && (HERO_ORDER as readonly string[]).includes(s.hero) ? s.hero : p.hero;
     return { name: sanitizeName(typeof s.name === 'string' ? s.name : p.name, i), hero,
+      abilityHero: hero === '' && typeof s.abilityHero === 'string' && (HERO_ORDER as readonly string[]).includes(s.abilityHero) && s.abilityHero ? s.abilityHero : undefined,
       pokemon: s.pokemon === undefined ? undefined : pokemonSpecies(s.pokemon),
       pokemonTeam: s.pokemonTeam === undefined ? undefined : pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon)),
       look: { ...p.look, ...(s.look ?? {}) } };

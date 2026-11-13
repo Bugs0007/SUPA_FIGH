@@ -122,8 +122,8 @@ describe('trainer partner teams', () => {
     expect(count()).toBe(0);
   });
 
-  it('keeps a knocked-out member unavailable18seconds while a healthy reserve can fight', () => {
-    const { world, ash, rival, selected, choose, summon, count } = battle();
+  it('only starts team recovery after every selected partner has been defeated', () => {
+    const { world, ash, rival, selected, choose, summon, count } = battle(['charmander', 'squirtle']);
     summon();
     const fire = selected();
     fire.invuln = 0;
@@ -141,7 +141,17 @@ describe('trainer partner teams', () => {
     summon();
     expect(fire.alive).toBe(false);
     expect(ash.trainer!.cooldown).toBeGreaterThan(0);
+    // Charmander cannot silently regenerate while Squirtle is still available.
+    run(world, ticks(POKEMON_TIMING.knockout + 1));
+    expect(ash.trainer!.team.find(member => member.species === 'charmander')!.cooldown).toBeGreaterThan(15);
+    // Defeat the final available partner: the entire exhausted team now recovers.
+    choose('squirtle');
+    summon();
+    const water = selected();
+    water.invuln = 0;
+    expect(applyHit(world, water, { attacker: rival.id, weapon: 'test', kind: 'melee', damage: 999, kbX: 0, kbY: 0 })).toBe(true);
     run(world, ticks(18));
+    choose('charmander');
     summon();
     expect(fire.alive).toBe(true);
   });

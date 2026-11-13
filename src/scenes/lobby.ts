@@ -40,6 +40,8 @@ export interface SlotCfg {
   look: Appearance;
   /** hero id (sim/data/heroes.ts), '' = scrapyard fighter with the custom look */
   hero: string;
+  /** Brawlkai keeps its custom appearance while using this hero's mechanics. */
+  abilityHero?: string;
   pokemon?: PokemonSpecies;
   pokemonTeam?: PokemonSpecies[];
   /** power-up form the hero starts in (0 = base .. the hero's top form), so forms can be matched up without waiting for orbs */
@@ -94,6 +96,7 @@ export function loadLobby(): LobbyCfg {
     const k = keyboardIndex(slot.kind);
     if (k >= 0) {
       slot.hero = profiles[k].hero;
+      slot.abilityHero = profiles[k].abilityHero;
       slot.pokemon = profiles[k].pokemon;
       slot.pokemonTeam = profiles[k].pokemonTeam?.slice();
       slot.look = { ...profiles[k].look };
@@ -109,6 +112,7 @@ export function syncSlotToProfile(slot: SlotCfg): void {
   const k = keyboardIndex(slot.kind);
   if (k < 0) return;
   profiles[k].hero = slot.hero;
+  profiles[k].abilityHero = slot.abilityHero;
   profiles[k].pokemon = slot.pokemon;
   profiles[k].pokemonTeam = slot.pokemonTeam?.slice();
   profiles[k].look = { ...slot.look };
@@ -120,9 +124,10 @@ export function saveLobby(c: LobbyCfg): void {
 }
 
 /** The form a slot really starts in: 0 for non-heroes, otherwise its setting capped at the hero's top form. */
-export function slotStartForm(s: Pick<SlotCfg, 'hero' | 'form' | 'pokemon'>): number {
-  if (!s.hero) return 0;
-  const cap = s.hero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), 0).maxStage : maxLevel(s.hero);
+export function slotStartForm(s: Pick<SlotCfg, 'hero' | 'abilityHero' | 'form' | 'pokemon'>): number {
+  const abilityHero = s.hero || s.abilityHero || '';
+  if (!abilityHero) return 0;
+  const cap = abilityHero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), 0).maxStage : maxLevel(abilityHero);
   return Math.max(0, Math.min(cap, Math.floor(Number(s.form) || 0)));
 }
 
@@ -156,7 +161,7 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
     const color = s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : isBot ? hexToNum(TEAM_COLORS[0]) : PLAYER_COLORS[(human - 1) % PLAYER_COLORS.length];
     const startForm = slotStartForm(s);
     players.push({
-      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined,
+      spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined, abilityHero: s.hero ? undefined : s.abilityHero,
         startForm: startForm || undefined, pokemon: s.hero === 'ash' ? pokemonSpecies(s.pokemon) : undefined,
         pokemonTeam: s.hero === 'ash' ? pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon)) : undefined },
       look: heroLook(s.hero, s.look),

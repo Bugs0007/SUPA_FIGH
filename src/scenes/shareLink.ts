@@ -14,7 +14,7 @@ const VERSION = 1;
 const LOOK_FIELDS = ['skin', 'hair', 'hairColor', 'face', 'hat', 'hatColor', 'top', 'topColor', 'accentColor', 'pantsColor', 'shoesColor'] as const;
 const COLOR_FIELDS = new Set<string>(['skin', 'hairColor', 'hatColor', 'topColor', 'accentColor', 'pantsColor', 'shoesColor']);
 
-type WireSlot = 0 | [number, number, number, string, number, string[]?, string?, string[]?];
+type WireSlot = 0 | [number, number, number, string, number, string[]?, string?, string[]?, string?];
 interface Wire {
   v: number;
   /** map, mode, rounds, time, sudden death, friendly fire, weapons, chaos, hero powers, fall death */
@@ -44,13 +44,15 @@ export function encodeLobby(c: LobbyCfg): string {
   const slots: WireSlot[] = c.slots.slice(0, MAX_SLOTS).map((s): WireSlot => {
     if (s.kind === 'empty') return 0;
     const hero = s.hero && HEROES[s.hero] ? s.hero : '';
-    const row: WireSlot = [SLOT_KINDS.indexOf(s.kind), s.team, DIFF_ORDER.indexOf(s.difficulty), hero, hero ? slotStartForm(s) : 0];
+    const abilityHero = !hero && s.abilityHero && HEROES[s.abilityHero] ? s.abilityHero : '';
+    const row: WireSlot = [SLOT_KINDS.indexOf(s.kind), s.team, DIFF_ORDER.indexOf(s.difficulty), hero, hero || abilityHero ? slotStartForm(s) : 0];
     // heroes bring their own look; only custom fighters need theirs in the link
     if (!hero) row.push(LOOK_FIELDS.map((f) => String(s.look[f]).replace(/^#/, '')));
     if (hero === 'ash') {
       row[6] = pokemonSpecies(s.pokemon);
       row[7] = pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon));
     }
+    if (abilityHero) row[8] = abilityHero;
     return row;
   });
   while (slots.length && slots[slots.length - 1] === 0) slots.pop();
@@ -66,6 +68,7 @@ function decodeSlot(raw: unknown, fallback: SlotCfg): SlotCfg {
   if (!Array.isArray(raw)) return { ...fallback, kind: 'empty' };
   const kind = SLOT_KINDS[int(raw[0], 0, SLOT_KINDS.length - 1, 0)];
   const hero = typeof raw[3] === 'string' && HEROES[raw[3]] ? raw[3] : '';
+  const abilityHero = !hero && typeof raw[8] === 'string' && HEROES[raw[8]] ? raw[8] : undefined;
   let look: Appearance = { ...fallback.look };
   if (!hero && Array.isArray(raw[5])) {
     const o: Record<string, unknown> = {};
@@ -80,6 +83,7 @@ function decodeSlot(raw: unknown, fallback: SlotCfg): SlotCfg {
     team: int(raw[1], 0, 4, 0),
     difficulty: DIFF_ORDER[int(raw[2], 0, DIFF_ORDER.length - 1, 1)],
     hero,
+    abilityHero,
     form: int(raw[4], 0, 9, 0),
     look,
     ...(hero === 'ash' ? { pokemon: pokemonSpecies(raw[6]), pokemonTeam: pokemonTeam(raw[7], pokemonSpecies(raw[6])) } : {}),

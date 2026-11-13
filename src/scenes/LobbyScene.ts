@@ -37,6 +37,7 @@ import { inputDevice, PAD_NAMES } from '../input/devices';
 import { bindZoom, fighterPreview } from './ui';
 import { bakeMapPreview } from '../art/mapPreview';
 import { shareUrl } from './shareLink';
+import { openFighterPicker } from './FightersScene';
 
 const SLOT_COLS = ['kind', 'team', 'skill', 'look', 'form', 'pokemon'] as const;
 const SLOT_COL_X = [36, 118, 162, 214, 268, 306];
@@ -102,14 +103,14 @@ export class LobbyScene extends Phaser.Scene {
     this.add.bitmapText(162, 32, 'sm', 'BOT SKILL').setTint(0x8d95b0);
     this.add.bitmapText(214, 32, 'sm', 'HERO / LOOK').setTint(0x8d95b0);
     this.add.bitmapText(268, 32, 'sm', 'FORM').setTint(0x8d95b0);
-    this.add.bitmapText(306, 32, 'sm', 'PKMN').setTint(0xffdc69);
+    this.add.bitmapText(306, 32, 'sm', 'PKMN/ABIL').setTint(0xffdc69);
     for (let i = 0; i < MAX_SLOTS; i++) {
       const y = 44 + i * 28;
       this.add.bitmapText(8, y + 6, 'smo', String(i + 1)).setTint(0x8d95b0);
       this.texts.push(SLOT_COL_X.map((x) => this.add.bitmapText(x, y + 6, 'smo', '')));
       this.previews.push(this.add.container(0, 0));
       this.add.zone(303, y, 34, 26).setOrigin(0).setInteractive({ useHandCursor: true })
-        .on('pointerdown', () => { if (!this.teamPicker) { this.row = i; this.col = 5; this.openTeam(i); } });
+        .on('pointerdown', () => { if (!this.teamPicker) { this.row = i; this.col = 5; this.openLoadout(i); } });
     }
     SETTINGS.forEach((_, i) => {
       this.settingLabels.push(this.add.bitmapText(354, 52 + i * SET_H, 'sm', '').setTint(0x8d95b0).setDepth(2));
@@ -185,7 +186,7 @@ export class LobbyScene extends Phaser.Scene {
         return;
       }
       if (menu.confirm() || keyboard.justPressed('Tab')) {
-        if (SLOT_COLS[this.col] === 'pokemon') { this.openTeam(this.row); return; }
+        if (SLOT_COLS[this.col] === 'pokemon') { this.openLoadout(this.row); return; }
         changed = this.changeSlot(this.row, SLOT_COLS[this.col], keyboard.isDown('ShiftLeft') || keyboard.isDown('ShiftRight') ? -1 : 1);
       }
     } else {
@@ -209,6 +210,7 @@ export class LobbyScene extends Phaser.Scene {
       for (const s of this.cfg.slots) {
         s.look = randomAppearance();
         s.hero = '';
+        s.abilityHero = undefined;
       }
       changed = true;
     }
@@ -250,6 +252,26 @@ export class LobbyScene extends Phaser.Scene {
     }, () => { this.teamPicker = null; this.barMode = ''; });
   }
 
+  /** The Brawlkai body can use a full roster move set without becoming that hero visually. */
+  private openAbility(i: number): void {
+    const slot = this.cfg.slots[i];
+    if (slot.kind === 'empty' || slot.hero) return;
+    openFighterPicker(this, slot.abilityHero || 'naruto', (hero) => {
+      if (!hero) return;
+      slot.abilityHero = hero;
+      slot.form = slotStartForm(slot);
+      syncSlotToProfile(slot);
+      saveLobby(this.cfg);
+      this.render();
+    });
+  }
+
+  private openLoadout(i: number): void {
+    const slot = this.cfg.slots[i];
+    if (slot.hero === 'ash') this.openTeam(i);
+    else if (!slot.hero) this.openAbility(i);
+  }
+
   /** Cycle one slot value; team selection uses its own panel. */
   private changeSlot(i: number, col: (typeof SLOT_COLS)[number], d: number): boolean {
     const s = this.cfg.slots[i];
@@ -257,8 +279,9 @@ export class LobbyScene extends Phaser.Scene {
     else if (col === 'team') s.team = (s.team + d + 5) % 5;
     else if (col === 'skill') s.difficulty = cycle(DIFF_ORDER, s.difficulty, d);
     else if (col === 'form') {
-      if (s.kind === 'empty' || !s.hero) return false; // only heroes have power-up forms
-      const n = 1 + (s.hero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), 0).maxStage : maxLevel(s.hero));
+      const abilityHero = s.hero || s.abilityHero || '';
+      if (s.kind === 'empty' || !abilityHero) return false; // only powered loadouts have forms
+      const n = 1 + (abilityHero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), 0).maxStage : maxLevel(abilityHero));
       s.form = (slotStartForm(s) + d + n) % n;
     } else s.look = randomAppearance();
     return true;
@@ -376,11 +399,12 @@ export class LobbyScene extends Phaser.Scene {
       skill.setText(s.kind === 'bot' ? s.difficulty.toUpperCase() : '').setTint(0xc3c9dc);
       look.setText(s.kind === 'empty' ? '' : s.hero ? (HEROES[s.hero]?.name ?? 'EDIT...') : 'EDIT...').setTint(s.hero ? hexToNum(P.orange) : 0x8d95b0);
       const lv = slotStartForm(s);
-      const major = s.hero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), lv).special : undefined;
+      const abilityHero = s.hero || s.abilityHero || '';
+      const major = abilityHero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), lv).special : undefined;
       const formLabel = major === 'mega' ? 'MEGA' : major === 'bond' ? 'BOND' : lv ? `FORM ${lv}` : 'BASE';
-      form.setText(s.kind === 'empty' || !s.hero ? '' : formLabel).setTint(lv ? hexToNum(P.yellow) : 0xc3c9dc);
-      partners.setText(s.kind !== 'empty' && s.hero === 'ash' ? pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon)).length + '/8' : '-')
-        .setTint(s.hero === 'ash' ? 0xffdc69 : 0x5a5668);
+      form.setText(s.kind === 'empty' || !abilityHero ? '' : formLabel).setTint(lv ? hexToNum(P.yellow) : 0xc3c9dc);
+      partners.setText(s.kind !== 'empty' && s.hero === 'ash' ? pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon)).length + '/8' : abilityHero ? (HEROES[abilityHero]?.name ?? 'SET') : 'PICK')
+        .setTint(s.hero === 'ash' || abilityHero ? 0xffdc69 : 0x5a5668);
       if (sel) {
         g.lineStyle(1, blink ? 0xffffff : 0xf8c840, 1).strokeRect(SLOT_COL_X[this.col] - 3.5, y + 2.5, SLOT_COL_W[this.col], 14);
       }

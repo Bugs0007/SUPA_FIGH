@@ -139,7 +139,7 @@ export class FighterView {
     this.curTex = tex;
     this.look = look;
     this.formTex = [];
-    for (let l = 1; l <= formCount(fighter.hero); l++) this.formTex.push(Art.fighter(scene, formLook(fighter.hero, l)!));
+    for (let l = 1; l <= formCount(fighter.skinHero ?? fighter.hero); l++) this.formTex.push(Art.fighter(scene, formLook(fighter.skinHero ?? fighter.hero, l)!));
     this.color = color;
     this.root = scene.add.container(fighter.x, fighter.y);
     this.rig = scene.add.container(0, -RIG_Y);
@@ -167,7 +167,7 @@ export class FighterView {
     this.lastHp = fighter.hp;
     this.hpTrail = fighter.hp;
     this.lastFacing = fighter.facing;
-    const sd = EXTERNAL_SHEETS[fighter.hero];
+    const sd = EXTERNAL_SHEETS[fighter.skinHero ?? fighter.hero];
     if (sd && scene.textures.exists(sd.key)) {
       const img = scene.add.image(0, 0, sd.key, 0).setOrigin(sd.originX / sd.frameW, sd.originY / sd.frameH);
       this.root.add(img);
@@ -208,7 +208,7 @@ export class FighterView {
 
   /** look of a form level (0 = base) */
   lookFor(level: number): Appearance {
-    return level > 0 ? (formLook(this.fighter.hero, level) ?? this.look) : this.look;
+    return level > 0 ? (formLook(this.fighter.skinHero ?? this.fighter.hero, level) ?? this.look) : this.look;
   }
 
   /** World position of the modular front hand, including the current pose's lean and squash. */

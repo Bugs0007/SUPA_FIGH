@@ -278,6 +278,8 @@ export interface Fighter extends Body {
   ghostCd: number;
   // hero (M9): '' = scrapyard fighter. Transformation state: see sim/hero.ts
   hero: string;
+  /** Character art to show. Empty keeps the custom Brawlkai fighter body. */
+  skinHero: string;
   /** power state: '' | 'hero' (transformed, see powerLevel) | 'boost' (generic boost from a power orb) */
   power: string;
   /** hero form level 1..N while power === 'hero' (D58) */
@@ -364,6 +366,8 @@ export interface FighterSpawn {
   upJumps: boolean;
   /** hero id (data/heroes.ts), '' or undefined = scrapyard fighter */
   hero?: string;
+  /** A Brawlkai fighter can retain its custom body while borrowing a hero move set. */
+  abilityHero?: string;
   /** power-up form the hero starts every life in (0 = base, capped at the hero's top form); ignored for non-heroes and clones */
   startForm?: number;
   /** shadow clone slot (added by the World): fighter id of the master */
@@ -374,7 +378,7 @@ export interface FighterSpawn {
 }
 
 export function createFighter(id: number, spec: FighterSpawn, x: number, y: number): Fighter {
-  const hero = heroDef(spec.hero);
+  const hero = heroDef(spec.hero ?? spec.abilityHero);
   const trainer = spec.hero === 'ash' ? createTrainer(pokemonSpecies(spec.pokemon), spec.startForm, spec.pokemonTeam) : undefined;
   const hp = trainer ? TRAINER_HP : hero?.stats.hp ?? MAX_HP;
   const startLevel = hero && hero.id !== 'ash' && spec.master === undefined ? Math.max(0, Math.min(maxLevel(hero.id), Math.floor(spec.startForm ?? 0))) : 0;
@@ -482,6 +486,7 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     gvy: 0,
     ghostCd: 0,
     hero: hero ? hero.id : '',
+    skinHero: spec.hero ? hero?.id ?? '' : '',
     // a hero can start a round already transformed (Match Setup "START FORM"): same state an orb would give
     power: startLevel > 0 ? 'hero' : '',
     powerLevel: startLevel,

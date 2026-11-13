@@ -46,7 +46,7 @@ export const FIGHTER_SPEC: Spec<Fighter> = [
 ];
 
 /** Fighter fields both sides already have (they come from the spec the match was built with). */
-export const FIGHTER_STATIC: readonly string[] = ['id', 'name', 'team', 'isBot', 'hero', 'master', 'upJumps', 'px', 'py'];
+export const FIGHTER_STATIC: readonly string[] = ['id', 'name', 'team', 'isBot', 'hero', 'skinHero', 'master', 'upJumps', 'px', 'py'];
 
 export const BULLET_SPEC: Spec<Bullet> = [
   ['x', 'n'], ['y', 'n'], ['vx', 'n'], ['vy', 'n'], ['ox', 'n'], ['oy', 'n'], ['owner', 'n'], ['weapon', 's'], ['kind', 's'],

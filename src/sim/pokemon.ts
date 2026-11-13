@@ -45,8 +45,13 @@ function selectMember(t: TrainerState, member: TrainerPartner): void {
 
 function tickTeam(t: TrainerState): void {
   saveSelected(t);
-  for (const member of trainerTeam(t)) {
-    member.cooldown = Math.max(0, member.cooldown - DT);
+  const team = trainerTeam(t);
+  // A reserve is a real second chance, not a background respawn timer.  A knocked
+  // out partner stays in its ball while any other teammate can still fight; only
+  // after Ash has exhausted the whole team do their balls regenerate together.
+  const teamWiped = team.length > 0 && team.every(member => member.cooldown > 0);
+  for (const member of team) {
+    if (teamWiped) member.cooldown = Math.max(0, member.cooldown - DT);
     member.shotCd = Math.max(0, member.shotCd - DT);
     member.dashCd = Math.max(0, member.dashCd - DT);
     member.ultimateCd = Math.max(0, member.ultimateCd - DT);

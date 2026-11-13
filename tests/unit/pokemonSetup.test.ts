@@ -4,10 +4,21 @@ import { applyWorld, encodeWorld } from '../../src/net/renderState';
 import { defaultLobby, lobbyToMatch } from '../../src/scenes/lobby';
 import { decodeLobby, encodeLobby } from '../../src/scenes/shareLink';
 import { POKEMON_PARTNERS, pokemonTeam } from '../../src/sim/data/pokemon';
+import { createFighter } from '../../src/sim/fighter';
 import { World } from '../../src/sim/world';
 import { FLAT, spec } from './helpers';
 
 describe('Pokémon match setup', () => {
+  it('lets the default Brawlkai body use a selected hero move set', () => {
+    const lobby = defaultLobby();
+    Object.assign(lobby.slots[0], { hero: '', abilityHero: 'sasuke' });
+    const spawn = lobbyToMatch(lobby, 5).players[0].spawn;
+    expect(spawn).toMatchObject({ hero: undefined, abilityHero: 'sasuke' });
+    const fighter = createFighter(0, spawn, 40, 40);
+    expect(fighter.hero).toBe('sasuke');
+    expect(fighter.skinHero).toBe('');
+  });
+
   it('keeps one default partner until reserves are explicitly chosen', () => {
     expect(pokemonTeam(undefined)).toEqual(['charmander']);
     expect(pokemonTeam(undefined, 'froakie')).toEqual(['froakie']);
@@ -31,6 +42,13 @@ describe('Pokémon match setup', () => {
     const decoded = decodeLobby(encodeLobby(lobby))!;
     expect(decoded.slots[2]).toMatchObject({ hero: 'ash', pokemon: 'squirtle', pokemonTeam: ['squirtle', 'gible', 'riolu'], form: 3 });
     expect(lobbyToMatch(decoded, 7).players[2].spawn.pokemonTeam).toEqual(['squirtle', 'gible', 'riolu']);
+  });
+
+  it('preserves a Brawlkai ability loadout in a shared setup link', () => {
+    const lobby = defaultLobby();
+    Object.assign(lobby.slots[0], { hero: '', abilityHero: 'zoro', form: 2 });
+    const decoded = decodeLobby(encodeLobby(lobby))!;
+    expect(decoded.slots[0]).toMatchObject({ hero: '', abilityHero: 'zoro', form: 2 });
   });
 
   it('validates untrusted online loadouts without adding invalid species or duplicates', () => {

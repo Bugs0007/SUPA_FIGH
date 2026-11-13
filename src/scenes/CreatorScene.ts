@@ -175,6 +175,7 @@ export class CreatorScene extends Phaser.Scene {
     const c = loadLobby();
     c.slots[this.slot].look = this.look;
     c.slots[this.slot].hero = this.hero;
+    if (this.hero) c.slots[this.slot].abilityHero = undefined;
     c.slots[this.slot].pokemon = this.pokemon;
     if (this.hero === 'ash' && c.slots[this.slot].pokemonTeam) c.slots[this.slot].pokemonTeam = pokemonTeam(c.slots[this.slot].pokemonTeam!.length > 1 ? c.slots[this.slot].pokemonTeam : [], this.pokemon);
     saveLobby(c);
