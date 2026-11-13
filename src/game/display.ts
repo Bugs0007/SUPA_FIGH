@@ -29,7 +29,5 @@ export function fitFactor(): number {
  * let CSS shrink the canvas to fill the screen (see main.ts).
  */
 export function computeScale(): number {
-  if (isTouchDevice()) return Math.max(1, Math.min(3, Math.ceil(fitFactor())));
-  const k = Math.floor(fitFactor());
-  return Math.max(1, k);
+  return Math.max(1, Math.min(isTouchDevice() ? 3 : 6, Math.ceil(fitFactor())));
 }

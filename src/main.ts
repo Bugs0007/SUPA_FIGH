@@ -31,9 +31,9 @@ const fit = () => {
   document.documentElement.style.setProperty('--fit', String(fitFactor()));
   document.documentElement.style.setProperty('--vh', `${window.innerHeight}px`);
 };
+fit(); // every device: the canvas fills the window (aspect kept), see index.html
 if (touch) {
   document.documentElement.classList.add('touch');
-  fit();
   touchUI.attach();
 }
 
@@ -127,7 +127,7 @@ if (touch) {
 }
 
 window.addEventListener('resize', () => {
-  if (touch) fit();
+  fit();
   const nk = computeScale();
   if (nk === k) return;
   k = nk;
