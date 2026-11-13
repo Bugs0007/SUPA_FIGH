@@ -47,7 +47,7 @@ describe('Pokémon mount classes', () => {
       const form = pokemonStage(species, stage);
       it(`${form.name} uses its size and flight capability when mounting`, () => {
         const { trainer, mount } = summonAndMount(species, stage);
-        const fits = form.name !== 'RAICHU';
+        const fits = ['charmander', 'squirtle', 'bulbasaur', 'gible'].includes(species);
         expect(form.rideable).toBe(fits);
         expect(trainer.mounted).toBe(fits);
         expect(mount.pokemon?.mounted).toBe(fits);

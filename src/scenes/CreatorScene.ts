@@ -6,7 +6,7 @@ import { armFrame, BF, FRAME_META, type FighterTextures } from '../art/fighterAr
 import { formCount, formFx, formLook, HERO_ART } from '../art/heroArt';
 import { drawTails } from '../render/HeroFx';
 import { HEROES, HERO_ORDER } from '../sim/data/heroes';
-import { pokemonSpecies, type PokemonSpecies } from '../sim/data/pokemon';
+import { pokemonSpecies, pokemonTeam, type PokemonSpecies } from '../sim/data/pokemon';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
 import { keyboard } from '../input/keyboard';
@@ -176,6 +176,7 @@ export class CreatorScene extends Phaser.Scene {
     c.slots[this.slot].look = this.look;
     c.slots[this.slot].hero = this.hero;
     c.slots[this.slot].pokemon = this.pokemon;
+    if (this.hero === 'ash' && c.slots[this.slot].pokemonTeam) c.slots[this.slot].pokemonTeam = pokemonTeam(c.slots[this.slot].pokemonTeam!.length > 1 ? c.slots[this.slot].pokemonTeam : [], this.pokemon);
     saveLobby(c);
     syncSlotToProfile(c.slots[this.slot]);
   }

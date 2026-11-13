@@ -5,14 +5,15 @@ import { hexToNum, P } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { deviceId, isSecureContextish, onlineServerUrl, predictionEnabled, rememberServer, serverUrl } from '../game/netStore';
 import { isTouchDevice, VIEW_H, VIEW_W } from '../game/display';
-import { profiles } from '../game/profiles';
+import { profiles, saveProfiles } from '../game/profiles';
 import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { NetClient } from '../net/client';
 import { ARENA_CODE, MAX_FIGHTERS, MODES, type BotSpec, type RoomConfig, type RoomInfo, type ServerMsg, type SlotClaim } from '../net/protocol';
 import { RemoteSim } from '../net/remoteSim';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
-import type { PokemonSpecies } from '../sim/data/pokemon';
+import { pokemonTeam, type PokemonSpecies } from '../sim/data/pokemon';
+import { PokemonTeamPicker } from './PokemonTeamPicker';
 import { openFighterPicker } from './FightersScene';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { MODE_NAMES } from '../sim/match';
@@ -28,7 +29,7 @@ export interface NetLobbyData {
 }
 
 type Phase = 'connecting' | 'error' | 'rooms' | 'room';
-type RowId = 'map' | 'mode' | 'length' | 'bots' | 'skill' | 'botHeroes' | 'ff' | 'weapons' | 'chaos' | 'powers' | 'fall' | 'p1' | 'f1' | 'p2' | 'f2' | 'ready' | 'start' | 'leave';
+type RowId = 'map' | 'mode' | 'length' | 'bots' | 'skill' | 'botHeroes' | 'ff' | 'weapons' | 'chaos' | 'powers' | 'fall' | 'p1' | 'f1' | 't1' | 'p2' | 'f2' | 't2' | 'ready' | 'start' | 'leave';
 
 const SETTING_ROWS: RowId[] = ['map', 'mode', 'length', 'bots', 'skill', 'botHeroes', 'ff', 'weapons', 'chaos', 'powers', 'fall'];
 const ROW_LABELS: Record<RowId, string> = {
@@ -45,8 +46,10 @@ const ROW_LABELS: Record<RowId, string> = {
   fall: 'FALL DEATH',
   p1: 'PLAYER 1',
   f1: 'FIGHTER 1',
+  t1: 'POKEMON TEAM 1',
   p2: 'PLAYER 2',
   f2: 'FIGHTER 2',
+  t2: 'POKEMON TEAM 2',
   ready: 'READY',
   start: 'START MATCH',
   leave: 'LEAVE ROOM',
@@ -56,7 +59,7 @@ const TIMES = [60, 120, 180, 300];
 /** online play: a sleeping server is tried this many times, this far apart (ms) */
 const WAKE_TRIES = 6;
 const WAKE_GAP_MS = 5000;
-const ROW_H = 14;
+const ROW_H = 13;
 const PANEL_Y = 36;
 
 const cycle = <T,>(list: readonly T[], cur: T, d: number): T => list[(list.indexOf(cur) + d + list.length) % list.length];
@@ -92,6 +95,8 @@ export class NetLobbyScene extends Phaser.Scene {
   private roomIdx = 0;
   private hero: [string, string] = ['', ''];
   private pokemon: [PokemonSpecies?, PokemonSpecies?] = [];
+  private teams: [PokemonSpecies[], PokemonSpecies[]] = [[], []];
+  private teamPicker: PokemonTeamPicker | null = null;
   private autoClaimed = false;
   private leaving = false;
   private flashText = '';
@@ -126,6 +131,8 @@ export class NetLobbyScene extends Phaser.Scene {
     this.roomIdx = 0;
     this.hero = [profiles[0].hero, profiles[1].hero];
     this.pokemon = [profiles[0].pokemon, profiles[1].pokemon];
+    this.teams = [pokemonTeam(profiles[0].pokemonTeam, profiles[0].pokemon), pokemonTeam(profiles[1].pokemonTeam, profiles[1].pokemon)];
+    this.teamPicker = null;
     this.autoClaimed = false;
     this.leaving = false;
     this.connecting = false;
@@ -143,7 +150,7 @@ export class NetLobbyScene extends Phaser.Scene {
     this.sub = this.add.bitmapText(VIEW_W / 2, 26, 'smo', '').setOrigin(0.5, 0).setTint(0x8d95b0);
     this.status = this.add.bitmapText(VIEW_W / 2, VIEW_H - 30, 'smo', '').setOrigin(0.5, 0).setTint(0xf8c840);
     for (let i = 0; i < 12; i++) this.lines.push(this.add.bitmapText(VIEW_W / 2, 70 + i * 14, 'smo', '').setOrigin(0.5, 0));
-    for (let i = 0; i < 18; i++) {
+    for (let i = 0; i < 22; i++) {
       this.labels.push(this.add.bitmapText(326, PANEL_Y + 18 + i * ROW_H, 'sm', ''));
       this.values.push(this.add.bitmapText(626, PANEL_Y + 17 + i * ROW_H, 'smo', '').setOrigin(1, 0));
     }
@@ -300,14 +307,17 @@ export class NetLobbyScene extends Phaser.Scene {
 
   private claimFor(n: 0 | 1): SlotClaim {
     const p = profiles[n];
-    return { name: p.name, hero: this.hero[n], pokemon: this.hero[n] === 'ash' ? this.pokemon[n] : undefined, upJumps: true, look: lookToWire(p.look) };
+    return { name: p.name, hero: this.hero[n], pokemon: this.hero[n] === 'ash' ? this.pokemon[n] : undefined,
+      pokemonTeam: this.hero[n] === 'ash' ? pokemonTeam(this.teams[n], this.pokemon[n]) : undefined,
+      upJumps: true, look: lookToWire(p.look) };
   }
 
   /** Focusable rows: settings for the host, then this device's players, then READY / START and LEAVE. */
   private rows(): RowId[] {
     // the arena: one player per device, nobody changes the rules, no READY / START (the clock starts the match)
-    if (this.isArena) return ['f1', 'leave'];
-    const players: RowId[] = isTouchDevice() ? ['p1', 'f1'] : ['p1', 'f1', 'p2', 'f2'];
+    if (this.isArena) return ['f1', ...(this.hero[0] === 'ash' ? ['t1' as const] : []), 'leave'];
+    const players: RowId[] = ['p1', 'f1', ...(this.hero[0] === 'ash' ? ['t1' as const] : []),
+      ...(isTouchDevice() ? [] : ['p2' as const, 'f2' as const, ...(this.hero[1] === 'ash' ? ['t2' as const] : [])])];
     return [...(this.isHost ? SETTING_ROWS : []), ...players, this.isHost ? 'start' : 'ready', 'leave'];
   }
 
@@ -396,6 +406,7 @@ export class NetLobbyScene extends Phaser.Scene {
   // ------------------------------------------------------------ input
 
   override update(): void {
+    if (this.teamPicker) { this.teamPicker.update(); return; }
     this.handleInput();
     this.render();
   }
@@ -423,11 +434,12 @@ export class NetLobbyScene extends Phaser.Scene {
     if (menu.left()) this.change(id, -1);
     else if (menu.right()) this.change(id, 1);
     else if (menu.confirm()) {
-      if (id === 'f1' || id === 'f2') {
+      if (id === 't1' || id === 't2') this.openTeam(id === 't1' ? 0 : 1);
+      else if (id === 'f1' || id === 'f2') {
         const n = id === 'f1' ? 0 : 1;
         openFighterPicker(this, this.hero[n], (hero, pokemon) => {
           this.hero[n] = hero;
-          if (pokemon) this.pokemon[n] = pokemon;
+          if (pokemon) { this.pokemon[n] = pokemon; this.teams[n] = pokemonTeam(this.teams[n].length > 1 ? this.teams[n] : [], pokemon); }
           if (this.claimed(n)) this.client.send({ t: 'claim', local: n, claim: this.claimFor(n) });
         }, this.pokemon[n]);
       } else this.change(id, 1);
@@ -453,6 +465,18 @@ export class NetLobbyScene extends Phaser.Scene {
       if (target) this.client.send({ t: 'join', room: target });
       else this.flash('NO ROOMS YET - ASK THE HOST FOR THE CODE');
     } else if (menu.back()) this.leave();
+  }
+
+  private openTeam(n: 0 | 1): void {
+    if (this.hero[n] !== 'ash') return;
+    this.teamPicker = new PokemonTeamPicker(this, this.teams[n], this.pokemon[n], (team, first) => {
+      this.teams[n] = team;
+      this.pokemon[n] = first;
+      profiles[n].pokemon = first;
+      profiles[n].pokemonTeam = team.slice();
+      saveProfiles();
+      if (this.claimed(n)) this.client.send({ t: 'claim', local: n, claim: this.claimFor(n) });
+    }, () => { this.teamPicker = null; this.clampRow(); });
   }
 
   // ------------------------------------------------------------ drawing
@@ -571,6 +595,9 @@ export class NetLobbyScene extends Phaser.Scene {
         return clip(HEROES[this.hero[0]]?.name ?? 'SCRAPPER', 10);
       case 'f2':
         return clip(HEROES[this.hero[1]]?.name ?? 'SCRAPPER', 10);
+      case 't1':
+      case 't2':
+        return this.teams[row === 't1' ? 0 : 1].length + ' / 8  [EDIT]';
       case 'ready':
         return this.me()?.ready ? 'YES' : 'NO';
       default:
@@ -632,7 +659,7 @@ export class NetLobbyScene extends Phaser.Scene {
     this.sub.setText(`${net}   ${humans} PLAYER${humans === 1 ? '' : 'S'} ONLINE`);
     this.drawFighters(g, room);
     panel(g, 318, PANEL_Y, 314, 292, hexToNum(P.purple1));
-    this.drawRows(g, ['mode', 'map', 'length', 'f1', 'leave']);
+    this.drawRows(g, ['mode', 'map', 'length', 'f1', ...(this.hero[0] === 'ash' ? ['t1' as const] : []), 'leave']);
     this.status.setTint(0xf8c840);
     if (this.time.now >= this.flashUntil) {
       this.status.setText(
@@ -659,7 +686,9 @@ export class NetLobbyScene extends Phaser.Scene {
 
     // settings + this device (right)
     panel(g, 318, PANEL_Y, 314, 292, hexToNum(P.purple1), this.isHost);
-    this.drawRows(g, [...SETTING_ROWS, 'p1', 'f1', ...(isTouchDevice() ? [] : (['p2', 'f2'] as RowId[])), this.isHost ? 'start' : 'ready', 'leave']);
+    this.drawRows(g, [...SETTING_ROWS, 'p1', 'f1', ...(this.hero[0] === 'ash' ? ['t1' as const] : []),
+      ...(isTouchDevice() ? [] : ['p2' as const, 'f2' as const, ...(this.hero[1] === 'ash' ? ['t2' as const] : [])]),
+      this.isHost ? 'start' : 'ready', 'leave']);
 
     const ready = room.peers.filter((p) => p.connected && p.claims.some(Boolean)).length;
     const waiting = room.peers.filter((p) => p.connected && p.claims.some(Boolean) && p.device !== room.host && !p.ready).length;

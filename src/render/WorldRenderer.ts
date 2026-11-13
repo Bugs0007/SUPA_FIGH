@@ -24,6 +24,7 @@ import { ValleyFx } from './ValleyFx';
 import { AshArt, pokemonArtHeight } from './AshArt';
 import { trainerProtected } from '../sim/pokemon';
 import { POKEMON_TIMING } from '../sim/data/pokemon';
+import type { SimEvent } from '../sim/events';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
@@ -165,6 +166,10 @@ export class WorldRenderer {
       .setTint(color)
       .setDepth(75);
     this.floats.push({ obj, life: big ? 1.1 : 0.7, vy: big ? -30 : -45 });
+  }
+
+  pokemonHit(event: Extract<SimEvent, { t: 'hit' }>): void {
+    this.ashArt?.hit(event, this.world.fighters, this.world.bullets);
   }
 
   sync(alpha: number, dt: number, time: number): void {

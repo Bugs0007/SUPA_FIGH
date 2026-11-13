@@ -6,6 +6,7 @@ import { sanitizeClaim } from '../../src/net/protocol';
 import {
   applyMatch,
   applyWorld,
+  BULLET_SPEC,
   encodeMatch,
   encodeWorld,
   FIGHTER_SPEC,
@@ -50,7 +51,7 @@ describe('render state (D71)', () => {
     applyWorld(mirror.world, frame);
     expect(mirror.world.fighters[0].flyTime).toBe(0.5);
     expect(mirror.world.bullets[0]).toMatchObject({ form: 4, tier: 2 });
-    frame.bullets[0].splice(-2);
+    frame.bullets[0].splice(BULLET_SPEC.findIndex(([key]) => key === 'form'));
     if (frame.fighters[0] !== 0) frame.fighters[0].splice(FIGHTER_SPEC.findIndex(([key]) => key === 'flyTime'));
     applyWorld(mirror.world, frame);
     expect(mirror.world.fighters[0].flyTime).toBe(0);

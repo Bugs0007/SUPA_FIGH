@@ -6,6 +6,9 @@ import { pokemonFrame, type PokemonFlight, type PokemonPose } from '../art/pokem
 import { pokemonEvolutionTime, pokemonStage, POKEMON_TIMING, type PokemonSpecies, type PokemonState } from '../sim/data/pokemon';
 import type { Fighter } from '../sim/fighter';
 import type { Bullet } from '../sim/projectile';
+import type { SimEvent } from '../sim/events';
+import { pokemonAttack, pokemonMelee } from '../sim/data/pokemonAttacks';
+import { drawPokemonAttack, drawPokemonImpact, drawPokemonProjectile, type PokemonImpact } from './PokemonAttackArt';
 
 type Graphics = Phaser.GameObjects.Graphics;
 type Colors = readonly [shadow: number, bright: number, core: number];
@@ -705,11 +708,31 @@ export class AshArt {
   readonly heldTargets = new Map<number, Pt>();
   private readonly motion = new Map<number, BodyMotion>();
   private lastTime = 0;
+  private readonly impacts: { effect: PokemonImpact; age: number }[] = [];
 
   constructor(scene: Phaser.Scene) {
     this.sprites = scene.add.graphics().setDepth(41);
     this.passengers = scene.add.graphics().setDepth(39);
     this.effects = scene.add.graphics().setDepth(56);
+  }
+
+  hit(event: Extract<SimEvent, { t: 'hit' }>, fighters: readonly Fighter[], bullets: readonly Bullet[]): void {
+    if (!event.weapon.startsWith('ash:') || event.corpse || event.kind === 'fire' || event.kind === 'drain') return;
+    const attacker = fighters[event.attacker];
+    const partner = attacker?.pokemon ? attacker : fighters[attacker?.trainer?.active ?? -1];
+    const projectile = event.kind === 'bullet' || event.kind === 'explosion'
+      ? bullets.filter(b => b.pokemon && b.weapon === event.weapon && b.owner === event.attacker)
+        .sort((a, b) => Math.hypot(a.x - event.x, a.y - event.y) - Math.hypot(b.x - event.x, b.y - event.y))[0] : undefined;
+    const species = projectile?.pokemon || partner?.pokemon?.species || attacker?.trainer?.species;
+    if (!species) return;
+    this.impacts.push({ age: 0, effect: {
+      x: event.x, y: event.y, facing: event.dirX >= 0 ? 1 : -1, species,
+      stage: projectile?.form ?? partner?.pokemon?.stage ?? attacker?.trainer?.stage ?? 0,
+      mode: projectile ? projectile.tier === 2 ? 'ultimate' : 'shot'
+        : partner?.pokemon?.move === 'ultimate' ? 'ultimate' : event.kind === 'bullet' ? 'shot' : 'melee',
+      combo: partner?.combo ?? 0,
+    } });
+    if (this.impacts.length > 48) this.impacts.shift();
   }
 
   sync(fighters: readonly Fighter[], bullets: readonly Bullet[], alpha: number, time: number): void {
@@ -774,31 +797,40 @@ export class AshArt {
       motion.pitch = mix(motion.pitch, tilt, 1 - Math.exp(-delta * 11));
       this.motion.set(f.id, motion);
       const guarding = (p.move === 'guard' || p.mounted) && f.state === 'block';
-      const strike = p.move === 'punch' || p.move === 'kick' ? p.move : null;
+      const strike = p.move === 'kick' || p.move === 'punch' && f.combo === 2 ? 'kick'
+        : p.move === 'punch' && f.combo === 1 ? 'backhand' : p.move === 'punch' ? 'punch' : null;
       const target = fighters[p.target];
+      const melee = pokemonMelee(p.species, p.stage, p.move === 'kick' || f.combo === 2);
       const windingUp = strike && !p.fired && target?.alive
-        && Math.abs(target.x - f.x) < (f.w + target.w) / 2 + 12 && Math.abs(target.y - f.y) < f.h;
+        && Math.abs(target.x - f.x) < (f.w + target.w) / 2 + melee.reach + 3 && Math.abs(target.y - f.y) < f.h;
       const movement: PokemonPose = motion.takeoff > 0 ? 'takeoff' : motion.landing > 0 && speed < 112 ? 'land'
         : !f.grounded && !flight ? 'air' : !flight && speed > 112 ? 'run' : !flight && speed > 9 ? 'walk' : 'idle';
       const seismicToss = p.species === 'charmander' && p.stage === 2 && p.move === 'ultimate';
       const hurting = (f.state === 'flinch' || f.state === 'knockdown');
       const pose: PokemonPose = p.move === 'ko' ? 'faint' : hurting ? 'hurt' : p.perched ? 'cling'
-        : guarding ? 'guard' : seismicToss ? p.fired ? 'toss' : 'grab' : strike && p.fired ? strike
+        : guarding ? 'guard' : seismicToss ? p.fired ? 'toss' : 'grab' : strike && p.fired ? melee.hits > 1
+          ? p.shots === 1 ? 'punch' : p.shots === 2 ? 'backhand' : 'kick' : strike
         : windingUp ? 'windup' : p.move === 'dash' ? 'dash' : p.move === 'shot' || p.move === 'ultimate' ? 'cast'
         : movement;
       const flightPhase = Math.floor(motion.wings * 8);
       let phase = flight ? flightPhase : pose === 'run' || pose === 'walk' || pose === 'dash' ? Math.floor(motion.steps * 8) : Math.floor(time * 10);
-      if (pose === 'punch' || pose === 'kick') phase = Math.min(7, Math.floor(p.age * 42));
+      if (pose === 'punch' || pose === 'backhand' || pose === 'kick') {
+        const duration = p.shots < melee.hits ? melee.interval : melee.recovery;
+        const elapsed = Math.max(0, p.age - Math.max(0, p.shots - 1) * melee.interval);
+        phase = Math.min(7, Math.floor(elapsed / duration * 8));
+      }
       else if (pose === 'hurt') phase = Math.min(7, Math.floor(f.stateTime / Math.max(0.2, f.flinchTime) * 8));
       else if (pose === 'faint') phase = Math.min(7, Math.floor(p.age / 0.3 * 8));
       else if (pose === 'takeoff') phase = Math.min(7, Math.floor((1 - motion.takeoff / 0.25) * 8));
       else if (pose === 'land') phase = Math.min(7, Math.floor((1 - motion.landing / 0.24) * 8));
-      else if (pose === 'windup') phase = Math.min(7, Math.floor(p.age * 70));
+      else if (pose === 'windup') phase = Math.min(7, Math.floor(p.shots / 60 / melee.windup * 8));
       else if (pose === 'grab') phase = Math.min(7, Math.floor(p.age / POKEMON_TIMING.ultimateHit * 8));
       else if (pose === 'toss') phase = Math.min(7, Math.floor((p.age - POKEMON_TIMING.ultimateHit) / 0.25 * 8));
       else if (pose === 'cast') {
-        const fireAt = p.move === 'ultimate' ? POKEMON_TIMING.ultimateHit : POKEMON_TIMING.shotFire;
-        phase = p.age < fireAt ? (p.age < fireAt * 0.55 ? 0 : 1) : Math.min(7, 2 + Math.floor((p.age - fireAt) * 32));
+        const attack = pokemonAttack(p.species, p.stage, p.move === 'ultimate' ? 'ultimate' : 'shot');
+        phase = p.age < attack.windup ? (p.age < attack.windup * 0.55 ? 0 : 1)
+          : p.age < attack.windup + attack.active ? 2 + Math.floor((p.age - attack.windup) * 16) % 2
+          : Math.min(7, 4 + Math.floor((p.age - attack.windup - attack.active) / attack.recovery * 4));
       }
       let rank = p.stage;
       let white = 0;
@@ -835,27 +867,27 @@ export class AshArt {
         if (f.state === 'flinch' && f.stateTime < 0.075) white = 0.55;
       }
       const frame = pokemonFrame(p.species, rank, pose, phase, flight, flightPhase, flightStyle, motion.glide);
-      const fireAt = p.move === 'ultimate' && !(p.species === 'charmander' && rank === 2) ? POKEMON_TIMING.ultimateHit
-        : p.move === 'shot' ? POKEMON_TIMING.shotFire : undefined;
-      const breath = frame.fire?.muzzle && fireAt !== undefined && p.age >= fireAt ? unit(1 - (p.age - fireAt) / 0.19) : 0;
+      const attack = p.move === 'shot' || p.move === 'ultimate' && !seismicToss
+        ? pokemonAttack(p.species, p.stage, p.move === 'ultimate' ? 'ultimate' : 'shot') : undefined;
+      const fireAt = attack?.windup;
+      const breath = frame.fire?.muzzle && attack && p.age >= attack.windup && p.age <= attack.windup + attack.active ? 1 : 0;
       const anchors = placePartner(p.perched ? this.passengers : this.sprites, frame, f, x, y, motion, mounted, white, opacity, time, breath);
-      if (showAction) action(this.effects, f, p, x, y, palette, anchors.muzzle);
+      if (showAction && !drawPokemonAttack(this.effects, f, p, x, y, anchors.muzzle, time, target)) action(this.effects, f, p, x, y, palette, anchors.muzzle);
       if (anchors.muzzle && fireAt !== undefined && p.age >= fireAt) this.muzzles.set(f.master, anchors.muzzle);
       if (p.holding && anchors.grip) this.heldTargets.set(f.grabTarget, anchors.grip);
-      if (anchors.muzzle && fireAt !== undefined && p.age < fireAt) {
-        const charge = unit(p.age / fireAt);
-        const [mx, my] = anchors.muzzle;
-        const radius = p.stage === 0 ? 1 + charge * 1.5 : 2 + charge * (p.move === 'ultimate' ? 7 : 3);
-        this.effects.lineStyle(1, palette[1], charge * (p.stage === 0 ? 0.35 : 0.7)).strokeCircle(mx, my, radius);
-        dot(this.effects, mx, my, palette[2], charge * 0.95, 1 + Math.floor(charge * 3));
-        sparks(this.effects, mx, my, 1 - charge, radius + 4, palette, 5);
-      }
     }
     for (const b of bullets) {
       if (!b.active || !b.weapon.startsWith('ash:')) continue;
       const owner = fighters[b.owner];
+      if (drawPokemonProjectile(this.effects, b, mix(b.px, b.x, alpha), mix(b.py, b.y, alpha), time)) continue;
       projectile(this.effects, b, mix(b.px, b.x, alpha), mix(b.py, b.y, alpha),
-        owner?.trainer?.species ?? owner?.pokemon?.species, time, this.muzzles.get(b.owner));
+        b.pokemon || owner?.trainer?.species || owner?.pokemon?.species, time, this.muzzles.get(b.owner));
+    }
+    for (let i = this.impacts.length - 1; i >= 0; i--) {
+      const impact = this.impacts[i];
+      impact.age += delta;
+      if (impact.age > (impact.effect.mode === 'ultimate' ? 0.44 : 0.3)) this.impacts.splice(i, 1);
+      else drawPokemonImpact(this.effects, impact.effect, impact.age);
     }
   }
 

@@ -137,6 +137,13 @@ function stance(pose: StarterPose, frame: number, rank: 0 | 1): Stance {
         nearHand: [2 + 5 * ease, 2 - 3 * ease], farHand: [4 - 3 * ease, 2 - ease],
         tail: 2 * ease, jaw: ease, claws: true,
       };
+    case 'backhand':
+      return {
+        ...idle, hip: [-ease, 0], chest: [2 * ease, -ease], head: [2 * ease, -ease],
+        nearFoot: [-4, 0], farFoot: [3 + ease, 0],
+        nearHand: [2 - 5 * ease, 2 - 2 * ease], farHand: [4 + 6 * ease, 2 - 4 * ease],
+        tail: -4 * ease, jaw: ease * 0.6, claws: true,
+      };
     case 'kick':
       return {
         ...idle, hip: [-ease, -ease], chest: [-2 * ease, -ease], head: [ease, 0],
@@ -145,12 +152,12 @@ function stance(pose: StarterPose, frame: number, rank: 0 | 1): Stance {
         tail: 3 * ease, jaw: ease, claws: true,
       };
     case 'cast': {
-      const breath = [0, 0.55, 1, 1, 0.8, 0.55, 0.25, 0][frame];
-      const brace = [1, 1, -1, -1, -0.5, 0, 0, 0][frame];
+      const breath = [0.1, 0.3, 1, 1, 0.75, 0.4, 0.12, 0][frame];
+      const brace = [-1, -2, 2, 1.5, -1, -0.6, -0.2, 0][frame];
       return {
-        ...idle, hip: [-1, 1], chest: [-2 * brace, 1 + breath], head: [2 * breath, -brace],
-        nearFoot: [-4, 0], farFoot: [3, 0], nearHand: [2 - 5 * breath, 2 - breath],
-        farHand: [4 - 5 * breath, 2], tail: -2 + breath, jaw: breath, claws: true,
+        ...idle, hip: [-breath, breath], chest: [brace, breath], head: [brace * 0.7, -breath],
+        nearFoot: [-4, 0], farFoot: [3, 0], nearHand: [2 - 4 * breath, 2 - breath],
+        farHand: [4 - 3 * breath, 2], tail: -2 * breath, jaw: breath, claws: true,
       };
     }
     case 'dash':

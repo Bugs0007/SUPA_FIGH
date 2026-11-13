@@ -12,7 +12,7 @@ import { bakeSharkRig } from './sharkRig';
 import { scalePokemonFrame, type ReferenceFrame } from './pokemonSpriteMotion';
 
 export type PokemonPose = 'idle' | 'walk' | 'run' | 'cast' | 'dash' | 'guard' | 'punch' | 'kick' | 'windup'
-  | 'air' | 'land' | 'takeoff' | 'grab' | 'toss' | 'hurt' | 'faint' | 'cling';
+  | 'air' | 'land' | 'takeoff' | 'grab' | 'toss' | 'hurt' | 'faint' | 'cling' | 'backhand';
 export type PokemonFlight = 'none' | 'hover' | 'cruise' | 'sprint';
 export const POKEMON_ORIGIN_X = 53;
 export const POKEMON_ORIGIN_Y = 65;

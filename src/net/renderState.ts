@@ -9,15 +9,16 @@ import { createProp, type Prop } from '../sim/prop';
 import type { FirePatch } from '../sim/fire';
 import type { Match } from '../sim/match';
 import { newBullet, type Bullet } from '../sim/projectile';
+import { POKEMON_PARTNERS, trainerTeam, type PokemonSpecies } from '../sim/data/pokemon';
 import { clonePlain, type Rect } from '../sim/snapshot';
 import type { World } from '../sim/world';
 import type { PropType } from '../sim/data/props';
 
 // ------------------------------------------------------------------ field tables
 
-/** n = number (2 decimals), b = boolean (0 / 1), s = string, i = inventory, o = optional flat state */
+/** n = number (2 decimals), b = boolean (0 / 1), s = string, i = inventory, o = optional state */
 type Kind = 'n' | 'b' | 's' | 'i' | 'o';
-type FlatState = Record<string, number | string | boolean>;
+type FlatState = Record<string, unknown>;
 type Cell = number | string | Cell[] | FlatState;
 type Spec<T> = readonly (readonly [keyof T & string, Kind])[];
 
@@ -50,6 +51,7 @@ export const FIGHTER_STATIC: readonly string[] = ['id', 'name', 'team', 'isBot',
 export const BULLET_SPEC: Spec<Bullet> = [
   ['x', 'n'], ['y', 'n'], ['vx', 'n'], ['vy', 'n'], ['ox', 'n'], ['oy', 'n'], ['owner', 'n'], ['weapon', 's'], ['kind', 's'],
   ['size', 'n'], ['traveled', 'n'], ['gravity', 'n'], ['form', 'n'], ['tier', 'n'],
+  ['pokemon', 's'], ['target', 'n'], ['homing', 'n'],
 ];
 export const ITEM_SPEC: Spec<Item> = [
   ['id', 'n'], ['weaponId', 's'], ['ammo', 'n'], ['dur', 'n'], ['x', 'n'], ['y', 'n'], ['vx', 'n'], ['vy', 'n'], ['w', 'n'],
@@ -77,17 +79,19 @@ function encodeValue(v: unknown, kind: Kind): Cell {
   if (kind === 'n') return r2(v as number);
   if (kind === 'b') return v ? 1 : 0;
   if (kind === 's') return v as string;
-  if (kind === 'o') return v ? { ...(v as FlatState) } : 0;
-  // inventory: [id, ammo, dur] per slot, 0 = empty
-  return (v as ({ id: string; ammo: number; dur: number } | null)[]).map((s) => (s ? [s.id, s.ammo, r2(s.dur)] : 0));
+  if (kind === 'o') return v ? clonePlain(v) as FlatState : 0;
+  // A partner ball adds its species to the ordinary [id, ammo, dur] inventory row.
+  return (v as ({ id: string; ammo: number; dur: number; pokemon?: PokemonSpecies } | null)[])
+    .map(s => s ? s.pokemon ? [s.id, s.ammo, r2(s.dur), s.pokemon] : [s.id, s.ammo, r2(s.dur)] : 0);
 }
 
 function decodeValue(c: Cell, kind: Kind): unknown {
   if (kind === 'n') return c as number;
   if (kind === 'b') return c === 1;
   if (kind === 's') return c as string;
-  if (kind === 'o') return c && typeof c === 'object' && !Array.isArray(c) ? { ...c } : undefined;
-  return (c as (Cell[] | 0)[]).map((s) => (s ? { id: s[0] as string, ammo: s[1] as number, dur: s[2] as number } : null));
+  if (kind === 'o') return c && typeof c === 'object' && !Array.isArray(c) ? clonePlain(c) : undefined;
+  return (c as (Cell[] | 0)[]).map(s => s ? { id: s[0] as string, ammo: s[1] as number, dur: s[2] as number,
+    ...(POKEMON_PARTNERS.includes(s[3] as PokemonSpecies) ? { pokemon: s[3] as PokemonSpecies } : {}) } : null);
 }
 
 function encodeRow<T>(o: T, spec: Spec<T>): Cell[] {
@@ -137,7 +141,7 @@ export function encodeWorld(w: World): RenderSnapshot {
     bulletTime: r2(w.bulletTime),
     bulletTimeOwner: w.bulletTimeOwner,
     suddenDeath: w.suddenDeath,
-    fighters: w.fighters.map((f) => (f.master >= 0 && !f.pokemon && f.gone && !f.alive ? 0 : encodeRow(f, FIGHTER_SPEC))),
+    fighters: w.fighters.map((f) => (f.master >= 0 && f.gone && !f.alive && (!f.pokemon || f.hp <= 0 && f.pokemon.move === 'follow') ? 0 : encodeRow(f, FIGHTER_SPEC))),
     bullets: w.bullets.filter((b) => b.active).map((b) => encodeRow(b, BULLET_SPEC)),
     items: w.items.filter((i) => i.active).map((i) => encodeRow(i, ITEM_SPEC)),
     props: w.props.filter((p) => p.active).map((p) => encodeRow(p, PROP_SPEC)),
@@ -193,6 +197,7 @@ export function applyWorld(w: World, s: RenderSnapshot, prev?: PrevPositions): v
     const was = prev?.fighters[i];
     decodeRow(f, FIGHTER_SPEC, row);
     f.flyTime ??= 0;
+    if (f.trainer) trainerTeam(f.trainer);
     // a respawn / clone appearing must not slide across the map
     const jump = was && Math.hypot(f.x - was.x, f.y - was.y) > 64;
     f.px = was && !jump ? was.x : f.x;
@@ -204,6 +209,9 @@ export function applyWorld(w: World, s: RenderSnapshot, prev?: PrevPositions): v
     // Older frames end before the form and tier fields.
     b.form ??= w.fighters[b.owner]?.powerLevel ?? 0;
     b.tier ??= b.weapon.endsWith(':super') ? 2 : b.weapon.endsWith(':second') ? 1 : 0;
+    b.pokemon ??= '';
+    b.target ??= -1;
+    b.homing ??= 0;
     b.active = true;
     b.px = b.x;
     b.py = b.y;

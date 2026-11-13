@@ -8,8 +8,8 @@ const WHITE = 7, EYE = 8, RED = 9, TONGUE = 10, TONGUE_LIGHT = 11, WATER = 12;
 const PALETTES = [
   [-1, 0x172c42, 0x295d7d, 0x4292b5, 0x6ec4dd, 0xa4e6e9, 0xf4eac4, 0xf4fbec, 0xf1cf59, 0x3a2c36, 0xe7a190, 0xffc1a1, 0xbdeff5],
   [-1, 0x19263d, 0x21496e, 0x2c6e9a, 0x4e9fcc, 0x81cbe0, 0xd9ebde, 0xf5fbef, 0xe8d76d, 0x3f2a3e, 0xdca2ae, 0xf6c2c5, 0xbdeff5],
-  [-1, 0x192235, 0x253658, 0x30517b, 0x3d6c9c, 0x6696bd, 0xc8d9cf, 0xf0efdc, 0xe8d875, 0xc75563, 0xcd718c, 0xf0a3ad, 0x9edff0],
-  [-1, 0x171f30, 0x202b4a, 0x294369, 0x375b8c, 0x5c8ab5, 0xc7d4d0, 0xf2eede, 0xe7d477, 0xe15d63, 0xc66b89, 0xf5a8b5, 0x9be8f2],
+  [-1, 0x16223a, 0x21365b, 0x285387, 0x3474ad, 0x6aa9d0, 0xe4ddbd, 0xfff5d9, 0xe8d875, 0xe55e75, 0xc8678c, 0xf0a3bb, 0x8cdef1],
+  [-1, 0x141e34, 0x1c2d50, 0x24477b, 0x2e639e, 0x609dcc, 0xe4ddc0, 0xfff3d7, 0xe7d477, 0xed5f6b, 0xbe6084, 0xf3a3be, 0x89e4f5],
 ] as const;
 const SWAY = [0, 1, 2, 1, 0, -1, -2, -1];
 const BREATH = [0, 0, -0.5, -1, -1, -0.5, 0, 0];
@@ -81,17 +81,31 @@ function poseFor(rank: number, pose: PokemonPose, phase: number): FrogPose {
     head = add(head, -3 * tuck, 2 * tuck);
     hands = [add(head, 4, 4), add(head, 2, 7)];
     scarf -= 2;
-  } else if (pose === 'punch' || pose === 'kick' || pose === 'cast') {
-    const power = pose === 'cast' ? CAST[phase] : STRIKE[phase];
+  } else if (pose === 'cast') {
+    const power = CAST[phase];
+    const throwX = [-4,-7,6,5,2,0,-0.5,0][phase];
+    chest = add(chest, throwX * 0.5, ninja ? power * 2 : power);
+    head = add(head, throwX * 0.3, -power);
+    feet = [[ninja ? -13 : -8,-2],[ninja ? 9 : 6,-2]];
+    hands = ninja
+      ? [add(chest, -4, 5), add(chest, [0,-2,23,20,15,10,8,8][phase], [-12,-14,-4,0,3,4,4,4][phase])]
+      : [add(chest, -3, 2), add(chest, 5, 1)];
+    mouth = ninja ? 0 : power;
+    scarf -= 7 * power;
+  } else if (pose === 'punch' || pose === 'backhand' || pose === 'kick') {
+    const power = STRIKE[phase];
     chest = add(chest, 3 * power, 1.5 * power);
     head = add(head, 2 * power, -power);
     if (pose === 'kick') {
       feet[1] = [feet[1][0] + (ninja ? 16 : 9) * power, -2 - (ninja ? 13 : 6) * power];
       hands = [add(chest, -3, 3), add(chest, -6, ninja ? 6 : middle ? 4 : 2)];
+    } else if (pose === 'backhand') {
+      chest = add(chest, -power, -power);
+      hands = [add(chest, 3 + (ninja ? 19 : 11) * power, -3 * power), add(chest, 4 - 6 * power, 4)];
+      scarf += 7 * power;
     } else {
-      hands = [add(chest, -3 * power, 3), add(chest, (ninja ? 17 : 10) * power, pose === 'cast' ? -3 * power : 1)];
+      hands = [add(chest, -3 * power, 3), add(chest, (ninja ? 17 : 10) * power, 1)];
     }
-    mouth = pose === 'cast' && !ninja ? power : 0;
     scarf -= 4 * power;
   } else if (pose === 'cling') {
     hip = add(hip, -1, -1);
@@ -215,6 +229,7 @@ function head(r: Pen, at: Pt, rank: number, mouth: number, closed: boolean): Pt 
 export function bakeFrogRig(rank: number, pose: PokemonPose, phase: number): ReferenceFrame {
   rank = Math.max(0, Math.min(3, Math.floor(rank)));
   phase = ((Math.floor(phase) % 8) + 8) % 8;
+  if (rank >= 2) return matureFrog(rank, pose, phase);
   const ninja = rank >= 2;
   const s = poseFor(rank, pose, phase);
   const raster = new Raster(118, 86);
@@ -270,4 +285,101 @@ export function bakeFrogRig(rank: number, pose: PokemonPose, phase: number): Ref
     muzzle: anchor(ninja ? add(s.hands[1], 3, -2) : mouth),
     saddle: ninja ? anchor(add(s.chest, -4, -2)) : undefined,
   };
+}
+
+/** A low, long-limbed ninja silhouette with a separate tongue and bond shuriken. */
+function matureFrog(rank: number, pose: PokemonPose, phase: number): ReferenceFrame {
+  const bond=rank===3, scale=bond ? 0.98 : 0.85;
+  const s=poseFor(rank,pose,phase);
+  if(pose==='idle') {
+    s.hip=add(s.hip,-1,2);
+    s.chest=add(s.chest,1,3);
+    s.head=add(s.head,2,4);
+    s.feet=[[-14,-2],[10,-2]];
+    s.hands=[add(s.chest,-5,7),add(s.chest,12,10)];
+  }
+  const raster=new Raster(118,86),r=new ScaledPen(raster,[0,0],ORIGIN,scale);
+  const head=add(s.head,0,-1);
+  const closed=pose==='faint'&&phase>2||pose==='hurt'&&phase<3||pose==='idle'&&phase===7;
+  const joint=(root:Pt,knee:Pt,end:Pt,width:number,near:boolean)=>{
+    r.stroke([root,knee,end],INK,width+1.4);
+    r.stroke([root,knee,end],near?SKIN:SHADE,width);
+    if(near)r.line(root[0]-.6,root[1]-.5,knee[0]-.6,knee[1]-.5,LIGHT);
+  };
+  const toes=(at:Pt,near:boolean)=>{
+    const fill=near?SKIN:SHADE;
+    r.poly([add(at,-2,-2),add(at,2,-2),add(at,5,-.7),add(at,7,1),add(at,-3,1.7)],INK);
+    r.poly([add(at,-1,-1.3),add(at,1.8,-1.3),add(at,4.5,0),add(at,5.5,.6),add(at,-2,.8)],fill);
+    for(const [dx,dy]of [[3.1,-.3],[5,.6],[-1,1]] as const)r.line(at[0]+dx,at[1]+dy,at[0]+dx+1.7,at[1]+dy,CREAM);
+  };
+  const hand=(at:Pt,near:boolean)=>{
+    r.ellipse(at[0],at[1],2.1,1.8,INK);r.ellipse(at[0]-.2,at[1]-.3,1.6,1.2,near?SKIN:SHADE);
+    for(const [dx,dy]of [[3,-2.4],[4.5,0],[2.8,2.2]] as const){
+      r.line(at[0]+.5,at[1],at[0]+dx,at[1]+dy,INK,2.2);
+      r.line(at[0]+.5,at[1]-.1,at[0]+dx,at[1]+dy,CREAM);
+      r.set(at[0]+dx,at[1]+dy,WHITE);
+    }
+  };
+  if(bond){
+    const center=add(s.chest,-5,-1),fold=pose==='faint'?1-FALL[phase]*.8:1;
+    // Four sweeping water blades, not a random cluster of spikes.
+    for(let i=0;i<4;i++){
+      const angle=-Math.PI/8+i*Math.PI/2;
+      const turn=([x,y]:Pt):Pt=>[center[0]+x*Math.cos(angle)-y*Math.sin(angle),center[1]+(x*Math.sin(angle)+y*Math.cos(angle))*fold];
+      r.poly(([[1,-2],[12,-8],[17,-5],[9,-1],[4,5]] as const).map(turn),INK);
+      r.poly(([[2,-1],[12,-6],[15,-4.5],[8,-.3],[4,3]] as const).map(turn),WATER);
+      r.poly(([[4,0],[12,-4.5],[11,-2],[5,2.5]] as const).map(turn),LIGHT);
+      r.line(...turn([3,-1]),...turn([12,-5]),WHITE);
+    }
+    r.ellipse(center[0],center[1],4,4,DEEP);r.ellipse(center[0],center[1],2.2,2.2,WATER);
+  }
+  // Long trailing tongue always originates at the collar, behind the head and arms.
+  const collar=add(head,-3,5),tip=add(collar,-23-Math.max(0,-s.scarf)*.7,s.scarf*.7-1);
+  const bend=add(collar,-11,-3+s.scarf*.35);
+  r.stroke([collar,bend,tip,add(tip,-2,2)],INK,5);
+  r.stroke([collar,bend,tip,add(tip,-2,2)],TONGUE,3.4);
+  r.stroke([add(collar,0,-.7),add(bend,0,-.8),add(tip,0,-.7)],TONGUE_LIGHT);
+  const farKnee:Pt=[s.hip[0]-8,(s.hip[1]+s.feet[0][1])/2-2];
+  joint(add(s.hip,-1,0),farKnee,add(s.feet[0],0,-2),4.1,false);
+  toes(s.feet[0],false);
+  const farShoulder=add(s.chest,1,1),farElbow=elbow(farShoulder,s.hands[0]);
+  joint(farShoulder,farElbow,s.hands[0],2.6,false);hand(s.hands[0],false);
+  // Tapered abdomen and powerful frog haunches retain a human-sized, agile body.
+  r.poly([add(s.chest,-4,-1),add(s.chest,3,-2),add(s.chest,5,3),add(s.hip,4,-2),add(s.hip,5,4),add(s.hip,-2,6),add(s.hip,-5,2),add(s.chest,-4,4)],INK);
+  r.poly([add(s.chest,-3,-.5),add(s.chest,2,-1),add(s.chest,3.6,3),add(s.hip,3,-2),add(s.hip,4,3),add(s.hip,-1.5,4.5),add(s.hip,-4,1),add(s.chest,-3,4)],SKIN);
+  r.line(s.chest[0]-2.3,s.chest[1]+1,s.hip[0]-2.3,s.hip[1]+1,LIGHT);
+  r.poly([add(s.chest,2,2),add(s.chest,3.6,3),add(s.hip,3,2),add(s.hip,.5,3.5),add(s.hip,.5,-1)],CREAM);
+  r.ellipse(s.hip[0]-1,s.hip[1]+1,3.8,4.2,SKIN);
+  const nearKnee:Pt=[s.hip[0]+7,(s.hip[1]+s.feet[1][1])/2-1.2];
+  joint(add(s.hip,1,1),nearKnee,add(s.feet[1],0,-2),4.7,true);
+  r.ellipse(nearKnee[0]+.6,nearKnee[1]-.5,2.7,2.1,INK);
+  r.ellipse(nearKnee[0]+.6,nearKnee[1]-.6,2,1.4,CREAM);
+  toes(s.feet[1],true);
+  const nearShoulder=add(s.chest,-1,1),nearElbow=elbow(nearShoulder,s.hands[1]);
+  joint(nearShoulder,nearElbow,s.hands[1],2.9,true);
+  r.ellipse(nearElbow[0],nearElbow[1],1.8,1.4,CREAM);hand(s.hands[1],true);
+  r.stroke([s.chest,add(head,-2,4)],INK,6);r.stroke([s.chest,add(head,-2,4)],SKIN,4.4);
+  // Three swept cranial fins frame a narrow, sharp eye rather than an oversized beak.
+  r.poly([add(head,-7,2),add(head,-12,-7),add(head,-8,-13),add(head,-3,-8),add(head,0,-14),add(head,4,-7),add(head,7,-5),add(head,12,-.5),add(head,11,3),add(head,5,6),add(head,-2,5)],INK);
+  r.poly([add(head,-6.3,1),add(head,-10,-6.5),add(head,-7.5,-10.5),add(head,-2.5,-6),add(head,.2,-11),add(head,3.2,-5.8),add(head,6,-4),add(head,10.5,-.2),add(head,9.7,2.4),add(head,4.5,4.8),add(head,-1.5,3.7)],SKIN);
+  r.poly([add(head,-9,-6),add(head,-7.5,-10),add(head,-3.5,-6),add(head,-2,-3.5)],LIGHT);
+  r.poly([add(head,-.7,-8),add(head,.2,-10.5),add(head,2,-6.3),add(head,5,-3.7),add(head,1,-4.5)],SHADE);
+  r.poly([add(head,-2,0),add(head,2,-3.2),add(head,7,-1.2),add(head,10.5,.4),add(head,7.1,2.5),add(head,3.7,2.1),add(head,.8,4.3),add(head,-2.2,2)],CREAM);
+  r.poly([add(head,.6,-3.7),add(head,6.6,-1.8),add(head,4.5,.4),add(head,.4,-.7)],INK);
+  if(!closed){
+    r.poly([add(head,1.2,-2.5),add(head,5.3,-1.5),add(head,4.1,-.1),add(head,1.2,-.6)],WHITE);
+    r.line(head[0]+4.1,head[1]-1.4,head[0]+4,head[1]-.3,RED);r.set(head[0]+4,head[1]-.6,INK);
+  }
+  r.line(head[0]+5.2,head[1]+2.8,head[0]+10,head[1]+1.1,DEEP);
+  if(bond){
+    r.poly([add(head,-4,-8),add(head,-3,-13),add(head,1,-11),add(head,3,-7),add(head,7,-5),add(head,4,-3),add(head,.5,-5)],RED);
+    r.line(head[0]-2.1,head[1]-10.5,head[0]+1,head[1]-7,TONGUE_LIGHT);
+    r.poly([add(head,-9,-5),add(head,-7,-9),add(head,-5,-5),add(head,-2,-6),add(head,-3,-1)],DEEP);
+    r.poly([add(head,4,-3),add(head,7,-2),add(head,5,2),add(head,3,1)],RED);
+  }
+  r.stroke([add(head,-4,4),add(head,-1,6),add(head,4,4.4)],INK,4.6);
+  r.stroke([add(head,-4,4),add(head,-1,6),add(head,4,4.4)],TONGUE,3);
+  r.line(head[0]-3,head[1]+3.7,head[0]-.5,head[1]+5.2,TONGUE_LIGHT);
+  const anchor=([x,y]:Pt):Pt=>[Math.round(x*scale),Math.round(y*scale)];
+  return {sprite:toRuns(Int32Array.from(raster.m,ink=>PALETTES[rank][ink]),raster.w,raster.h),originX:ORIGIN[0],originY:ORIGIN[1],muzzle:anchor(add(s.hands[1],3,-2))};
 }

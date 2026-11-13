@@ -90,15 +90,24 @@ function poseFor(rank: number, pose: PokemonPose, phase: number, flight: Pokemon
 
   if (pose === 'cast') {
     const charge = CAST[phase];
-    chest = offset(chest, -2 * charge, charge);
-    head = offset(head, 4 * charge, -2 * charge);
+    const recoil = [-2,-4,6,5,-1,-0.5,-0.2,0][phase];
+    chest = offset(chest, recoil * 0.45, charge);
+    head = offset(head, recoil, -2 * charge);
     hands = [offset(hands[0], -2 * charge, -2 * charge), offset(hands[1], -3 * charge, -3 * charge)];
+    tail[1] = offset(tail[1], -2 * charge, -2 * charge);
+    tail[2] = offset(tail[2], -3 * charge, -4 * charge);
     if (flight === 'none') feet = [[-8, -2], [6, -2]];
   } else if (pose === 'punch') {
     chest = offset(chest, 5 * power, power);
     head = offset(head, 5 * power, power);
     hands = [offset(hands[0], -3 * power, -2 * power), offset(chest, 8 + 15 * power, 1)];
     tail[2] = offset(tail[2], 0, -4 * power);
+  } else if (pose === 'backhand') {
+    chest = offset(chest, 2 * power, -2 * power);
+    head = offset(head, 4 * power, -power);
+    hands = [offset(chest, 7 + 16 * power, -4 * power), offset(hands[1], -7 * power, 2 * power)];
+    tail[1] = offset(tail[1], 4 * power, -4 * power);
+    tail[2] = offset(tail[2], 9 * power, -7 * power);
   } else if (pose === 'kick') {
     chest = offset(chest, -2 * power, -power);
     head = offset(head, -2 * power, -power);

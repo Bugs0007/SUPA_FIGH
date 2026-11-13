@@ -72,9 +72,12 @@ export function explode(w: World, x: number, y: number, ex: ExplosionStats, owne
     if (f.gone) continue;
     if (ex.spareOwner && owner >= 0 && (f.id === owner || f.master === owner)) continue;
     const cy = f.y - f.h / 2;
-    const near = nearness(f.x, cy, 6);
+    // Large partners can be struck at a wing or shoulder, well beyond a human-sized center pad.
+    const hx = f.pokemon ? Math.max(f.x - f.w / 2, Math.min(f.x + f.w / 2, x)) : f.x;
+    const hy = f.pokemon ? Math.max(f.y - f.h, Math.min(f.y, y)) : cy;
+    const near = nearness(hx, hy, f.pokemon ? 0 : 6);
     if (near <= 0) continue;
-    const cover = lineBlocked(w, x, y, f.x, cy) ? COVER : 1;
+    const cover = lineBlocked(w, x, y, hx, hy) ? COVER : 1;
     const k = near * cover;
     if (k <= 0.02) continue;
     const [nx, ny] = dir(f.x, cy);
@@ -96,8 +99,8 @@ export function explode(w: World, x: number, y: number, ex: ExplosionStats, owne
       stun: 0.3,
       knockdown: push > 0.2,
       ignoreInvuln: true,
-      x: f.x,
-      y: cy,
+      x: hx,
+      y: hy,
     });
     // anyone the blast reaches catches fire; the nearer to the centre, the longer they burn
     if (ex.ignite) ignite(w, f, ex.ignite * (0.5 + 0.5 * k), owner);

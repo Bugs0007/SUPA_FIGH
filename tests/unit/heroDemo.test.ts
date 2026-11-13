@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HEROES, HERO_ORDER, POWER_ORB } from '../../src/sim/data/heroes';
 import { POKEMON_PARTNERS, pokemonEvolutionTime, pokemonStage, POKEMON_TIMING } from '../../src/sim/data/pokemon';
 import { rosterSpecial } from '../../src/sim/data/rosterSpecials';
-import { HeroDemo, demoModes, demoMoveName, describeDemoMove, minDemoForm } from '../../src/scenes/heroDemo';
+import { HeroDemo, demoModes, demoMoveName, describeDemoMove, minDemoForm, mountDemoAvailable } from '../../src/scenes/heroDemo';
 
 describe('arena move demonstrations', () => {
   it.each(POKEMON_PARTNERS)('%s reaches its major form through a power orb', pokemon => {
@@ -55,7 +55,7 @@ describe('arena move demonstrations', () => {
     expect({ mounted, climbed, descended }).toEqual({ mounted: true, climbed: true, descended: true });
   });
 
-  it.each(['squirtle', 'bulbasaur', 'froakie', 'pikachu', 'treecko', 'riolu'] as const)(
+  it.each(['squirtle', 'bulbasaur'] as const)(
     '%s shows a ground mount walking and jumping in the arena',
     pokemon => {
       const demo = new HeroDemo('ash', 'mount', 0, pokemon);
@@ -75,6 +75,14 @@ describe('arena move demonstrations', () => {
       expect(walked && jumped).toBe(true);
     },
   );
+
+  it.each(['froakie', 'pikachu', 'treecko', 'riolu'] as const)('%s never advertises or starts a mount demonstration', pokemon => {
+    expect(mountDemoAvailable(pokemon)).toBe(false);
+    const demo = new HeroDemo('ash', 'mount', pokemonStage(pokemon, 0).maxStage, pokemon);
+    expect(demo.mode).toBe('base');
+    while (!demo.done) demo.step();
+    expect(demo.world.fighters[0].trainer?.mounted).toBe(false);
+  });
 
   for (const hero of HERO_ORDER) {
     for (const mode of demoModes(hero).filter(mode => mode !== 'mount')) {

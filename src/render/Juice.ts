@@ -124,6 +124,14 @@ export class Juice {
     fx.gore = settings.gore;
     switch (e.t) {
       case 'shot': {
+        if (e.weapon.startsWith('ash:')) {
+          const move = e.weapon.slice(4);
+          const sound = move === 'fireball' || move === 'blueFire' ? 'flame'
+            : move === 'waterGun' || move === 'hydroCannon' ? 'hiss' : move === 'grass' ? 'swing' : 'chakraBlast';
+          this.sfx(sound, e.x, 0.5, move === 'aura' ? 0.85 : 1.12);
+          this.cam.addTrauma(0.035);
+          break;
+        }
         const f = w.fighters[e.f];
         const def = weaponDef(e.weapon);
         const big = (def.gun?.pellets ?? 1) > 1 || def.hold === 'rifle';
@@ -138,6 +146,7 @@ export class Juice {
         break;
       }
       case 'hit': {
+        this.r.pokemonHit(e);
         const heavy = e.kind === 'kick' || e.damage >= 10 || e.kind === 'bodyslam' || e.kind === 'splat';
         if (e.kind === 'fire' || e.kind === 'drain' || (e.kind === 'hazard' && e.damage < 5)) {
           if (!e.corpse) this.r.views[e.victim]?.onHit();
@@ -369,7 +378,16 @@ export class Juice {
         const centered = move === 'super' && HEROES[hero]?.super.bomb?.centered;
         const wind = hero === 'naruto' && move === 'super' && e.form === 1;
         const arrow = hero === 'sasuke' && move === 'super' && (e.form ?? 0) >= 3;
-        if (wind) {
+        if (hero === 'ash') {
+          const tint = move === 'blueFire' ? 0x48d7ff
+            : move === 'waterGun' || move === 'hydroCannon' ? 0x72dfff
+            : move === 'grass' ? 0xa9e86c : move === 'electric' ? 0xffe97a
+            : move === 'dragon' ? 0xa6a1ff : move === 'aura' ? 0x6ecaff : 0xffa45a;
+          fx.spawn({ frame: 'ring', x: e.x, y: e.y, life: 0.22, s0: 0.12,
+            s1: e.radius / 17, a0: 0.65, a1: 0, tint, depth: 55 });
+          fx.sparks(e.x, e.y, 0, -0.6, 5, tint, 65);
+          this.sfx('energyHit', e.x, 0.72, move === 'electric' ? 1.5 : 1);
+        } else if (wind) {
           const { x, y, radius } = e;
           this.r.heroFx.startRasenWindImpact(x, y, radius);
           fx.spawn({ frame: 'glowBig', x, y, life: 0.18, s0: 1.1, s1: radius / 12, a0: 0.65, a1: 0, tint: 0x92e5ff, add: true, depth: 57 });

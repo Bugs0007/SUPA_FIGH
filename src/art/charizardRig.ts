@@ -191,10 +191,13 @@ function bodyPose(pose: PokemonPose, phase: number, flight: Flight, glide: numbe
 
   if (pose === 'cast' || pose === 'windup') {
     const power = pose === 'windup' ? 0.32 + phase * 0.07 : CAST[phase];
-    const recoil = pose === 'cast' && phase >= 2 ? 7 * power : -3 * power;
-    chest = offset(chest, 4 * power, -1 * power);
+    const recoil = pose === 'cast' ? [-3,-5,7,6,0,-1,-0.5,0][phase] : -3 * power;
+    chest = offset(chest, recoil * 0.45, -power);
     head = offset(head, recoil, -2 * power);
-    hands = [offset(hands[0], -2 * power, -2 * power), offset(hands[1], -4 * power, 2 * power)];
+    hands = [offset(hands[0], -5 * power, -2 * power), offset(hands[1], -7 * power, 2 * power)];
+    tail[1] = offset(tail[1], -power * 2, -power * 2);
+    tail[2] = offset(tail[2], -power * 4, -power * 3);
+    if (flight === 'none') legs = [[[-12,-9],[-13,-3]],[[3,-8],[7,-3]]];
     jaw = power * 6;
     headPitch -= 11 * power;
     flare = power;
@@ -208,7 +211,7 @@ function bodyPose(pose: PokemonPose, phase: number, flight: Flight, glide: numbe
     if (flight === 'none') legs = [RUN[(phase + 4) % 8], RUN[phase]];
     tail[2] = offset(tail[2], -4 * power, -5 * power);
     jaw = 1 + 2 * power;
-  } else if (pose === 'punch' || pose === 'kick') {
+  } else if (pose === 'punch' || pose === 'backhand' || pose === 'kick') {
     const power = STRIKE[phase];
     chest = offset(chest, 7 * power, (pose === 'kick' ? 5 : 2) * power);
     head = offset(head, 6 * power, 3 * power);
@@ -217,6 +220,12 @@ function bodyPose(pose: PokemonPose, phase: number, flight: Flight, glide: numbe
     flare = 0.68 * power;
     if (pose === 'punch') {
       hands = [offset(hands[0], -3 * power, 0), offset(chest, 18 * power + 5, 2 + 6 * (1 - power))];
+    } else if (pose === 'backhand') {
+      chest = offset(chest, -3 * power, -3 * power);
+      head = offset(head, 2 * power, -2 * power);
+      hands = [offset(chest, 22 * power + 3, -6 * power), offset(hands[1], -8 * power, 3 * power)];
+      tail[1] = offset(tail[1], 2 * power, -4 * power);
+      tail[2] = offset(tail[2], 8 * power, -7 * power);
     } else {
       legs[1] = [offset(legs[1][0], 8 * power, -7 * power), offset(legs[1][1], 18 * power, -10 * power)];
       hands = [offset(hands[0], -3 * power, -4 * power), offset(hands[1], -5 * power, -2 * power)];

@@ -49,11 +49,14 @@ function poseFor(rank: number, pose: PokemonPose, phase: number): AuraPose {
     ear += sprint ? 3 : 0;
   } else if (pose === 'cast') {
     const power = CHARGE[phase];
-    chest = offset(chest, -2 + power * 3, 2);
-    head = offset(head, -1 + power * 2, 2);
+    const thrust = [-3,-5,5,4,1,-1,-0.5,0][phase];
+    hip = offset(hip, -power, power);
+    chest = offset(chest, thrust * 0.5, power);
+    head = offset(head, thrust * 0.2, power);
     feet = [[-7, -2], [6, -2]];
-    const focus = offset(chest, 10 + 7 * power, 0);
-    hands = [offset(focus, -1, -3), offset(focus, -1, 3)];
+    const extension = [4,3,20,19,14,9,6,5][phase];
+    const focus = offset(chest, extension, phase < 2 ? 4 : 0);
+    hands = [offset(focus, -1, -2 - power), offset(focus, -1, 2 + power)];
     tail -= 2 * power;
     ear += 2 * power;
   } else if (pose === 'punch') {
@@ -62,6 +65,14 @@ function poseFor(rank: number, pose: PokemonPose, phase: number): AuraPose {
     hands = [offset(chest, 1 - 2 * power, 3), offset(chest, 6 + 13 * power, -1)];
     feet = [[-6, -2], [4 + 2 * power, -2]];
     tail -= 3 * power;
+  } else if (pose === 'backhand') {
+    hip = offset(hip, -power, 0);
+    chest = offset(chest, 2 * power, -power);
+    head = offset(head, 2 * power, -power);
+    hands = [offset(chest, 4 + 14 * power, -3 * power), offset(chest, 5 - 5 * power, 3)];
+    feet = [[-7, -2], [5, -2]];
+    tail += 4 * power;
+    ear -= 2 * power;
   } else if (pose === 'kick') {
     hip = offset(hip, -2 * power, -2 * power);
     chest = offset(chest, -4 * power, -1 * power);

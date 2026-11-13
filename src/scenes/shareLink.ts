@@ -4,6 +4,7 @@
 
 import { PLAYER_PRESETS, sanitizeAppearance, type Appearance } from '../art/appearance';
 import { HEROES } from '../sim/data/heroes';
+import { pokemonSpecies, pokemonTeam } from '../sim/data/pokemon';
 import { MAP_LIST } from '../sim/map/maps';
 import { DIFF_ORDER, MAX_SLOTS, MODE_ORDER, SLOT_KINDS, SUDDEN_DEATH_OPTIONS, TIME_OPTIONS, WEAPON_RATES, defaultLobby, slotStartForm, type LobbyCfg, type SlotCfg } from './lobby';
 
@@ -13,7 +14,7 @@ const VERSION = 1;
 const LOOK_FIELDS = ['skin', 'hair', 'hairColor', 'face', 'hat', 'hatColor', 'top', 'topColor', 'accentColor', 'pantsColor', 'shoesColor'] as const;
 const COLOR_FIELDS = new Set<string>(['skin', 'hairColor', 'hatColor', 'topColor', 'accentColor', 'pantsColor', 'shoesColor']);
 
-type WireSlot = 0 | [number, number, number, string, number, string[]?];
+type WireSlot = 0 | [number, number, number, string, number, string[]?, string?, string[]?];
 interface Wire {
   v: number;
   /** map, mode, rounds, time, sudden death, friendly fire, weapons, chaos, hero powers, fall death */
@@ -46,6 +47,10 @@ export function encodeLobby(c: LobbyCfg): string {
     const row: WireSlot = [SLOT_KINDS.indexOf(s.kind), s.team, DIFF_ORDER.indexOf(s.difficulty), hero, hero ? slotStartForm(s) : 0];
     // heroes bring their own look; only custom fighters need theirs in the link
     if (!hero) row.push(LOOK_FIELDS.map((f) => String(s.look[f]).replace(/^#/, '')));
+    if (hero === 'ash') {
+      row[6] = pokemonSpecies(s.pokemon);
+      row[7] = pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon));
+    }
     return row;
   });
   while (slots.length && slots[slots.length - 1] === 0) slots.pop();
@@ -77,6 +82,7 @@ function decodeSlot(raw: unknown, fallback: SlotCfg): SlotCfg {
     hero,
     form: int(raw[4], 0, 9, 0),
     look,
+    ...(hero === 'ash' ? { pokemon: pokemonSpecies(raw[6]), pokemonTeam: pokemonTeam(raw[7], pokemonSpecies(raw[6])) } : {}),
   };
   slot.form = slotStartForm(slot);
   return slot;

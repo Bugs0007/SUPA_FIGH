@@ -46,13 +46,18 @@ function plantPose(pose: PokemonPose, frame: number): PlantPose {
     leaves += gait[frame] * 0.3;
   } else if (pose === 'cast') {
     const brace = CAST[frame];
-    body = [-2 - brace,-7 + brace]; head = [7 + brace * 2,-8 - brace];
+    const recoil = [-0.4,-1,1.6,1.2,-0.4,-0.2,0,0][frame];
+    body = [-2 - recoil,-7 + brace]; head = [7 + recoil * 2,-8 - brace];
     feet = [[-10,-1],[4,-1],[-5,-1],[12,-1]];
-    bloom = brace; mouth = brace; leaves = -3 * brace; vines = brace;
+    bloom = brace * 1.4; mouth = brace; leaves = -5 * brace; vines = brace * 0.5;
   } else if (pose === 'punch') {
     body = [-2 + hit * 3,-7]; head = [7 + hit * 4,-8];
     feet = [[-9,-1],[5,-1],[-4,-1],[10 + 10 * hit,-1 - hit * 4]];
     vines = hit; leaves -= 3 * hit;
+  } else if (pose === 'backhand') {
+    body = [-2 + hit,-7 - hit]; head = [7 + hit * 2,-8 - hit];
+    feet = [[-10,-1],[5 + hit * 9,-4 - hit * 3],[-4,-1],[11,-1]];
+    vines = -hit; leaves += 4 * hit; bloom = hit * 0.4;
   } else if (pose === 'kick') {
     body = [-2 + hit * 4,-7 - hit]; head = [7 + hit * 6,-8 - hit];
     feet = [[-10,-1],[5,-1],[-5,-2],[10 + hit * 9,-4 - hit * 3]];

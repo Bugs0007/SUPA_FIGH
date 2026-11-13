@@ -10,7 +10,8 @@ import type { Controller } from '../input/controllers';
 import { sameTeam } from '../sim/combat';
 import { AIM_LIMIT, BLOCK, DT, FIGHTER_H, GRAB_RANGE, GRAVITY, SHOULDER_Y_STAND, TILE } from '../sim/constants';
 import { FISTS, KICK, SLOT, THROW_AIM, weaponDef, type MeleeHit, type ThrowStats } from '../sim/data/weapons';
-import { POKE_BALL } from '../sim/data/pokemon';
+import { POKE_BALL, pokemonStage, type PokemonSpecies } from '../sim/data/pokemon';
+import { pokemonAttack, pokemonMelee } from '../sim/data/pokemonAttacks';
 import { activeWeapon, gunGeometry, throwOrigin, throwVelocity, type Fighter } from '../sim/fighter';
 import { hazardNear } from '../sim/gimmicks';
 import { heroDef, heroHasFormCombo, bombRange, bombWindup, FORM_COMBO, CLONE_SLINGSHOT, DRAGON_FIST, POWER_ORB, SUPER_WINDOW, superFistFor, type BaseAbility, type HeroDefinition } from '../sim/data/heroes';
@@ -162,6 +163,13 @@ export class BotController implements Controller {
   private spaceNode = -1;
   private spaceRolled = false;
   private rangedUntil = 0;
+  private trainerCommandAt = 0;
+  private trainerGuardUntil = 0;
+  private trainerGuardRest = 0;
+  private trainerGuardSource = -1;
+  private trainerEscapeAt = 0;
+  private trainerEscapeNode = -1;
+  private trainerMountUntil = 0;
 
   constructor(
     private getWorld: () => World,
@@ -195,17 +203,13 @@ export class BotController implements Controller {
     if (f && f.alive && !f.gone) {
       this.now = w.time;
       this.perceive(w, f);
-      if (this.now >= this.nextThink) {
+      if (!f.trainer && this.now >= this.nextThink) {
         this.nextThink = this.now + this.diff.think * this.rng.range(0.8, 1.2);
         this.think(w, f);
       }
-      this.act(w, f);
+      if (f.trainer) this.actTrainer(w, f);
+      else this.act(w, f);
       this.applyTaps();
-      if (f.trainer && f.trainer.active < 0 && f.trainer.cooldown <= 0 && this.canMove(f)) {
-        if (f.inv[f.active]?.id === POKE_BALL) {
-          if (!this.prev.attack) o.attack = true;
-        } else if (!this.prev.cycle) o.cycle = true;
-      }
       if (f.flying && !this.mobility.active && o.moveY === 0) o.moveY = 1; // flight only ends on landing: sink when nothing else steers
       this.watchdog(w, f);
     } else if (f && f.ghost) {
@@ -303,6 +307,10 @@ export class BotController implements Controller {
     this.spaceUntil = 0;
     this.spaceFrom = -1;
     this.rangedUntil = 0;
+    this.trainerCommandAt = this.trainerGuardUntil = this.trainerGuardRest = this.trainerEscapeAt = 0;
+    this.trainerEscapeNode = -1;
+    this.trainerMountUntil = 0;
+    this.trainerGuardSource = -1;
   }
 
   /** Request a button press; it's delivered as a clean edge (released the tick before if needed). */
@@ -578,6 +586,241 @@ export class BotController implements Controller {
 
   // ------------------------------------------------------------------ per-tick behavior
 
+  /** Ash stays behind the fight and sends commands; he never falls through to the brawler controller. */
+  private actTrainer(w: World, f: Fighter): void {
+    const o = this.out;
+    const t = f.trainer!;
+    if (f.state === 'grabbed') {
+      if (w.tick % 2 === 0) this.tap('jump');
+      else this.tap('attack');
+      return;
+    }
+    if (f.state === 'ledge') {
+      o.moveX = f.facing;
+      return;
+    }
+    if (f.carry >= 0) {
+      this.tap('attack');
+      return;
+    }
+    const deployed = w.fighters[t.active];
+    const partner = deployed?.alive && !deployed.gone && deployed.pokemon?.move !== 'recall' ? deployed : undefined;
+    const target = this.trainerTarget(w, f);
+    if (!partner) {
+      // A defeated team gives Ash no offensive plan. Use cover and escape routes while a ball recovers.
+      this.trainerRun(w, f, target);
+      const ready = (t.team ?? [t]).filter(member => member.cooldown <= 0);
+      const selected = ready.find(member => member.species === t.species) ?? ready[0];
+      if (selected && this.canMove(f)) {
+        const ball = this.trainerBall(f, selected.species);
+        if (ball >= 0 && this.select(w, f, ball)) this.tap('attack');
+      }
+      return;
+    }
+
+    const p = partner.pokemon!;
+    const ball = this.trainerBall(f, p.species);
+    if (ball >= 0 && f.active !== ball) {
+      this.select(w, f, ball);
+      this.trainerRun(w, f, target);
+      return;
+    }
+    if (p.recalling) {
+      const source = w.fighters[this.trainerGuardSource] ?? target;
+      const face = source ? Math.sign(source.x - f.x) || f.facing : f.facing;
+      o.moveX = f.facing !== face ? face : 0;
+    } else if (t.mounted) {
+      const goal = target ?? this.trainerOrb(w, f, partner);
+      if (goal) {
+        const dx = goal.x - partner.x;
+        o.moveX = Math.abs(dx) > 180 ? Math.sign(dx) : Math.abs(dx) < 90 ? -Math.sign(dx) : 0;
+        o.moveY = pokemonStage(p.species, p.stage).flies ? Math.max(-1, Math.min(1, (goal.y - partner.y) / 60)) : 0;
+      }
+    } else if (target) {
+      const distance = Math.hypot(target.x - f.x, target.y - f.y);
+      if (distance < 125) this.trainerRun(w, f, target);
+      else if (distance > 285 || !this.mem.get(target.id)?.seen) {
+        const standOff = target.x + Math.sign(f.x - target.x || -f.facing) * 195;
+        this.navigate(w, f, standOff, target.y, false);
+      }
+    } else this.trainerExplore(w, f);
+
+    if (!this.canMove(f)) return;
+    const danger = this.threat(w, f) ?? this.threat(w, partner);
+    const stage = pokemonStage(p.species, p.stage);
+    // A large flying partner can carry Ash to a fight on another level; small partners never enter this plan.
+    if (!t.mounted && stage.rideable && stage.flies && target && this.visible(target.id)
+      && target.y < f.y - 70 && Math.abs(target.x - f.x) > 80 && !danger
+      && this.now >= this.trainerMountUntil && (p.move === 'follow' || p.move === 'guard') && !p.recalling) {
+      this.trainerMountUntil = this.now + 2.4;
+    }
+    if (!t.mounted && this.now < this.trainerMountUntil && !danger) {
+      o.block = true;
+      return;
+    }
+    if (t.mounted || danger) this.trainerMountUntil = 0;
+    if (this.now < this.trainerGuardUntil) {
+      o.block = true;
+      const source = w.fighters[this.trainerGuardSource] ?? danger?.e ?? target;
+      const face = source ? Math.sign(source.x - f.x) || f.facing : f.facing;
+      o.moveX = f.facing !== face ? face : 0;
+      return;
+    }
+    // A short guard command makes the partner physically return. It cannot accidentally become a mount hold.
+    if (danger && danger.eta < 0.3 && this.now >= this.trainerGuardRest && !p.recalling
+      && p.move !== 'release' && p.move !== 'evolve' && this.rng.chance(this.diff.block)) {
+      this.trainerGuardUntil = this.now + 0.14;
+      this.trainerGuardRest = this.now + 1.1;
+      this.trainerGuardSource = danger.e.id;
+      o.block = true;
+      const face = Math.sign(danger.e.x - f.x) || f.facing;
+      o.moveX = f.facing !== face ? face : 0;
+      return;
+    }
+    if (p.recalling || p.move === 'release' || p.move === 'evolve' || p.move === 'mount') return;
+    if (p.move === 'punch' && p.fired && partner.combo < 2 && target?.alive
+      && Math.abs(target.x - partner.x) < (partner.w + target.w) / 2 + pokemonMelee(p.species, p.stage, false).reach + 14
+      && this.now >= this.trainerCommandAt) {
+      this.tap('attack');
+      this.trainerCommandAt = this.now + 0.12;
+      return;
+    }
+    if (p.move !== 'follow' && p.move !== 'guard' && p.move !== 'carry') return;
+    if (this.now < this.trainerCommandAt) return;
+
+    const orb = this.trainerOrb(w, f, partner);
+    if (orb && t.dashCd <= 0 && (p.stage < pokemonStage(p.species, p.stage).maxStage || partner.hp < partner.maxHp * 0.75)) {
+      o.moveY = -1;
+      this.tap('kick');
+      this.trainerCommandAt = this.now + Math.max(0.2, this.diff.think);
+      return;
+    }
+    if (!target || !this.visible(target.id)) return;
+    if (target.invuln > 0.35) return;
+    const sy = partner.y - partner.h * 0.55;
+    const ty = target.y - target.h * 0.5;
+    const distance = Math.hypot(target.x - partner.x, ty - sy);
+    const clear = w.map.clearShot(partner.x, sy, target.x, ty)
+      && w.map.clearShot(f.x, f.y - f.h * 0.55, target.x, ty);
+    const guard = this.facesGuard(partner, target);
+    const choices: { button: 'attack' | 'ability' | 'kick' | 'both'; weight: number }[] = [];
+    const shot = pokemonAttack(p.species, p.stage, 'shot');
+    const ultimate = pokemonAttack(p.species, p.stage, 'ultimate');
+    const toss = p.species === 'charmander' && p.stage === 2;
+    const skyClear = ultimate.kind !== 'thunder' && ultimate.kind !== 'meteor'
+      || w.map.clearShot(target.x, Math.max(1, ty - 120), target.x, ty);
+    if (t.ultimateCd <= 0 && clear && distance <= (toss ? 135 : ultimate.range)
+      && skyClear && (!toss || !guard) && (ultimate.kind !== 'ground' || target.grounded)) {
+      choices.push({ button: 'both', weight: guard ? 6 : 3.6 });
+    }
+    if (t.shotCd <= 0 && clear && distance <= shot.range) {
+      choices.push({ button: 'ability', weight: distance > 80 ? 3 : 1.3 });
+    }
+    if (t.dashCd <= 0 && distance < 225 && (!guard || p.species === 'squirtle')) {
+      choices.push({ button: 'kick', weight: 2 });
+    }
+    // Main attack sends the Pokémon to the enemy even when its ranged moves cannot reach yet.
+    choices.push({ button: 'attack', weight: distance < 70 ? 3 : choices.length ? 0.8 : 4 });
+    let pick = this.rng.range(0, choices.reduce((sum, choice) => sum + choice.weight, 0));
+    const chosen = choices.find(choice => (pick -= choice.weight) <= 0) ?? choices[choices.length - 1];
+    if (chosen.button === 'both') {
+      this.tap('ability');
+      this.tap('kick');
+    } else this.tap(chosen.button);
+    this.trainerCommandAt = this.now + Math.max(0.12, this.diff.think * this.rng.range(0.8, 1.2));
+  }
+
+  private trainerBall(f: Fighter, species: PokemonSpecies): number {
+    return f.inv.findIndex(item => item?.id === POKE_BALL && (item.pokemon ?? f.trainer?.species) === species);
+  }
+
+  private trainerTarget(w: World, f: Fighter): Fighter | undefined {
+    let result: Fighter | undefined;
+    let score = Infinity;
+    for (const [id, memory] of this.mem) {
+      const enemy = w.fighters[id];
+      if (!enemy?.alive || enemy.gone || this.now - memory.t > 2.5) continue;
+      const primary = deployedPartner(w, enemy);
+      if (primary && this.mem.get(primary.id)?.seen) continue;
+      const distance = Math.hypot(memory.x - f.x, memory.y - f.y) + (memory.seen ? 0 : 100);
+      if (distance < score) { score = distance; result = enemy; }
+    }
+    return result;
+  }
+
+  private trainerOrb(w: World, f: Fighter, partner: Fighter): Item | undefined {
+    if (w.settings.noPickups) return undefined;
+    let result: Item | undefined;
+    let distance = 350;
+    for (const item of w.items) {
+      if (!item.active || item.weaponId !== POWER_ORB) continue;
+      const d = Math.hypot(item.x - partner.x, item.y - partner.y);
+      if (d >= distance || !w.map.clearShot(partner.x, partner.y - partner.h / 2, item.x, item.y - item.h / 2)) continue;
+      if (this.mem.size && this.trainerTarget(w, f) && Math.abs(item.x - f.x) < 12 && Math.abs(item.y - f.y) < 12) continue;
+      distance = d;
+      result = item;
+    }
+    return result;
+  }
+
+  /** Reachable escape nodes value distance from every known enemy and cover over a direct charge. */
+  private trainerRun(w: World, f: Fighter, enemy?: Fighter): void {
+    this.taps.delete('attack');
+    this.taps.delete('ability');
+    this.taps.delete('kick');
+    this.chargeTicks = this.aimTicks = 0;
+    this.mobility.cancel(this.now);
+    const g = this.graph!;
+    const here = g.nearest(f.x, f.y);
+    if (!here) return;
+    const danger = this.danger(w, f);
+    if (this.now >= this.trainerEscapeAt || this.trainerEscapeNode < 0 || this.atNode(f, this.trainerEscapeNode)) {
+      this.refreshBlocked(w);
+      const costs = g.costsFrom(here.id, 5, this.edgeCost);
+      const threats = [...this.mem].filter(([, m]) => this.now - m.t < 2.5).map(([id, m]) => ({
+        fighter: w.fighters[id], x: m.x, y: m.y,
+      }));
+      let best = -Infinity;
+      this.trainerEscapeNode = here.id;
+      for (const node of g.nodes) {
+        if (!node.stand || !Number.isFinite(costs[node.id]) || this.hazardNodes.has(node.id)) continue;
+        let separation = threats.length ? Infinity : 140;
+        let covered = 0;
+        for (const threat of threats) {
+          separation = Math.min(separation, Math.hypot(node.x - threat.x, node.y - threat.y));
+          if (threat.fighter && !w.map.clearShot(threat.x, threat.y - threat.fighter.h / 2, node.x, node.y - f.h / 2)) covered += 36;
+        }
+        const edge = Math.min(node.x, w.map.pxW - node.x);
+        const hazard = danger ? Math.min(180, Math.hypot(node.x - danger.x, node.y - danger.y)) : 0;
+        const score = Math.min(650, separation) + Math.min(72, covered) + hazard
+          - costs[node.id] * 28 - Math.max(0, 36 - edge) * 3;
+        if (score > best) { best = score; this.trainerEscapeNode = node.id; }
+      }
+      this.trainerEscapeAt = this.now + 0.35;
+    }
+    const refuge = g.nodes[this.trainerEscapeNode];
+    if (refuge) this.navigate(w, f, refuge.x, refuge.y, false);
+    if (enemy) this.goal = { t: 'flee', x: enemy.x, y: enemy.y };
+    this.dodge(w, f);
+  }
+
+  private trainerExplore(w: World, f: Fighter): void {
+    const orb = !w.settings.noPickups && w.items.find(item => item.active && item.weaponId === POWER_ORB);
+    if (orb) { this.navigate(w, f, orb.x, orb.y, false); return; }
+    const g = this.graph!;
+    if (this.goal.t !== 'roam' || this.goal.node < 0 || this.atNode(f, this.goal.node)) {
+      const here = g.nearest(f.x, f.y);
+      if (!here) return;
+      const costs = g.costsFrom(here.id, 4, this.edgeCost);
+      const nodes = g.nodes.filter(node => node.stand && costs[node.id] < 4 && Math.abs(node.x - f.x) > 45);
+      this.goal = { t: 'roam', node: nodes.length ? nodes[this.rng.int(0, nodes.length - 1)].id : here.id };
+    }
+    if (this.goal.t === 'roam') {
+      const node = g.nodes[this.goal.node];
+      if (node) this.navigate(w, f, node.x, node.y, false);
+    }
+  }
+
   private act(w: World, f: Fighter): void {
     // states we must react to regardless of goals
     if (f.state === 'grabbed') {
@@ -816,7 +1059,7 @@ export class BotController implements Controller {
       p = 1;
     }
     if (!this.rng.chance(p)) return false;
-    const pick = f.trainer ? this.pickPartnerMove(w, f, e, guard) : this.pickMove(w, f, e, h, guard);
+    const pick = this.pickMove(w, f, e, h, guard);
     if (!pick) return false;
     if (f.state === 'melee') this.cancelOk = false;
     this.startMove(f, pick);
@@ -857,25 +1100,6 @@ export class BotController implements Controller {
       return f.stateTime >= hit.windup + hit.active;
     }
     return false;
-  }
-
-  private pickPartnerMove(w: World, f: Fighter, e: Fighter, guard: boolean): HeroPick | null {
-    const trainer = f.trainer!;
-    const partner = w.fighters[trainer.active];
-    const move = partner?.pokemon?.move;
-    if (!partner?.alive || partner.gone || (move !== 'follow' && move !== 'guard' && move !== 'carry')) return null;
-    if (partner.state === 'flinch' || partner.state === 'knockdown' || partner.state === 'grabbed') return null;
-    const fromY = partner.y - partner.h * 0.57, targetY = e.y - e.h * 0.52;
-    if (!w.map.clearShot(partner.x, fromY, e.x, targetY)) return null;
-    const distance = Math.hypot(e.x - partner.x, targetY - fromY);
-    const throwUltimate = trainer.species === 'charmander' && trainer.stage === 2;
-    let hold: HeroPick['hold'];
-    if (trainer.ultimateCd <= 0 && distance < (throwUltimate ? 130 : 275) && (!throwUltimate || !guard)) hold = 'both';
-    else if (!guard && trainer.dashCd <= 0 && distance > 40 && distance < 205) hold = 'kick';
-    else if (!guard && distance <= 62) hold = 'attack';
-    else if (trainer.shotCd <= 0 && distance < 330) hold = 'ability';
-    else return null;
-    return { hold, ticks: 2, mx: e.x >= f.x ? 1 : -1, my: 0, weight: 1 };
   }
 
   /** Every hero move that would hit `e` from here right now (and is ready), one picked by weight. */

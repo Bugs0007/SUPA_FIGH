@@ -122,7 +122,7 @@ import { conveyorPush, useCannon } from './gimmicks';
 import { copyIntent, emptyIntent, type Intent } from './intent';
 import { hasHeadroom, moveBody, newMoveResult, onOneWayOnly, segmentAabb, type Body, type MoveResult } from './physics';
 import type { World } from './world';
-import { createPokemon, createTrainer, POKE_BALL, pokemonSpecies, pokemonStage, type PokemonSpecies, type PokemonState, type TrainerState } from './data/pokemon';
+import { createPokemon, createTrainer, POKE_BALL, pokemonSpecies, TRAINER_HP, type PokemonSpecies, type PokemonState, type TrainerState } from './data/pokemon';
 import { deployedPartner, selectedPartnerBall, stepPokemon, stepTrainer } from './pokemon';
 
 export type FState =
@@ -149,6 +149,8 @@ export interface InvItem {
   id: string;
   ammo: number;
   dur: number;
+  /** The partner assigned to this particular Poké Ball. */
+  pokemon?: PokemonSpecies;
 }
 
 /** Plain data (snapshot-able). All behavior lives in the functions below. */
@@ -367,13 +369,14 @@ export interface FighterSpawn {
   /** shadow clone slot (added by the World): fighter id of the master */
   master?: number;
   pokemon?: PokemonSpecies;
+  pokemonTeam?: readonly PokemonSpecies[];
   companion?: PokemonSpecies;
 }
 
 export function createFighter(id: number, spec: FighterSpawn, x: number, y: number): Fighter {
   const hero = heroDef(spec.hero);
-  const trainer = spec.hero === 'ash' ? createTrainer(pokemonSpecies(spec.pokemon), spec.startForm) : undefined;
-  const hp = (hero?.stats.hp ?? MAX_HP) + (trainer ? pokemonStage(trainer.species, trainer.stage).trainerBonusHp : 0);
+  const trainer = spec.hero === 'ash' ? createTrainer(pokemonSpecies(spec.pokemon), spec.startForm, spec.pokemonTeam) : undefined;
+  const hp = trainer ? TRAINER_HP : hero?.stats.hp ?? MAX_HP;
   const startLevel = hero && hero.id !== 'ash' && spec.master === undefined ? Math.max(0, Math.min(maxLevel(hero.id), Math.floor(spec.startForm ?? 0))) : 0;
   return {
     id,
@@ -430,7 +433,8 @@ export function createFighter(id: number, spec: FighterSpawn, x: number, y: numb
     crouchAim: false,
     pendingShot: 0,
     lastShotTime: -10,
-    inv: [null, null, null, null, spec.hero === 'ash' ? { id: POKE_BALL, ammo: 0, dur: 1 } : null],
+    inv: trainer ? [null, null, null, null, ...trainer.team.map(member => ({ id: POKE_BALL, pokemon: member.species, ammo: 0, dur: 1 }))]
+      : [null, null, null, null, null],
     active: spec.hero === 'ash' ? SLOT.GADGET : SLOT.MELEE,
     fireCooldown: 0,
     kickCooldown: 0,
@@ -3007,8 +3011,8 @@ export function selectBestSlot(f: Fighter): void {
 }
 
 export function cycleWeapon(w: World, f: Fighter): void {
-  for (let k = 1; k <= 5; k++) {
-    const s = (f.active + k) % 5;
+  for (let k = 1; k <= f.inv.length; k++) {
+    const s = (f.active + k) % f.inv.length;
     if (s === SLOT.MELEE || f.inv[s]) {
       f.active = s;
       break;

@@ -209,7 +209,7 @@ export class FightersScene extends Phaser.Scene {
     this.gfx = this.add.graphics();
     this.partnerIndex = POKEMON_PARTNERS.indexOf(pokemonSpecies(this.dataIn.picker?.pokemon));
     this.add.bitmapText(VIEW_W / 2, 15, 'pxo', 'CHOOSE YOUR PARTNER').setOrigin(0.5, 0).setScale(2).setTint(THEMES.pokemon.light);
-    this.add.bitmapText(VIEW_W / 2, 41, 'sm', 'ASH KETCHUM  /  ONE PARTNER PER MATCH').setOrigin(0.5, 0).setTint(0xacb9d3);
+    this.add.bitmapText(VIEW_W / 2, 41, 'sm', 'DEFAULT PARTNER  /  ADD MORE POKEMON IN MATCH SETUP').setOrigin(0.5, 0).setTint(0xacb9d3);
     this.partnerNames = POKEMON_PARTNERS.map((species, i) => {
       const x = 35 + i % 4 * 144;
       const y = 60 + Math.floor(i / 4) * 99;

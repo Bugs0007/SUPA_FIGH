@@ -96,7 +96,7 @@ describe('server: rooms and lobby', () => {
     const rude = new TestClient(hub, 'd');
     rude.sendRaw(JSON.stringify({ t: 'start' }));
     expect(rude.last('err')?.code).toBe('noRoom');
-    expect(PROTOCOL_VERSION).toBe(7); // Partner state requires matching clients.
+    expect(PROTOCOL_VERSION).toBe(9); // Partner teams require matching clients.
   });
 
   it('carries the selected partner from a lobby claim into the launched match', () => {

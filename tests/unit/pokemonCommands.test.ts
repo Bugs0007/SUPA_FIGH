@@ -104,7 +104,7 @@ describe('trainer commands and protection', () => {
     expect(pokemon.pokemon?.perched).toBe(false);
   });
 
-  it('locks the 40HP trainer through the return animation and unlocks after the ball closes', () => {
+  it('locks the exposed trainer through the return animation and unlocks after the ball closes', () => {
     const { world, ash, pokemon } = battle(3);
     expect(ash.maxHp).toBe(TRAINER_HP);
     expect(applyHit(world, ash, { ...hit, ignoreInvuln: true })).toBe(false);

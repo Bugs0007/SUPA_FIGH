@@ -11,7 +11,8 @@ import { PROPS, type PropType } from './data/props';
 import { clonePlain, withoutDef, type WorldSnapshot } from './snapshot';
 import { buildGimmicks, gravityMult, updateGimmicks, type Gimmicks } from './gimmicks';
 import { maxClones, POWER_ORB } from './data/heroes';
-import { POKE_BALL, pokemonSpecies, pokemonStage } from './data/pokemon';
+import { POKE_BALL, pokemonSpecies, pokemonStage, pokemonTeam, trainerTeam } from './data/pokemon';
+import { pokemonAttack } from './data/pokemonAttacks';
 import { evolvePartner } from './pokemon';
 import { dismissClone, resolveOrbClashes, transform } from './hero';
 import { parseMap, type MapDef, type ParsedMap } from './map/mapData';
@@ -114,9 +115,10 @@ export class World {
     const slots: FighterSpawn[] = [];
     specs.forEach((s, i) => {
       if (s.hero === 'ash') {
-        const companion = pokemonSpecies(s.pokemon);
-        slots.push({ name: pokemonStage(companion, 0).name, team: teamKey({ id: i, team: s.team }),
-          isBot: false, upJumps: false, master: i, companion });
+        for (const companion of pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon))) {
+          slots.push({ name: pokemonStage(companion, 0).name, team: teamKey({ id: i, team: s.team }),
+            isBot: false, upJumps: false, master: i, companion });
+        }
       }
       const n = maxClones(s.hero ?? '');
       for (let k = 0; k < n; k++) slots.push({ name: 'CLONE', team: teamKey({ id: i, team: s.team }), isBot: true, upJumps: false, hero: s.hero, master: i });
@@ -145,7 +147,16 @@ export class World {
       f.invuln = 0;
       this.fighters.push(f);
       const trainer = this.fighters[f.master]?.trainer;
-      if (f.pokemon && trainer) trainer.slot = f.id;
+      if (f.pokemon && trainer) {
+        const member = trainer.team.find(member => member.species === f.pokemon!.species)!;
+        member.slot = f.id;
+        const stage = pokemonStage(member.species, member.stage);
+        f.pokemon.stage = f.pokemon.previousStage = member.stage;
+        f.w = stage.width;
+        f.h = stage.height;
+        f.maxHp = stage.hp;
+        if (trainer.species === member.species) trainer.slot = f.id;
+      }
     });
 
     for (const p of this.parsed.props) this.spawnProp(this.mods.has('explosive') && p.type === 'crate' ? 'barrel' : p.type, p.x, p.y);
@@ -219,8 +230,17 @@ export class World {
     this.nextPropId = c.nextPropId;
     this.weaponTimer = c.weaponTimer;
     this.powerTimer = c.powerTimer;
-    this.fighters.forEach((f, i) => Object.assign(f, c.fighters[i]));
-    this.bullets = c.bullets;
+    this.fighters.forEach((f, i) => {
+      Object.assign(f, c.fighters[i]);
+      if (f.trainer) trainerTeam(f.trainer);
+      if (f.pokemon) {
+        const p = f.pokemon;
+        p.shots ??= !p.fired ? 0 : p.move === 'shot' || p.move === 'ultimate'
+          ? pokemonAttack(p.species, p.stage, p.move === 'ultimate' ? 'ultimate' : 'shot').pulses : 1;
+        f.pokemon.queued ??= false;
+      }
+    });
+    this.bullets = c.bullets.map(b => ({ ...b, pokemon: b.pokemon ?? '', target: b.target ?? -1, homing: b.homing ?? 0 }));
     this.items = c.items;
     this.props = c.props.map((p) => ({ ...p, def: PROPS[p.type] }));
     this.fires = c.fires;
@@ -499,7 +519,7 @@ export class World {
       const owner = f.pokemon ? this.fighters[f.master] : f;
       if (!it.active || it.weaponId !== POWER_ORB || this.settings.noPickups || !f.alive || !owner?.alive) return false;
       it.active = false;
-      evolvePartner(this, owner);
+      evolvePartner(this, owner, f.pokemon?.species);
       this.emit({ t: 'powerup', f: f.id, kind: 'orb', x: it.x, y: it.y });
       return true;
     }

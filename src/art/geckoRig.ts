@@ -8,8 +8,8 @@ const LEAF_LIGHT = 7, BELLY = 8, BELLY_LIGHT = 9, EYE = 10, WHITE = 11, ORB = 12
 const PALETTES = [
   [-1, 0x20362c, 0x306044, 0x46965a, 0x75bb6d, 0xa3d88a, 0x417b49, 0x7dbb68, 0xb75251, 0xe18970, 0xe8d872, 0xf5ecd5, 0xd4d866],
   [-1, 0x22362d, 0x355c39, 0x4c8547, 0x6dab55, 0x9dcd70, 0x356a3b, 0x77a958, 0xad4d4c, 0xdc7562, 0xedd779, 0xf6eed8, 0xd7d66b],
-  [-1, 0x21362d, 0x2f5c40, 0x3e8754, 0x61a968, 0x8acc7a, 0x305c3c, 0x63934d, 0xa94d4e, 0xdc7863, 0xe8da7c, 0xf7edda, 0xe0d56e],
-  [-1, 0x20352e, 0x2d5840, 0x397c50, 0x559d61, 0x88c675, 0x2b5137, 0x638e46, 0xb3464d, 0xef7867, 0xf2d878, 0xf7ecd7, 0xe3d462],
+  [-1, 0x163c2e, 0x255a3c, 0x2e8550, 0x43a561, 0x7bc67b, 0x245d3c, 0x66aa51, 0xbd4c51, 0xe87965, 0xf2d572, 0xffefd1, 0xe3d65e],
+  [-1, 0x153b2e, 0x22553d, 0x2c7b4c, 0x3e9a5b, 0x78bf70, 0x214e35, 0x5b9645, 0xb83d4d, 0xef756a, 0xf3da76, 0xffecd0, 0xe25765],
 ] as const;
 const SWAY = [0, 1, 2, 1, 0, -1, -2, -1];
 const BREATH = [0, 0, -1, -1, -1, 0, 0, 0];
@@ -74,19 +74,33 @@ function poseFor(rank: number, pose: PokemonPose, phase: number): GeckoPose {
       crown -= 2;
     }
   }
-  if (pose === 'punch' || pose === 'kick' || pose === 'cast') {
-    const power = pose === 'cast' ? CAST[phase] : STRIKE[phase];
+  if (pose === 'cast') {
+    const power = CAST[phase];
+    const drive = [-2,-4,5,4,0,-0.5,-0.2,0][phase];
+    hip = add(hip, -power, power);
+    chest = add(chest, drive * 0.5, power);
+    head = add(head, drive, -power);
+    feet = [[grown ? -10 : -6,-2],[grown ? 9 : 5,-2]];
+    hands = [add(chest, -5 * power, 4), add(chest, 4 + 10 * power, -4 * power)];
+    tail = 4 * power;
+    crown = -4 * power;
+    mouth = power;
+  } else if (pose === 'punch' || pose === 'backhand' || pose === 'kick') {
+    const power = STRIKE[phase];
     chest = add(chest, power * 4, power);
     head = add(head, power * 3, -power);
     if (pose === 'kick') {
       feet[1] = add(feet[1], (grown ? 17 : 10) * power, -(grown ? 13 : 8) * power);
       hands = [add(chest, -4, 5), add(chest, -3, 7)];
+    } else if (pose === 'backhand') {
+      chest = add(chest, -2 * power, -2 * power);
+      hands = [add(chest, 4 + (grown ? 19 : 12) * power, -4 * power), add(chest, 3 - 7 * power, 5)];
+      tail = 6 * power;
     } else {
-      hands = [add(chest, -3, 4), add(chest, (grown ? 18 : 12) * power, (pose === 'cast' ? -3 : 1) * power)];
+      hands = [add(chest, -3, 4), add(chest, (grown ? 18 : 12) * power, power)];
     }
-    tail = -4 * power;
+    if (pose !== 'backhand') tail = -4 * power;
     crown = -3 * power;
-    mouth = pose === 'cast' ? power : 0;
   } else if (pose === 'guard' || pose === 'windup') {
     const power = pose === 'guard' ? 1 : 0.3 + phase * 0.1;
     hip = add(hip, -2 * power, power);
@@ -240,6 +254,7 @@ function head(r: Pen, at: Pt, rank: number, crown: number, mouth: number, closed
 export function bakeGeckoRig(rank: number, pose: PokemonPose, phase: number): ReferenceFrame {
   rank = Math.max(0, Math.min(3, Math.floor(rank)));
   phase = ((Math.floor(phase) % 8) + 8) % 8;
+  if (rank >= 2) return matureGecko(rank, pose, phase);
   const grown = rank >= 2;
   const scale = [0.65, 0.68, 0.9, 1.05][rank];
   const s = poseFor(rank, pose, phase);
@@ -297,4 +312,106 @@ export function bakeGeckoRig(rank: number, pose: PokemonPose, phase: number): Re
     originX: ORIGIN[0], originY: ORIGIN[1], muzzle: anchor(muzzle),
     saddle: grown ? anchor(add(s.chest, -5, -3)) : undefined,
   };
+}
+
+/** Adult geckos have a tapered torso, red throat, seed rows and a solid conifer tail. */
+function matureGecko(rank:number,pose:PokemonPose,phase:number):ReferenceFrame {
+  const mega=rank===3,scale=mega?1.05:.9;
+  const raster=new Raster(144,96),r=new ScaledPen(raster,[0,0],ORIGIN,scale);
+  const s=poseFor(rank,pose,phase),face=add(s.head,0,-.5);
+  const closed=pose==='faint'&&phase>2||pose==='hurt'&&phase<3||pose==='idle'&&phase===7;
+  const joint=(root:Pt,knee:Pt,end:Pt,width:number,near:boolean)=>{
+    r.stroke([root,knee,end],INK,width+1.4);r.stroke([root,knee,end],near?SKIN:SHADE,width);
+    if(near)r.line(root[0]-.7,root[1]-.5,knee[0]-.7,knee[1]-.5,LIGHT);
+  };
+  const clawFoot=(at:Pt,near:boolean)=>{
+    r.poly([add(at,-3,-2),add(at,2,-2),add(at,6,-.7),add(at,7,1),add(at,1,2),add(at,-3,1)],INK);
+    r.poly([add(at,-2.3,-1.4),add(at,1.7,-1.4),add(at,4.8,-.3),add(at,5.2,.6),add(at,0,1),add(at,-2.3,.5)],near?SKIN:SHADE);
+    for(const [dx,dy]of [[2,-.8],[4,.1],[5.5,.9]] as const)r.line(at[0]+dx,at[1]+dy,at[0]+dx+1.8,at[1]+dy+.2,WHITE);
+  };
+  const clawHand=(at:Pt,near:boolean)=>{
+    r.ellipse(at[0],at[1],2.4,2.1,INK);r.ellipse(at[0]-.2,at[1]-.2,1.8,1.5,near?SKIN:SHADE);
+    for(const dy of [-1.5,0,1.6])r.line(at[0]+1.5,at[1]+dy,at[0]+4,at[1]+dy-.5,WHITE);
+  };
+  const root=add(s.hip,-4,-1),sway=s.tail;
+  const extent=mega?45:32;
+  const tip=add(root,-extent,-7+sway);
+  r.poly([root,add(root,-12,-5+sway*.25),add(tip,3,-2),add(tip,-2,1),add(root,-12,3+sway*.4),add(root,1,3)],INK);
+  r.poly([add(root,-1,0),add(root,-12,-3+sway*.25),add(tip,3,-.5),add(root,-12,1.5+sway*.4)],SKIN);
+  const tiers=mega?5:4;
+  for(let i=tiers-1;i>=0;i--){
+    const t=(i+.35)/tiers;
+    const at=add(root,-5-t*(extent-8),-1-t*5+sway*t);
+    const breadth=(mega?15:12)-i*(mega?1.4:1.5);
+    const crown:Pt=[at[0]-3.5-i*.6,at[1]-breadth];
+    const lower:Pt=[at[0]-6-i*.4,Math.min(-3,at[1]+breadth*.64)];
+    r.poly([add(at,4,-1),crown,add(at,-8-i,-2),add(at,-3,2)],INK);
+    r.poly([add(at,2,-.8),add(crown,.4,1.8),add(at,-6-i,-1),add(at,-2,1)],LEAF);
+    r.line(at[0]+1,at[1]-1,crown[0]+.4,crown[1]+2,LEAF_LIGHT);
+    r.poly([add(at,3,0),add(at,-7-i,1),lower,add(at,-1,4)],INK);
+    r.poly([add(at,1.8,.3),add(at,-5.5-i,1.6),add(lower,.5,-1.2),add(at,-1,2.7)],LEAF);
+    r.line(at[0],at[1]+1,lower[0]+1,lower[1]-1,LEAF_LIGHT);
+    if(mega){
+      r.poly([add(crown,0,.5),add(crown,.6,4.2),add(crown,2,5.5),add(crown,1.3,1.6)],BELLY_LIGHT);
+      r.poly([lower,add(lower,2,-2.3),add(lower,3,-1),add(lower,1.6,.8)],BELLY);
+    }
+  }
+  if(mega){
+    r.poly([add(tip,4,-3),add(tip,-7,-4),add(tip,-10,-1),add(tip,-4,2),add(tip,4,3)],INK);
+    r.poly([add(tip,3,-2),add(tip,-6,-2.5),add(tip,-8,-1),add(tip,-3,1),add(tip,3,2)],LEAF);
+    r.line(tip[0]-6,tip[1]-2,tip[0]-8,tip[1]-.5,BELLY_LIGHT,2);
+  }
+  const farKnee:Pt=[s.hip[0]-6,(s.hip[1]+s.feet[0][1])/2-1];
+  joint(add(s.hip,-1,0),farKnee,add(s.feet[0],0,-2),4.1,false);clawFoot(s.feet[0],false);
+  const farShoulder=add(s.chest,1.6,1.1),farElbow=elbow(farShoulder,s.hands[0]);
+  joint(farShoulder,farElbow,s.hands[0],2.8,false);clawHand(s.hands[0],false);
+  leaf(r,add(farElbow,-.5,-1),add(s.hands[0],3,-9),3.3,false);
+  r.poly([add(s.chest,-4,-2),add(s.chest,2.6,-2),add(s.chest,4.5,3),add(s.hip,3.2,-1),add(s.hip,4.8,3.8),add(s.hip,-1,6.1),add(s.hip,-5,2),add(s.chest,-3,3.8)],INK);
+  r.poly([add(s.chest,-3,-1.2),add(s.chest,2,-1.1),add(s.chest,3.2,3),add(s.hip,2.3,-1),add(s.hip,3.6,3.5),add(s.hip,-.8,4.7),add(s.hip,-3.8,1.5),add(s.chest,-2.4,3)],SKIN);
+  r.line(s.chest[0]-1.9,s.chest[1]+.2,s.hip[0]-2.2,s.hip[1]+1,LIGHT);
+  r.poly([add(s.chest,1.5,1),add(s.chest,3.3,2.7),add(s.hip,3.2,2.6),add(s.hip,.5,4),add(s.hip,.3,-1)],BELLY);
+  r.line(s.chest[0]+2,s.chest[1]+3,s.hip[0]+2,s.hip[1]+1,BELLY_LIGHT);
+  // Both rows of seeds sit on the back and follow the rotating spine.
+  const spine:Pt=[s.hip[0]-s.chest[0],s.hip[1]-s.chest[1]];
+  for(const t of [.1,.42,.75])for(const row of [0,1]){
+    const at:Pt=[s.chest[0]+spine[0]*t-4.4-row*1.8,s.chest[1]+spine[1]*t+row*1.5];
+    r.ellipse(at[0],at[1],row?1.7:2.1,row?1.9:2.4,INK);
+    r.ellipse(at[0]-.2,at[1]-.3,row?1.2:1.55,row?1.35:1.75,ORB);
+    r.set(at[0]-.4,at[1]-1,mega?BELLY_LIGHT:EYE);
+  }
+  const nearKnee:Pt=[s.hip[0]+6.3,(s.hip[1]+s.feet[1][1])/2-1.5];
+  joint(add(s.hip,1,1),nearKnee,add(s.feet[1],0,-2),4.7,true);clawFoot(s.feet[1],true);
+  const nearShoulder=add(s.chest,-1.1,1),nearElbow=elbow(nearShoulder,s.hands[1]);
+  joint(nearShoulder,nearElbow,s.hands[1],3,true);
+  leaf(r,add(nearElbow,-1,-1),add(s.hands[1],5,-8),mega?4.2:3.5);
+  leaf(r,add(nearElbow,-2.2,-3),add(s.hands[1],1,-12),mega?4:3.1);
+  clawHand(s.hands[1],true);
+  r.stroke([s.chest,add(face,-1,3)],INK,6.5);r.stroke([s.chest,add(face,-1,3)],SKIN,4.9);
+  // Red throat continues under the jaw; the cheek stays green and the iris stays yellow.
+  r.line(s.chest[0]+1,s.chest[1]-1,face[0]+3,face[1]+4.3,BELLY,2.3);
+  r.poly([add(face,-6,2),add(face,-7,-3),add(face,-4,-8),add(face,.5,-8),add(face,5,-4.8),add(face,12,-.5),add(face,13,2),add(face,8,5),add(face,1,5.3)],INK);
+  r.poly([add(face,-5.1,1.5),add(face,-5.6,-3),add(face,-3.5,-6.5),add(face,.4,-6.5),add(face,4.5,-3.5),add(face,11,-.1),add(face,11.6,1.6),add(face,7.6,3.7),add(face,1,4.1)],SKIN);
+  r.poly([add(face,-4.8,-2),add(face,-3.3,-6),add(face,.4,-6),add(face,3,-3.8),add(face,-.3,-4.5)],LIGHT);
+  r.poly([add(face,-6,-2),add(face,-9,-10),add(face,-7,-12),add(face,-3,-7),add(face,-1,-5)],INK);
+  r.poly([add(face,-5.6,-2.3),add(face,-7.4,-9.6),add(face,-6.6,-10.5),add(face,-3.9,-6.8),add(face,-2.5,-5)],SKIN);
+  r.line(face[0]-6.4,face[1]-8.7,face[0]-4,face[1]-6.7,LIGHT);
+  r.poly([add(face,-1,-5),add(face,-.3,-10.7),add(face,1.6,-10),add(face,4,-4.8)],INK);
+  r.poly([add(face,-.2,-5.5),add(face,.3,-9),add(face,1.1,-8.8),add(face,2.7,-5.3)],mega?BELLY:SKIN);
+  if(mega){
+    r.poly([add(face,-5,-7),add(face,-5,-12),add(face,-2,-11),add(face,1,-6),add(face,4,-4.3),add(face,1,-3)],BELLY);
+    r.line(face[0]-3.8,face[1]-10,face[0]-.3,face[1]-6,BELLY_LIGHT);
+  }
+  r.poly([add(face,-.5,-4.3),add(face,5.5,-3),add(face,6.1,-.3),add(face,1,.4),add(face,-.5,-1.1)],INK);
+  if(!closed){
+    r.poly([add(face,.4,-3.4),add(face,4.9,-2.6),add(face,5,-.8),add(face,1,-.5)],EYE);
+    r.line(face[0]+3.9,face[1]-2.7,face[0]+4,face[1]-.9,INK);
+    r.set(face[0]+1,face[1]-2.9,WHITE);
+  }
+  r.poly([add(face,1,3.5),add(face,5,3),add(face,11.1,1.6),add(face,10,3.7),add(face,6,5),add(face,1,4.7)],BELLY);
+  r.line(face[0]+3,face[1]+2.3,face[0]+11,face[1]+1.2,DEEP);
+  if(s.mouth>.3)r.line(face[0]+6,face[1]+2.5,face[0]+10,face[1]+2.5+s.mouth*1.5,INK,1.3);
+  r.set(face[0]+10,face[1]-.1,DEEP);
+  r.set(face[0]+7,face[1]+2.4,WHITE);
+  const anchor=([x,y]:Pt):Pt=>[Math.round(x*scale),Math.round(y*scale)];
+  return {sprite:toRuns(Int32Array.from(raster.m,ink=>PALETTES[rank][ink]),raster.w,raster.h),originX:ORIGIN[0],originY:ORIGIN[1],muzzle:anchor(add(face,13,3))};
 }

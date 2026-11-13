@@ -10,6 +10,7 @@ import { ignite, igniteTile, isFlammableTile, spawnFire } from './fire';
 import { segmentAabb } from './physics';
 import { damageProp, pushProp } from './prop';
 import type { World } from './world';
+import type { PokemonSpecies } from './data/pokemon';
 
 export interface Bullet {
   active: boolean;
@@ -48,6 +49,10 @@ export interface Bullet {
    */
   tier: number;
   form: number;
+  /** Source remains attached when an elemental move is reflected. */
+  pokemon: PokemonSpecies | '';
+  target: number;
+  homing: number;
 }
 
 export interface BulletSpawn {
@@ -72,6 +77,9 @@ export interface BulletSpawn {
   size?: number;
   tier?: number;
   form?: number;
+  pokemon?: PokemonSpecies | '';
+  target?: number;
+  homing?: number;
 }
 
 export function newBullet(): Bullet {
@@ -105,6 +113,9 @@ export function newBullet(): Bullet {
     size: 0,
     tier: 0,
     form: 0,
+    pokemon: '',
+    target: -1,
+    homing: 0,
   };
 }
 
@@ -136,6 +147,9 @@ export function initBullet(b: Bullet, s: BulletSpawn): Bullet {
   b.size = s.size ?? 0;
   b.tier = s.tier ?? 0;
   b.form = s.form ?? 0;
+  b.pokemon = s.pokemon ?? '';
+  b.target = s.target ?? -1;
+  b.homing = s.homing ?? 0;
   return b;
 }
 
@@ -184,6 +198,8 @@ function reflectBullet(w: World, f: Fighter, b: Bullet, hx: number, hy: number):
   f.guardWait = BLOCK.regenDelay;
   f.blockStun = Math.max(f.blockStun, 0.12); // (the guard flexes; the art reads it)
   const attacker = b.owner;
+  const source = w.fighters[attacker];
+  b.target = source?.trainer ? deployedPartner(w, source)?.id ?? attacker : attacker;
   // back toward where it came from (the shooter), else straight back
   let dx = b.ox - hx;
   let dy = b.oy - hy;
@@ -218,6 +234,21 @@ export function updateBullets(w: World): void {
     if (!b.active) continue;
     b.px = b.x;
     b.py = b.y;
+    const target = b.homing > 0 ? w.fighters[b.target] : undefined;
+    if (target?.alive && !target.gone && !target.trainer?.mounted && target.pokemon?.move !== 'recall') {
+      const owner = w.fighters[b.owner];
+      const tx = target.x;
+      const ty = target.y - target.h * 0.5;
+      if ((!owner || !sameTeam(owner, target)) && w.map.clearShot(b.x, b.y, tx, ty)) {
+        const speed = Math.hypot(b.vx, b.vy);
+        const current = Math.atan2(b.vy, b.vx);
+        const desired = Math.atan2(ty - b.y, tx - b.x);
+        const difference = Math.atan2(Math.sin(desired - current), Math.cos(desired - current));
+        const turn = Math.max(-b.homing * DT, Math.min(b.homing * DT, difference));
+        b.vx = Math.cos(current + turn) * speed;
+        b.vy = Math.sin(current + turn) * speed;
+      }
+    }
     if (b.gravity !== 0) b.vy += b.gravity * DT;
     if (b.kind === 'flame') {
       b.vx *= 0.97;

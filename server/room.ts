@@ -247,7 +247,7 @@ export class Room {
     for (const p of players) {
       for (const c of p.claims) {
         if (!c) continue;
-        fighters.push({ name: c.name, team: 0, isBot: false, upJumps: c.upJumps, hero: c.hero || undefined, pokemon: c.pokemon });
+        fighters.push({ name: c.name, team: 0, isBot: false, upJumps: c.upJumps, hero: c.hero || undefined, pokemon: c.pokemon, pokemonTeam: c.pokemonTeam?.slice() });
         slots.push({ owner: p.device });
         looks.push(c.look);
       }

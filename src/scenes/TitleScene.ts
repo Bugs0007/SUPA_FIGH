@@ -15,7 +15,7 @@ import { keyboard } from '../input/keyboard';
 import { menu } from '../input/menu';
 import { HERO_ORDER, HEROES } from '../sim/data/heroes';
 import { openFighterPicker } from './FightersScene';
-import { pokemonSpecies, pokemonStage, type PokemonSpecies } from '../sim/data/pokemon';
+import { pokemonSpecies, pokemonStage, pokemonTeam, type PokemonSpecies } from '../sim/data/pokemon';
 import { getMap, MAP_LIST } from '../sim/map/maps';
 import { loadLobby, saveLobby } from './lobby';
 import { defaultSetup } from './MatchScene';
@@ -337,7 +337,10 @@ export class TitleScene extends Phaser.Scene {
   }
   private setFighter(i: number, hero: string, pokemon?: PokemonSpecies): void {
     profiles[i].hero = hero;
-    if (hero === 'ash') profiles[i].pokemon = pokemonSpecies(pokemon ?? profiles[i].pokemon);
+    if (hero === 'ash') {
+      profiles[i].pokemon = pokemonSpecies(pokemon ?? profiles[i].pokemon);
+      if (profiles[i].pokemonTeam) profiles[i].pokemonTeam = pokemonTeam(profiles[i].pokemonTeam!.length > 1 ? profiles[i].pokemonTeam : [], profiles[i].pokemon);
+    }
     saveProfiles();
     // keep the lobby's KEYBOARD slots in sync with the card
     const lobby = loadLobby();
@@ -345,6 +348,7 @@ export class TitleScene extends Phaser.Scene {
       if (s.kind === 'kb' + i) {
         s.hero = hero;
         s.pokemon = profiles[i].pokemon;
+        s.pokemonTeam = profiles[i].pokemonTeam?.slice();
       }
     saveLobby(lobby);
     this.applyFighter(i);

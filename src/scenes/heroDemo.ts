@@ -3,6 +3,7 @@ import { DT, TILE } from '../sim/constants';
 import { bombWindup, DRAGON_FIST, gokuFormComboName, HEROES, JET_BAZOOKA, SASUKE_DRAGON_FIRE_LEVEL, secondMoveName } from '../sim/data/heroes';
 import { rosterSpecial } from '../sim/data/rosterSpecials';
 import { pokemonStage, POKEMON_TIMING, type PokemonSpecies } from '../sim/data/pokemon';
+import { pokemonAttack, pokemonAttackDuration } from '../sim/data/pokemonAttacks';
 import { SLOT } from '../sim/data/weapons';
 import { emptyIntent, type Intent } from '../sim/intent';
 import { getMap } from '../sim/map/maps';
@@ -48,7 +49,7 @@ export function demoMoveName(hero: string, mode: DemoMode, level: number, pokemo
   if (mode === 'mount') return 'RIDE ' + pokemonStage(pokemon, level).name;
   if (hero === 'ash') {
     const stage = pokemonStage(pokemon, level);
-    return { base: stage.shot, second: stage.dash, super: stage.ultimate, combo: 'PARTNER STRIKE',
+    return { base: stage.shot, second: stage.dash, super: stage.ultimate, combo: 'PARTNER COMBO',
       special: 'PARTNER ASSIST', guard: 'PARTNER GUARD' }[mode];
   }
   const h = HEROES[hero];
@@ -72,7 +73,7 @@ export function describeDemoMove(hero: string, mode: DemoMode, level: number, po
       base: 'ABILITY. ' + name + ' TARGETS THE NEAREST RIVAL IN ASH\'S LINE OF SIGHT.',
       second: 'KICK. SEND ' + name + ' IN FOR A HEAVY STRIKE. UP + KICK TARGETS A POWER ORB.',
       super: 'ABILITY + KICK. ORDER ' + name + ' TO USE ITS STRONGEST MOVE.',
-      combo: 'SELECT THE POKE BALL AND TAP ATTACK TO SEND OUT ' + name + ' OR ORDER A STRIKE. HOLD ATTACK TO RECALL.',
+      combo: 'SELECT THE POKE BALL. TAP ATTACK FOR A THREE-HIT COMBO AND FINISHER. HOLD ATTACK TO RECALL.',
       special: 'ATTACK + ABILITY. ASH SIGNALS ' + name + ' TO FIRE AT THE RIVAL.',
       guard: 'BLOCK CALLS YOUR PARTNER BACK TO GUARD IN FRONT. KEEP HOLDING TO RIDE A LARGE PARTNER.',
     }[mode];
@@ -130,7 +131,7 @@ export class HeroDemo {
       { name: h?.name ?? 'SCRAPPER', team: 1, hero, startForm: this.level, pokemon, isBot: false, upJumps: false },
       { name: 'SPARRING RIVAL', team: 2, hero: mode === 'special' && hero === 'asta' ? 'vegeta' : '', isBot: false, upJumps: false },
     ], { ...DEFAULT_WORLD_SETTINGS, weaponSpawnRate: 0, noPickups: true }, 49);
-    const gap = hero === 'ash' ? mode === 'guard' ? 46 : mode === 'special' ? 37 : 76 : spacing(hero, mode, this.level);
+    const gap = hero === 'ash' ? mode === 'guard' ? 46 : mode === 'special' ? 37 : mode === 'super' && (pokemon === 'squirtle' && this.level === 1 || pokemon === 'treecko' && this.level === 0 || pokemon === 'riolu' && this.level === 0) ? 68 : 100 : spacing(hero, mode, this.level);
     for (const [id, fighter] of this.world.fighters.slice(0, 2).entries()) {
       fighter.x = fighter.px = 544 + (id === 1 ? gap : 0);
       fighter.y = fighter.py = DEMO_FLOOR;
@@ -143,7 +144,9 @@ export class HeroDemo {
       rival.active = SLOT.SIDEARM;
     }
     this.intents = this.world.fighters.map(emptyIntent);
-    const windup = mode === 'super' ? h.super.bomb ? bombWindup(h.super.bomb) : h.super.beam?.minCharge ?? 0 : 0;
+    const windup = hero === 'ash' && (mode === 'base' || mode === 'super' || mode === 'special')
+      ? pokemonAttackDuration(pokemonAttack(pokemon, this.level, mode === 'super' ? 'ultimate' : 'shot'))
+      : mode === 'super' ? h.super.bomb ? bombWindup(h.super.bomb) : h.super.beam?.minCharge ?? 0 : 0;
     const specialDuration = mode === 'special' ? rosterSpecial(hero)?.duration ?? 0 : 0;
     const mountDuration = pokemonStage(pokemon, this.level).flies ? 5.6 : 3.7;
     this.duration = Math.ceil(Math.max(mode === 'mount' ? mountDuration : 2.55 + windup, specialDuration + 1) / DT);

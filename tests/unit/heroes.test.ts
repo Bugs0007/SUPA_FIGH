@@ -108,7 +108,7 @@ describe('hero data', () => {
       expect(h.stats.speed).toBeGreaterThanOrEqual(0.95);
       expect(h.stats.speed).toBeLessThanOrEqual(1.08);
       if (h.id === 'ash') {
-        expect(h.stats.hp).toBe(40);
+        expect(h.stats.hp).toBe(12);
         continue;
       }
       expect(h.stats.hp).toBeGreaterThanOrEqual(95);

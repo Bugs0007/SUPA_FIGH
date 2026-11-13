@@ -4,7 +4,7 @@
 
 import { DIFFICULTIES, type Difficulty } from '../ai/botData';
 import { HEROES } from '../sim/data/heroes';
-import { pokemonSpecies, type PokemonSpecies } from '../sim/data/pokemon';
+import { pokemonSpecies, pokemonTeam, type PokemonSpecies } from '../sim/data/pokemon';
 import type { SimEvent } from '../sim/events';
 import type { Fighter } from '../sim/fighter';
 import { MAPS } from '../sim/map/maps';
@@ -12,8 +12,8 @@ import type { GameMode, MatchConfig, MatchEvent } from '../sim/match';
 import { MODIFIERS } from '../sim/data/modifiers';
 import type { MatchRender, RenderSnapshot } from './renderState';
 
-// 7: carried partners and health protection are synchronized across trainer commands.
-export const PROTOCOL_VERSION = 7;
+// 9: trainers carry independent partner teams and species-tagged inventory balls.
+export const PROTOCOL_VERSION = 9;
 /** the always-open public Brawl room of an online server (server/hub.ts) */
 export const ARENA_CODE = 'ARENA';
 /** most fighters in one match (humans + bots) */
@@ -72,6 +72,7 @@ export interface SlotClaim {
   name: string;
   hero: string;
   pokemon?: PokemonSpecies;
+  pokemonTeam?: PokemonSpecies[];
   /** keyboard / touch players jump with Up, pads with a button */
   upJumps: boolean;
   /** appearance, opaque to the server (flat object of strings / numbers), rendered by every client */
@@ -195,7 +196,10 @@ export function sanitizeClaim(v: unknown): SlotClaim | null {
     }
   }
   const claim: SlotClaim = { name: name || 'PLAYER', hero, upJumps: v.upJumps === true, look };
-  if (hero === 'ash') claim.pokemon = pokemonSpecies(v.pokemon);
+  if (hero === 'ash') {
+    claim.pokemon = pokemonSpecies(v.pokemon);
+    claim.pokemonTeam = pokemonTeam(v.pokemonTeam, claim.pokemon);
+  }
   return claim;
 }
 

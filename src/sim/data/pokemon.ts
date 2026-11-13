@@ -4,7 +4,8 @@ export const POKEMON_PARTNERS = ['charmander', 'squirtle', 'bulbasaur', 'pikachu
 export type PokemonSpecies = (typeof POKEMON_PARTNERS)[number];
 export type PokemonElement = 'fire' | 'water' | 'grass' | 'electric' | 'aura' | 'dragon';
 export const POKE_BALL = 'pokeball';
-export const TRAINER_HP = 40;
+// Exposed trainers are human: even a base Rasengan (13) or Chidori (18) is lethal.
+export const TRAINER_HP = 12;
 export type PokemonMove = 'release' | 'recall' | 'evolve' | 'follow' | 'punch' | 'kick' | 'shot' | 'dash' | 'guard' | 'ultimate' | 'mount' | 'carry' | 'ko';
 
 export interface PokemonState {
@@ -22,13 +23,29 @@ export interface PokemonState {
   goalY: number;
   fired: boolean;
   holding: boolean;
+  /** Number of completed pulses in the current ranged attack. */
+  shots: number;
+  queued: boolean;
   /** A small partner riding the trainer through terrain it cannot traverse. */
   perched: boolean;
   stuckFor: number;
   followDistance: number;
 }
 
-export interface TrainerState {
+export interface TrainerPartner {
+  species: PokemonSpecies;
+  slot: number;
+  stage: number;
+  cooldown: number;
+  shotCd: number;
+  dashCd: number;
+  ultimateCd: number;
+}
+
+export interface TrainerState extends TrainerPartner {
+  team: TrainerPartner[];
+  /** An Attack command waiting for the previous partner to finish its visible return. */
+  pending: PokemonSpecies | '';
   species: PokemonSpecies;
   slot: number;
   active: number;
@@ -44,7 +61,7 @@ export interface TrainerState {
 
 export const POKEMON_TIMING = {
   release: 0.36, evolve: 0.78, ascend: 1.18, shot: 0.36, shotFire: 0.12, dash: 0.55,
-  ultimate: 0.85, ultimateHit: 0.60, holdToMount: 0.7, knockout: 7.5,
+  ultimate: 0.85, ultimateHit: 0.60, holdToMount: 0.7, knockout: 18,
   holdToRecall: 0.42, recall: 0.28, faint: 0.3,
 } as const;
 
@@ -125,6 +142,17 @@ export function pokemonSpecies(value: unknown): PokemonSpecies {
   return POKEMON_PARTNERS.find(species => species === value) ?? 'charmander';
 }
 
+/** A default partner is always present; reserves are explicit, unique match-setup choices. */
+export function pokemonTeam(value: unknown, first: PokemonSpecies = 'charmander'): PokemonSpecies[] {
+  const result: PokemonSpecies[] = [pokemonSpecies(first)];
+  if (Array.isArray(value)) for (const item of value) {
+    if (typeof item !== 'string' || !POKEMON_PARTNERS.includes(item as PokemonSpecies)) continue;
+    const species = item as PokemonSpecies;
+    if (!result.includes(species)) result.push(species);
+  }
+  return result;
+}
+
 export function pokemonStage(species: PokemonSpecies, stage: number) {
   const line = LINES[species];
   const maxStage = line.names.length - 1;
@@ -137,7 +165,8 @@ export function pokemonStage(species: PokemonSpecies, stage: number) {
     dash: line.dash[level], ultimate: line.ultimate[level], element: line.element, maxStage,
     flies, damageTier, trainerBonusHp: 0,
     // The ordinary final evolution precedes the Mega or Bond stage.
-    rideable: flies || (level >= maxStage - 1 && width > FIGHTER_W && height > FIGHTER_H),
+    rideable: level >= 2 && ['charmander', 'squirtle', 'bulbasaur', 'gible'].includes(species)
+      && width > FIGHTER_W && height > FIGHTER_H,
     special: level === maxStage ? line.final : undefined,
   };
 }
@@ -146,13 +175,24 @@ export function pokemonEvolutionTime(species: PokemonSpecies, stage: number, pre
   return stage > previous && pokemonStage(species, stage).special ? POKEMON_TIMING.ascend : POKEMON_TIMING.evolve;
 }
 
-export function createTrainer(species: PokemonSpecies, stage = 0): TrainerState {
-  return { species, slot: -1, active: -1, stage: Math.max(0, Math.min(pokemonStage(species, 0).maxStage, Math.floor(stage))),
-    cooldown: 0, shotCd: 0, dashCd: 0, ultimateCd: 0, blockHeld: 0, attackHeld: 0, mounted: false };
+export function createTrainer(species: PokemonSpecies, stage = 0, reserves?: readonly PokemonSpecies[]): TrainerState {
+  const team = pokemonTeam(reserves, species).map(species => ({
+    species, slot: -1, stage: Math.max(0, Math.min(pokemonStage(species, 0).maxStage, Math.floor(stage))),
+    cooldown: 0, shotCd: 0, dashCd: 0, ultimateCd: 0,
+  }));
+  return { ...team[0], team, pending: '', active: -1, blockHeld: 0, attackHeld: 0, mounted: false };
+}
+
+/** Upgrade saves created when Ash only had one partner. Selected fields remain compatibility mirrors. */
+export function trainerTeam(trainer: TrainerState): TrainerPartner[] {
+  if (!trainer.team?.length) trainer.team = [{ species: trainer.species, slot: trainer.slot, stage: trainer.stage,
+    cooldown: trainer.cooldown, shotCd: trainer.shotCd, dashCd: trainer.dashCd, ultimateCd: trainer.ultimateCd }];
+  trainer.pending ??= '';
+  return trainer.team;
 }
 
 export function createPokemon(species: PokemonSpecies, stage = 0): PokemonState {
   return { species, stage, previousStage: stage, move: 'follow', age: 0, mounted: false, target: -1,
-    engaged: -1, recalling: false, goalX: 0, goalY: 0, fired: false, holding: false,
+    engaged: -1, recalling: false, goalX: 0, goalY: 0, fired: false, holding: false, shots: 0, queued: false,
     perched: false, stuckFor: 0, followDistance: -1 };
 }

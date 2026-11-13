@@ -1,32 +1,57 @@
 import { applyHit, sameTeam } from './combat';
 import { AIR_ACCEL, BLOCK, DT, FIGHTER_H, FIGHTER_W, GRAVITY, GROUND_ACCEL, GROUND_DECEL, JUMP_VEL, MAX_FALL, SPRINT_COOLDOWN, SPRINT_TAP_WINDOW } from './constants';
 import { POWER_ORB } from './data/heroes';
-import { createPokemon, POKE_BALL, pokemonEvolutionTime, pokemonStage, POKEMON_DAMAGE, POKEMON_TIMING, TRAINER_HP, type PokemonMove, type PokemonState } from './data/pokemon';
+import { createPokemon, POKE_BALL, pokemonEvolutionTime, pokemonStage, POKEMON_DAMAGE, POKEMON_TIMING, TRAINER_HP, trainerTeam, type PokemonMove, type PokemonSpecies, type PokemonState, type TrainerPartner, type TrainerState } from './data/pokemon';
 import { createFighter, cycleWeapon, sprintMul, type Fighter } from './fighter';
 import { outOfWorld } from './fall';
 import type { Intent } from './intent';
 import { moveBody, newMoveResult, onOneWayOnly, segmentAabb } from './physics';
 import type { World } from './world';
+import { pokemonAttack, pokemonAttackDuration, pokemonEmission, pokemonMelee } from './data/pokemonAttacks';
+import { stepPokemonAttack } from './pokemonAttacks';
 
 type Commands = { attackP: boolean; abilityP: boolean; kickP: boolean; gadgetP: boolean; cycleP: boolean };
 const timing = POKEMON_TIMING;
 const BLOCK_BRACE = 0.9;
-const MELEE_RECOVERY = 0.17;
 const ORB_DASH_RANGE = 350;
 const ORB_DASH_SPEED = 340;
 const PARKED = -2;
 const result = newMoveResult();
 const RIDE_FLIGHT = { horizontal: 216, climb: 174, dive: 210, acceleration: 1320, takeoff: 96 } as const;
 const RIDE_RUN_SPEED = 150;
-const shotId = {
-  fire: 'ash:fireball', water: 'ash:waterGun', grass: 'ash:grass', electric: 'ash:electric',
-  aura: 'ash:aura', dragon: 'ash:dragon',
-};
-
 function partner(w: World, owner: Fighter): Fighter | undefined {
   const t = owner.trainer!;
-  if (t.slot < 0) t.slot = w.fighters.find(f => f.master === owner.id && f.pokemon)?.id ?? -1;
+  if (t.slot < 0) t.slot = w.fighters.find(f => f.master === owner.id && f.pokemon?.species === t.species)?.id ?? -1;
+  const member = trainerTeam(t).find(member => member.species === t.species);
+  if (member) member.slot = t.slot;
   return w.fighters[t.slot];
+}
+
+function saveSelected(t: TrainerState): void {
+  const member = trainerTeam(t).find(member => member.species === t.species);
+  if (member) Object.assign(member, { slot: t.slot, stage: t.stage, cooldown: t.cooldown,
+    shotCd: t.shotCd, dashCd: t.dashCd, ultimateCd: t.ultimateCd });
+}
+
+function selectMember(t: TrainerState, member: TrainerPartner): void {
+  t.species = member.species;
+  t.slot = member.slot;
+  t.stage = member.stage;
+  t.cooldown = member.cooldown;
+  t.shotCd = member.shotCd;
+  t.dashCd = member.dashCd;
+  t.ultimateCd = member.ultimateCd;
+}
+
+function tickTeam(t: TrainerState): void {
+  saveSelected(t);
+  for (const member of trainerTeam(t)) {
+    member.cooldown = Math.max(0, member.cooldown - DT);
+    member.shotCd = Math.max(0, member.shotCd - DT);
+    member.dashCd = Math.max(0, member.dashCd - DT);
+    member.ultimateCd = Math.max(0, member.ultimateCd - DT);
+  }
+  selectMember(t, t.team.find(member => member.species === t.species)!);
 }
 
 /** The opponent a trainer has in play, excluding a partner already returning to its ball. */
@@ -47,6 +72,8 @@ function changeMove(p: PokemonState, move: PokemonMove): void {
   p.move = move;
   p.age = 0;
   p.fired = false;
+  p.shots = 0;
+  p.queued = false;
   p.recalling = false;
   p.stuckFor = 0;
   p.followDistance = -1;
@@ -72,12 +99,14 @@ function deploy(w: World, owner: Fighter, f: Fighter, previousStage?: number): v
   f.grounded = owner.grounded;
   t.active = f.id;
   t.cooldown = 0;
+  t.pending = '';
   t.attackHeld = 0;
   if (previousStage !== undefined) {
     p.previousStage = previousStage;
     f.invuln = timing.release + pokemonEvolutionTime(p.species, p.stage, previousStage);
   }
   changeMove(p, 'release');
+  saveSelected(t);
 }
 
 export function selectedPartnerBall(f: Fighter): boolean {
@@ -129,7 +158,9 @@ export function knockOutPokemon(w: World, f: Fighter): void {
   if (owner?.trainer) {
     unmount(w, owner, f);
     owner.trainer.active = f.id;
-    owner.trainer.cooldown = timing.knockout;
+    const member = trainerTeam(owner.trainer).find(member => member.species === f.pokemon!.species);
+    if (member) member.cooldown = timing.knockout;
+    if (owner.trainer.species === f.pokemon!.species) owner.trainer.cooldown = timing.knockout;
     owner.trainer.blockHeld = 0;
     owner.trainer.attackHeld = 0;
   }
@@ -143,29 +174,37 @@ export function knockOutPokemon(w: World, f: Fighter): void {
 }
 
 export function recallPokemon(w: World, owner: Fighter): void {
-  const f = partner(w, owner);
-  if (!f?.alive) return;
-  knockOutPokemon(w, f);
-  f.gone = true;
+  for (const f of w.fighters) {
+    if (f.master !== owner.id || !f.pokemon || !f.alive) continue;
+    knockOutPokemon(w, f);
+    f.gone = true;
+  }
+  owner.trainer!.active = -1;
+  owner.trainer!.pending = '';
 }
 
-export function evolvePartner(w: World, owner: Fighter): void {
+export function evolvePartner(w: World, owner: Fighter, species?: PokemonSpecies): void {
   const t = owner.trainer!;
-  const f = partner(w, owner);
+  saveSelected(t);
+  const active = w.fighters[t.active];
+  const selectedSpecies = species ?? (active && !active.gone ? active.pokemon?.species : undefined) ?? t.species;
+  const member = trainerTeam(t).find(member => member.species === selectedSpecies);
+  if (!member) return;
+  if (member.slot < 0) member.slot = w.fighters.find(f => f.master === owner.id && f.pokemon?.species === selectedSpecies)?.id ?? -1;
+  const f = w.fighters[member.slot];
   if (!f?.pokemon) return;
-  const before = t.stage;
-  const previous = pokemonStage(t.species, before);
-  t.stage = Math.min(before + 1, previous.maxStage);
-  t.shotCd = t.dashCd = t.ultimateCd = 0;
-  const stage = pokemonStage(t.species, t.stage);
+  const before = member.stage;
+  const previous = pokemonStage(member.species, before);
+  member.stage = Math.min(before + 1, previous.maxStage);
+  member.cooldown = member.shotCd = member.dashCd = member.ultimateCd = 0;
+  if (t.species === member.species) selectMember(t, member);
+  const stage = pokemonStage(member.species, member.stage);
   const p = f.pokemon;
   if (!f.alive || p.move === 'recall') {
-    // Orbs ready and evolve a partner inside its ball. A selected Attack still
-    // controls when that partner enters the fight.
-    t.cooldown = 0;
+    // A stored partner evolves in its ball. Only a selected Attack releases it.
     p.previousStage = p.move === 'ko' || p.move === 'recall' || p.stage === before
       ? Math.min(before, p.previousStage) : before;
-    p.stage = t.stage;
+    p.stage = member.stage;
     f.name = stage.name;
     f.w = stage.width;
     f.h = stage.height;
@@ -181,7 +220,7 @@ export function evolvePartner(w: World, owner: Fighter): void {
   p.holding = false;
   f.state = 'normal';
   p.previousStage = before;
-  p.stage = t.stage;
+  p.stage = member.stage;
   if (w.map.rectSolid(f.x - f.w / 2, f.y - f.h, f.x + f.w / 2, f.y) || p.perched && !canPerch(f)) {
     beginRecall(w, owner, f);
     return;
@@ -223,7 +262,7 @@ function command(w: World, owner: Fighter, f: Fighter, move: 'punch' | 'kick' | 
   const enemy = move === 'dash' ? undefined : visibleEnemy(w, owner, melee || p.mounted ? f : owner, melee);
   if (melee && !enemy) return false;
   let x = enemy?.x ?? f.x + owner.facing * 130;
-  let y = enemy?.y ?? f.y;
+  let y = enemy?.y ?? (melee || move === 'dash' ? f.y : f.y + pokemonEmission(p.species, p.stage)[1]);
   if (move === 'dash') {
     let range = ORB_DASH_RANGE;
     for (const item of w.items) {
@@ -235,6 +274,12 @@ function command(w: World, owner: Fighter, f: Fighter, move: 'punch' | 'kick' | 
       y = item.y;
     }
     if (range === ORB_DASH_RANGE) return false;
+  }
+  const approaching = p.move === 'punch' && !p.fired;
+  if (move === 'punch' && approaching && p.target === enemy?.id) return true;
+  if (move === 'punch' && !approaching) {
+    f.combo = f.comboTimer > 0 ? (f.combo + 1) % 3 : 0;
+    f.comboTimer = 0;
   }
   changeMove(p, move);
   if (p.perched) {
@@ -255,11 +300,9 @@ export function stepTrainer(w: World, owner: Fighter, input: Intent, edge: Comma
   const t = owner.trainer!;
   owner.maxHp = TRAINER_HP;
   owner.hp = Math.min(owner.hp, TRAINER_HP);
-  const f = partner(w, owner);
-  t.cooldown = Math.max(0, t.cooldown - DT);
-  t.shotCd = Math.max(0, t.shotCd - DT);
-  t.dashCd = Math.max(0, t.dashCd - DT);
-  t.ultimateCd = Math.max(0, t.ultimateCd - DT);
+  tickTeam(t);
+  const carrying = w.fighters[t.active];
+  if (t.mounted && carrying?.pokemon && !pokemonStage(carrying.pokemon.species, carrying.pokemon.stage).rideable) unmount(w, owner, carrying);
   t.blockHeld = input.block ? t.blockHeld + DT : 0;
   if (edge.cycleP) {
     cycleWeapon(w, owner);
@@ -267,11 +310,34 @@ export function stepTrainer(w: World, owner: Fighter, input: Intent, edge: Comma
     t.attackHeld = 0;
   }
   const selected = selectedPartnerBall(owner);
+  const ballSpecies = selected ? owner.inv[owner.active]?.pokemon ?? t.species : undefined;
+  if (ballSpecies && ballSpecies !== t.species) {
+    const member = t.team.find(member => member.species === ballSpecies);
+    if (member) {
+      saveSelected(t);
+      selectMember(t, member);
+      t.pending = '';
+      t.blockHeld = t.attackHeld = 0;
+      const previous = w.fighters[t.active];
+      if (previous?.alive && previous.pokemon?.move !== 'recall') beginRecall(w, owner, previous);
+    }
+  }
+  if (!selected) t.pending = '';
+  const f = partner(w, owner);
   const { attackP, abilityP, kickP, gadgetP } = edge;
   edge.abilityP = edge.gadgetP = false;
+  const current = w.fighters[t.active];
+  if (current?.gone) t.active = -1;
+  if (current && !current.gone && (current !== f || !current.alive && t.cooldown > 0 || current.pokemon?.move === 'recall')) {
+    if (selected && f && t.cooldown <= 0 && attackP) t.pending = t.species;
+    // A fainted partner cannot command attacks, but its exposed human may still punch or kick.
+    if (current.alive || current !== f || t.pending) edge.attackP = edge.kickP = false;
+    t.attackHeld = 0;
+    return false;
+  }
   if (!f?.alive) {
     t.attackHeld = 0;
-    if (selected && f && t.cooldown <= 0 && attackP) {
+    if (selected && f && t.cooldown <= 0 && (attackP || t.pending === t.species)) {
       const stored = f.pokemon;
       const pending = stored?.stage === t.stage && stored.previousStage < stored.stage ? stored.previousStage : undefined;
       deploy(w, owner, f, pending);
@@ -302,6 +368,7 @@ export function stepTrainer(w: World, owner: Fighter, input: Intent, edge: Comma
   }
   const ready = (p.move === 'follow' || p.move === 'guard' || p.move === 'carry' || p.move === 'punch' && !p.fired) &&
     f.state !== 'flinch' && f.state !== 'knockdown' && f.state !== 'grabbed';
+  if (selected && attackP && !input.block && p.move === 'punch' && p.fired) p.queued = true;
   if (ready && !t.mounted && !p.recalling && f.state === 'block' && t.blockHeld >= timing.holdToMount && pokemonStage(p.species, p.stage).rideable) {
     p.engaged = -1;
     changeMove(p, 'mount');
@@ -321,6 +388,7 @@ export function stepTrainer(w: World, owner: Fighter, input: Intent, edge: Comma
       t.dashCd = 1.2;
     } else if (attackP) command(w, owner, f, 'punch');
   }
+  saveSelected(t);
   return t.mounted;
 }
 
@@ -495,49 +563,18 @@ function approachEnemy(w: World, f: Fighter, enemy: Fighter, speed: number, gap:
   else walkToward(w, f, x, enemy.y, speed);
 }
 
-function launch(w: World, f: Fighter, owner: Fighter, p: PokemonState, ultimate: boolean): void {
-  const stage = pokemonStage(p.species, p.stage);
-  const target = w.fighters[p.target];
-  const x = f.x + f.facing * (f.w / 2 + 3);
-  const y = f.y - f.h * 0.57;
-  const tx = target?.alive ? target.x : p.goalX;
-  const ty = target?.alive ? target.y - target.h * 0.52 : y;
-  const waterCannon = ultimate && stage.ultimate === 'HYDRO CANNON';
-  const solarBeam = ultimate && stage.ultimate === 'SOLAR BEAM';
-  const waterShuriken = p.species === 'froakie' && p.stage >= 2;
-  const blueFlame = p.species === 'charmander' && stage.special === 'mega';
-  const dragonPulse = p.species === 'treecko' && stage.special === 'mega' && !ultimate;
-  const thunder = ultimate && stage.element === 'electric';
-  const meteor = ultimate && stage.element === 'dragon';
-  const overhead = (thunder || meteor) && !!target?.alive && w.map.clearShot(tx, ty - 68, tx, ty);
-  const spread = stage.element === 'grass' && !solarBeam && !dragonPulse ? ultimate ? [-0.29, -0.14, 0, 0.14, 0.29] : [-0.13, 0, 0.13]
-    : meteor ? stage.special ? [-0.38, -0.19, 0, 0.19, 0.38] : [-0.24, 0, 0.24]
-    : (waterCannon && stage.special || waterShuriken && !ultimate) ? [-0.1, 0, 0.1] : [0];
-  const speed = waterCannon || solarBeam ? 490 : stage.element === 'electric' ? 570 : stage.element === 'aura' ? 250 : 345;
-  for (const angle of spread) {
-    const sx = overhead ? tx + angle * 108 : x;
-    const sy = overhead ? ty - 68 : y;
-    const a = overhead ? Math.atan2(ty - sy, tx - sx) : Math.atan2(ty - y, tx - x) + angle;
-    const bullet = w.spawnBullet({
-      x: sx, y: sy, ox: sx, oy: sy, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, owner: owner.id,
-      weapon: waterCannon ? 'ash:hydroCannon' : blueFlame ? 'ash:blueFire' : dragonPulse ? 'ash:dragon' : shotId[stage.element],
-      damage: (ultimate ? POKEMON_DAMAGE.ultimate : POKEMON_DAMAGE.shot)[stage.damageTier] / (spread.length === 1 ? 1 : spread.length * 0.62),
-      range: overhead ? 115 : ultimate ? 490 : 360, falloff: 1, knock: ultimate ? 2.0 : stage.element === 'aura' ? 1.4 : 0.8,
-      ricochet: false, pierce: waterCannon || solarBeam ? 3 : 0, kind: 'ki',
-      ignite: stage.element === 'fire' && p.stage > 0 ? 1 : 0, size: ultimate ? 9 + p.stage : 4 + p.stage,
-      tier: ultimate ? 2 : 1, form: p.stage,
-    });
-    // A locked shot aimed at a partner goes through its trainer, even if they stand in the same lane.
-    if (target?.alive && target.pokemon) bullet?.hitIds.push(target.master);
-  }
-}
-
 function contact(w: World, f: Fighter, p: PokemonState, ultimate: boolean): void {
   const target = engagedEnemy(w, p.target);
   if (!target) return;
-  const close = Math.abs(target.x - f.x) <= (target.w + f.w) / 2 + 9 &&
+  const punch = p.move === 'punch';
+  const finisher = punch && f.combo === 2;
+  const melee = pokemonMelee(p.species, p.stage, !punch || finisher);
+  const close = Math.abs(target.x - f.x) <= (target.w + f.w) / 2 + (ultimate ? 9 : melee.reach) &&
     target.y >= f.y - f.h - 8 && target.y - target.h <= f.y + 8;
-  if (!close && !p.holding) return;
+  if (!close && !p.holding) {
+    if (!ultimate && !p.fired) p.shots = 0;
+    return;
+  }
   if (ultimate && p.age < timing.ultimateHit) {
     if (!p.holding && target.state !== 'block' && target.invuln <= 0 && target.grabbedBy < 0) {
       w.releaseGrab(target);
@@ -549,20 +586,28 @@ function contact(w: World, f: Fighter, p: PokemonState, ultimate: boolean): void
     }
     return;
   }
-  if (p.fired || !ultimate && p.age < 0.1) return;
-  const punch = p.move === 'punch';
+  if (ultimate && p.fired) return;
+  if (!ultimate) {
+    if (!p.fired) {
+      if (++p.shots * DT < melee.windup) return;
+      p.age = 0;
+      p.shots = 0;
+    } else if (p.shots >= melee.hits || p.age + DT / 2 < p.shots * melee.interval) return;
+    p.shots++;
+  }
   p.fired = true;
-  if (!ultimate) p.age = 0;
   if (p.holding) {
     w.releaseGrab(f);
     p.holding = false;
   }
   const tier = pokemonStage(p.species, p.stage).damageTier;
+  const finalHit = ultimate || p.shots === melee.hits;
+  if (punch) f.comboTimer = 0.9;
   applyHit(w, target, {
-    damage: ultimate ? POKEMON_DAMAGE.seismicToss : (punch ? POKEMON_DAMAGE.punch : POKEMON_DAMAGE.kick)[tier],
+    damage: ultimate ? POKEMON_DAMAGE.seismicToss : (punch ? POKEMON_DAMAGE.punch : POKEMON_DAMAGE.kick)[tier] * (finisher ? 1.3 : 1) / melee.hits,
     attacker: f.id, weapon: punch ? 'ash:punch' : 'ash:tackle', kind: p.move === 'kick' ? 'kick' : 'melee',
-    kbX: f.facing * (ultimate ? 148 : punch ? 75 : 130 + 14 * p.stage), kbY: ultimate ? 125 : punch ? -38 : -85,
-    stun: ultimate ? 0.35 : punch ? 0.14 : 0.19, knockdown: ultimate || !punch && p.stage > 0,
+    kbX: f.facing * (ultimate ? 148 : !finalHit ? 18 : finisher ? 145 : punch ? 38 : melee.knockX), kbY: ultimate ? 125 : !finalHit ? -8 : finisher ? -105 : melee.knockY,
+    stun: ultimate ? 0.35 : finisher ? 0.24 : melee.stun, knockdown: ultimate || finalHit && (finisher || !punch && p.stage > 0),
     x: f.x + f.facing * f.w / 2, y: f.y - f.h * 0.5,
   });
 }
@@ -593,7 +638,7 @@ function movePokemon(w: World, f: Fighter, p: PokemonState, owner: Fighter, jump
   }
   if (melee) {
     if (p.fired) {
-      f.vx *= 0.7;
+      f.vx = engagedEnemy(w, p.target) ? f.vx * 0.7 : 0;
       if (p.mounted && f.flying) f.vy *= 0.7;
       return;
     }
@@ -608,7 +653,8 @@ function movePokemon(w: World, f: Fighter, p: PokemonState, owner: Fighter, jump
       p.target = p.engaged = enemy.id;
     }
     if (stage.flies && enemy.y < f.y - 12) f.flying = true;
-    approachEnemy(w, f, enemy, p.move === 'kick' ? 340 : 285, 4);
+    const contactGap = pokemonMelee(p.species, p.stage, p.move === 'kick' || f.combo === 2).reach;
+    approachEnemy(w, f, enemy, p.move === 'kick' ? 340 : 285, Math.max(4, contactGap - 5));
     return;
   }
   if (p.move === 'dash' || seismicToss(p)) {
@@ -681,6 +727,22 @@ function collectPartnerOrb(w: World, f: Fighter): void {
   if (orb) w.pickUp(f, orb, true);
 }
 
+function moveDuration(f: Fighter, p: PokemonState): number {
+  switch (p.move) {
+    case 'release': return timing.release;
+    case 'evolve': return pokemonEvolutionTime(p.species, p.stage, p.previousStage);
+    case 'shot': return pokemonAttackDuration(pokemonAttack(p.species, p.stage, 'shot'));
+    case 'ultimate': return seismicToss(p) ? timing.ultimate : pokemonAttackDuration(pokemonAttack(p.species, p.stage, 'ultimate'));
+    case 'dash': return ORB_DASH_RANGE / ORB_DASH_SPEED + DT;
+    case 'punch': case 'kick': {
+      if (!p.fired) return Infinity;
+      const melee = pokemonMelee(p.species, p.stage, p.move === 'kick' || f.combo === 2);
+      return (melee.hits - 1) * melee.interval + melee.recovery;
+    }
+    default: return Infinity;
+  }
+}
+
 export function stepPokemon(w: World, f: Fighter, p: PokemonState): void {
   const owner = w.fighters[f.master];
   if (!owner?.alive) {
@@ -689,6 +751,7 @@ export function stepPokemon(w: World, f: Fighter, p: PokemonState): void {
     return;
   }
   p.age += DT;
+  f.comboTimer = Math.max(0, f.comboTimer - DT);
   if (!f.alive) {
     if (p.move === 'ko' && p.age >= timing.faint + timing.recall) {
       f.gone = true;
@@ -776,20 +839,16 @@ export function stepPokemon(w: World, f: Fighter, p: PokemonState): void {
     } else p.holding = false;
   }
   if (p.move === 'punch' || p.move === 'kick' || seismic) contact(w, f, p, seismic);
-  if (!p.fired && (p.move === 'shot' && p.age >= timing.shotFire || p.move === 'ultimate' && !seismic && p.age >= timing.ultimateHit)) {
-    launch(w, f, owner, p, p.move === 'ultimate');
-    p.fired = true;
-  }
-  const end = p.move === 'release' ? timing.release : p.move === 'evolve' ? pokemonEvolutionTime(p.species, p.stage, p.previousStage) : p.move === 'shot' ? timing.shot
-    : p.move === 'dash' ? ORB_DASH_RANGE / ORB_DASH_SPEED + DT : p.move === 'ultimate' ? timing.ultimate
-    : p.move === 'punch' || p.move === 'kick' ? p.fired ? MELEE_RECOVERY : Infinity : Infinity;
-  if (p.age >= end) {
+  if (p.move === 'shot' || p.move === 'ultimate' && !seismic) stepPokemonAttack(w, f, owner, p);
+  if (p.age >= moveDuration(f, p)) {
+    const queued = p.queued && p.move === 'punch' && selectedPartnerBall(owner) && !owner.prev.block;
     if (p.holding) w.releaseGrab(f);
     p.holding = false;
     if (p.move === 'release' && p.previousStage < p.stage) changeMove(p, 'evolve');
     else {
       if (p.move === 'evolve') p.previousStage = p.stage;
       changeMove(p, p.mounted ? 'carry' : 'follow');
+      if (queued) command(w, owner, f, 'punch');
     }
   }
   collectPartnerOrb(w, f);

@@ -9,7 +9,7 @@ import { isTouchDevice } from '../game/display';
 import { load, save } from '../game/storage';
 import { profiles, saveProfiles } from '../game/profiles';
 import { maxLevel } from '../sim/data/heroes';
-import { pokemonSpecies, pokemonStage, type PokemonSpecies } from '../sim/data/pokemon';
+import { pokemonSpecies, pokemonStage, pokemonTeam, type PokemonSpecies } from '../sim/data/pokemon';
 import type { GameMode } from '../sim/match';
 import type { MatchSceneData, PlayerSetup } from './MatchScene';
 import { PLAYER_COLORS } from './ui';
@@ -41,6 +41,7 @@ export interface SlotCfg {
   /** hero id (sim/data/heroes.ts), '' = scrapyard fighter with the custom look */
   hero: string;
   pokemon?: PokemonSpecies;
+  pokemonTeam?: PokemonSpecies[];
   /** power-up form the hero starts in (0 = base .. the hero's top form), so forms can be matched up without waiting for orbs */
   form: number;
 }
@@ -94,9 +95,11 @@ export function loadLobby(): LobbyCfg {
     if (k >= 0) {
       slot.hero = profiles[k].hero;
       slot.pokemon = profiles[k].pokemon;
+      slot.pokemonTeam = profiles[k].pokemonTeam?.slice();
       slot.look = { ...profiles[k].look };
     }
     if (slot.pokemon !== undefined) slot.pokemon = pokemonSpecies(slot.pokemon);
+    if (slot.pokemonTeam !== undefined) slot.pokemonTeam = pokemonTeam(slot.pokemonTeam, pokemonSpecies(slot.pokemon));
   }
   return out;
 }
@@ -107,6 +110,7 @@ export function syncSlotToProfile(slot: SlotCfg): void {
   if (k < 0) return;
   profiles[k].hero = slot.hero;
   profiles[k].pokemon = slot.pokemon;
+  profiles[k].pokemonTeam = slot.pokemonTeam?.slice();
   profiles[k].look = { ...slot.look };
   saveProfiles();
 }
@@ -153,7 +157,8 @@ export function lobbyToMatch(c: LobbyCfg, seed: number): MatchSceneData {
     const startForm = slotStartForm(s);
     players.push({
       spawn: { name: label, team: s.team, isBot, upJumps: kb >= 0, hero: s.hero || undefined,
-        startForm: startForm || undefined, pokemon: s.hero === 'ash' ? pokemonSpecies(s.pokemon) : undefined },
+        startForm: startForm || undefined, pokemon: s.hero === 'ash' ? pokemonSpecies(s.pokemon) : undefined,
+        pokemonTeam: s.hero === 'ash' ? pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon)) : undefined },
       look: heroLook(s.hero, s.look),
       color,
       label,

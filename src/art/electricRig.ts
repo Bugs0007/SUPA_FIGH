@@ -61,14 +61,23 @@ function poseFor(rank: number, pose: PokemonPose, phase: number): RodentPose {
     if (pose === 'kick') feet = [[-5, -2], [3 + 9 * power, -2 - 6 * power]];
     tail += power * 3;
     ear += power * 2;
+  } else if (pose === 'backhand') {
+    chest = offset(chest, 2 * power, -power);
+    head = offset(head, 3 * power, -power);
+    hands = [offset(chest, 3 + power * 8, -power * 3), offset(chest, 5 - power * 5, 3)];
+    feet = [[-6, -2], [4, -2]];
+    tail -= power * 8;
+    ear -= power * 2;
   } else if (pose === 'cast') {
     const charge = CAST[phase];
-    chest = offset(chest, -charge * 2, charge);
-    head = offset(head, charge * 2, charge);
-    hands = [offset(chest, 2, 2 - charge), offset(chest, 5, 3 - charge * 2)];
+    const recoil = [-1,-2,3,2.5,-0.6,-0.3,-0.1,0][phase];
+    hip = offset(hip, -charge, charge);
+    chest = offset(chest, recoil, charge);
+    head = offset(head, recoil * 0.6, -charge);
+    hands = [offset(chest, 2 - charge * 3, 3 - charge), offset(chest, 5 + charge * 3, 2 - charge * 4)];
     feet = [[-6, -2], [4, -2]];
     ear -= charge * 3;
-    tail += charge * 2;
+    tail += charge * 6;
   } else if (pose === 'windup' || pose === 'guard') {
     hip = offset(hip, -1, 1);
     chest = offset(chest, -2, 2);

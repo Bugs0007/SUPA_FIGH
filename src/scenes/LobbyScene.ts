@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { randomAppearance } from '../art/appearance';
 import { heroLook } from '../art/heroArt';
 import { HEROES, maxLevel } from '../sim/data/heroes';
-import { pokemonSpecies, pokemonStage } from '../sim/data/pokemon';
+import { pokemonSpecies, pokemonStage, pokemonTeam } from '../sim/data/pokemon';
+import { PokemonTeamPicker } from './PokemonTeamPicker';
 import { hexToNum, P, TEAM_COLORS, TEAM_NAMES } from '../art/palette';
 import { audio } from '../audio/AudioManager';
 import { VIEW_H, VIEW_W } from '../game/display';
@@ -22,6 +23,7 @@ import {
   MODE_ORDER,
   saveLobby,
   slotStartForm,
+  syncSlotToProfile,
   SLOT_KIND_LABELS,
   SLOT_KINDS,
   SUDDEN_DEATH_OPTIONS,
@@ -36,9 +38,9 @@ import { bindZoom, fighterPreview } from './ui';
 import { bakeMapPreview } from '../art/mapPreview';
 import { shareUrl } from './shareLink';
 
-const SLOT_COLS = ['kind', 'team', 'skill', 'look', 'form'] as const;
-const SLOT_COL_X = [36, 130, 186, 244, 298];
-const SLOT_COL_W = [88, 50, 52, 50, 38];
+const SLOT_COLS = ['kind', 'team', 'skill', 'look', 'form', 'pokemon'] as const;
+const SLOT_COL_X = [36, 118, 162, 214, 268, 306];
+const SLOT_COL_W = [76, 38, 46, 48, 33, 30];
 const SETTINGS = ['map', 'mode', 'length', 'sudden', 'ff', 'weapons', 'chaos', 'powers', 'fall', 'start', 'controls', 'simulate', 'share'] as const;
 /** rules panel row pitch (px): 13 rows still clear the map preview below */
 const SET_H = 15;
@@ -68,6 +70,7 @@ export class LobbyScene extends Phaser.Scene {
   /** transient message in the rules panel (share link copied...) */
   private notice = '';
   private noticeT = 0;
+  private teamPicker: PokemonTeamPicker | null = null;
 
   constructor() {
     super('lobby');
@@ -82,6 +85,7 @@ export class LobbyScene extends Phaser.Scene {
     this.notice = data?.shared ? 'SHARED SETUP LOADED' : '';
     this.noticeT = data?.shared ? 3 : 0;
     this.row = 0;
+    this.teamPicker = null;
     this.col = 0;
     this.t = 0;
     // the scene instance is reused: forget the previous run's (destroyed) objects
@@ -94,15 +98,18 @@ export class LobbyScene extends Phaser.Scene {
     this.gfx = this.add.graphics();
     this.add.bitmapText(VIEW_W / 2, 8, 'pxo', 'MATCH SETUP').setOrigin(0.5, 0).setScale(2).setTint(hexToNum(P.yellow));
     this.add.bitmapText(36, 32, 'sm', 'FIGHTER').setTint(0x8d95b0);
-    this.add.bitmapText(130, 32, 'sm', 'TEAM').setTint(0x8d95b0);
-    this.add.bitmapText(186, 32, 'sm', 'BOT SKILL').setTint(0x8d95b0);
-    this.add.bitmapText(244, 32, 'sm', 'HERO / LOOK').setTint(0x8d95b0);
-    this.add.bitmapText(298, 32, 'sm', 'START FORM').setTint(0x8d95b0);
+    this.add.bitmapText(118, 32, 'sm', 'TEAM').setTint(0x8d95b0);
+    this.add.bitmapText(162, 32, 'sm', 'BOT SKILL').setTint(0x8d95b0);
+    this.add.bitmapText(214, 32, 'sm', 'HERO / LOOK').setTint(0x8d95b0);
+    this.add.bitmapText(268, 32, 'sm', 'FORM').setTint(0x8d95b0);
+    this.add.bitmapText(306, 32, 'sm', 'PKMN').setTint(0xffdc69);
     for (let i = 0; i < MAX_SLOTS; i++) {
       const y = 44 + i * 28;
       this.add.bitmapText(8, y + 6, 'smo', String(i + 1)).setTint(0x8d95b0);
       this.texts.push(SLOT_COL_X.map((x) => this.add.bitmapText(x, y + 6, 'smo', '')));
       this.previews.push(this.add.container(0, 0));
+      this.add.zone(303, y, 34, 26).setOrigin(0).setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => { if (!this.teamPicker) { this.row = i; this.col = 5; this.openTeam(i); } });
     }
     SETTINGS.forEach((_, i) => {
       this.settingLabels.push(this.add.bitmapText(354, 52 + i * SET_H, 'sm', '').setTint(0x8d95b0).setDepth(2));
@@ -143,6 +150,7 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   override update(_time: number, deltaMs: number): void {
+    if (this.teamPicker) { this.teamPicker.update(); return; }
     this.t += deltaMs / 1000;
     this.noticeT = Math.max(0, this.noticeT - deltaMs / 1000);
     this.joinPads();
@@ -164,6 +172,7 @@ export class LobbyScene extends Phaser.Scene {
     const set = this.setting();
     const lr = menu.left() ? -1 : menu.right() ? 1 : 0;
     if (set === null) {
+      if (keyboard.justPressed('KeyP') && this.cfg.slots[this.row].hero === 'ash') { this.openTeam(this.row); return; }
       // slot rows: left/right picks the column, confirm changes it
       if (lr) {
         this.col = (this.col + lr + SLOT_COLS.length) % SLOT_COLS.length;
@@ -176,6 +185,7 @@ export class LobbyScene extends Phaser.Scene {
         return;
       }
       if (menu.confirm() || keyboard.justPressed('Tab')) {
+        if (SLOT_COLS[this.col] === 'pokemon') { this.openTeam(this.row); return; }
         changed = this.changeSlot(this.row, SLOT_COLS[this.col], keyboard.isDown('ShiftLeft') || keyboard.isDown('ShiftRight') ? -1 : 1);
       }
     } else {
@@ -227,7 +237,20 @@ export class LobbyScene extends Phaser.Scene {
     }
   }
 
-  /** Cycle the value of one slot column; false when that column does nothing for this slot. */
+  private openTeam(i: number): void {
+    const slot = this.cfg.slots[i];
+    if (slot.kind === 'empty' || slot.hero !== 'ash') return;
+    this.teamPicker = new PokemonTeamPicker(this, slot.pokemonTeam, slot.pokemon, (team, first) => {
+      slot.pokemonTeam = team;
+      slot.pokemon = first;
+      slot.form = slotStartForm(slot);
+      syncSlotToProfile(slot);
+      saveLobby(this.cfg);
+      this.render();
+    }, () => { this.teamPicker = null; this.barMode = ''; });
+  }
+
+  /** Cycle one slot value; team selection uses its own panel. */
   private changeSlot(i: number, col: (typeof SLOT_COLS)[number], d: number): boolean {
     const s = this.cfg.slots[i];
     if (col === 'kind') s.kind = cycle(SLOT_KINDS, s.kind, d);
@@ -346,7 +369,7 @@ export class LobbyScene extends Phaser.Scene {
       const sel = this.row === i;
       g.fillStyle(sel ? 0x3a3054 : 0x221d2e, 1).fillRect(4, y, 334, 26);
       if (s.team > 0 && s.kind !== 'empty') g.fillStyle(hexToNum(TEAM_COLORS[s.team]), 1).fillRect(4, y, 2, 26);
-      const [kind, team, skill, look, form] = this.texts[i];
+      const [kind, team, skill, look, form, partners] = this.texts[i];
       const dim = s.kind === 'empty' ? 0x5a5668 : 0xffffff;
       kind.setText(SLOT_KIND_LABELS[s.kind]).setTint(s.kind.startsWith('pad') && !connectedPads()[Number(s.kind.slice(3))] ? 0xc08060 : dim);
       team.setText(s.kind === 'empty' ? '' : TEAM_NAMES[s.team]).setTint(s.team > 0 ? hexToNum(TEAM_COLORS[s.team]) : 0xc3c9dc);
@@ -356,6 +379,8 @@ export class LobbyScene extends Phaser.Scene {
       const major = s.hero === 'ash' ? pokemonStage(pokemonSpecies(s.pokemon), lv).special : undefined;
       const formLabel = major === 'mega' ? 'MEGA' : major === 'bond' ? 'BOND' : lv ? `FORM ${lv}` : 'BASE';
       form.setText(s.kind === 'empty' || !s.hero ? '' : formLabel).setTint(lv ? hexToNum(P.yellow) : 0xc3c9dc);
+      partners.setText(s.kind !== 'empty' && s.hero === 'ash' ? pokemonTeam(s.pokemonTeam, pokemonSpecies(s.pokemon)).length + '/8' : '-')
+        .setTint(s.hero === 'ash' ? 0xffdc69 : 0x5a5668);
       if (sel) {
         g.lineStyle(1, blink ? 0xffffff : 0xf8c840, 1).strokeRect(SLOT_COL_X[this.col] - 3.5, y + 2.5, SLOT_COL_W[this.col], 14);
       }

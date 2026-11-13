@@ -11,7 +11,7 @@ import { COOP, GUN_LADDER, JUGGERNAUT, KOTH_TARGET, MODE_NAMES } from '../sim/ma
 import { brawlPoints, brawlPointScale } from '../sim/data/brawl';
 import { MODIFIER_BY_ID } from '../sim/data/modifiers';
 import { FORM_HP, heroDef } from '../sim/data/heroes';
-import { POKE_BALL, POKEMON_TIMING } from '../sim/data/pokemon';
+import { POKE_BALL, POKEMON_TIMING, pokemonStage } from '../sim/data/pokemon';
 import { BOOST_COLORS, formFx } from '../art/heroArt';
 import { weaponDef } from '../sim/data/weapons';
 import { activeWeapon } from '../sim/fighter';
@@ -190,8 +190,8 @@ export class HudScene extends Phaser.Scene {
         this.add.bitmapText(0, 0, 'smo', 'K').setOrigin(0.5, 0),
         this.add.bitmapText(0, 0, 'smo', 'S').setOrigin(0.5, 0),
       ]);
-      this.panelIcons.push(Array.from({ length: 5 }, () => this.add.image(0, 0, 'weapons').setVisible(false)));
-      this.panelCounts.push(Array.from({ length: 5 }, () => this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 1).setDepth(2)));
+      this.panelIcons.push(Array.from({ length: 12 }, () => this.add.image(0, 0, 'weapons').setVisible(false)));
+      this.panelCounts.push(Array.from({ length: 12 }, () => this.add.bitmapText(0, 0, 'smo', '').setOrigin(1, 1).setDepth(2)));
     });
     this.roundBanner(1);
   }
@@ -465,14 +465,15 @@ export class HudScene extends Phaser.Scene {
       const inner = n >= 2; // players 3/4 sit next to players 1/2
       const PW = PANEL_W;
       const px = right ? VIEW_W - PW - 6 - (inner ? PW + 6 : 0) : 8 + (inner ? PW + 6 : 0);
-      const py = VIEW_H - 57;
+      const panelHeight = f.trainer ? 64 : 57;
+      const py = VIEW_H - panelHeight;
       // a fighter behind the panel (camera at the map's bottom edge): fade it so nobody is hidden
       const a = this.panelBlocked(px - 3, py - 3 - (f.alive && f.power ? 12 : 0), PW, 56) ? 0.3 : 1;
       this.panelAlpha[n] = a;
-      g.fillStyle(hexToNum(P.ink), 0.78 * a).fillRect(px - 3, py - 3, PW, 56);
+      g.fillStyle(hexToNum(P.ink), 0.78 * a).fillRect(px - 3, py - 3, PW, panelHeight - 1);
       g.fillStyle(0x9bbde8, 0.25 * a).fillRect(px - 3, py - 3, PW, 1);
       g.fillStyle(0x000000, 0.3 * a).fillRect(px - 1, py + 52, PW - 2, 2);
-      g.lineStyle(1, p.color, a).strokeRect(px - 3.5, py - 3.5, PW + 1, 57);
+      g.lineStyle(1, p.color, a).strokeRect(px - 3.5, py - 3.5, PW + 1, panelHeight);
       for (const t of this.panelTexts[n]) t.setAlpha(a);
       for (const t of this.panelCounts[n]) t.setAlpha(a);
       nameT.setText(p.label).setTint(p.color).setPosition(px, py);
@@ -492,6 +493,14 @@ export class HudScene extends Phaser.Scene {
             : { frac: 1 - Math.max(0, f.secondCd) / hero.second.cooldown, on: f.secondCd <= 0, col: hexToNum(P.yellow) },
           { frac: sup ? 1 - Math.max(0, f.specialCd) / hero.super.cooldown : 0, on: sup && f.specialCd <= 0, col: hexToNum(P.red2) },
         ];
+        if (f.trainer) {
+          const t = f.trainer, partner = w.fighters[t.active];
+          const ready = !!(partner?.alive && partner.pokemon?.species === t.species && partner.pokemon.move !== 'recall');
+          [t.shotCd, t.dashCd, t.ultimateCd].forEach((cd, i) => {
+            chips[i].frac = ready ? 1 - cd / [0.85, 1.2, 5.5][i] : 0;
+            chips[i].on = ready && cd <= 0;
+          });
+        }
         const ch = hero.base.charges;
         if (ch) {
           // charged ability (Luffy's arm): the chip is split into one bar per charge; a spent one refills on its own
@@ -540,12 +549,15 @@ export class HudScene extends Phaser.Scene {
       const item = f.inv[f.active];
       const ballSelected = f.trainer && item?.id === POKE_BALL;
       const ghostText = f.ghost ? (f.ghostCd <= 0 ? 'GHOST: ATTACK = BOO!' : `GHOST: BOO IN ${Math.ceil(f.ghostCd)}`) : 'DEAD';
-      weapT.setText(f.alive ? ballSelected ? 'POKE BALL' : def.name : ghostText).setPosition(px, py + 29).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
       const trainer = f.trainer;
+      const member = trainer?.team.find(entry => entry.species === item?.pokemon);
+      const species = item?.pokemon ?? trainer?.species;
+      weapT.setText(f.alive ? ballSelected && species ? pokemonStage(species, member?.stage ?? trainer!.stage).name : def.name : ghostText)
+        .setPosition(px, py + 29).setTint(f.alive ? 0xffffff : f.ghost ? 0xb0e0ff : 0x888888);
       const returningMove = trainer && w.fighters[trainer.active]?.pokemon?.move;
       const returning = returningMove === 'recall' || returningMove === 'ko';
       const ammo = ballSelected && trainer ? returning ? 'RETURNING'
-        : trainer.active >= 0 ? 'DEPLOYED' : trainer.cooldown > 0 ? 'KO ' + Math.ceil(trainer.cooldown) + 'S' : 'READY'
+        : member && member.slot === trainer.active ? 'OUT' : (member?.cooldown ?? trainer.cooldown) > 0 ? 'KO ' + Math.ceil(member?.cooldown ?? trainer.cooldown) + 'S' : 'READY'
         : item && (def.gun || def.throw) ? 'x' + item.ammo : item && def.gadget?.kind === 'jetpack' ? Math.ceil(item.ammo * 10) / 10 + 'S' : '';
       ammoT.setText(f.alive ? ammo : '').setPosition(px + PW - 8 - ammoT.width, py + 29).setTint(item && def.gun && item.ammo <= 3 ? hexToNum(P.red2) : 0xfff4a0);
       // transformation: form name + level pips + time left (above the panel)
@@ -558,35 +570,49 @@ export class HudScene extends Phaser.Scene {
         if (isHero) for (let l = 0; l < lvlMax; l++) g.fillStyle(l < f.powerLevel ? col : 0x3a3448, a).fillRect(px + PW - 8 - (lvlMax - l) * 7, py - 12, 5, 5);
         if (!isHero) g.fillStyle(col, a).fillRect(px - 3, py - 5, Math.round(PW * Math.max(0, f.powerTime / f.powerMax)), 1);
       } else powT.setVisible(false);
-      for (let s = 0; s < 5; s++) {
-        const bx = px + s * 20;
-        const by = py + 38;
-        const inv = f.inv[s];
-        const active = f.active === s && f.alive;
-        g.fillStyle(active ? 0x4a4060 : 0x241e32, a).fillRect(bx, by, 18, 12);
-        if (active) g.lineStyle(1, 0xffffff, a).strokeRect(bx - 0.5, by - 0.5, 19, 13);
-        const icon = this.panelIcons[n][s];
-        const cnt = this.panelCounts[n][s];
+      this.panelIcons[n].forEach(icon => icon.setVisible(false));
+      this.panelCounts[n].forEach(count => count.setText(''));
+      const slots = f.trainer ? f.inv.flatMap((inv, index) => index === 0 || inv?.id === POKE_BALL ? [index] : []) : [0, 1, 2, 3, 4];
+      const pitch = f.trainer ? Math.min(20, Math.floor((PW - 7) / slots.length)) : 20;
+      const width = Math.min(18, pitch - 2);
+      slots.forEach((slot, cell) => {
+        const bx = px + cell * pitch, by = py + 38;
+        const inv = f.inv[slot];
+        const active = f.active === slot && f.alive;
+        g.fillStyle(active ? 0x4a4060 : 0x241e32, a).fillRect(bx, by, width, 12);
+        if (active) g.lineStyle(1, 0xffffff, a).strokeRect(bx - 0.5, by - 0.5, width + 1, 13);
+        const icon = this.panelIcons[n][cell], cnt = this.panelCounts[n][cell];
         const wf = inv ? Art.weapon(inv.id) : undefined;
         if (inv?.id === POKE_BALL && f.alive) {
-          icon.setVisible(false);
-          const ink = a * (active ? 1 : 0.65);
-          g.fillStyle(0x171324, ink).fillRect(bx + 5, by + 2, 8, 8).fillRect(bx + 4, by + 4, 10, 4);
-          g.fillStyle(0xd8464d, ink).fillRect(bx + 6, by + 3, 6, 2).fillRect(bx + 5, by + 5, 8, 1);
-          g.fillStyle(0xe2e1e8, ink).fillRect(bx + 5, by + 7, 8, 1).fillRect(bx + 6, by + 8, 6, 1);
-          g.fillStyle(0xfff7dd, ink).fillRect(bx + 8, by + 5, 2, 2);
-          if (trainer && trainer.active >= 0) g.fillStyle(0x81e1ac, ink).fillRect(bx + 14, by + 2, 2, 2);
+          const ink = a * (active ? 1 : 0.65), cx = bx + Math.floor(width / 2);
+          const partner = trainer?.team.find(entry => entry.species === inv.pokemon);
+          const out = partner && partner.slot === trainer?.active && !returning;
+          g.fillStyle(0x171324, ink).fillRect(cx - 4, by + 2, 8, 8).fillRect(cx - 5, by + 4, 10, 4);
+          g.fillStyle(0xd8464d, ink).fillRect(cx - 3, by + 3, 6, 2).fillRect(cx - 4, by + 5, 8, 1);
+          g.fillStyle(0xe2e1e8, ink).fillRect(cx - 4, by + 7, 8, 1).fillRect(cx - 3, by + 8, 6, 1);
+          g.fillStyle(0xfff7dd, ink).fillRect(cx - 1, by + 5, 2, 2);
+          if (out) g.fillStyle(0x81e1ac, ink).fillRect(bx + width - 2, by + 1, 2, 2);
+          if (partner) {
+            const stored = w.fighters[partner.slot];
+            const fraction = partner.cooldown > 0 ? 1 - partner.cooldown / POKEMON_TIMING.knockout
+              : stored?.hp > 0 ? stored.hp / stored.maxHp : 1;
+            g.fillStyle(partner.cooldown > 0 ? 0xc27678 : 0x81e1ac, ink).fillRect(bx + 1, by + 11, Math.round((width - 2) * fraction), 1);
+          }
           if (active && trainer && trainer.attackHeld > 0) {
             const progress = Math.min(1, trainer.attackHeld / POKEMON_TIMING.holdToRecall);
-            g.fillStyle(0xffa75a, ink).fillRect(bx + 2, by + 10, Math.ceil(14 * progress), 1);
+            g.fillStyle(0xffa75a, ink).fillRect(bx + 1, by + 10, Math.ceil((width - 2) * progress), 1);
           }
-        } else if (wf && f.alive) {
-          const k = Math.min(1, 17 / wf.w, 11 / wf.h);
-          icon.setVisible(true).setTexture(wf.key, wf.frame).setScale(k).setPosition(bx + 9, by + 6).setAlpha((active ? 1 : 0.7) * a);
-        } else icon.setVisible(false);
-        const idef = inv ? weaponDef(inv.id) : null;
-        cnt.setText(inv && f.alive && idef?.throw ? String(inv.ammo) : '').setPosition(bx + 18, by + 13);
-      }
+          cnt.setText((inv.pokemon ?? trainer?.species ?? '').slice(0, 3).toUpperCase()).setOrigin(0.5, 1)
+            .setPosition(bx + width / 2, by + 20).setTint(partner?.cooldown ? 0xc27678 : active ? 0xffffff : 0x9caec7);
+        } else {
+          if (wf && f.alive) {
+            const k = Math.min(1, (width - 1) / wf.w, 11 / wf.h);
+            icon.setVisible(true).setTexture(wf.key, wf.frame).setScale(k).setPosition(bx + width / 2, by + 6).setAlpha((active ? 1 : 0.7) * a);
+          }
+          const idef = inv ? weaponDef(inv.id) : null;
+          cnt.setText(inv && f.alive && idef?.throw ? String(inv.ammo) : '').setOrigin(1, 1).setPosition(bx + width, by + 13);
+        }
+      });
     });
 
     // ---- instant replay: letterbox + label
